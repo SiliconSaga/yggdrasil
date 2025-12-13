@@ -1,0 +1,50 @@
+{
+	"folders": [
+		{
+			"path": "../fulcrum"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../vordu"
+		},
+		{
+			"path": "../nidavellir"
+		},
+		{
+			"path": "../uplifted-mascot"
+		},
+		{
+			"path": "../jenkins-python-ai-agent"
+		},
+		{
+			"path": "../autoboros"
+		},
+		{
+			"path": "../bifrost"
+		},
+		{
+			"path": "../sample-md"
+		},
+		{
+			"path": "../demicracy.github.io"
+		},
+		{
+			"path": "../frontstate.github.io"
+		},
+		{
+			"path": "../Cervator.github.io"
+		},
+		{
+			"path": "../nordri"
+		},
+		{
+			"path": "../demicracy"
+		},
+		{
+			"path": "../../Terasology/Git_WS/Logistics"
+		}
+	],
+	"settings": {}
+}

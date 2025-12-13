@@ -1,0 +1,12 @@
+phases:
+  0: "Foundation (Norðri)"
+  1: "Utility MVP"
+  2: "Federation"
+  3: "Sovereignty"
+
+projects:
+  - nordri
+  - nidavellir
+  - autoboros
+  - demicracy
+  - uplifted-mascot
