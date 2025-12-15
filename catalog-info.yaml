@@ -1,0 +1,11 @@
+# Yggdrasil: The World Tree (Domain)
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: yggdrasil
+  description: The overarching ecosystem and workspace root.
+  annotations:
+    vordu.io/phases: "0:Foundation,1:Utility,2:Federation,3:Sovereignty"
+    vordu.io/active-projects: "vordu,autoboros,mimir"
+spec:
+  owner: cervator
