@@ -15,6 +15,8 @@ If the constellation is set up as a BOM it may make sense to define each section
 
 The goal would be to define an API but leave implementation details to the local admins.
 
+The groupings could become Backstage Systems while their individual elements become Components. Yggdrasil could define the Domain. If desired the System repos could solely hold the catalog details and overarching docs for that System then Component repos could use nested Git a la Terasology - if they should be split out from the System repo. The whole workspace would effectively represent the Backstage Domain, anchored on Yggdrasil.
+
 ## The Root: Yggdrasil (Workspace)
 *   **Project**: **Yggdrasil**
 *   **Location**: `d:/Dev/GitWS/yggdrasil`
