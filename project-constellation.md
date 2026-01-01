@@ -37,6 +37,8 @@ Then stuff that still needs to go in public cloud as well (like new k8s api gate
 *   **Tech Stack**: K3s (Kubernetes), Crossplane (platform), Longhorn (PVs), Garage (object storage), Velero (backups)
         * Tailscale / Headscale with custom DERPs collocated with similar decentralized elements (RAID nodes, relays, etc)
 *   **Purpose**: The "Substrate". A resilient, self-hosted cloud-in-a-box. Nordri is one of the dwarves holding up the sky.
+*   **Layer 2 (Infra Services via Crossplane)**: Crossplane runs here to vend "As-a-Service" primitives (Databases, Buckets) to the upper layers.
+    *   *Note*: The cluster itself (Layer 0) is bootstrapped manually/scripted, then ArgoCD (Layer 1) installs Crossplane.
 
 ## The Rememberer: Mimir (Data Management)
 
@@ -66,8 +68,11 @@ There may be some overlap between extras provided within k3s like Traefik, which
 *   **Project**: **Nidavellir**
 *   **Location**: `d:/Dev/GitWS/nidavellir`
 *   **Tech Stack**:
-    *   Likely "Vegvísir" would be the sub-term for ingress control / gateway / routing. Which is needed in GKE as well as in the homelab (Nordri). Is Traefik in both and if so is Vegvisir just a wrapper / name for it? Maybe Vegvisir is also the operator that configures the Gateway solely on new authorized Routes being added (to avoid a manual step to update the Gateway separately)
-    *   **Keycloak**: Identity provider (The "Passport").
+    *   **Vegvísir** (Traefik + Custom Operator): The "Traffic Cop".
+        *   Standardizes Ingress/Gateway across GKE and Homelab.
+        *   Operator ensures Crossplane-provisioned GameServer routes are safely attached to the shared Gateway.
+        *   Note that Traefik may come automatically with k3s (possibly need a gateway config tweak) yet need manual install in GKE. After that then Vegvisir should work the same in both cases.
+    *   **Keycloak**: Identity provider (The "Passport"). Deployed by Argo, consumes Crossplane Postgres.
     *   **OpenBAO**: Secrets storage (plus custom Python for local scaffolding)
     *   **Wekan**: Kanban/Project management. Might be an option but doesn't feel super prioritized anymore with all the other solid / core platform bits.
         * Or actually - Vordu? For BDD organizing new projects
@@ -117,7 +122,15 @@ There may be some overlap between extras provided within k3s like Traefik, which
 
 ## Tafl: Game Hosting
 
-Agones et al. Basic game hosting.
+*   **Project**: **Tafl**
+    *   **Location**: `d:/Dev/GitWS/tafl`
+    *   **Tech**: Agones (K8s), Django (Orchestrator).
+    *   **Role**: The "Game Board". Manages the lifecycle of game servers.
+    *   **Architecture**:
+        *   **ArgoCD**: Deploys the Agones Controller (Platform Layer).
+        *   **Tafl API**: Instructs Agones to spawn servers (Application Layer).
+        *   **Vegvísir**: Routes traffic to the game servers.
+        *   **Crossplane**: Connects the servers to S3 buckets for world data.
 
 ## The Metaverse: Bifrost (Game Bridging)
 
@@ -141,3 +154,56 @@ Advanced API for bridging games together.
     *   Autoboros queries UM: "What are the rules?"
     *   Autoboros checks **Nidavellir**: "Is this user verified in Keycloak?"
     *   Autoboros creates a PR in the **Governance Repo**.
+
+## Another Layer Perspective
+
+An overview of what goes where to do what for who.
+
+### Layer 0: The Substrate (Manual/Scripted)
+
+* What: The physical or virtual "Metal."
+* Components: Use a script to provision the base GKE cluster or the K3s node. This is the "Bootstrapping" phase. Once the Kubernetes API exists, everything else is automated.
+
+### Layer 1: The Platform Foundation (ArgoCD)
+
+* What: The "Operating System" of the cluster.
+* Components: ArgoCD itself, Crossplane (the controller), Traefik (Ingress Controller), Agones (Controller), Cert-Manager.
+* Why Argo?: These are complex, in-cluster software deployments with intricate configurations. Argo's visibility and drift management are superior for software lifecycle.
+
+Possibly Argo itself really is layer 1, then the other apps are somewhere around layer 1.5. Another special case would be Gitea in its bootstrapping mode. It can later be upgraded to permanent with persistent DB and file storage.
+
+Layer 0 ready -> Argo installed -> Gitea bootstrapped -> Argo syncs other apps from Gitea -> Proceed to Layer 2 to vend infra -> Potentially upgrade Layer 1 stuff.
+
+A similar approach was used in the Logistics repo where Argo would install then prepare ingress control automatically, but leave other appset inactive until the user takes an action and OKs the ingress setup including cert manager. Then you can refresh Argo from inside Argo, along with everything else. Quite possibly in the new approach you'd just do 
+
+Argo -> Gitea -> Vegvisir -> Argo-in-Argo -> Crossplane -> Argo other apps including Agones etc
+
+### Layer 2: The Infrastructure Services (Crossplane)
+
+* What: "As-a-Service" primitives that applications need to existing.
+* Components:
+  * Databases: PostgreSQL, MongoDB (via your Mimir compositions).
+  * Storage: S3 Buckets (via Garage compositions).
+  * Queues: Kafka topics.
+
+Value of Crossplane: Abstraction. An application developer (or Backstage template) requests a PostgresDB claim.
+
+* On GKE: Crossplane provisions a Google Cloud SQL instance (High performance, managed).
+* On Local: Crossplane provisions a Helm-based Postgres pod (Free, simple).
+
+The Application doesn't know the difference. It just gets a Secret with a connection string.
+
+### Layer 3: The Platform Capabilities (Nidavellir)
+
+* What: High-level tools built on Layer 1 & 2.
+* Components: Jenkins, Artifactory, Keycloak.
+* Deployment: These are software applications, so they are deployed via ArgoCD. However, they consume Layer 2 services.
+* Example: Keycloak is deployed by Argo, but it requests a PostgresDB claim from Crossplane for its storage.
+
+### Layer 4: User Workloads (Run-Time)
+
+* What: The actual business logic.
+* Components:
+  * Tafl: Orchestrates games.
+  * Demicracy: Runs Backstage.
+  * GameServers: Managed by Agones (triggered by Tafl).
