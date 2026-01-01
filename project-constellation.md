@@ -1,7 +1,6 @@
 # The Project Constellation: Yggdrasil
-*A "Meta-Map" of the User's Ecosystem*
 
-This document serves as the "Manual Backstage" to track the relationships between your distributed projects, workspaces, and machines.
+This document serves as an initial overview of projects, workspaces, and machines. Yggdrasil is a container more than a foundation. Workflow guidance here.
 
 It could be reworked later via the Tech Radar in Backstage? To see when Pulp might be a viable alternative to Nexus/Artifactory, for instance.
 
@@ -19,7 +18,7 @@ The groupings could become Backstage Systems while their individual elements bec
 
 ## The Root: Yggdrasil (Workspace)
 
-A container more than a foundation. Workflow guidance here. Parent Driven Development? Here or as part of Vordu?
+Yggdrasil contains the root workspace config and some documents. Should Parent Driven Development (PDD) live here or be part of Vordu?
 
 *   **Project**: **Yggdrasil**
 *   **Location**: `d:/Dev/GitWS/yggdrasil`
@@ -28,17 +27,15 @@ A container more than a foundation. Workflow guidance here. Parent Driven Develo
 
 ## The Foundation: Norðri (Infrastructure)
 
-TODO: Maybe rename to the southern dwarf as the home-lab only layer (block storage etc that turns basic k8s into basic private cloud - but no more?)
+Norðri is the bootstrapper dwarf that holds up the sky. This is achieved through the first 4 layers of the overall stack.
 
-Then stuff that still needs to go in public cloud as well (like new k8s api gateway) can be Nordri - or is all that Nidavellir, which also gets installed into homelab?
-
-*   **Project**: **Norðri** (formerly Fulcrum Infra)
-*   **Location**: Macbook (Separate Workspace) / `d:/Dev/GitWS/nordri`
+*   **Project**: **Norðri**
+*   **Location**: `d:/Dev/GitWS/nordri`
 *   **Tech Stack**: K3s (Kubernetes), Crossplane (platform), Longhorn (PVs), Garage (object storage), Velero (backups)
-        * Tailscale / Headscale with custom DERPs collocated with similar decentralized elements (RAID nodes, relays, etc)
-*   **Purpose**: The "Substrate". A resilient, self-hosted cloud-in-a-box. Nordri is one of the dwarves holding up the sky.
-*   **Layer 2 (Infra Services via Crossplane)**: Crossplane runs here to vend "As-a-Service" primitives (Databases, Buckets) to the upper layers.
-    *   *Note*: The cluster itself (Layer 0) is bootstrapped manually/scripted, then ArgoCD (Layer 1) installs Crossplane.
+        * Later also: Tailscale / Headscale with custom DERPs collocated with similar decentralized elements (RAID nodes, relays, etc)
+*   **Purpose**: The "Substrate". A resilient, self-hosted cloud-in-a-box / customized public cloud ready to become more.
+*   **Layers 1-4 (Infrastructure)**: Nordri covers the stack from Metal (L1) -> Gitea (L2) -> Argo (L3) -> Fundamentals (L4).
+    *   *Note*: This means Nordri installs Crossplane and Traefik, preparing the field for Nidavellir.
 
 ## The Rememberer: Mimir (Data Management)
 
@@ -47,7 +44,7 @@ Then stuff that still needs to go in public cloud as well (like new k8s api gate
 *   **Tech Stack**: Percona (DBs), Kafka (event bus), Valkey (cache)
 *   **Purpose**: The "Memory" grouping. Mimir the wise one keeps the Well of Knowledge, built atop Nordri's foundation
         * Mainly Percona with simple Operator installs for Kafka and Valkey (Redis)
-*   **Role**: Consumes *Norðri*, supports *Demicracy Apps*. Can offer Kafka topics and Redis support.
+*   **Role**: Builds on *Norðri*, supports platform apps. Can offer Kafka topics and Redis support.
 
 ## The Watcher: Heimdall (Observability)
 
@@ -55,15 +52,13 @@ Then stuff that still needs to go in public cloud as well (like new k8s api gate
 *   **Location**: `d:/Dev/GitWS/heimdall`
 *   **Tech Stack**: Panoptes (Prometheus, Grafana, Loki, Tempo), Thanos for long term storage (not Grafana Mimir)
 *   **Purpose**: Keep tabs on thing, host alerts, dashboards, etc.
-*   **Role**: Consumes *Norðri* and Mimir, watches *Demicracy Apps* and everything else
+*   **Role**: Builds on *Norðri* and Mimir, watches everything
 
 ## The Forge: Nidavellir (Developer Tools, Identity & Organizing)
 
 The platform services layer - the foundation other things are built on easily without having to deal with the underlying infrastructure.
 
-Likely same setup in homelab and on GKE, and indeed federated to some degree.
-
-There may be some overlap between extras provided within k3s like Traefik, which would be installed standalone in GKE? Or skip it in k3s and favor Nidavellir's setup?
+Nordri handles the differences between homelab and GKE, which may even become federated to some degree.
 
 *   **Project**: **Nidavellir**
 *   **Location**: `d:/Dev/GitWS/nidavellir`
@@ -80,8 +75,9 @@ There may be some overlap between extras provided within k3s like Traefik, which
         * It might well be Nexus with a reverse proxy workaround for Keycloak SSO (then reuse that for other tools)
     *   Other development supporting tools
     *   Microservice integrations (like the reverse proxy bit - maybe also simple integrations with Wekan etc)
+    *   Jenkins and so on
 *   **Purpose**: The "Star Forge" to help you build things
-*   **Role**: Consumes *Norðri* and Mimir, supports *Demicracy Apps*.
+*   **Role**: Consumes *Norðri* and Mimir, hosts platform apps
 
 ## The Constitution: Demicracy (Governance, Collaboration, & Exploration)
 
@@ -94,7 +90,7 @@ There may be some overlap between extras provided within k3s like Traefik, which
 
 ## The Messengers: Uplifted Mascot & Autoboros
 
-*   Includes basic chat bridging but _not_ activity federation?
+*   Includes basic chat bridging but _not_ activity federation? That's a more advanced topic on decentralization and so on.
 *   **Project**: **Uplifted Mascot (UM)**
     *   **Location**: `d:/Dev/GitWS/uplifted-mascot`
     *   **Sub-projects**: `sample-md` (Test Data).
@@ -159,51 +155,41 @@ Advanced API for bridging games together.
 
 An overview of what goes where to do what for who.
 
-### Layer 0: The Substrate (Manual/Scripted)
+### Layer 1: The Substrate (Metal / Kubernetes)
+*   **What**: The physical or virtual "Metal" + Raw K8s API.
+*   **Components**: GKE Cluster or K3s Server.
+*   **Action**: Provisioned via script (bootstrap.sh).
 
-* What: The physical or virtual "Metal."
-* Components: Use a script to provision the base GKE cluster or the K3s node. This is the "Bootstrapping" phase. Once the Kubernetes API exists, everything else is automated.
+### Layer 2: The Seed (Gitea)
+*   **What**: The local "Brain" of the cluster.
+*   **Components**: Gitea (Helm).
+*   **Action**: Hydrated with configuration by `bootstrap.sh`. Solves the Chicken/Egg problem for Argo.
 
-### Layer 1: The Platform Foundation (ArgoCD)
+### Layer 3: The Engine (ArgoCD)
+*   **What**: The "Operating System" / Controller.
+*   **Components**: ArgoCD.
+*   **Action**: Installs itself, reads from Layer 2 (Seed), and deploys the rest.
 
-* What: The "Operating System" of the cluster.
-* Components: ArgoCD itself, Crossplane (the controller), Traefik (Ingress Controller), Agones (Controller), Cert-Manager.
-* Why Argo?: These are complex, in-cluster software deployments with intricate configurations. Argo's visibility and drift management are superior for software lifecycle.
+### Layer 4: The Fundamentals (Cluster Plumbing)
+*   **What**: Essential services required for any higher-level platform.
+*   **Components**:
+    *   **Traefik**: Ingress/Gateway.
+    *   **Cert-Manager**: Identity/Sec.
+    *   **Crossplane**: Infrastructure Vending.
+    *   **Longhorn**: Storage (Homelab).
 
-Possibly Argo itself really is layer 1, then the other apps are somewhere around layer 1.5. Another special case would be Gitea in its bootstrapping mode. It can later be upgraded to permanent with persistent DB and file storage.
+### Layer 5: The Platform Services (Nidavellir)
+*   **What**: The capabilities provided to developers.
+*   **Components**:
+    *   **Mimir**: Data Services (DB flavors, Kafka, Valkey) - *Vended via Crossplane*.
+    *   **Heimdall**: Observability.
+    *   **Keycloak**: Identity.
+    *   **Vegvísir**: Routing Operator.
+    *   **Jenkins**: CI/CD.
 
-Layer 0 ready -> Argo installed -> Gitea bootstrapped -> Argo syncs other apps from Gitea -> Proceed to Layer 2 to vend infra -> Potentially upgrade Layer 1 stuff.
-
-A similar approach was used in the Logistics repo where Argo would install then prepare ingress control automatically, but leave other appset inactive until the user takes an action and OKs the ingress setup including cert manager. Then you can refresh Argo from inside Argo, along with everything else. Quite possibly in the new approach you'd just do 
-
-Argo -> Gitea -> Vegvisir -> Argo-in-Argo -> Crossplane -> Argo other apps including Agones etc
-
-### Layer 2: The Infrastructure Services (Crossplane)
-
-* What: "As-a-Service" primitives that applications need to existing.
-* Components:
-  * Databases: PostgreSQL, MongoDB (via your Mimir compositions).
-  * Storage: S3 Buckets (via Garage compositions).
-  * Queues: Kafka topics.
-
-Value of Crossplane: Abstraction. An application developer (or Backstage template) requests a PostgresDB claim.
-
-* On GKE: Crossplane provisions a Google Cloud SQL instance (High performance, managed).
-* On Local: Crossplane provisions a Helm-based Postgres pod (Free, simple).
-
-The Application doesn't know the difference. It just gets a Secret with a connection string.
-
-### Layer 3: The Platform Capabilities (Nidavellir)
-
-* What: High-level tools built on Layer 1 & 2.
-* Components: Jenkins, Artifactory, Keycloak.
-* Deployment: These are software applications, so they are deployed via ArgoCD. However, they consume Layer 2 services.
-* Example: Keycloak is deployed by Argo, but it requests a PostgresDB claim from Crossplane for its storage.
-
-### Layer 4: User Workloads (Run-Time)
-
-* What: The actual business logic.
-* Components:
-  * Tafl: Orchestrates games.
-  * Demicracy: Runs Backstage.
-  * GameServers: Managed by Agones (triggered by Tafl).
+### Layer 6: User Workloads (The Apps)
+*   **What**: The business logic.
+*   **Components**:
+    *   **Tafl** + **Agones**: Game Hosting.
+    *   **Demicracy** (Backstage): Interface.
+    *   **User Apps**: Whatever else you build.
