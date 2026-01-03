@@ -50,35 +50,27 @@ python --version
 
 ### Shell Environment 
 
-This is particularly crucial for Nordri
+This is particularly crucial for Nordri.
 
 Many automation scripts (e.g., `bootstrap.sh`) are written in **Bash**. PowerShell and CMD cannot execute these scripts directly.
 
 *   **Requirement**: You **MUST** use a Bash-compatible shell to run bootstrap and maintenance scripts.
 *   **Recommendation**: Use **Git Bash** (installed automatically with Git).
-*   **Recommendation**: Use the **Git Bash** application specifically.
-*   **How to use**: Right-click in your project folder and select "Open Git Bash here".
-
-> **Critical Warning**: Windows has a built-in `bash.exe` (executing WSL) in its system path.
-> *   Typing `bash` in PowerShell/CMD will trigger this WSL instance (often failing if unconfigured).
-> *   Even if you `cd` into `C:\Program Files\Git\bin`, typing `bash` will **STILL** execute the system one due to path precedence.
-> *   You must use `.\bash` if you are in the directory, or better yet, use the **Git Bash** terminal which sets the paths correctly.
-
-#### Understanding "Loki" and the Node
-Your terminal prompt `cerva@Loki` indicates you are on your **Windows Host** (named Loki).
-*   **The User**: `cerva`
-*   **The Host**: `Loki` (Your Windows Machine)
-*   **The Cluster**: `loki` (Your K3s Node Name)
-*   **The VM**: Rancher runs a hidden VM (usually `rancher-desktop`) in the background.
-
-When you run `bootstrap.sh` on **Loki** (Windows via Git Bash), it talks to the **Cluster** (in the VM) via `kubectl`. This is the correct remote-management architecture. You do *not* need to be "inside" the VM to bootstrap it.
+*   **How to use**: 
+    * Right-click in your project folder and select "Open Git Bash here"
+    * Start a regular `cmd` first then `cd "C:\Program Files\Git\bin"` and run `bash` from there.
+    * Do the same with PS but make sure to run it as `./bash.exe`
+    * **Navigation Tip**: Git Bash uses POSIX paths. To access your files on the `D:` drive, use `/d/`.
+        *   Example: `cd /d/Dev/GitWS/nordri`
 
 ### Kubernetes Prerequisites
-
 
 For Nordri development on Windows, we suggest **Rancher Desktop**
 
 *   **K3s Binary**: Note that when using Rancher Desktop, the `k3s` binary exists *inside* the virtual machine. It is **normal** that `k3s --version` fails in your Windows terminal. You only need `kubectl` (which Rancher installs) to interact with the cluster.
+*   **Disable System Traefik**: You **MUST** disable the default Traefik in Rancher Desktop to avoid conflicts with our custom Gateway API implementation.
+    *   *Settings -> Kubernetes -> Uncheck "Traefik"*.
+    *   (This will restart the Kubernetes cluster).
 
 If you need _additional_ k3s clusters beyond the one provided by Rancher Desktop, you could install the full `k3d` environment that works via Docker and manage multiple clusters that way.
 
