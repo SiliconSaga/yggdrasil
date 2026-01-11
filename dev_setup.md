@@ -72,7 +72,23 @@ For Nordri development on Windows, we suggest **Rancher Desktop**
     *   *Settings -> Kubernetes -> Uncheck "Traefik"*.
     *   (This will restart the Kubernetes cluster).
 
-If you need _additional_ k3s clusters beyond the one provided by Rancher Desktop, you could install the full `k3d` environment that works via Docker and manage multiple clusters that way.
+    > **Note**: The bootstrap script tries to automatically install `open-iscsi` (required for Longhorn) if running on Rancher Desktop. On other distros (standard K3s, generic Linux), ensure `open-iscsi` (or `iscsi-initiator-utils`) is installed on the underlying nodes.
+
+If you need _additional_ k3s clusters beyond the one provided by Rancher Desktop, you could install the full `k3d` environment that works via Docker and manage multiple clusters that way. This could also be a fine approach on Mac or Linux.
+
+### Resetting the Environment
+
+If you need to wipe the cluster clean (e.g., to clear out old deployments before a fresh bootstrap), use the Rancher Desktop CLI (`rdctl`) or the GUI.
+
+*   **GUI**: *File -> Preferences -> Troubleshooting -> Reset Kubernetes*.
+*   **CLI**:
+    ```powershell
+    # Resets just the Kubernetes workloads (keeping images/settings)
+    rdctl reset --k8s
+    
+    # Factory reset (wipes everything, including images)
+    # rdctl reset --factory
+    ```
 
 ### PowerShell Quirks & Troubleshooting
 
