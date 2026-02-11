@@ -17,6 +17,15 @@ Patterns for writing reliable kuttl (KUbernetes Test TooL) e2e tests. Covers the
 - Testing database/service connectivity with client pods
 - BDD-style infrastructure testing
 
+## Windows & Docker Support
+
+Kuttl does not have a native Windows binary (as of v0.15). To run tests on Windows, use a Docker wrapper:
+
+1.  **Mount paths correctly**: Mount your test workspace to `/workspace` in the container.
+2.  **Kubeconfig**: Pass the host's kubeconfig (ensuring `host.docker.internal` is used for the API server).
+3.  **Path Resolution**: Kuttl inside Docker may have trouble with relative paths or symlinks if not mirrored exactly. Prefer absolute paths or running from a common root.
+4.  **PowerShell Wrapper**: Create a `test.ps1` that wraps `docker run --rm -v ... kudo-test/kuttl ...`.
+
 ## Critical Gotcha: One-Shot Pods
 
 **`kubectl run --restart=Never` pods become `Succeeded`/`Failed`, never `Ready`.**
@@ -90,7 +99,7 @@ apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
   - script: |
-      set -e -o pipefail
+      set -e # -o pipefail is not supported in all shells (e.g. alpine sh)
       sleep 5
 
       # Wait for secret to exist (operator creates it async)
@@ -120,9 +129,23 @@ commands:
           done
           exit 1'
 
-      # Wait for completion (NOT --for=condition=Ready!)
-      kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
-        pod/client -n $NAMESPACE --timeout=120s
+      # Wait for completion (Robust Loop - works in all environments)
+      # Avoid `kubectl wait --for=jsonpath` as it fails in some Docker/client versions
+      echo "Waiting for pod/client to succeed..."
+      for i in $(seq 1 60); do
+        PHASE=$(kubectl get pod client -n $NAMESPACE -o jsonpath='{.status.phase}')
+        if [ "$PHASE" = "Succeeded" ]; then
+          echo "Pod succeeded."
+          break
+        fi
+        if [ "$PHASE" = "Failed" ]; then
+          echo "Pod failed."
+          kubectl logs client -n $NAMESPACE
+          exit 1
+        fi
+        echo "Pod phase: $PHASE. Waiting..."
+        sleep 2
+      done
       kubectl logs client -n $NAMESPACE
 ```
 
@@ -136,7 +159,8 @@ Key elements:
 
 | Pattern | Use |
 |---------|-----|
-| `--for=jsonpath='{.status.phase}'=Succeeded` | Wait for one-shot pods |
+| Loop with `kubectl get phase` | **Robust alternative** to `kubectl wait` for one-shot pods |
+| `--for=jsonpath='{.status.phase}'=Succeeded` | Wait for one-shot pods (requires modern kubectl) |
 | `--for=condition=Ready` | Wait for long-running pods/deployments |
 | `$NAMESPACE` | kuttl-provided test namespace variable |
 | `sleep 5` before secret check | Give operator time to start reconciling |
@@ -164,6 +188,8 @@ skipDelete: false    # Clean up test namespaces after each test
 - **Not waiting for secrets**: Operators create connection secrets async. Poll for the secret before extracting credentials.
 - **Forgetting `--restart=Never`**: Without it, `kubectl run` creates a Deployment, not a one-shot pod. The pod restarts on failure instead of transitioning to `Failed`.
 - **Missing `set -e`**: Without strict error handling, earlier failures are silently ignored and the test may pass incorrectly.
+- **Using `set -o pipefail` in `sh`**: Many lightweight images (Alpine, Debian-slim) use `sh` which does not support `pipefail`. Use only `set -e` for maximum compatibility.
+- **Relying on `kubectl wait --for=jsonpath`**: This syntax is not supported in all `kubectl` versions (e.g., some Docker images). Use a shell loop polling `.status.phase` for maximum portability.
 
 ## Client Image Reference
 

@@ -55,6 +55,26 @@ A CEL query like `object.status.state == 'ready'` throws `no such key: status` i
 
 `CompositeResourceDefinition v1` shows deprecation warnings. Migrate to v2 when ready, but v1 still works.
 
+### 5. Security Context & `runAsNonRoot`
+
+Local environments (Rancher Desktop, k3d) or strict clusters may enforce security contexts that clash with default operator images.
+
+*   **Symptom**: Pods fail with `CreateContainerConfigError: container has runAsNonRoot and image will run as root`.
+*   **Fix**: Explicitly override the security context in your Composition or Operator deployment.
+    ```yaml
+    # Example for Percona PG Operator
+    initContainer:
+      containerSecurityContext:
+        runAsNonRoot: false
+    ```
+
+### 6. CRD Structure Verification (`kubectl explain`)
+
+Don't guess CRD fields. Use `kubectl explain` to verify the structure, especially for complex nested fields like `spec.instances.containers` vs `spec.instances.initContainer`.
+
+*   **Symptom**: `invalid: [spec.instances[0].containers: Invalid value: "array": ... must be of type object]`
+*   **Fix**: Run `kubectl explain perconapgcluster.spec.instances` to see the actual schema.
+
 ## Composition Pipeline Pattern
 
 Mimir uses the Pipeline mode with `function-go-templating` + `function-auto-ready`:
