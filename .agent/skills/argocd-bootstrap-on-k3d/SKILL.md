@@ -100,6 +100,7 @@ kubectl apply -f "$SCRIPT_DIR/manifests/providers.yaml"
 | Sync stuck in retry loop | Stale operationState from earlier failure | Patch phase to "Failed", let auto-sync restart |
 | `sed: invalid command code` on macOS | GNU vs BSD sed | Use OSTYPE check for portable `sed -i` |
 | "file not found" when run from other dir | Relative paths in scripts | Use `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` |
+| `/path` becomes `C:/Program Files/Git/path` | Git Bash MSYS path mangling | `export MSYS_NO_PATHCONV=1` before kubectl exec |
 | selfHeal overwrites manual patches | Source of truth in Gitea differs | Update source via `update.sh`, not manual patches |
 
 ## Common Mistakes

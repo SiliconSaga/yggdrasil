@@ -62,6 +62,7 @@ Many automation scripts (e.g., `bootstrap.sh`) are written in **Bash**. PowerShe
     * Do the same with PS but make sure to run it as `./bash.exe`
     * **Navigation Tip**: Git Bash uses POSIX paths. To access your files on the `D:` drive, use `/d/`.
         *   Example: `cd /d/Dev/GitWS/nordri`
+    * **MSYS Path Mangling**: Git Bash (MSYS2) auto-converts paths starting with `/` to Windows paths (e.g., `/garage` becomes `C:/Program Files/Git/garage`). This breaks `kubectl exec` commands that pass absolute paths to containers. The bootstrap script handles this with `export MSYS_NO_PATHCONV=1`. If running kubectl commands manually, either prefix with `MSYS_NO_PATHCONV=1` or use PowerShell instead.
 
 ### Kubernetes Prerequisites
 

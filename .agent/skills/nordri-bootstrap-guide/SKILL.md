@@ -117,7 +117,9 @@ For production/multi-node, `local-path` is insufficient — data doesn't survive
 | MongoDB Init:ImagePullBackOff | `crVersion` doesn't match operator image | Use `crVersion: 1.21.2` with chart `1.21.3` |
 | PG "postgres: command not found" | Using `percona-distribution-postgresql` image | Use `percona-postgresql-operator:2.7.0-ppg15-postgres` |
 | Garage not initializing | Layout not assigned | bootstrap.sh Layer 5 handles this (homelab only) |
+| Garage layout apply fails | replicationFactor > node count | Reduced to 1/1 for dev in values.yaml |
 | Velero backup location unavailable | Missing credentials Secret | bootstrap.sh Layer 5 creates `velero-credentials` |
+| `/garage` becomes `C:/Program Files/Git/garage` | Git Bash MSYS path mangling | `export MSYS_NO_PATHCONV=1` before kubectl exec |
 
 ## Common Mistakes
 
@@ -126,3 +128,4 @@ For production/multi-node, `local-path` is insufficient — data doesn't survive
 - **Skipping `--skip-crossplane` with Mimir on Nordri**: Mimir tries to reinstall Crossplane, causing conflicts. Always pass `--skip-crossplane` when Nordri owns Crossplane.
 - **Assuming Percona chart version = image version**: PSMDB chart 1.21.3 bundles image 1.21.2. The `crVersion` must match the IMAGE version.
 - **Using Percona 2.8.x ppg15 images**: Percona dropped non-GIS ppg15 bundled images from 2.8.x onwards. Use 2.7.0-ppg15-postgres images (backwards compatible with 2.8.2 operator).
+- **Running kubectl exec with `/path` in Git Bash**: MSYS2 converts `/garage` to a Windows path. Use `MSYS_NO_PATHCONV=1` or run from PowerShell instead.
