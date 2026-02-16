@@ -118,6 +118,74 @@ PowerShell's default security settings can sometimes block `pyenv` scripts.
 
 ---
 
-## macOS Setup (Coming Soon)
+## macOS Setup
+
+We recommend using **Homebrew** to manage tools and **pyenv** for Python versions.
+
+### Install Package Manager (Homebrew)
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Install Core Tools
+
+```bash
+brew install git pyenv k3d kubectl helm kuttl
+```
+
+### Configure Python (via pyenv)
+
+Same as the Windows section — target **3.11.x**:
+
+```bash
+pyenv install 3.11.11
+pyenv global 3.11.11
+```
+
+Add to your `~/.zshrc` (macOS default shell is zsh):
+
+```bash
+eval "$(pyenv init -)"
+```
+
+### Kubernetes Setup
+
+We use **k3d** (k3s-in-Docker) for local development clusters. Docker Desktop (or an alternative like OrbStack) must be installed.
+
+**Create a cluster** (disable built-in Traefik since Nordri installs its own):
+
+```bash
+k3d cluster create refr-k8s \
+  --port "8080:80@loadbalancer" --port "8443:443@loadbalancer" \
+  --agents 2 --k3s-arg "--disable=traefik@server:*"
+```
+
+**Run the bootstrap**:
+
+```bash
+cd /path/to/nordri
+./bootstrap.sh homelab
+```
+
+> **Note on Longhorn**: Longhorn requires `open-iscsi` on cluster nodes. k3d nodes are Docker containers that lack `iscsid`, so Longhorn will not function. The cluster uses the built-in `local-path` storage provisioner instead, which is sufficient for development. For a full-stack environment (including Longhorn), consider using **Rancher Desktop** on macOS, which provides a real VM where `open-iscsi` can be installed.
+
+### Shell Notes
+
+*   macOS uses **zsh** by default. Bash scripts (e.g., `bootstrap.sh`) work fine from Terminal.
+*   The scripts handle `sed -i` macOS incompatibility automatically (no user action needed).
+
+### Resetting the Environment
+
+```bash
+# Delete the k3d cluster
+k3d cluster delete refr-k8s
+
+# Recreate from scratch
+k3d cluster create refr-k8s \
+  --port "8080:80@loadbalancer" --port "8443:443@loadbalancer" \
+  --agents 2 --k3s-arg "--disable=traefik@server:*"
+./bootstrap.sh homelab
+```
 
 ## Linux Setup (Coming Soon)
