@@ -82,7 +82,7 @@ Using the refined model from [advanced-capability-model.md](advanced-capability-
 | `Fs-R[sensitive]` | **No** | — | Mac has no personal data; this constraint is trivially satisfied |
 
 **Why `Net-unrestricted` is acceptable here:** the clean Mac has no sensitive data to
-exfiltrate. The risk of `R-external` (prompt injection from web content) is real but
+exfiltrate. The risk of `Net-unrestricted` (prompt injection from fetched web content) is real but
 no greater than the risk you already accept when using a browser to research solutions.
 The main blast radius of an injection is bad code committed to your fork, or a bad
 kubectl command — both recoverable.

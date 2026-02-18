@@ -12,8 +12,8 @@ A structured staging file (`contacts-staging.json`) is the only crossing point.
 
 | Vault | Location | Contains | Agent Access | Network |
 |-------|----------|---------|-------------|---------|
-| **Personal** | M1 Mac `~/obsidian/personal/` | Contacts, finances, health, journals | Agent 1: R-local only | Never |
-| **Staging** | Intel Mac `~/obsidian/staging/` | Structured JSON extracts, contact data, task exports | Agent 2: R-local (staging only) | Yes (for sync) |
+| **Personal** | M1 Mac `~/obsidian/personal/` | Contacts, finances, health, journals | Agent 1: `Fs-R[~/obsidian/personal/]` only | `Net-none` |
+| **Staging** | Intel Mac `~/obsidian/staging/` | Structured JSON extracts, contact data, task exports | Agent 2: `Fs-R[~/obsidian/staging/]` only | `Net-unrestricted` |
 
 The Personal vault is never accessible from the Intel Mac. The Staging vault contains
 only structured data that has been explicitly extracted — no raw notes, no free-text.
@@ -28,13 +28,13 @@ no access to Personal vault) reads only that JSON file and pushes to Google Cont
 flowchart LR
     subgraph "M1 Mac — Personal Zone"
         vault["Personal vault<br>(Obsidian)"]
-        agent1["Agent 1<br>R-local + W-local<br>no internet"]
+        agent1["Agent 1<br>Fs-R[personal/] + Fs-W[staging/]<br>Net-none"]
         vault --> agent1
     end
     staging["contacts-staging.json<br>(shared location)"]
     agent1 -->|"structured extract"| staging
     subgraph "Intel Mac — Research Zone"
-        agent2["Agent 2<br>R-external + W-external<br>no R-local to personal vault"]
+        agent2["Agent 2<br>Net-unrestricted<br>no Fs-R to personal vault"]
         contacts["Google Contacts"]
         staging --> agent2
         agent2 -->|"Google Contacts API"| contacts
@@ -44,13 +44,13 @@ flowchart LR
     human -.->|"approve"| agent2
 ```
 
-**Agent 1** (has: `R-local` + `W-local`, lacks: `R-external`, `W-external`):
+**Agent 1** (has: `Fs-R[~/obsidian/personal/]` + `Fs-W[~/staging/]`, `Net-none`):
 - Reads Obsidian vault for new/updated contact notes
 - Extracts structured data (name, email, phone, company)
 - Writes to `contacts-staging.json`
 - Cannot exfiltrate because it has no internet access
 
-**Agent 2** (has: `R-external` + `W-external`, lacks: `R-local` to sensitive files):
+**Agent 2** (has: `Net-unrestricted`, lacks: `Fs-R[~/obsidian/personal/]`):
 - Reads ONLY `contacts-staging.json` (not the full Obsidian vault)
 - Pushes contacts to Google Contacts API
 - Cannot steal sensitive data because it never sees it

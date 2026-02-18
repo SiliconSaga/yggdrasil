@@ -45,7 +45,7 @@ and, by default, denied.
 
 ## Refined Capability Model
 
-Capabilities are now defined on three independent axes.
+Capabilities are now defined on four independent axes.
 
 ### Axis 1: Filesystem Access (scoped by path)
 

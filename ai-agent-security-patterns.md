@@ -29,45 +29,35 @@ This is the pull request workflow generalized beyond code. A PR is a staging are
 
 ## Core Principle: Capability Bounding
 
-### The Five Capabilities
+### The Four-Axis Capability Model
 
-The original "two-of-three" framing (read data / take actions / access internet) is too coarse. "Taking actions" and "accessing the internet" overlap in practice — sending an email is both an external action and internet access, and an agent with internet read access could exfiltrate data by encoding it into an API call. A more precise model:
+Each agent session is described on four independent axes. The full model — including why read and write external access are not meaningfully different, and how to enforce network scoping per OS and with Kubernetes — is in [advanced-capability-model.md](docs/agent-security/advanced-capability-model.md).
 
-| # | Capability | Symbol | Examples |
-|---|-----------|--------|----------|
-| 1 | **Read sensitive local data** | `R-local` | Files, Obsidian vault, credentials, config, personal notes |
-| 2 | **Write to local systems** | `W-local` | Edit files, run shell commands, modify local databases |
-| 3 | **Read from external systems** | `R-external` | Web search, fetch URLs, read APIs, pull email |
-| 4 | **Write to external systems** | `W-external` | Send emails, push to APIs, deploy, post messages |
-| 5 | **Access credentials/secrets** | `Secrets` | API keys, OAuth tokens, service account keys, passwords |
+| Axis | Symbols | Scope | Examples |
+|------|---------|-------|----------|
+| **Filesystem** | `Fs-R[path]`, `Fs-W[path]` | Specific path or subtree | `Fs-R[~/obsidian/personal/]`, `Fs-W[~/staging/]` |
+| **Network** | `Net-none` … `Net-unrestricted` | By destination, not HTTP verb | `Net-none`, `Net-allowlist[gmail-api:443]`, `Net-unrestricted` |
+| **Credentials** | `Creds[scope]` | Specific OAuth/API scope | `Creds[gmail.compose]`, `Creds[gke-temporary]` |
+| **Execution** | `Exec` | Subprocess / shell access | Default denied; grant only when explicitly needed |
 
-### Why Read-External is Riskier Than it Looks
-
-An agent with `R-external` (internet read) is exposed to **prompt injection**: a malicious website can include hidden instructions that the agent follows. If that agent also has `R-local` (sensitive data), a crafted web page could instruct it to summarize your secrets into its next web request (exfiltrating via the read channel itself, e.g., DNS lookups, URL parameters in subsequent fetches).
-
-This means **`R-local` + `R-external`** is a higher-risk combination than it first appears. It's safer than `R-local` + `W-external` (which can directly exfiltrate), but still requires caution.
-
-### Why Write-External is the Most Dangerous Capability
-
-`W-external` is the one capability that enables irreversible damage to the outside world: sent emails can't be unsent, deployed code is live, posted messages are public. Every pattern in this document aims to replace direct `W-external` access with writing to a staging area (`W-local` to a designated directory), where a separate privileged process handles the actual external write.
+**Key insight:** `R-external` and `W-external` are not meaningfully different — any outbound TCP connection is a write channel (DNS lookups, URL parameters, and timing all encode data). The meaningful boundary is *which destinations* can be reached, scoped using `Net-[scope]`.
 
 ### The Bounding Rule
 
-**An agent session should never have both `R-local` (sensitive data) and `W-external` (write to internet) simultaneously.** This is the most dangerous pair because it enables direct exfiltration.
+**Never grant `Fs-R[sensitive-path]` and `Net-[any outbound]` to the same agent session.** Any outbound network capability combined with sensitive filesystem read is a direct exfiltration path.
 
-Beyond that rule, minimize the total number of capabilities per session. The staging queue pattern lets you substitute `W-external` with `W-local` (write to staging) in almost every case.
+Beyond that rule, minimize the total number of capabilities per session. The staging queue pattern lets you substitute network write access with `Fs-W[staging/]` in almost every case.
 
 ### Risk Matrix
 
 | Combination | Risk | Scenario |
 |------------|------|----------|
-| `R-local` + `W-local` | **Low** | Agent edits local files. No data leaves the machine. |
-| `R-local` + `R-external` | **Medium** | Agent could be prompt-injected into encoding data into requests. Mitigate with request logging. |
-| `R-external` + `W-local` | **Low** | Agent researches and saves findings. No sensitive data at risk. |
-| `R-external` + `W-external` | **Medium** | Agent can interact with external services but has no sensitive data to leak. |
-| `R-local` + `W-external` | **CRITICAL** | Direct exfiltration path. Never allow this combination. |
-| `W-local` + `W-external` | **Medium** | Agent can modify local and remote systems but has no data to read. Damage is possible but not theft. |
-| Any + `Secrets` | **Elevated** | Credentials amplify whatever other capabilities exist. Minimize. |
+| `Fs-R[sensitive]` + `Fs-W[local]` + `Net-none` | **Low** | Agent edits local files. No data can leave the machine. |
+| `Fs-R[staging]` + `Net-unrestricted` | **Low** | Agent reads non-sensitive extracts and syncs. No personal data at risk. |
+| `Net-unrestricted` + `Fs-W[local]`, no `Fs-R[sensitive]` | **Medium** | Agent researches and saves. Prompt injection risk but no sensitive data to steal. |
+| `Fs-R[sensitive]` + `Net-[any outbound]` | **CRITICAL** | Direct exfiltration path. Never allow this combination. |
+| Any + `Creds[scope]` | **Elevated** | Credentials amplify whatever other capabilities exist. Minimize and scope tightly. |
+| Any + `Exec` | **Elevated** | Process execution can escalate past other constraints. Default deny. |
 
 ### Capability Modes by Workstation
 
@@ -87,12 +77,12 @@ Different machines or user sessions enforce different capability sets. The key q
 
 | Mode | Machine / Session | Capabilities | Lacks | Use Case |
 |------|-------------------|-------------|-------|----------|
-| **Code workspace** | Dev laptop, primary user | `R-local` + `W-local` | `R-external`, `W-external` | Editing code with secrets in config files |
-| **Research session** | Same laptop, restricted user OR browser-only | `R-external` + `W-local` (blank workspace) | `R-local` (no sensitive files) | Exploring solutions, reading docs |
-| **Infra session** | Dev laptop, primary user | `R-local` + `W-local` + `Secrets` (scoped) | `R-external`, `W-external` | kubectl, helm, local cluster work |
-| **Communication assistant** | Phone or separate user session | `R-external` + `W-local` (staging only) | `R-local`, `W-external`, `Secrets` | Drafting emails, proposing calendar events |
-| **Sensitive chat** | Self-hosted Matrix, restricted session | `R-local` (limited) + `W-local` | `R-external`, `W-external` | Personal planning, private discussions |
-| **Community bot** | Public Discord, restricted workspace | `R-external` + `W-external` (public only) | `R-local`, `Secrets` | OSS community utility, public Q&A |
+| **Code workspace** | Dev laptop, primary user | `Fs-R/W[~/repos/]` + `Exec` | `Net-[outbound]` | Editing code with secrets in config files |
+| **Research session** | Same laptop, restricted user | `Net-unrestricted` + `Fs-W[~/staging/]` | `Fs-R[sensitive]` | Exploring solutions, reading docs |
+| **Infra session** | Dev laptop, primary user | `Fs-R/W[~/repos/]` + `Exec` + `Creds[k8s-token]` | `Net-unrestricted` | kubectl, helm, local cluster work |
+| **Communication assistant** | Phone or separate user session | `Net-allowlist[LLM-API]` + `Fs-W[~/staging/]` | `Fs-R[sensitive]`, `Creds[send-capable]` | Drafting emails, proposing calendar events |
+| **Sensitive chat** | Self-hosted Matrix, restricted session | `Fs-R[~/obsidian/personal/]` + `Fs-W[~/staging/]` | `Net-[outbound]` | Personal planning, private discussions |
+| **Community bot** | Public Discord, restricted workspace | `Net-unrestricted` + `Fs-W[~/staging/]` | `Fs-R[sensitive]`, `Creds[sensitive]` | OSS community utility, public Q&A |
 
 ```mermaid
 flowchart TB
@@ -100,15 +90,15 @@ flowchart TB
         matrix_srv["Matrix server<br>(E2E encrypted)"]
         argocd["ArgoCD<br>GitOps executor"]
         nextcloud["NextCloud<br>personal storage"]
-        executor["Privileged executor<br>Secrets + W-external"]
+        executor["Privileged executor<br>Creds + Net-unrestricted"]
     end
     subgraph "M1 MacBook Pro — Personal"
-        m1_oc["OpenClaw limited<br>R-local + W-local"]
+        m1_oc["OpenClaw limited<br>Fs-R[personal/] + Fs-W[staging/]<br>Net-none"]
         obsidian_p["Obsidian<br>personal vault"]
         m1_oc --> obsidian_p
     end
     subgraph "Intel MacBook Pro — Research"
-        intel_oc["OpenClaw moderate<br>R-external + W-external (public)"]
+        intel_oc["OpenClaw moderate<br>Net-unrestricted + Fs-W[staging/]<br>no Fs-R[sensitive]"]
         obsidian_s["Obsidian<br>staging vault"]
         intel_oc --> obsidian_s
     end
@@ -130,8 +120,8 @@ These patterns are written with a specific hardware setup in mind. Adjust for yo
 | Machine | Role | Sensitivity | Agent Profile |
 |---------|------|-------------|---------------|
 | **Thelio Linux (System76)** | Homelab base | Infrastructure | k3s/k3d, ArgoCD, NextCloud, Matrix server |
-| **M1 MacBook Pro** | Personal/sensitive | High | OpenClaw (local AI agent client) limited: `R-local` + `W-local` only |
-| **Intel MacBook Pro** | Research/community | Low | OpenClaw moderate: `R-external` + `W-external` (public) |
+| **M1 MacBook Pro** | Personal/sensitive | High | OpenClaw limited: `Fs-R[~/obsidian/personal/]` + `Fs-W[~/staging/]`, `Net-none` |
+| **Intel MacBook Pro** | Research/community | Low | OpenClaw moderate: `Net-unrestricted` + `Fs-W[~/staging/]`, no sensitive filesystem |
 | **Win11** | Minimal/TBD | Low | Not yet set up |
 | **Win10** | Legacy — migration target | CRITICAL | No agents until data is migrated out |
 | **Android phone** | Mobile input | Medium | Matrix E2E voice client → M1 Mac |
@@ -176,6 +166,6 @@ Each pattern is covered in depth in its own document.
 ## Summary
 
 - **The Staging Queue is Universal**: AI reads real state → writes to staging → human reviews → privileged process executes. The agent never has write access to real systems.
-- **The Golden Rule**: Never give an agent both `R-local` (sensitive data) and `W-external` (write to internet) in the same session. This is the direct exfiltration path.
-- **Minimize Capabilities**: Each session should have only the capabilities it strictly needs. Use the staging queue to substitute `W-external` with `W-local` in almost every case.
+- **The Golden Rule**: Never grant an agent both `Fs-R[sensitive-path]` and `Net-[any outbound]` in the same session. Any outbound network capability combined with sensitive filesystem read is the direct exfiltration path.
+- **Minimize Capabilities**: Each session should have only the capabilities it strictly needs. Use the staging queue to substitute network write access with `Fs-W[staging/]` in almost every case.
 - **The Capability Question**: For any new agent interaction — what does it need to read? Write? Does it need credentials? Could a prompt injection in the read channel cause damage via the write channel?

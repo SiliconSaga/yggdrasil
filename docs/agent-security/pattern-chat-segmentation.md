@@ -74,11 +74,11 @@ community-facing and benefit from peer review. The Matrix bot's skills stay priv
 
 ## Capability Comparison
 
-| | Matrix Bot (Thelio) | Discord Bot (Intel Mac) |
-|--|---------------------|------------------------|
-| `R-local` | Limited (personal context) | None |
-| `W-local` | Staging area only | Staging area only |
-| `R-external` | None (or LLM API only) | Yes (web, public APIs) |
-| `W-external` | None | Public Discord channels |
-| `Secrets` | None | None |
+| Capability | Matrix Bot (Thelio) | Discord Bot (Intel Mac) |
+|-----------|---------------------|------------------------|
+| `Fs-R[path]` | `~/obsidian/personal/` (limited personal context) | None |
+| `Fs-W[path]` | `~/staging/` only | `~/staging/` only |
+| `Net` | `Net-none` (or `Net-allowlist[LLM-API]`) | `Net-unrestricted` |
+| `Creds` | None | None |
+| `Exec` | No | No |
 | Audience | You only | Public community |

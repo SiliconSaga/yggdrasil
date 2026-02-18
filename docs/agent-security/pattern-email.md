@@ -59,10 +59,10 @@ The draft appears in your normal Gmail Drafts folder. Review it, edit if needed,
 
 **In OpenClaw (M1 Mac):** Configure the Gmail integration with `gmail.compose` scope only.
 Never grant `gmail.send` or `gmail.readonly` to the personal-use OpenClaw instance.
-The agent needs no internet read access for email drafting — only W-local (staging) and
-the specific Gmail OAuth write for compose.
+The agent needs no internet access for email drafting — only `Fs-W[~/staging/]` and
+`Creds[gmail.compose]`.
 
-**Danger check:** This scope should only be active in sessions that do NOT have `R-local`
+**Danger check:** This scope should only be active in sessions that do NOT have `Fs-R[sensitive-path]`
 access to sensitive files. If the agent can read your Obsidian vault AND compose emails,
 a prompt injection via an incoming email reply could exfiltrate vault content into a draft
 addressed to an attacker. In OpenClaw: use separate integration profiles for the
@@ -89,9 +89,9 @@ built into Gmail itself. The bot can propose but not execute.
 
 ## Option C: Email as Exfiltration Vector
 
-Note that even draft staging can be a risk if the bot has `R-local` (sensitive data) — it
+Note that even draft staging can be a risk if the bot has `Fs-R[sensitive-path]` (sensitive data) — it
 could encode secrets into a draft email body intended for an attacker's address. Mitigations:
-- Only grant `gmail.compose` in sessions that do NOT have `R-local`
+- Only grant `gmail.compose` in sessions that do NOT have `Fs-R[sensitive-path]`
 - Or use the Google Sheet approach (bot never touches Gmail at all)
 - Log all draft content for audit
 
@@ -99,8 +99,8 @@ could encode secrets into a draft email body intended for an attacker's address.
 
 | Capability | Granted | Notes |
 |-----------|---------|-------|
-| `R-local` | No | Do not read Obsidian vault in the same session |
-| `W-local` | Yes | Write staging area if using Google Sheet approach |
-| `R-external` | No | Not needed for drafting |
-| `W-external` | `gmail.compose` only | Narrowest possible scope |
-| `Secrets` | OAuth token only | Stored in system keychain, not accessible to the agent directly |
+| `Fs-R[path]` | No | Do not read Obsidian vault in the same session |
+| `Fs-W[~/staging/]` | Yes | Write staging area if using Google Sheet approach |
+| `Net` | `Net-none` | No internet access needed for drafting |
+| `Creds[gmail.compose]` | Yes | OAuth token stored in system keychain; not directly accessible to agent |
+| `Exec` | No | No subprocess execution |
