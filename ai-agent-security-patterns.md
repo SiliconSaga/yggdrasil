@@ -170,6 +170,7 @@ Each pattern is covered in depth in its own document.
 | Chat Segmentation | [pattern-chat-segmentation.md](docs/agent-security/pattern-chat-segmentation.md) | Thelio (Matrix), Intel Mac (Discord) |
 | Voice-to-Action Pipeline | [pattern-voice-pipeline.md](docs/agent-security/pattern-voice-pipeline.md) | Android phone → M1 Mac |
 | OpenClaw Security Guide | [openclaw-security.md](docs/agent-security/openclaw-security.md) | M1 Mac, Intel Mac |
+| Advanced Capability Model | [advanced-capability-model.md](docs/agent-security/advanced-capability-model.md) | All machines, Thelio (K8s) |
 
 ## Summary
 
