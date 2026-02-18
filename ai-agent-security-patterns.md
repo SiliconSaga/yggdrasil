@@ -14,11 +14,11 @@ Every interaction between an AI agent and a real system should flow through a st
 
 ```mermaid
 flowchart LR
-    A[Agent reads <br> real state] -->|read-only| B[Agent writes <br> proposal]
-    B -->|staging area| C[Human reviews]
-    C -->|approve| D[Privileged process <br> executes]
-    D -->|credentials agent <br> never sees| E[Real system <br> updated]
-    C -->|reject| F[Proposal <br> discarded]
+    A["Agent reads<br>real state"] -->|read-only| B["Agent writes<br>proposal"]
+    B -->|staging area| C["Human reviews"]
+    C -->|approve| D["Privileged process<br>executes"]
+    D -->|"credentials agent<br>never sees"| E["Real system<br>updated"]
+    C -->|reject| F["Proposal<br>discarded"]
 ```
 
 The agent never has write access to the real system. The credentials that can write live in a separate execution context the agent cannot reach.
@@ -94,354 +94,84 @@ Different machines or user sessions enforce different capability sets. The key q
 
 ```mermaid
 flowchart TB
-    subgraph "Physical Machine A (Dev Laptop)"
-        subgraph "User: primary"
-            code["Code workspace\nR-local + W-local"]
-            infra["Infra session\nR-local + W-local + Secrets"]
-        end
-        subgraph "User: research"
-            research["Research session\nR-external + W-local"]
-        end
-        staging["/shared/staging/\n(accessible by both users)"]
-        code --> staging
-        research --> staging
+    subgraph "Thelio Linux — Homelab"
+        matrix_srv["Matrix server<br>(E2E encrypted)"]
+        argocd["ArgoCD<br>GitOps executor"]
+        nextcloud["NextCloud<br>personal storage"]
+        executor["Privileged executor<br>Secrets + W-external"]
     end
-    subgraph "Phone / Tablet"
-        voice["Voice assistant\nR-external + W-local (staging)"]
+    subgraph "M1 MacBook Pro — Personal"
+        m1_oc["OpenClaw (limited)<br>R-local + W-local"]
+        obsidian_p["Obsidian<br>personal vault"]
+        m1_oc --> obsidian_p
     end
-    subgraph "Server (Self-hosted)"
-        matrix["Matrix bot\nR-local (limited) + W-local"]
-        discord["Discord bot\nR-external + W-external (public)"]
-        executor["Privileged executor\nSecrets + W-external"]
+    subgraph "Intel MacBook Pro — Research"
+        intel_oc["OpenClaw (moderate)<br>R-external + W-external (public)"]
+        obsidian_s["Obsidian<br>staging vault"]
+        intel_oc --> obsidian_s
     end
-    staging -->|human approves| executor
-    voice -->|via Matrix| matrix
-    executor -->|deploys, sends, syncs| prod["Production systems\nGKE, Gmail, Calendar"]
-```
-
-## Chat Context Segmentation
-
-Different chat interfaces should map to different capability profiles:
-
-### Self-hosted Matrix (Sensitive Context)
-
-- Runs on your own server — messages never leave your infrastructure
-- Bot has access to personal context (calendar, tasks, limited local files)
-- No public internet access for the bot (or heavily restricted)
-- E2E encrypted — even a server compromise doesn't expose content
-- Use for: personal planning, health/finance discussions, private scheduling
-
-### Public Discord (Community Context)
-
-- Runs in a restricted workspace — no access to personal files or credentials
-- Bot has internet access + write to public channels (both expected and visible)
-- Skills can be developed and improved over time (version-controlled skill files)
-- Token optimization: convert commonly repeated workflows into literal scripts
-  - First time: AI reasons through the problem (~5000 tokens)
-  - Second time: AI recognizes the pattern, writes a script (~2000 tokens)
-  - Third time onwards: AI runs the script (~200 tokens)
-- Use for: OSS community support, public project utilities, documentation help
-
-### The Bridge
-
-Both bots can write to the same staging directory format, but only the Matrix bot handles sensitive proposals. The Discord bot's staging area is the public repo (PRs, issues).
-
-```mermaid
-flowchart LR
-    subgraph "Private (Matrix)"
-        M_in[Voice / text input] --> M_bot[Matrix bot]
-        M_bot --> M_stage[Private staging\nCalendar, email drafts\ncontact changes]
+    subgraph "Android Phone"
+        voice["Matrix client<br>E2E voice input"]
     end
-    subgraph "Public (Discord)"
-        D_in[Community messages] --> D_bot[Discord bot]
-        D_bot --> D_stage[Public staging\nPRs, issues\ndocumentation]
-    end
-    M_stage -->|human approves| executor[Privileged executor]
-    D_stage -->|human merges| argocd[ArgoCD / CI]
-    executor --> private_sys[Calendar, Gmail\nContacts]
-    argocd --> public_sys[GKE, GitHub\nOSS repos]
+    voice -->|"E2E to homelab"| matrix_srv
+    matrix_srv --> m1_oc
+    obsidian_p -->|"structured extract only"| obsidian_s
+    obsidian_s -->|"staging"| executor
+    m1_oc -->|"staging"| executor
+    executor -->|"deploys, sends, syncs"| prod["Gmail, Google Contacts<br>GKE, public services"]
 ```
 
-## Data Segmentation with Obsidian
+## Your System Inventory
 
-If your Obsidian vault contains both sensitive personal data and shareable project notes, consider splitting into multiple vaults:
+These patterns are written with a specific hardware setup in mind. Adjust for your own.
 
-| Vault | Contains | Agent Access | Internet |
-|-------|----------|-------------|----------|
-| **Personal** | Finances, health, private contacts, journals | Local-only agent (`R-local` + `W-local`) | Never |
-| **Projects** | OSS notes, technical docs, public-safe content | Research agent (`R-local` + `R-external`) | Yes (for research) |
-| **Staging** | Structured extracts for sync (contacts JSON, task exports) | Sync agent (`R-external` + `W-external`) | Yes (for sync) |
+| Machine | Role | Sensitivity | Agent Profile |
+|---------|------|-------------|---------------|
+| **Thelio Linux (System76)** | Homelab base | Infrastructure | k3s/k3d, ArgoCD, NextCloud, Matrix server |
+| **M1 MacBook Pro** | Personal/sensitive | High | OpenClaw limited: `R-local` + `W-local` only |
+| **Intel MacBook Pro** | Research/community | Low | OpenClaw moderate: `R-external` + `W-external` (public) |
+| **Win11** | Minimal/TBD | Low | Not yet set up |
+| **Win10** | Legacy — migration target | CRITICAL | No agents until data is migrated out |
+| **Android phone** | Mobile input | Medium | Matrix E2E voice client → M1 Mac |
 
-The Personal vault agent extracts structured data to the Staging vault. The Sync agent reads Staging and pushes to external services. Neither agent crosses the boundary.
+### Why Linux for the Homelab Base
 
-```mermaid
-flowchart LR
-    web[Web clipper] -->|saves contact| personal["Personal vault\n(sensitive)"]
-    personal -->|local agent extracts| staging["Staging vault\n(structured data only)"]
-    staging -->|sync agent pushes| google["Google Contacts\nGoogle Calendar"]
+Linux (Thelio) can run Kubernetes natively without a VM layer. macOS requires k8s inside
+a Linux VM (k3d, Rancher Desktop, etc.) because the kernel is not Linux. Windows is worse.
+For services like NextCloud and Matrix that need to run continuously with low overhead, the
+Thelio is the right host.
 
-    personal -.->|human reviews| staging
+### The Personal–Research Split
 
-    style personal fill:#f9d0d0
-    style staging fill:#d0f0d0
-```
+The M1 and Intel Macs play complementary roles. The M1 has access to sensitive personal data
+(Obsidian vault, email drafts, contacts) but minimal external access. The Intel Mac faces
+the internet and external services (web research, Discord, public GitHub) but has no access
+to sensitive files. Between them sits an Obsidian staging vault — structured data that is
+safe to share because it has already been stripped of raw personal content.
 
-## Pattern: GitOps as Staging Queue (Infrastructure)
+### Win10 Migration Priority
 
-This is the most mature version of the staging queue. If you already use GitOps (ArgoCD, Flux), you already have this.
+The Win10 system has sensitive data scattered across it from years of accumulation. Until
+that data is migrated to encrypted homelab storage (NextCloud on Thelio) or deleted, it
+should be treated as quarantined: no AI agent access, no OpenClaw installation.
 
-```mermaid
-sequenceDiagram
-    participant AI as AI Agent
-    participant Git as Git Repo
-    participant Human as Human
-    participant Argo as ArgoCD
-    participant GKE as GKE Cluster
+## Patterns
 
-    AI->>Git: Push branch + create PR
-    Git->>Human: PR notification
-    Human->>Git: Review diff
-    Human->>Git: Merge PR
-    Git->>Argo: Webhook / poll
-    Argo->>GKE: Deploy (has cluster-admin)
-    Note over AI,GKE: AI never has cluster credentials
-```
+Each pattern is covered in depth in its own document.
 
-**What the AI needs**: Git push access to the repo. Read-only cluster access (`roles/container.viewer`) for observing current state.
-
-**What the AI never gets**: cluster-admin, cloud provider credentials, or ArgoCD's service account.
-
-### Break-Glass for Non-GitOps Operations
-
-Some operations can't flow through GitOps: initial cluster creation, emergency debugging, one-off migrations.
-
-```mermaid
-sequenceDiagram
-    participant AI as AI Agent
-    participant Repo as Git Repo
-    participant Human as Human
-    participant Jenkins as Jenkins
-    participant GCP as GCP / GKE
-
-    AI->>Repo: Commit script to pending-operations/
-    Repo->>Human: PR notification
-    Human->>Repo: Review + merge
-    Human->>Jenkins: Trigger break-glass job
-    Jenkins->>Jenkins: Generate short-lived SA key
-    Jenkins->>GCP: Execute script with temp credentials
-    GCP->>Jenkins: Output + logs
-    Jenkins->>Jenkins: Credentials expire
-    Note over Jenkins: Credentials stored in isolated\nJenkins folder, not accessible\nby normal pipeline jobs
-```
-
-**Jenkins implementation:**
-- A dedicated Jenkins job (`break-glass-executor`) in its own folder
-- Reads a script from `pending-operations/` in the repo
-- Generates a short-lived GCP service account key (or uses workload identity)
-- Executes the script, logs full output for audit
-- Credentials expire after execution (1 hour max)
-- The live GCP credentials are in a **dedicated Jenkins credentials folder** — normal pipeline jobs in other folders cannot access them, so a malicious Jenkinsfile edit elsewhere cannot grab unrelated prod credentials
-
-**GKE-specific roles for the break-glass service account:**
-- `roles/container.admin` (manage clusters)
-- `roles/storage.admin` (for Velero/backups)
-- `roles/iam.serviceAccountUser` (to bind workload identity)
-- NOT `roles/owner` or `roles/editor`
-
-## Pattern: Calendar Management
-
-```mermaid
-sequenceDiagram
-    participant User as You (phone)
-    participant Matrix as Matrix Bot
-    participant RealCal as Your Calendar
-    participant BotCal as Proposals Calendar
-    participant Script as Apps Script
-
-    User->>Matrix: "Dentist next Thursday afternoon"
-    Matrix->>RealCal: Read free/busy (read-only)
-    Matrix->>BotCal: Create proposed event
-    Note over RealCal,BotCal: You see both calendars overlaid
-    User->>Script: Click "approve" (bookmarklet)
-    Script->>RealCal: Copy event from proposals
-    Script->>BotCal: Delete proposal
-    Note over Matrix,Script: Bot never has write access\nto your real calendar
-```
-
-| Component | Owner | Access |
-|-----------|-------|--------|
-| Real calendar | You | Full control |
-| Shared view | Bot's Google account | Read-only (shared by you) |
-| Proposals calendar | Bot's Google account | Bot writes here freely |
-| Approval script | Google Apps Script on YOUR account | Has write to your real calendar |
-
-**Why this is safe:**
-- The bot can never delete or modify your real events (read-only share)
-- Worst case: the proposals calendar fills up with bad suggestions (easily cleared)
-- The approval script runs with your credentials but only does one thing: copy approved events
-- The bot never sees the approval script's credentials
-
-## Pattern: Email Drafting
-
-### Option A: Google Sheet Queue (Safest)
-
-Bot writes to a Google Sheet (recipient, subject, body, status). You review rows, mark "approved", and a separate Apps Script sends via Gmail API.
-
-```mermaid
-sequenceDiagram
-    participant User as You
-    participant Bot as AI Agent
-    participant Sheet as Google Sheet
-    participant Script as Apps Script
-    participant Gmail as Gmail
-
-    User->>Bot: "Reply to plumber, Tuesday works"
-    Bot->>Sheet: Write draft row (status: pending)
-    User->>Sheet: Review, mark "approved"
-    Script->>Sheet: Read approved rows
-    Script->>Gmail: Send email
-    Script->>Sheet: Update status to "sent"
-    Note over Bot,Gmail: Bot never has Gmail access
-```
-
-### Option B: Gmail Drafts (Simpler, Slightly More Access)
-
-Google's OAuth scopes allow fine-grained Gmail access:
-
-| OAuth Scope | Allows | Risk |
-|------------|--------|------|
-| `gmail.readonly` | Read emails (like a shared read-only calendar) | Bot can see email content |
-| `gmail.compose` | Create drafts, but NOT send | Bot can stage but not execute |
-| `gmail.send` | Actually send emails | Do NOT grant this to the bot |
-
-With `gmail.compose`, the bot creates actual Gmail drafts that appear in your Drafts folder. You review in your normal Gmail interface and click Send yourself. This is the email equivalent of a read-only calendar share + proposals calendar.
-
-**Key insight**: Gmail's `gmail.compose` scope without `gmail.send` is the "staging area" built into Gmail itself. The bot can propose but not execute.
-
-### Option C: Email as Exfiltration Vector
-
-Note that even draft staging can be a risk if the bot has `R-local` (sensitive data) — it could encode secrets into a draft email body intended for an attacker's address. Mitigations:
-- Only grant `gmail.compose` in sessions that do NOT have `R-local`
-- Or use the Google Sheet approach (bot never touches Gmail at all)
-- Log all draft content for audit
-
-## Pattern: Contact Management
-
-```mermaid
-flowchart LR
-    subgraph "Agent 1: Local (no internet)"
-        clip[Web clipper\nsaves to Obsidian] --> vault["Personal vault"]
-        vault --> extract["Extract structured\ncontact data"]
-        extract --> staging["contacts-staging.json"]
-    end
-    subgraph "Human review"
-        staging --> review["Review JSON\n(optional gate)"]
-    end
-    subgraph "Agent 2: Sync (no sensitive files)"
-        review --> sync["Read staging JSON"]
-        sync --> google["Push to\nGoogle Contacts"]
-    end
-
-    style vault fill:#f9d0d0
-    style staging fill:#d0f0d0
-```
-
-**Agent 1** (has: `R-local` + `W-local`, lacks: `R-external`, `W-external`):
-- Reads Obsidian vault for new/updated contact notes
-- Extracts structured data (name, email, phone, company)
-- Writes to `contacts-staging.json`
-- Cannot exfiltrate because it has no internet access
-
-**Agent 2** (has: `R-external` + `W-external`, lacks: `R-local` to sensitive files):
-- Reads ONLY `contacts-staging.json` (not the full Obsidian vault)
-- Pushes contacts to Google Contacts API
-- Cannot steal sensitive data because it never sees it
-
-## Pattern: Voice-to-Action Pipeline
-
-```mermaid
-flowchart TB
-    phone["Phone\n(Element app)"] -->|voice message| matrix["Matrix server\n(self-hosted)"]
-    matrix --> transcribe["Transcribe\n(local Whisper\nor API)"]
-    transcribe --> classify["Classify intent"]
-    classify -->|calendar| cal_stage["Proposals\ncalendar"]
-    classify -->|email| email_stage["Draft queue\n(Google Sheet)"]
-    classify -->|contact| contact_stage["contacts-staging.json"]
-    classify -->|task| task_stage["Obsidian inbox"]
-    classify -->|infra| git_stage["Git branch + PR"]
-    classify -->|reply| matrix_reply["Confirmation\nback to Matrix"]
-
-    cal_stage & email_stage & contact_stage & task_stage & git_stage --> approve["Human reviews\n+ approves"]
-    approve --> executor["Privileged\nexecutor"]
-```
-
-### Why Matrix over WhatsApp/Discord for Sensitive Input
-
-- **Self-hosted**: Messages stay on your infrastructure
-- **E2E encrypted**: Even the server admin can't read messages
-- **Bot-friendly**: Well-documented bot SDK, no Terms of Service risk
-- **Bridgeable**: Can bridge to other platforms if needed
-- **No vendor lock-in**: Standards-based protocol (unlike proprietary APIs)
-
-### Voice Transcription Trade-off
-
-| Method | Capability Cost | Latency | Accuracy |
-|--------|----------------|---------|----------|
-| Local Whisper | No internet needed (`R-local` only) | Higher | Good |
-| Cloud API (OpenAI, Google) | Voice content sent to internet (`R-external`) | Lower | Better |
-
-For sensitive dictation (personal plans, health, finance), prefer local transcription. For routine scheduling or community interactions, cloud APIs are fine.
-
-## Skill-Based Token Optimization
-
-Both Matrix and Discord bots can improve over time by converting repeated workflows into reusable scripts:
-
-| Iteration | What Happens | Token Cost |
-|-----------|-------------|------------|
-| First time | AI reasons through the full problem | ~5,000 tokens |
-| AI writes a skill/script | Captures the workflow as code | One-time cost |
-| Subsequent times | AI recognizes pattern, runs the script | ~200 tokens |
-
-Skills can be versioned in git, shared between bots (Matrix and Discord use the same skill format), and specialized per context (private skills for Matrix, public skills for Discord).
-
-## Implementation Priority
-
-| Priority | Pattern | Effort | Value | Prerequisite |
-|----------|---------|--------|-------|-------------|
-| 1 | GitOps staging queue | Already done (Nordri) | High | ArgoCD deployed |
-| 2 | Dedicated service accounts | 30 min | High | GCP project |
-| 3 | Capability mode awareness | Zero (just discipline) | High | Understanding this document |
-| 4 | Break-glass Jenkins job | 1-2 hours | Medium | Jenkins instance |
-| 5 | Calendar proposals | 1-2 hours | Medium | Bot Google account |
-| 6 | Gmail `compose`-only drafts | 30 min | Medium | OAuth setup |
-| 7 | Obsidian vault segmentation | 1 hour | Medium | Multiple vaults |
-| 8 | Contact sync pipeline | 2-3 hours | Lower | Staging JSON + sync script |
-| 9 | Matrix self-hosted bot | Half day | High | Matrix server (homelab) |
-| 10 | Discord community bot | 2-3 hours | Medium | Discord server |
-| 11 | Voice-to-Matrix pipeline | Half day | High | Matrix bot + Whisper |
+| Pattern | Doc | Key Machines |
+|---------|-----|-------------|
+| GitOps Staging Queue | [pattern-gitops-staging.md](docs/agent-security/pattern-gitops-staging.md) | Thelio (ArgoCD), any dev machine |
+| Calendar Management | [pattern-calendar.md](docs/agent-security/pattern-calendar.md) | M1 Mac, Android phone |
+| Email Drafting | [pattern-email.md](docs/agent-security/pattern-email.md) | M1 Mac |
+| Contact Management | [pattern-contact-management.md](docs/agent-security/pattern-contact-management.md) | M1 Mac, Intel Mac (staging) |
+| Chat Segmentation | [pattern-chat-segmentation.md](docs/agent-security/pattern-chat-segmentation.md) | Thelio (Matrix), Intel Mac (Discord) |
+| Voice-to-Action Pipeline | [pattern-voice-pipeline.md](docs/agent-security/pattern-voice-pipeline.md) | Android phone → M1 Mac |
+| OpenClaw Security Guide | [openclaw-security.md](docs/agent-security/openclaw-security.md) | M1 Mac, Intel Mac |
 
 ## Summary
 
-### The Staging Queue is Universal
-
-Every pattern in this document follows the same structure:
-
-1. **AI reads real state** (read-only access)
-2. **AI writes to a staging area** (the only write access it has)
-3. **Human reviews** (staging area is visible and browsable)
-4. **Human approves** (one click, low friction)
-5. **Privileged process executes** (credentials the AI never sees)
-
-### The Golden Rule
-
-**Never give an agent both read access to sensitive data and write access to external systems in the same session.** Everything else is risk management and convenience trade-offs.
-
-### The Capability Mindset
-
-When setting up any new agent interaction, ask:
-1. What does this agent need to **read**? (local vs external)
-2. What does this agent need to **write**? (local staging vs external systems)
-3. Does it need **credentials**? (almost always: no, use a privileged executor instead)
-4. Could a prompt injection in the **read** channel cause damage via the **write** channel?
-
-If the answer to #4 is yes, split into two agents with a staging boundary between them.
+- **The Staging Queue is Universal**: AI reads real state → writes to staging → human reviews → privileged process executes. The agent never has write access to real systems.
+- **The Golden Rule**: Never give an agent both `R-local` (sensitive data) and `W-external` (write to internet) in the same session. This is the direct exfiltration path.
+- **Minimize Capabilities**: Each session should have only the capabilities it strictly needs. Use the staging queue to substitute `W-external` with `W-local` in almost every case.
+- **The Capability Question**: For any new agent interaction — what does it need to read? Write? Does it need credentials? Could a prompt injection in the read channel cause damage via the write channel?
