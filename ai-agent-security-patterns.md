@@ -8,6 +8,8 @@ AI agents are most useful when they can see your data and take actions on your b
 
 The goal isn't perfect security (that would mean not using agents at all). It's raising the bar so that mistakes are recoverable and damage is contained.
 
+Core principles are explained here. Each use-case pattern has its own deep-dive in [`docs/agent-security/`](docs/agent-security/).
+
 ## Core Principle: The Staging Queue
 
 Every interaction between an AI agent and a real system should flow through a staging area where a human can review before changes take effect.
@@ -101,12 +103,12 @@ flowchart TB
         executor["Privileged executor<br>Secrets + W-external"]
     end
     subgraph "M1 MacBook Pro — Personal"
-        m1_oc["OpenClaw (limited)<br>R-local + W-local"]
+        m1_oc["OpenClaw limited<br>R-local + W-local"]
         obsidian_p["Obsidian<br>personal vault"]
         m1_oc --> obsidian_p
     end
     subgraph "Intel MacBook Pro — Research"
-        intel_oc["OpenClaw (moderate)<br>R-external + W-external (public)"]
+        intel_oc["OpenClaw moderate<br>R-external + W-external (public)"]
         obsidian_s["Obsidian<br>staging vault"]
         intel_oc --> obsidian_s
     end
@@ -128,7 +130,7 @@ These patterns are written with a specific hardware setup in mind. Adjust for yo
 | Machine | Role | Sensitivity | Agent Profile |
 |---------|------|-------------|---------------|
 | **Thelio Linux (System76)** | Homelab base | Infrastructure | k3s/k3d, ArgoCD, NextCloud, Matrix server |
-| **M1 MacBook Pro** | Personal/sensitive | High | OpenClaw limited: `R-local` + `W-local` only |
+| **M1 MacBook Pro** | Personal/sensitive | High | OpenClaw (local AI agent client) limited: `R-local` + `W-local` only |
 | **Intel MacBook Pro** | Research/community | Low | OpenClaw moderate: `R-external` + `W-external` (public) |
 | **Win11** | Minimal/TBD | Low | Not yet set up |
 | **Win10** | Legacy — migration target | CRITICAL | No agents until data is migrated out |
