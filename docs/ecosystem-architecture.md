@@ -53,7 +53,7 @@ knowledge of Demicracy.
 ### Tier 1: Nordri — Cluster Substrate
 **Repo**: `refr-k8s` / github.com/SiliconSage/refr-k8s
 
-The dwarves that hold up the sky. All other tiers depend on this:
+Nordri is one of the dwarves that holds up the sky in Norse mythology. All other tiers depend on this:
 
 | Component | Purpose | Environment |
 |-----------|---------|-------------|
@@ -77,7 +77,7 @@ The Star Forge — the developer platform everything is built on:
 | Mimir | Data services (PostgreSQL, MySQL, MongoDB, Kafka, Valkey) | Active |
 | Heimdall | Observability (Prometheus, Grafana, Loki, Tempo) | Planned |
 | Keycloak | Identity and SSO | Planned |
-| Vörðu | BDD roadmap visualization | Planned |
+| Vörðu | BDD roadmap visualization | Active |
 | OpenBAO | Secrets management | Planned |
 
 Nidavellir's `apps/` directory holds one Application manifest per component, plus the
@@ -124,16 +124,12 @@ Local machine
 
 ## Terminology Note
 
-Two separate numbering schemes exist — do not mix them:
+Two separate numbering schemes exist:
 
 | Term | Meaning | Example |
 |------|---------|---------|
 | **Layer** (L2, L2.5, L3...) | Bootstrap sequence step | "Layer 2.6 pre-installs Traefik" |
 | **Tier** (1, 2, 3) | App-of-apps deployment group | "Nidavellir is Tier 2" |
-
-The pre-bootstrap Kubernetes cluster itself (GKE nodes or k3d containers) is called
-**"The Cluster"** — not "the metal". Both GKE and homelab run on virtualized compute
-managed by the cloud provider or hypervisor; we never touch bare metal.
 
 ## Repository Map
 

@@ -88,7 +88,7 @@ Nordri handles the differences between homelab and GKE, which may even become fe
 *   **Status**: Active Review & Roadmap Phase.
 *   **Public Face**: `demicracy.github.io` (Static Site). Demicracy instances.
 
-## The Messengers: Uplifted Mascot & Autoboros
+## The Messengers: Uplifted Mascot, Autoboros, and Knarr
 
 *   Includes basic chat bridging but _not_ activity federation? That's a more advanced topic on decentralization and so on.
 *   **Project**: **Uplifted Mascot (UM)**
@@ -101,6 +101,8 @@ Nordri handles the differences between homelab and GKE, which may even become fe
     *   **Tech**: Python, Django, Discord API, NATS (maybe replace with Kafka)
     *   **Role**: The "Doer". ChatOps bot that creates PRs.
     *   **Synergy**: Autoboros is the "Hands", UM is the "Brain".
+
+"Knarr" is a late addition and the primary viking merchant ship for open ocean trade _and_ coincidentally a [board/card game](https://boardgamegeek.com/boardgame/379629/knarr) with a perfect mechanics mix - you recruit vikings (agents) and send them off to explore and trade (integrations). Works to really organize the overall message connections, and this area needed a good viking term, UM doesn't really fit and Autoboros is made up and more latin. Design plan in progress via Claude on the new Mac. Would be about adding something like OpenClaw for bridging agentic work in various ways, safely.
 
 ## The Map: Vörðu (Roadmap Visualization)
 
