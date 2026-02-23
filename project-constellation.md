@@ -143,6 +143,41 @@ Advanced API for bridging games together.
 
 ---
 
+## Issue Tracking Strategy (TODO)
+
+As the project moves toward community collaboration, informal TODOs in code and docs
+need a home that's discoverable and shareable.
+
+### Chosen direction: Gitea Issues → GitHub Issues → GitHub Projects
+
+**Gitea Issues** (in-platform, internal staging)
+- Platform users who don't want GitHub dependency can file and track issues entirely
+  within the embedded Gitea instance.
+- `tea` CLI (Gitea's official CLI, parallel to `gh`) makes this scriptable and AI-usable.
+- Issues start here and get promoted to GitHub when ready to be community-facing.
+
+**Sync mechanism: Gitea Actions → GitHub API**
+- Gitea 1.19+ ships GitHub Actions-compatible workflow syntax.
+- A Gitea Action fires on issue creation / label trigger (e.g. label: `public`) and
+  calls the GitHub API to mirror the issue there. No external tool needed.
+- Autoboros or Knarr could own this sync logic as a natural extension of their
+  ChatOps/integration role.
+
+**GitHub Issues + Projects v2** (community-facing, visualization)
+- Community interaction happens on GitHub where contributors already are.
+- GitHub Projects v2 is the visualization/prioritization layer — genuinely good now.
+- `gh` CLI for scripting and AI-assisted issue management on the GitHub side.
+- A GitHub Action scanning `# TODO:` comments in code to auto-file issues bridges
+  the code→tracker gap.
+
+**Not pursuing:**
+- Linear: commercial, vendor lock-in, contradicts self-hosted ethos.
+- Plane.so: open-core with proprietary cloud tier (rug-pull risk), adds a new component
+  for a problem already solvable with what's in the stack.
+- Wekan: kanban-only, no GitHub sync, stagnant relative to alternatives.
+
+---
+
 ## The "Grand Unification" Workflow
 
 1.  **Design Phase** (Demicracy): You write a "Feature" in Gherkin/Markdown.
