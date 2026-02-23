@@ -150,6 +150,8 @@ need a home that's discoverable and shareable.
 
 ### Chosen direction: Gitea Issues → GitHub Issues → GitHub Projects
 
+These should also result in some AI skills - going from usual Markdown write-ups to instead using the CLIs to submit well-structured issues.
+
 **Gitea Issues** (in-platform, internal staging)
 - Platform users who don't want GitHub dependency can file and track issues entirely
   within the embedded Gitea instance.
