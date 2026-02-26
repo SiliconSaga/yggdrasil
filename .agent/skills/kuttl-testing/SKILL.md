@@ -181,15 +181,56 @@ skipDelete: false    # Clean up test namespaces after each test
 
 `parallel: 1` is important when tests share cluster-level resources (operators, CRDs). Higher parallelism risks resource contention on small clusters.
 
+## Critical Gotcha: Exact-Length Matching on `status.conditions` Arrays (v0.24.0+)
+
+**kuttl performs exact-length matching on `status.conditions` arrays.** If the live resource has 2 conditions but your assertion lists only 1, the assertion FAILS.
+
+```yaml
+# BROKEN — live Gateway has [Accepted=True, Programmed=True] but assert only lists 1
+status:
+  conditions:
+  - type: Programmed
+    status: "True"
+
+# CORRECT — include ALL conditions the live resource actually has
+status:
+  conditions:
+  - type: Accepted
+    status: "True"
+  - type: Programmed
+    status: "True"
+```
+
+**Before writing a condition assertion:** run `kubectl get <resource> -o yaml` and check `status.conditions`. Include every condition in the order it appears. Conditions that are only present during transient states (e.g. cert-manager's `Issuing` condition) disappear when the resource is fully ready — assert only against the steady-state condition set.
+
+## Critical Gotcha: Commands Run from Test Case Directory
+
+**kuttl `commands` and `scripts` run with CWD = the test case directory**, not the project root or the directory where `kubectl kuttl test` was invoked.
+
+```yaml
+# BROKEN — path is relative to project root, not the test case dir
+commands:
+  - command: kubectl apply -f demos/whoami/whoami.yaml
+
+# CORRECT — path is relative to the test case dir (tests/e2e/whoami/)
+commands:
+  - command: kubectl apply -f ../../../demos/whoami/whoami.yaml
+```
+
+Add a comment explaining the path depth when using `../` traversal. Absolute paths also work and avoid the confusion.
+
 ## Common Mistakes
 
 - **Using `--for=condition=Ready` on one-shot pods**: Will timeout forever. Use `jsonpath phase=Succeeded`.
+- **Partial `status.conditions` assertion**: kuttl v0.24.0 requires ALL conditions. Check with `kubectl get -o yaml` first.
+- **Wrong CWD for file paths in commands**: Commands run from the test case directory. Use `../` traversal or absolute paths to reach project files.
 - **No retry loop in client commands**: The service may not be reachable the instant the CR reports Ready. Always retry.
 - **Not waiting for secrets**: Operators create connection secrets async. Poll for the secret before extracting credentials.
 - **Forgetting `--restart=Never`**: Without it, `kubectl run` creates a Deployment, not a one-shot pod. The pod restarts on failure instead of transitioning to `Failed`.
 - **Missing `set -e`**: Without strict error handling, earlier failures are silently ignored and the test may pass incorrectly.
 - **Using `set -o pipefail` in `sh`**: Many lightweight images (Alpine, Debian-slim) use `sh` which does not support `pipefail`. Use only `set -e` for maximum compatibility.
 - **Relying on `kubectl wait --for=jsonpath`**: This syntax is not supported in all `kubectl` versions (e.g., some Docker images). Use a shell loop polling `.status.phase` for maximum portability.
+- **`--dry-run` flag**: Does not exist in kuttl v0.24.0. Run tests live against the cluster.
 
 ## Client Image Reference
 
