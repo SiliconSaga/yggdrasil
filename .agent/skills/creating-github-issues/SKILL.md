@@ -21,9 +21,8 @@ gh auth status
 
 # 3. Identify the target repo (run in the repo directory)
 git remote -v
-# Find the github.com URL — extract owner/repo
-# Remote name is 'origin' for nidavellir/yggdrasil/vordu
-# Remote name is 'siliconsaga' for nordri/mimir
+# The GitHub remote is named 'siliconsaga' in all workspace repos
+# Extract owner/repo from the github.com URL
 ```
 
 ## Should This Be an Issue?

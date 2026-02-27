@@ -44,4 +44,15 @@ All repos are under the `SiliconSaga` GitHub org:
 | yggdrasil | `SiliconSaga/yggdrasil` |
 | vordu | `SiliconSaga/vordu` |
 
-The `gh` CLI uses `--repo owner/name` directly, so the local remote name (`origin`, `siliconsaga`, etc.) does not matter.
+The `gh` CLI uses `--repo owner/name` directly and does not depend on local remote names.
+
+## Git Remote Naming Convention
+
+Remotes are named after what they represent, not generic defaults:
+
+| Remote name | Points to |
+|-------------|-----------|
+| `siliconsaga` | `github.com/SiliconSaga/*` — the canonical GitHub org |
+| `local-gitea` | Homelab Gitea instance (if added as a permanent remote) |
+
+Avoid `origin` — it conveys no information about where the remote lives. All repos in this workspace should use `siliconsaga` as the GitHub remote name. The bootstrap scripts add an internal Gitea remote during cluster setup; that remote is ephemeral and should not be committed as `origin`.
