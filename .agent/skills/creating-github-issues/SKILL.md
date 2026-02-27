@@ -14,15 +14,16 @@ Pattern for filing well-structured, agent-actionable GitHub issues in the Silico
 ```bash
 # 1. Verify gh is installed
 gh --version
-# If missing: brew install gh && gh auth login
+# If missing: brew install gh
 
-# 2. Verify authenticated
+# 2. Verify GH_TOKEN is set (no browser login needed)
+# Load if needed: source /Users/cervator/dev/git_ws/yggdrasil/.env
 gh auth status
 
 # 3. Identify the target repo (run in the repo directory)
 git remote -v
-# The GitHub remote is named 'siliconsaga' in all workspace repos
-# Extract owner/repo from the github.com URL
+# Remotes are named after their org/service (e.g. 'siliconsaga', 'local-gitea')
+# Extract owner/repo from the github.com URL of the appropriate remote
 ```
 
 ## Should This Be an Issue?
@@ -95,5 +96,5 @@ If the issue blocks current or near-future work, note the URL and number in MEMO
 - **Requires reading this conversation to understand**: not agent-actionable — write a memory note instead
 - **Vague acceptance criteria**: a fresh agent won't know when it's done
 - **Wrong repo**: always verify with `git remote -v` before filing
-- **`gh` not authenticated**: run `gh auth login` first (see `yggdrasil/docs/github-cli-setup.md`)
+- **`gh` not authenticated**: set `GH_TOKEN` env var (`source yggdrasil/.env`); see `yggdrasil/docs/github-cli-setup.md`
 - **Spans multiple repos**: file a design doc instead, not an issue
