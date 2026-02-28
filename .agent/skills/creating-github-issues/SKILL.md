@@ -38,9 +38,11 @@ Answer all three. All must be yes to file.
 
 ## Required Body Template
 
-All five sections are mandatory. No section may be left empty.
+The AI attribution line comes first — mandatory. All five sections follow and must not be left empty.
 
 ```markdown
+> **AI-generated issue.** Created by an AI agent on behalf of the repo owner. For workflow details see https://github.com/SiliconSaga/yggdrasil
+
 ## Context
 [What system/repo this belongs to. What was being worked on when this was identified.]
 
@@ -67,6 +69,8 @@ gh issue create \
   --repo SiliconSaga/REPO \
   --title "verb: concise description" \
   --body "$(cat <<'EOF'
+> **AI-generated issue.** Created by an AI agent on behalf of the repo owner. For workflow details see https://github.com/SiliconSaga/yggdrasil
+
 ## Context
 ...
 
@@ -93,6 +97,7 @@ If the issue blocks current or near-future work, note the URL and number in MEMO
 
 ## Common Mistakes
 
+- **Missing AI attribution line**: every issue body must start with the `> **AI-generated issue.**` blockquote
 - **Requires reading this conversation to understand**: not agent-actionable — write a memory note instead
 - **Vague acceptance criteria**: a fresh agent won't know when it's done
 - **Wrong repo**: always verify with `git remote -v` before filing

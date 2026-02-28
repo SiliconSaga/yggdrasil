@@ -47,7 +47,7 @@ When in doubt between an issue and a design doc: if you can write a clear accept
 
 1. Identify any loose ends from the session.
 2. For each one, classify it using the table above.
-3. File GitHub issues for anything delegatable. Be specific: include what the problem is, what the expected outcome is, and any relevant file paths or context a fresh agent would need.
+3. File GitHub issues for anything delegatable. Every issue body must start with the AI attribution line (see `creating-github-issues` skill). Include what the problem is, the expected outcome, and any relevant file paths or context a fresh agent would need.
 4. Update MEMORY.md if you learned something architectural (a constraint, a dependency, a decision that shouldn't be re-litigated).
 5. If work spans repos, note the dependency explicitly (see below).
 
