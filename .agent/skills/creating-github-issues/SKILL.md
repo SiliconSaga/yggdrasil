@@ -64,11 +64,11 @@ The AI attribution line comes first — mandatory. All five sections follow and 
 
 Title starts with a verb: `fix:`, `feat:`, `refactor:`, `docs:`, `test:`
 
-```bash
-gh issue create \
-  --repo SiliconSaga/REPO \
-  --title "verb: concise description" \
-  --body "$(cat <<'EOF'
+**Step 1 — write the body to the draft file** (Write tool, reviewable before submission):
+
+File: `yggdrasil/.issue-draft.md`
+
+```markdown
 > **AI-generated issue.** Created by an AI agent on behalf of the repo owner. For workflow details see https://github.com/SiliconSaga/yggdrasil
 
 ## Context
@@ -85,11 +85,17 @@ gh issue create \
 
 ## Related
 ...
-EOF
-)" \
-  --label "type:chore"
-# Labels: type:chore, type:bug, type:feature
 ```
+
+**Step 2 — submit via the helper script** (fixed invocation pattern, one approval covers all future issues):
+
+```bash
+/Users/cervator/dev/git_ws/yggdrasil/scripts/gh-issue.sh REPO "verb: description" LABEL .issue-draft.md
+```
+
+Labels: `bug`, `enhancement`, `documentation`
+
+The script sources `.env` automatically, validates the attribution line is present, and prints a summary before filing.
 
 ## After Filing
 
