@@ -5,10 +5,16 @@
 #   REPO      — repo name only, e.g. 'mimir' (owner is always SiliconSaga)
 #   TITLE     — issue title, e.g. 'fix: remove hardcoded storageClassName'
 #   LABEL     — single label: bug | enhancement | documentation
-#   BODYFILE  — path to markdown file containing the issue body
+#   BODYFILE  — path to the issue body markdown file
+#
+# Draft files live in .issues/ (gitignored, created on first use).
+# Copy .agent/issue-template.md to .issues/<descriptive-name>.md to start a draft.
+# Multiple drafts can be staged there and reviewed before filing.
 #
 # Example:
-#   ./scripts/gh-issue.sh mimir "fix: remove storageClassName" bug .issue-draft.md
+#   cp .agent/issue-template.md .issues/mimir-storage-class.md
+#   # ... fill in content ...
+#   ./scripts/gh-issue.sh mimir "fix: remove storageClassName" bug .issues/mimir-storage-class.md
 
 set -euo pipefail
 
@@ -18,7 +24,11 @@ LABEL="${3:-}"
 BODYFILE="${4:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
+REPO_ROOT="$SCRIPT_DIR/.."
+ENV_FILE="$REPO_ROOT/.env"
+
+# Ensure clearinghouse directory exists
+mkdir -p "$REPO_ROOT/.issues"
 
 # Load GH_TOKEN if not already set
 if [[ -z "${GH_TOKEN:-}" ]]; then

@@ -64,38 +64,39 @@ The AI attribution line comes first — mandatory. All five sections follow and 
 
 Title starts with a verb: `fix:`, `feat:`, `refactor:`, `docs:`, `test:`
 
-**Step 1 — write the body to the draft file** (Write tool, reviewable before submission):
-
-File: `yggdrasil/.issue-draft.md`
-
-```markdown
-> **AI-generated issue.** Created by an AI agent on behalf of the repo owner. For workflow details see https://github.com/SiliconSaga/yggdrasil
-
-## Context
-...
-
-## Problem / Current State
-...
-
-## Acceptance Criteria
-- [ ] ...
-
-## Technical Notes
-...
-
-## Related
-...
-```
-
-**Step 2 — submit via the helper script** (fixed invocation pattern, one approval covers all future issues):
+**Step 1 — copy the committed template to a uniquely named draft** (one copy per issue):
 
 ```bash
-/Users/cervator/dev/git_ws/yggdrasil/scripts/gh-issue.sh REPO "verb: description" LABEL .issue-draft.md
+cp /Users/cervator/dev/git_ws/yggdrasil/.agent/issue-template.md \
+   /Users/cervator/dev/git_ws/yggdrasil/.issues/<repo>-<short-description>.md
+```
+
+The `.issues/` directory is gitignored. Multiple drafts can be staged there
+simultaneously and reviewed as a batch before any are submitted.
+
+**Step 2 — fill in the draft** (Write tool):
+
+Replace all `[placeholder]` text. Keep the attribution blockquote as the first line.
+
+**Step 3 — review the batch** (optional, for multi-issue sessions):
+
+```bash
+ls /Users/cervator/dev/git_ws/yggdrasil/.issues/
+```
+
+Read each file before proceeding to confirm content.
+
+**Step 4 — submit via the helper script** (fixed invocation — one approval covers all future issues):
+
+```bash
+/Users/cervator/dev/git_ws/yggdrasil/scripts/gh-issue.sh REPO "verb: description" LABEL \
+  /Users/cervator/dev/git_ws/yggdrasil/.issues/<filename>.md
 ```
 
 Labels: `bug`, `enhancement`, `documentation`
 
-The script sources `.env` automatically, validates the attribution line is present, and prints a summary before filing.
+The script sources `.env` automatically, validates the attribution line is present,
+and prints a summary before filing. Repeat Step 4 for each staged draft.
 
 ## After Filing
 
