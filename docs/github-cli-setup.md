@@ -21,9 +21,19 @@ Settings:
 - **Token name**: something descriptive, e.g. `yggdrasil-agent-issues`
 - **Expiration**: set a reasonable expiry (90 days, 1 year)
 - **Resource owner**: `SiliconSaga` (or whichever org the repos live in)
-- **Repository access**: "All repositories" or select specific repos
-- **Permissions → Repository permissions → Issues**: `Read and write`
-- All other permissions: leave at `No access`
+- **Repository access**: "All repositories" or select specific repos then the following access:
+
+  ┌───────────────┬──────────────────────┬────────────────────────────┐
+  │  Permission   │    Access needed     │            Why             │
+  ├───────────────┼──────────────────────┼────────────────────────────┤
+  │ Contents      │ Read and write       │ git push to topic branches │
+  ├───────────────┼──────────────────────┼────────────────────────────┤
+  │ Issues        │ Read and write       │ Creating issues            │
+  ├───────────────┼──────────────────────┼────────────────────────────┤
+  │ Pull requests │ Read and write       │ Opening PRs                │
+  ├───────────────┼──────────────────────┼────────────────────────────┤
+  │ Metadata      │ Read (auto-included) │ Repo info                  │
+  └───────────────┴──────────────────────┴────────────────────────────┘
 
 > Classic PATs are an alternative. If you use one, grant only the `repo` scope
 > (or `public_repo` if all targeted repos are public). Do not grant `admin`,
