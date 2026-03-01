@@ -77,6 +77,9 @@ git branch -d <type>/<description>
   continues to push via SSH unaffected.
 - `GH_TOKEN` must be set (via `.env` or environment) for both push and PR scripts.
 - PR title follows the same `type:` convention as commit messages and issue titles.
+- **Always `cp` the template file — never write PR bodies from memory.** The template
+  evolves; using a remembered or hardcoded heredoc will produce a stale body. The `cp`
+  step is not optional even when batching multiple PRs.
 
 ## When Direct Push to Main Is Acceptable
 

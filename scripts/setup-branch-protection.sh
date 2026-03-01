@@ -11,7 +11,7 @@
 #   Settings → Branches → Add rule → Branch name: main
 #   ✓ Require a pull request before merging (1 approval)
 #   ✓ Dismiss stale pull request approvals when new commits are pushed
-#   ✓ Do not allow bypassing the above settings
+#   ✗ Do not allow bypassing the above settings  ← leave unchecked (admins can self-merge)
 #   ✓ Allow force pushes → off
 #   ✓ Allow deletions → off
 #
@@ -22,7 +22,7 @@
 #   - Dismiss stale reviews when new commits are pushed
 #   - No force pushes
 #   - No branch deletion
-#   - Admins are NOT exempt (enforce_admins: true)
+#   - Admins CAN bypass (enforce_admins: false) — allows self-merge until bot account is set up
 
 set -euo pipefail
 
@@ -48,7 +48,7 @@ for REPO in "${REPOS[@]}"; do
     --method PUT \
     "/repos/$ORG/$REPO/branches/$BRANCH/protection" \
     --field required_status_checks=null \
-    --field enforce_admins=true \
+    --field enforce_admins=false \
     --field "required_pull_request_reviews[required_approving_review_count]=1" \
     --field "required_pull_request_reviews[dismiss_stale_reviews]=true" \
     --field restrictions=null \
