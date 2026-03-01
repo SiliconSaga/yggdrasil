@@ -19,7 +19,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../.env"
+ENV_FILE="$SCRIPT_DIR/../.env"
+
+if [[ -z "${GH_TOKEN:-}" ]]; then
+  if [[ -f "$ENV_FILE" ]]; then
+    # shellcheck source=/dev/null
+    source "$ENV_FILE"
+  else
+    echo "ERROR: GH_TOKEN not set and $ENV_FILE not found" >&2
+    echo "  Create it from .env.example or set GH_TOKEN in your environment." >&2
+    exit 1
+  fi
+fi
 
 TITLE="${1:-}"
 BODYFILE="${2:-}"

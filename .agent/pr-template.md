@@ -8,3 +8,4 @@
 - Closes #N (if applicable, otherwise remove this line)
 
 🤖 Assisted by Claude Code
+<!-- Commit-level attribution (Co-Authored-By trailers) is separate — see topic-branch-workflow skill -->

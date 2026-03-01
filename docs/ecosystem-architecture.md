@@ -51,7 +51,7 @@ knowledge of Demicracy.
 ## Tier Breakdown
 
 ### Tier 1: Nordri — Cluster Substrate
-**Repo**: `refr-k8s` / github.com/SiliconSage/refr-k8s
+**Repo**: `nordri` / github.com/SiliconSaga/nordri
 
 Nordri is one of the dwarves that holds up the sky in Norse mythology. All other tiers depend on this:
 
@@ -67,7 +67,7 @@ Nordri's `platform/argocd/` holds one entry-point Application per tier above it:
 currently `nidavellir-apps.yaml` (pointing at `nidavellir/apps/`).
 
 ### Tier 2: Nidavellir — Platform
-**Repo**: `nidavellir` / github.com/SiliconSage/nidavellir
+**Repo**: `nidavellir` / github.com/SiliconSaga/nidavellir
 
 The Star Forge — the developer platform everything is built on:
 
@@ -84,7 +84,7 @@ Nidavellir's `apps/` directory holds one Application manifest per component, plu
 `demicracy-apps.yaml` entry point that bootstraps Tier 3.
 
 ### Tier 3: Demicracy — End-User Platform
-**Repo**: `demicracy` / github.com/SiliconSage/demicracy
+**Repo**: `demicracy` / github.com/SiliconSaga/demicracy
 
 Civics, collaboration, and community tooling:
 
@@ -136,7 +136,7 @@ Two separate numbering schemes exist:
 | Repo | Tier | Role |
 |------|------|------|
 | `yggdrasil` | — | Docs, skills, config, workspace root |
-| `refr-k8s` (Nordri) | Tier 1 | Cluster substrate app-of-apps |
+| `nordri` | Tier 1 | Cluster substrate app-of-apps |
 | `nidavellir` | Tier 2 | Platform app-of-apps; deploys Tier 3 |
 | `mimir` | Tier 2 component | Data services (Crossplane + operators) |
 | `heimdall` | Tier 2 component | Observability stack |
@@ -155,5 +155,5 @@ Two separate numbering schemes exist:
 
 - `project-constellation.md` — Detailed narrative description of each project
 - `nidavellir/vegvisir/README.md` — Vegvísir routing/TLS ownership and GitHub transition
-- `refr-k8s/docs/bootstrap.md` — Nordri bootstrap runbook
-- `refr-k8s/scripts/gke-provision.sh` — GKE test cluster provisioning
+- `nordri/docs/bootstrap.md` — Nordri bootstrap runbook
+- `nordri/scripts/gke-provision.sh` — GKE test cluster provisioning

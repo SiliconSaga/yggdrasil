@@ -68,6 +68,16 @@ git pull siliconsaga main
 git branch -d <type>/<description>
 ```
 
+## Key Notes
+
+- Always use `git-push.sh` rather than plain `git push` — GitKraken installs a global
+  `url.insteadOf` rule that rewrites `https://github.com/` to `git@github.com:` (SSH),
+  which fails in agent scripts without GitKraken's ssh-agent. The script bypasses this
+  by pushing to an explicit `https://x-access-token:$GH_TOKEN@...` URL. GitKraken
+  continues to push via SSH unaffected.
+- `GH_TOKEN` must be set (via `.env` or environment) for both push and PR scripts.
+- PR title follows the same `type:` convention as commit messages and issue titles.
+
 ## When Direct Push to Main Is Acceptable
 
 Only when the user explicitly requests it, AND branch protection has not yet been configured on the repo. Once protection is active, all pushes to main require a PR regardless.

@@ -50,15 +50,22 @@ check "gh authenticated" gh auth status
 GH_USER=$(gh api /user --jq .login 2>/dev/null || echo "unknown")
 echo "  $PASS authenticated as: $GH_USER"
 
-# ── 2. git credential helper ─────────────────────────────────────────────────
+# ── 2. git URL rewrite and credential helper ─────────────────────────────────
 echo ""
 echo "[ git credentials ]"
 
+# GitKraken adds url."git@github.com:".insteadOf=https://github.com/ to ~/.gitconfig,
+# rewriting all HTTPS remotes to SSH. Agent push scripts bypass this by using an
+# explicit https://x-access-token:$GH_TOKEN@github.com/... URL which doesn't match
+# the insteadOf prefix. GitKraken continues to use SSH via its own ssh-agent.
+if git config --list | grep -q 'url.*insteadOf.*github'; then
+  echo "  $WARN SSH insteadOf rewrite active (GitKraken). Agent scripts use token URL to bypass."
+fi
+
 if git config --list | grep -q 'credential.https://github.com.helper.*gh auth'; then
-  echo "  $PASS gh credential helper configured for github.com"
+  echo "  $PASS gh credential helper configured for github.com (used by gh CLI, not git push)"
 else
-  echo "  $FAIL gh credential helper not set — run: gh auth setup-git"
-  ERRORS=$((ERRORS + 1))
+  echo "  $WARN gh credential helper not set — run: gh auth setup-git (optional; gh CLI may still work via GH_TOKEN)"
 fi
 
 # ── 3. Repo access ───────────────────────────────────────────────────────────
