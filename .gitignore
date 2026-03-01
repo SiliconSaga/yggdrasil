@@ -1,3 +1,4 @@
 .env
 .issues/
+.prs/
 .DS_Store

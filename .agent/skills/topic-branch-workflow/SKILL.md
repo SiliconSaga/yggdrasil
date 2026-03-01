@@ -19,11 +19,24 @@ Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`
 
 Examples: `feat/gh-issue-helper`, `fix/nordri-velero-assert`, `docs/kuttl-gotchas`
 
+## Utility Scripts
+
+All scripts live in `yggdrasil/scripts/` and auto-source `.env`. Run them from any workspace repo directory.
+
+| Script | Purpose |
+|--------|---------|
+| `git-push.sh [branch]` | Push current (or named) branch to siliconsaga |
+| `git-pr.sh TITLE BODYFILE` | Open PR from current branch to main |
+| `gh-issue.sh REPO TITLE LABEL BODYFILE` | File a GitHub issue |
+
+PR body drafts follow the same pattern as issue drafts:
+- Template: `yggdrasil/.agent/pr-template.md`
+- Clearinghouse: `<repo-root>/.prs/<descriptive-name>.md` (gitignored, auto-created)
+
 ## Full Workflow
 
 ```bash
 # 1. Start from an up-to-date main
-source /Users/cervator/dev/git_ws/yggdrasil/.env
 git checkout main
 git pull siliconsaga main
 
@@ -36,25 +49,15 @@ git commit -m "type: description
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
-# 4. Push topic branch
-git push siliconsaga <type>/<description>
+# 4. Push
+/Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh
 
-# 5. Open PR
-gh pr create \
-  --repo SiliconSaga/REPO \
-  --base main \
-  --head <type>/<description> \
-  --title "type: concise description" \
-  --body "$(cat <<'EOF'
-## Summary
-- What this does and why
+# 5. Draft PR body
+cp /Users/cervator/dev/git_ws/yggdrasil/.agent/pr-template.md .prs/<description>.md
+# ... fill in Summary, Test plan, Related ...
 
-## Related
-- Closes #N (if applicable)
-
-🤖 Assisted by Claude Code
-EOF
-)"
+# 6. Open PR
+/Users/cervator/dev/git_ws/yggdrasil/scripts/git-pr.sh "type: description" .prs/<description>.md
 ```
 
 ## After the PR is Merged
@@ -64,13 +67,6 @@ git checkout main
 git pull siliconsaga main
 git branch -d <type>/<description>
 ```
-
-## Key Notes
-
-- `source .env` is required before `git push` — the credential helper reads `GH_TOKEN` from the environment
-- PR title follows the same `type:` convention as commit messages and issue titles
-- If the PR resolves a GitHub issue, add `Closes #N` to the PR body — GitHub will close the issue on merge
-- For multi-commit PRs, squash on merge keeps main history clean; leave this to the human reviewer
 
 ## When Direct Push to Main Is Acceptable
 
