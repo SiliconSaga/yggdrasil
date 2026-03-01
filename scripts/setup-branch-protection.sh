@@ -1,15 +1,28 @@
 #!/usr/bin/env bash
 # setup-branch-protection.sh — configure main branch protection on all SiliconSaga repos
 #
-# Requires admin permission on each repo. Run with a token that has repo admin scope,
-# or as the org owner via: source .env && ./scripts/setup-branch-protection.sh
+# IMPORTANT: This is a one-time admin operation. The day-to-day agent PAT (.env)
+# intentionally does NOT have Administration scope and will get a 403 here.
+#
+# Run this script as the org owner with a token that includes Administration scope:
+#   GH_TOKEN=<admin-token> ./scripts/setup-branch-protection.sh
+#
+# Alternatively, set branch protection via GitHub web UI:
+#   Settings → Branches → Add rule → Branch name: main
+#   ✓ Require a pull request before merging (1 approval)
+#   ✓ Dismiss stale pull request approvals when new commits are pushed
+#   ✓ Do not allow bypassing the above settings
+#   ✓ Allow force pushes → off
+#   ✓ Allow deletions → off
+#
+# The web UI approach is recommended — it requires no additional token scope.
 #
 # What this sets on main for each repo:
 #   - Pull request required before merging (1 approval)
 #   - Dismiss stale reviews when new commits are pushed
 #   - No force pushes
 #   - No branch deletion
-#   - Admins are NOT exempt (enforce_admins: true) — use bypass sparingly
+#   - Admins are NOT exempt (enforce_admins: true)
 
 set -euo pipefail
 
@@ -17,13 +30,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/../.env"
 
 if [[ -z "${GH_TOKEN:-}" ]]; then
-  if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck source=/dev/null
-    source "$ENV_FILE"
-  else
-    echo "ERROR: GH_TOKEN not set and $ENV_FILE not found" >&2
-    exit 1
-  fi
+  echo "ERROR: GH_TOKEN not set." >&2
+  echo "  This script requires an admin-scoped token, not the agent PAT." >&2
+  echo "  Run: GH_TOKEN=<admin-token> $0" >&2
+  echo "  Or use the GitHub web UI (see comments at top of this script)." >&2
+  exit 1
 fi
 
 REPOS=(nordri nidavellir mimir yggdrasil vordu)
