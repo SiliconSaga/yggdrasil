@@ -102,6 +102,54 @@ kubectl apply -f "$SCRIPT_DIR/manifests/providers.yaml"
 | "file not found" when run from other dir | Relative paths in scripts | Use `SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"` |
 | `/path` becomes `C:/Program Files/Git/path` | Git Bash MSYS path mangling | `export MSYS_NO_PATHCONV=1` before kubectl exec |
 | selfHeal overwrites manual patches | Source of truth in Gitea differs | Update source via `update.sh`, not manual patches |
+| `metadata.annotations: Too long` | CRDs exceed 262KB annotation limit | Add `ServerSideApply=true` to syncOptions |
+| Operator crash: "no matches for kind" | Kustomize helmCharts omits CRDs | Add `includeCRDs: true` to helmCharts config |
+
+## ServerSideApply for Large CRDs
+
+Operator CRDs (Percona, Strimzi, Redis/Valkey) often exceed the 262KB annotation limit for client-side apply. Symptom:
+
+```
+metadata.annotations: Too long: must have at most 262144 bytes
+```
+
+**Fix**: Add `ServerSideApply=true` to the ArgoCD Application's syncOptions:
+
+```yaml
+syncPolicy:
+  syncOptions:
+    - ServerSideApply=true
+```
+
+Always use this for any Application that installs operator CRDs. Server-side apply uses field ownership instead of the `last-applied-configuration` annotation, avoiding the size limit.
+
+## Kustomize helmCharts for Patching Helm Charts
+
+When a Helm chart hardcodes a value with no override (e.g., Percona PG operator's `runAsNonRoot: true`), use Kustomize's `helmCharts` feature to render the chart and apply patches:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+helmCharts:
+  - name: pg-operator
+    repo: https://percona.github.io/percona-helm-charts/
+    version: 2.8.2
+    releaseName: percona-postgresql-operator
+    namespace: percona
+    includeCRDs: true  # Required — Kustomize skips Helm CRDs by default
+    valuesInline:
+      watchAllNamespaces: true
+patches:
+  - target:
+      kind: Deployment
+      name: percona-postgresql-operator-pg-operator
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext/runAsNonRoot
+        value: false
+```
+
+The ArgoCD Application points to the directory containing this kustomization.yaml (Kustomize source, not Helm source). Requires `--enable-helm` in ArgoCD's `kustomize.buildOptions`.
 
 ## Common Mistakes
 
@@ -109,3 +157,5 @@ kubectl apply -f "$SCRIPT_DIR/manifests/providers.yaml"
 - **Not waiting for providers before applying configs**: `kubectl apply -f provider-configs.yaml` fails if the ProviderConfig CRD doesn't exist yet. Always `kubectl wait --for=condition=Healthy` first.
 - **Manually patching ArgoCD Applications**: If selfHeal is enabled, ArgoCD will overwrite your patch on the next reconciliation. Update the Git source instead.
 - **Using relative paths in bootstrap scripts**: Scripts may be called from any directory. Always resolve paths relative to SCRIPT_DIR.
+- **Forgetting `ServerSideApply=true` on operator Applications**: CRDs will fail to sync with the 262KB annotation error. Always include it.
+- **Forgetting `includeCRDs: true` in Kustomize helmCharts**: Unlike `helm install`, Kustomize does not include CRDs by default. Operators will crash looking for their own CRDs.
