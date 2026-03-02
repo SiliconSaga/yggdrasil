@@ -77,6 +77,43 @@ For Nordri development on Windows, we suggest **Rancher Desktop**
 
 If you need _additional_ k3s clusters beyond the one provided by Rancher Desktop, you could install the full `k3d` environment that works via Docker and manage multiple clusters that way. This could also be a fine approach on Mac or Linux.
 
+### WSL2 inotify Limits
+
+Rancher Desktop runs k3s inside a WSL2 VM. The default Linux `inotify` limits are too low
+for clusters running multiple Kubernetes operators (each operator watches many resources).
+Symptoms include operators crash-looping with `too many open files` errors — the Percona
+XtraDB (MySQL) operator is typically the first to hit this.
+
+**Check current values:**
+
+```powershell
+wsl -d rancher-desktop sudo sysctl fs.inotify.max_user_watches
+wsl -d rancher-desktop sudo sysctl fs.inotify.max_user_instances
+```
+
+**Required minimums** (defaults are 524288 watches / 128 instances):
+
+| Setting | Default | Required |
+|---------|---------|----------|
+| `fs.inotify.max_user_watches` | 524288 | 524288 (usually fine) |
+| `fs.inotify.max_user_instances` | 128 | 512 |
+
+**Apply (non-persistent — resets on WSL restart):**
+
+```powershell
+wsl -d rancher-desktop sudo sysctl -w fs.inotify.max_user_instances=512
+```
+
+**Apply (persistent across restarts):**
+
+```powershell
+wsl -d rancher-desktop sudo sh -c 'echo "fs.inotify.max_user_instances=512" >> /etc/sysctl.conf'
+```
+
+> **Note**: After a Rancher Desktop or WSL restart, verify the values are still set.
+> If the persistent method doesn't survive restarts (some WSL distros reset `/etc/sysctl.conf`),
+> add the `sysctl -w` command to your post-reset checklist.
+
 ### Resetting the Environment
 
 If you need to wipe the cluster clean (e.g., to clear out old deployments before a fresh bootstrap), use the Rancher Desktop CLI (`rdctl`) or the GUI.
