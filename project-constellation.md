@@ -50,9 +50,9 @@ Norðri is the bootstrapper dwarf that holds up the sky. This is achieved throug
 
 *   **Project**: **Heimdall**
 *   **Location**: `d:/Dev/GitWS/heimdall`
-*   **Tech Stack**: Panoptes (Prometheus, Grafana, Loki, Tempo), Thanos for long term storage (not Grafana Mimir)
-*   **Purpose**: Keep tabs on thing, host alerts, dashboards, etc.
-*   **Role**: Builds on *Norðri* and Mimir, watches everything
+*   **Tech Stack**: kube-prometheus-stack, Grafana, Loki, Tempo, Thanos (long-term metric storage; not Grafana Mimir)
+*   **Purpose**: Keep tabs on things, host alerts, dashboards, etc.
+*   **Role**: Builds on *Norðri*, watches everything. No hard dependency on Mimir.
 
 ## The Forge: Nidavellir (Developer Tools, Identity & Organizing)
 

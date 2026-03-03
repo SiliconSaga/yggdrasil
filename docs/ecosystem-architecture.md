@@ -75,7 +75,7 @@ The Star Forge — the developer platform everything is built on:
 |-----------|---------|--------|
 | Vegvísir | Shared Traefik Gateway + cert-manager + TLS | Active |
 | Mimir | Data services (PostgreSQL, MySQL, MongoDB, Kafka, Valkey) | Active |
-| Heimdall | Observability (Prometheus, Grafana, Loki, Tempo) | Planned |
+| Heimdall | Observability (Prometheus, Grafana, Loki, Tempo, Thanos) | Planned |
 | Keycloak | Identity and SSO | Planned |
 | Vörðu | BDD roadmap visualization | Active |
 | OpenBAO | Secrets management | Planned |
