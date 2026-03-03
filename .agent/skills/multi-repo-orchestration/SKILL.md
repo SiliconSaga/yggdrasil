@@ -11,7 +11,7 @@ Session discipline for the SiliconSaga multi-repo workspace: what to work on, wh
 
 ## Workspace Layout
 
-- Repos under `/Users/cervator/dev/git_ws/`: nordri, nidavellir, mimir, yggdrasil, vordu
+- Repos are sibling directories in a shared workspace: nordri, nidavellir, mimir, yggdrasil, vordu
 - Each is an independent git repo under the `SiliconSaga` GitHub org
 - Session memory: `.claude/projects/<project-path>/MEMORY.md`
 - Skills: `yggdrasil/.agent/skills/`

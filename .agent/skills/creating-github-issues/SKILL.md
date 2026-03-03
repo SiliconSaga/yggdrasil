@@ -17,7 +17,8 @@ gh --version
 # If missing: brew install gh
 
 # 2. Verify GH_TOKEN is set (no browser login needed)
-# Load if needed: source /Users/cervator/dev/git_ws/yggdrasil/.env
+# Load if needed (from any sibling repo): source ../yggdrasil/.env
+# Or from within yggdrasil itself:        source .env
 gh auth status
 
 # 3. Identify the target repo (run in the repo directory)
@@ -67,8 +68,10 @@ Title starts with a verb: `fix:`, `feat:`, `refactor:`, `docs:`, `test:`
 **Step 1 — copy the committed template to a uniquely named draft** (one copy per issue):
 
 ```bash
-cp /Users/cervator/dev/git_ws/yggdrasil/.agent/issue-template.md \
-   /Users/cervator/dev/git_ws/yggdrasil/.issues/<repo>-<short-description>.md
+# From a sibling repo:
+cp ../yggdrasil/.agent/issue-template.md ../yggdrasil/.issues/<repo>-<short-description>.md
+# From within yggdrasil itself:
+cp .agent/issue-template.md .issues/<repo>-<short-description>.md
 ```
 
 The `.issues/` directory is gitignored. Multiple drafts can be staged there
@@ -81,7 +84,7 @@ Replace all `[placeholder]` text. Keep the attribution blockquote as the first l
 **Step 3 — review the batch** (optional, for multi-issue sessions):
 
 ```bash
-ls /Users/cervator/dev/git_ws/yggdrasil/.issues/
+ls ../yggdrasil/.issues/
 ```
 
 Read each file before proceeding to confirm content.
@@ -89,8 +92,11 @@ Read each file before proceeding to confirm content.
 **Step 4 — submit via the helper script** (fixed invocation — one approval covers all future issues):
 
 ```bash
-/Users/cervator/dev/git_ws/yggdrasil/scripts/gh-issue.sh REPO "verb: description" LABEL \
-  /Users/cervator/dev/git_ws/yggdrasil/.issues/<filename>.md
+# From a sibling repo:
+../yggdrasil/scripts/gh-issue.sh REPO "verb: description" LABEL \
+  ../yggdrasil/.issues/<filename>.md
+# From within yggdrasil itself:
+./scripts/gh-issue.sh REPO "verb: description" LABEL .issues/<filename>.md
 ```
 
 Labels: `bug`, `enhancement`, `documentation`

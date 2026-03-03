@@ -4,9 +4,17 @@ Prerequisites for using `gh` to create and manage GitHub issues across this work
 
 ## Install
 
+**macOS:**
 ```bash
 brew install gh
 ```
+
+**Windows (Git Bash):**
+```bash
+winget install GitHub.cli
+```
+After install, open a fresh Git Bash session so the updated `PATH` is picked up.
+Alternatively, download the MSI directly from https://cli.github.com and install it.
 
 ## Authentication (PAT — no browser required)
 
@@ -41,7 +49,7 @@ Settings:
 
 ### 2. Store the token
 
-Create `/Users/cervator/dev/git_ws/yggdrasil/.env` (this file is gitignored):
+Create `.env` in the `yggdrasil` repo root (this file is gitignored):
 
 ```bash
 export GH_TOKEN=github_pat_xxxxxxxxxxxx
@@ -50,11 +58,16 @@ export GH_TOKEN=github_pat_xxxxxxxxxxxx
 ### 3. Load it into your shell
 
 ```bash
-source /Users/cervator/dev/git_ws/yggdrasil/.env
+# From within yggdrasil:
+source .env
+# From a sibling repo:
+source ../yggdrasil/.env
 ```
 
-Add this to your shell profile (`~/.zshrc` or `~/.bashrc`) if you want it loaded
-automatically in every terminal session.
+> **Note on credential helpers:** `gh auth status` and `validate-agent-setup.sh` may
+> warn that the `gh` credential helper is not configured. This is safe to ignore — the
+> agent scripts push via an explicit `https://x-access-token:$GH_TOKEN@...` URL, so no
+> credential helper is required. Avoiding separate auth may keep the system safer.
 
 ### 4. Verify
 

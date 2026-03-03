@@ -49,15 +49,15 @@ git commit -m "type: description
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
-# 4. Push
-/Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh
+# 4. Push (from a sibling repo; use ./scripts/git-push.sh if already in yggdrasil)
+../yggdrasil/scripts/git-push.sh
 
 # 5. Draft PR body
-cp /Users/cervator/dev/git_ws/yggdrasil/.agent/pr-template.md .prs/<description>.md
+cp ../yggdrasil/.agent/pr-template.md .prs/<description>.md
 # ... fill in Summary, Test plan, Related ...
 
 # 6. Open PR
-/Users/cervator/dev/git_ws/yggdrasil/scripts/git-pr.sh "type: description" .prs/<description>.md
+../yggdrasil/scripts/git-pr.sh "type: description" .prs/<description>.md
 ```
 
 ## After the PR is Merged
