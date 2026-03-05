@@ -4,9 +4,20 @@
 
 > "An immense mythical tree that connects the nine worlds in Norse cosmology."
 
-**Yggdrasil** is the **Root Workspace** / wrapper for the entire ecosystem. It holds the VS Code configuration, the high-level "Project Constellation" map, and the workflow strategies that bind the other projects together.
+**Yggdrasil** is the **Root Workspace** / wrapper for the entire ecosystem. It holds the VS Code workspace file, the high-level "Project Constellation" map, workflow strategies that bind the other projects together, and so on
 
-## Contents
+## AI Usage
 
-* **[Project Constellation](project-constellation.md)**: The map of all projects (Norðri, Nidavellir, etc.).
-* **[Workflow Strategy](workflow-strategy.md)**: How we collaborate using AI Artifacts and Files.
+This ecosystem is largely made possible by extensive AI usage, such as with Claude Code or Google's Antigravity. General AI instructions can be found in `agents.md` in this project, which can be pointed at by other agent-specific files like `CLAUDE.md` to avoid duplication. Only put agent-specific instructions in named agent files.
+
+Agent skills can be installed in various ways and custom ones added at `.agent/skills`
+
+### Claude Code
+
+* https://code.claude.com/docs/en/skills - read about skills in general and which are bundled
+* https://github.com/anthropics/skills - an additional set of official skills by Anthropic
+  * Install with `/plugin marketplace add anthropics/skills`
+* https://github.com/obra/superpowers - Obra Superpowers is a well-reputed set of additional skills
+  * Install with `/plugin marketplace add obra/superpowers-marketplace`
+  * Then `/plugin install superpowers@superpowers-marketplace`
+
