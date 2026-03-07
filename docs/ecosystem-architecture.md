@@ -83,6 +83,16 @@ The Star Forge — the developer platform everything is built on:
 Nidavellir's `apps/` directory holds one Application manifest per component, plus the
 `demicracy-apps.yaml` entry point that bootstraps Tier 3.
 
+**Deployment ordering** within Tier 2 is controlled by ArgoCD sync waves:
+
+| Wave | Component | Notes |
+|------|-----------|-------|
+| 5 | Vegvisir | Gateway + TLS must be available first |
+| 7 | Mimir | Data services for Keycloak and applications |
+| 10 | Heimdall | Observability; no hard dependency on Mimir |
+| 10 | Keycloak | Identity; consumes Mimir Postgres |
+| — | OpenBAO, Vordu | Not yet deployed |
+
 ### Tier 3: Demicracy — End-User Platform
 **Repo**: `demicracy` / github.com/SiliconSaga/demicracy
 
