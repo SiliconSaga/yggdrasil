@@ -11,7 +11,9 @@ Session discipline for the SiliconSaga multi-repo workspace: what to work on, wh
 
 ## Workspace Layout
 
-- Repos are sibling directories in a shared workspace: nordri, nidavellir, mimir, yggdrasil, vordu
+- Component repos live in `yggdrasil/components/` as independent Git repos
+- Clone components: `scripts/ws-clone.sh <name>` or `scripts/ws-clone.sh --all`
+- Check workspace state: `scripts/ws-status.sh` or `scripts/ws-list.sh`
 - Each is an independent git repo under the `SiliconSaga` GitHub org
 - Session memory: `.claude/projects/<project-path>/MEMORY.md`
 - Skills: `yggdrasil/.agent/skills/`

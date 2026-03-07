@@ -154,6 +154,44 @@ Two separate numbering schemes exist:
 | `demicracy` | Tier 3 | End-user platform app-of-apps |
 | `tafl` | Tier 3 component | Game server orchestration |
 
+## Workspace Structure
+
+Component repos live inside yggdrasil under `components/`:
+
+```
+yggdrasil/
+  ecosystem.yaml            # Manifest: components, tiers, chart versions, values
+  ecosystem.local.yaml      # Per-developer overrides (gitignored)
+  components/
+    nordri/                  # Independent Git repo (gitignored)
+    nidavellir/
+    mimir/
+    vordu/
+    heimdall/
+    ymir/
+  .generated/
+    applications/            # ArgoCD manifests from ws-resolve.sh (gitignored)
+```
+
+### Dual-Mode Source Resolution
+
+Each component can be consumed in two ways:
+
+1. **Source mode** (local Git checkout exists): ArgoCD syncs from the Git repo
+   (via internal Gitea mirror). Used during development.
+2. **Chart mode** (no local checkout): ArgoCD installs a pre-built Helm chart
+   from the OCI registry. Used for stable dependencies you aren't actively changing.
+
+The `scripts/ws-resolve.sh` script auto-detects which mode applies per component
+and generates the appropriate ArgoCD Application manifests.
+
+Developers can override resolution per-component via `ecosystem.local.yaml`:
+- `forceChart: true` — use chart even when local source exists
+- Override `values:` for local environment specifics
+- Toggle `disabled` to include/exclude components
+
+See `ecosystem.yaml` for the full component inventory.
+
 ## Environments
 
 | Environment | Kubernetes | Storage | Notes |
