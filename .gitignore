@@ -1,4 +1,19 @@
+# Environment and drafts
 .env
 .issues/
 .prs/
 .DS_Store
+
+# Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
+# Only .gitkeep is tracked so the directory structure is preserved.
+/components/*
+!/components/.gitkeep
+
+# Local ecosystem overrides (per-developer, never committed)
+ecosystem.local.yaml
+
+# Generated ArgoCD manifests from ws-resolve.sh
+/.generated/
+
+# IDE workspace files — generated per-user via ws-vscode.sh, not shared
+*.code-workspace
