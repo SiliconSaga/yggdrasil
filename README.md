@@ -17,7 +17,8 @@ Agent skills can be installed in various ways and custom ones added at `.agent/s
 * https://code.claude.com/docs/en/skills - read about skills in general and which are bundled
 * https://github.com/anthropics/skills - an additional set of official skills by Anthropic
   * Install with `/plugin marketplace add anthropics/skills`
+  * Then `/plugin install example-skills@anthropic-agent-skills`
 * https://github.com/obra/superpowers - Obra Superpowers is a well-reputed set of additional skills
   * Install with `/plugin marketplace add obra/superpowers-marketplace`
   * Then `/plugin install superpowers@superpowers-marketplace`
-
+* Restart Claude or run `/reload-plugins` after
