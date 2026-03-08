@@ -1,8 +1,9 @@
 # AI Agent Guidelines for This Workspace
 
-Yggdrasil is the workspace root for the SiliconSaga ecosystem: not a deployable, but the
-home of architecture docs, agent skills, utility scripts, and workflow conventions shared
-across all repos.
+Yggdrasil is the workspace root for the SiliconSaga ecosystem. Component repos
+live in `components/` as independent Git repos, cloned via `scripts/ws-clone.sh`.
+The `ecosystem.yaml` manifest declares all components, their tiers, and configuration.
+Per-developer overrides go in `ecosystem.local.yaml` (gitignored).
 
 Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architecture.md)
 
@@ -10,14 +11,15 @@ Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architectu
 
 ## Repo Roles (quick reference)
 
-| Repo | Tier | Role |
-|------|------|------|
-| `yggdrasil` | — | Docs, skills, scripts, workspace root |
-| `nordri` | 1 | Cluster substrate (Traefik, Crossplane, Velero, ArgoCD) |
-| `nidavellir` | 2 | Platform app-of-apps (Vegvísir, Mimir, Keycloak, …) |
-| `mimir` | 2 component | Data services via Crossplane + operators |
-| `vordu` | 2 component | BDD roadmap visualization |
-| `demicracy` | 3 | End-user platform app-of-apps (Backstage, Tafl, …) |
+| Repo | Tier | Role | Path |
+|------|------|------|------|
+| `yggdrasil` | — | Docs, skills, scripts, workspace root | `.` (this repo) |
+| `nordri` | 1 | Cluster substrate (Traefik, Crossplane, Velero, ArgoCD) | `components/nordri` |
+| `nidavellir` | 2 | Platform app-of-apps (Vegvísir, Mimir, Keycloak, …) | `components/nidavellir` |
+| `mimir` | 2 component | Data services via Crossplane + operators | `components/mimir` |
+| `vordu` | 2 component | BDD roadmap visualization | `components/vordu` |
+| `heimdall` | 2 component | Observability stack | `components/heimdall` |
+| `ymir` | 3 | End-user platform | `components/ymir` |
 
 GitHub org: Avoid using a generic `origin` and use explicit remote names like `siliconsaga`
 
@@ -52,6 +54,12 @@ Run from any workspace repo directory using the full path.
 | `gh-issue.sh REPO TITLE LABEL BODYFILE` | File a GitHub issue with attribution check |
 | `setup-branch-protection.sh` | One-time admin op — requires admin-scoped `GH_TOKEN` |
 | `validate-agent-setup.sh` | Verify GH_TOKEN, auth, repo access, branch protection |
+| `ws-clone.sh [name\|--all]` | Clone ecosystem component(s) into `components/` |
+| `ws-status.sh [--verbose]` | Git status across all cloned components |
+| `ws-pull.sh [name]` | Pull latest for cloned components |
+| `ws-list.sh` | List all components with tier, chart version, local status |
+| `ws-resolve.sh [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
+| `ws-vscode.sh` | Generate VS Code workspace file from cloned components |
 
 ---
 
@@ -100,6 +108,36 @@ prefix and bypasses the rewrite. GitKraken continues to push via SSH unaffected.
   Administration scope is NOT included; use a separate admin token for `setup-branch-protection.sh`.
 
 Full setup guide: [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
+
+---
+
+## Ecosystem Manifest
+
+`ecosystem.yaml` is the central declaration of all SiliconSaga components.
+It defines tiers, chart versions, namespaces, and Helm values overrides.
+
+`ecosystem.local.yaml` (gitignored) lets developers override any field
+per-machine without touching the shared manifest. Common uses:
+
+- `forceChart: true` on a component to use its chart even with local source
+- Override `values:` for local environment specifics (hostnames, feature flags)
+- `disabled: false` on echo-test to validate chart-mode resolution
+
+The `ws-resolve.sh` script merges both files and generates ArgoCD Application
+manifests, choosing Git source or OCI chart per component based on what's
+checked out locally (and any `forceChart` overrides).
+
+## IDE Setup
+
+IDE workspace files are NOT tracked in Git — they vary per developer and
+per set of cloned components.
+
+- **VS Code**: Run `scripts/ws-vscode.sh` to generate `yggdrasil.code-workspace`
+  from your currently cloned components. Re-run after cloning more.
+- **JetBrains**: Open the `yggdrasil/` directory, then attach component
+  directories as modules via File > Project Structure.
+- **Terminal / Neovim / etc.**: Just `cd` into `yggdrasil/` or any component
+  under `components/`. The scripts work from anywhere.
 
 ---
 
