@@ -7,6 +7,15 @@ This file covers only Claude-specific overrides.
 
 ---
 
+## Session Conventions
+
+- **Start Claude from `yggdrasil/`** — this is the workspace root. All sessions
+  should use it as the working directory. Avoid starting from `GitWS/` or
+  component subdirectories.
+- **Keep shell commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
+  Don't prefix commands with `cd` or `export PATH=...` — just call scripts
+  directly (e.g. `bash scripts/git-push.sh`).
+
 ## Workspace Structure
 
 Yggdrasil is the workspace root. Component repos live in `components/` as
