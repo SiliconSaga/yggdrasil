@@ -85,6 +85,49 @@ gh issue list --repo SiliconSaga/mimir --limit 5
 
 If this returns a list (or an empty table), auth is working correctly.
 
+## yq (YAML processor)
+
+The `ws-*` workspace scripts require [yq](https://github.com/mikefarah/yq) v4+
+to parse `ecosystem.yaml`.
+
+**macOS:**
+```bash
+brew install yq
+```
+
+**Windows:**
+```bash
+# Option 1: winget
+winget install MikeFarah.yq
+
+# Option 2: manual download (no admin needed)
+mkdir -p "$HOME/bin"
+curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe -o "$HOME/bin/yq.exe"
+```
+
+If you use the manual download, add `~/bin` to your PATH. In Git Bash, add to `~/.bashrc`:
+```bash
+export PATH="$HOME/bin:$PATH"
+```
+
+Verify: `yq --version` should report v4.x.
+
+## Running Shell Scripts on Windows
+
+All workspace scripts are Bash scripts (`.sh`). Windows doesn't execute these
+natively — you need Git Bash (installed with Git for Windows).
+
+| From | How to run |
+|------|------------|
+| Git Bash | `scripts/ws-list.sh` or `bash scripts/ws-list.sh` |
+| cmd / PowerShell | `bash scripts/ws-list.sh` (Git Bash must be on PATH) |
+| VS Code terminal | Set default shell to Git Bash, or prefix with `bash` |
+
+A `.gitattributes` in the repo root forces LF line endings on `.sh` files. This
+prevents `\r: command not found` errors that occur when Git checks out shell
+scripts with Windows-style CRLF endings. If you hit this error on existing
+checkouts, re-checkout the files: `git checkout -- scripts/*.sh`
+
 ## Repos in This Workspace
 
 All current repos are under the `SiliconSaga` GitHub org:
@@ -96,6 +139,8 @@ All current repos are under the `SiliconSaga` GitHub org:
 | mimir | `SiliconSaga/mimir` |
 | yggdrasil | `SiliconSaga/yggdrasil` |
 | vordu | `SiliconSaga/vordu` |
+| heimdall | `SiliconSaga/heimdall` |
+| ymir | `SiliconSaga/ymir` |
 
 The `gh` CLI uses `--repo owner/name` directly and does not depend on local remote names.
 

@@ -1,0 +1,4 @@
+# Force LF line endings for shell scripts so they work in Git Bash on Windows.
+# Without this, Git's core.autocrlf may check out .sh files with CRLF, causing
+# "command not found" errors from invisible \r characters.
+*.sh text eol=lf
