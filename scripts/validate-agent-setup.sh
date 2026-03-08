@@ -45,10 +45,23 @@ else
   echo "  $PASS GH_TOKEN set in environment"
 fi
 
-check "gh authenticated" gh auth status
+if gh auth status &>/dev/null; then
+  echo "  $PASS gh authenticated"
+else
+  echo "  $FAIL gh not authenticated (is GH_TOKEN valid?)"
+  ERRORS=$((ERRORS + 1))
+  echo ""
+  echo "Cannot continue without a valid token. Fix auth first."
+  exit 1
+fi
 
-GH_USER=$(gh api /user --jq .login 2>/dev/null || echo "unknown")
-echo "  $PASS authenticated as: $GH_USER"
+GH_USER=$(gh api /user --jq .login 2>/dev/null || echo "")
+if [[ -n "$GH_USER" ]]; then
+  echo "  $PASS authenticated as: $GH_USER"
+else
+  echo "  $FAIL could not retrieve GitHub username"
+  ERRORS=$((ERRORS + 1))
+fi
 
 # ── 2. git URL rewrite and credential helper ─────────────────────────────────
 echo ""
