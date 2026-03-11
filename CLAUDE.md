@@ -12,9 +12,17 @@ This file covers only Claude-specific overrides.
 - **Start Claude from `yggdrasil/`** — this is the workspace root. All sessions
   should use it as the working directory. Avoid starting from `GitWS/` or
   component subdirectories.
-- **Keep shell commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
-  Don't prefix commands with `cd` or `export PATH=...` — just call scripts
-  directly (e.g. `bash scripts/git-push.sh`).
+- **Workspace CLI:** Always use `bash scripts/ws <cmd>` for workspace
+  operations. Use `bash scripts/ws exec <component> <cmd>` to run commands
+  in component directories — never manually `cd` to components.
+  Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`,
+  `ws issue`, `ws exec`, `ws help`.
+- **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
+  Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
+- On first use of `ws` in a session, briefly note: "Using the workspace CLI
+  (`scripts/ws`). Run `ws help` in your terminal for available commands.
+  Add `export PATH="<yggdrasil>/scripts:$PATH"` to your shell profile for
+  shorthand access."
 
 ## Workspace Structure
 
@@ -30,6 +38,7 @@ yggdrasil/
     mimir/
     ...
   scripts/
+    ws                    # Unified CLI — run `ws help` for subcommands
     ws-clone.sh           # Clone components from ecosystem.yaml
     ws-status.sh          # Git status across workspace
     ws-pull.sh            # Pull all cloned components
@@ -38,7 +47,7 @@ yggdrasil/
     ws-vscode.sh          # Generate VS Code workspace file
 ```
 
-Use `scripts/ws-list.sh` to see what's declared and what's checked out locally.
+Use `bash scripts/ws list` to see what's declared and what's checked out locally.
 
 ## MCP Servers
 
