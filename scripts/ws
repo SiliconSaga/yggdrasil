@@ -15,6 +15,7 @@
 #   push [comp] [branch] Push via HTTPS (sources .env)
 #   pr [comp] <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
+#   test <comp> [args...] Run tests in a component (auto-detects runner)
 #   exec <comp> <cmd...> Run a command in a component directory
 #   help              Show this help message
 #
@@ -111,6 +112,73 @@ ws_pr() {
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "$@"
 }
 
+ws_test() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws test <component> [args...]" >&2
+        echo "" >&2
+        echo "Auto-detects test runner:" >&2
+        echo "  Makefile with 'test' target → make test" >&2
+        echo "  go.mod                      → go test ./... -count=1" >&2
+        echo "  pyproject.toml              → uv run pytest" >&2
+        echo "" >&2
+        echo "Extra args are passed to the test runner:" >&2
+        echo "  ws test ymir -run TestFoo -v" >&2
+        echo "  ws test ymir ./internal/store/ -run TestFoo -v" >&2
+        exit 1
+    fi
+    local comp="$1"
+    shift
+    ws_validate_component "$comp"
+    cd "$COMPONENT_DIR"
+
+    # No extra args: prefer Makefile with 'test' target — it knows the
+    # project layout (e.g. ymir's Makefile cd's into orchestrator/ for go test)
+    if [[ $# -eq 0 ]] && [[ -f Makefile ]] && grep -q '^test:' Makefile; then
+        make test
+        return
+    fi
+
+    # Auto-detect test runner from project files
+    # If go.mod isn't at root, check one level down (e.g. components with a
+    # single Go module in a subdirectory)
+    local go_root=""
+    if [[ -f go.mod ]]; then
+        go_root="."
+    else
+        local candidates=()
+        for d in */go.mod; do
+            [[ -f "$d" ]] && candidates+=("${d%/go.mod}")
+        done
+        if [[ ${#candidates[@]} -eq 1 ]]; then
+            go_root="${candidates[0]}"
+        elif [[ ${#candidates[@]} -gt 1 ]]; then
+            echo "ERROR: Multiple Go modules found in $COMPONENT_DIR:" >&2
+            printf "  %s/\n" "${candidates[@]}" >&2
+            echo "  Use 'ws exec $comp go test <args>' to target a specific module." >&2
+            exit 1
+        fi
+    fi
+
+    if [[ -n "$go_root" ]]; then
+        cd "$go_root"
+        if [[ $# -eq 0 ]]; then
+            go test ./... -count=1
+        else
+            go test "$@"
+        fi
+    elif [[ -f pyproject.toml ]]; then
+        if [[ $# -eq 0 ]]; then
+            uv run pytest
+        else
+            uv run pytest "$@"
+        fi
+    else
+        echo "ERROR: Cannot detect test runner in $COMPONENT_DIR." >&2
+        echo "  Expected: Makefile with 'test' target, go.mod, or pyproject.toml" >&2
+        exit 1
+    fi
+}
+
 ws_issue() {
     bash "$SCRIPT_DIR/gh-issue.sh" "$@"
 }
@@ -148,6 +216,9 @@ case "$COMMAND" in
         ;;
     issue)
         ws_issue "$@"
+        ;;
+    test)
+        ws_test "$@"
         ;;
     exec)
         ws_exec "$@"

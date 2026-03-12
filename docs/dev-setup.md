@@ -43,6 +43,7 @@ ws <command> [args...]
 | `ws issue <repo> <title> <label> <body>` | File a GitHub issue |
 | `ws resolve` | Generate ArgoCD Application manifests |
 | `ws vscode` | Generate VS Code workspace file |
+| `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws help` | Show help |
 
@@ -52,8 +53,8 @@ ws <command> [args...]
 # Check what's available
 bash scripts/ws list
 
-# Run make test inside the ymir component
-bash scripts/ws exec ymir make test
+# Run tests for a component (auto-detects runner)
+bash scripts/ws test ymir
 
 # Check git status of a specific component
 bash scripts/ws exec ymir git status

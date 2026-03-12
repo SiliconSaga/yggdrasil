@@ -59,6 +59,7 @@ The unified entry point for workspace operations. Use `bash scripts/ws <cmd>`
 | `ws issue <repo> <title> <label> <bodyfile>` | File a GitHub issue with attribution check |
 | `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
 | `ws vscode` | Generate VS Code workspace file from cloned components |
+| `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws help` | Show available commands |
 

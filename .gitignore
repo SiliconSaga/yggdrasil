@@ -15,5 +15,8 @@ ecosystem.local.yaml
 # Generated ArgoCD manifests from ws-resolve.sh
 /.generated/
 
+# Claude Code local settings — per-user overrides, never committed
+.claude/settings.local.json
+
 # IDE workspace files — generated per-user via ws-vscode.sh, not shared
 *.code-workspace

@@ -13,7 +13,13 @@
       "Bash(bash scripts/ws pull)",
       "Bash(bash scripts/ws pull *)",
       "Bash(bash scripts/ws resolve)",
-      "Bash(bash scripts/ws vscode)"
+      "Bash(bash scripts/ws vscode)",
+      "Bash(bash scripts/ws test *)",
+      "Bash(bash scripts/ws test * *)",
+      "Bash(bash scripts/ws test * * *)",
+      "Bash(bash scripts/ws test * * * *)",
+      "Bash(bash scripts/ws test * * * * *)",
+      "Bash(bash scripts/ws test * * * * * *)"
     ]
   }
 }
