@@ -39,6 +39,7 @@ ws <command> [args...]
 | `ws clone <comp>\|--all` | Clone one or all components |
 | `ws pull [comp]` | Pull latest for all or one component |
 | `ws push [comp] [branch]` | Push via HTTPS (auto-sources .env) |
+| `ws pr <comp> <title> <bodyfile>` | Open a pull request to main |
 | `ws issue <repo> <title> <label> <body>` | File a GitHub issue |
 | `ws resolve` | Generate ArgoCD Application manifests |
 | `ws vscode` | Generate VS Code workspace file |
