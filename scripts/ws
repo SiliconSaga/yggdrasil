@@ -40,8 +40,10 @@ ws_validate_component() {
         return 0
     fi
 
-    # Reject names that don't match safe pattern
-    if ! echo "$name" | grep -qE '^[a-z][a-z0-9-]*$'; then
+    # Reject names that don't match safe pattern.
+    # Use bash regex directly — grep matches per-line and would pass
+    # newline-injected names like "ymir\nevil" (CVE-style bypass).
+    if [[ ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
         echo "ERROR: Invalid component name '$name'. Must match [a-z][a-z0-9-]*." >&2
         exit 1
     fi
