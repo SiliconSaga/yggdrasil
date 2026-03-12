@@ -71,3 +71,12 @@ These are especially high-value patterns to catch:
 | Manual JSON/YAML transformation | Utility script |
 | Repeated PATH or env exports | CLAUDE.md instruction or ws-env |
 | Same error fixed the same way 3+ times | CLAUDE.md note or pre-flight check |
+
+## After Approval
+
+When the user approves a proposed fix that involves a new `ws` subcommand:
+
+1. Follow the contributor guide at `docs/ws-cli-guide.md`
+2. Classify the permission tier (safe / side-effect / arbitrary)
+3. Update `.claude/settings.json` with allow or deny rules
+4. Update `AGENTS.md`, `CLAUDE.md`, and `docs/dev-setup.md`
