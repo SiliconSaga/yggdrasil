@@ -19,7 +19,18 @@ scripts or workflow improvements.
 
 ## What to Analyze
 
-Scan the current conversation for:
+Scan these sources for evidence:
+
+**Current conversation:** Commands run, errors hit, workarounds applied.
+
+**Auto-approved command history:** Read `.claude/settings.local.json` if it
+exists. The `permissions.allow` list accumulates every command the user has
+approved — it's a record of real usage patterns. Look for:
+- Clusters of similar commands with only minor variations
+- Commands that embed `cd`, `export PATH=`, or other environment setup
+- Long compound commands that could be a single script call
+
+**Analysis categories:**
 
 1. **Repeated `cd` or cwd workarounds** — switching directories manually,
    failed commands due to wrong cwd, `cd` + command sequences.
@@ -33,6 +44,8 @@ Scan the current conversation for:
    switches.
 6. **Patterns across tool calls** — multiple tool invocations that achieve one
    logical operation.
+7. **Output truncation workarounds** — `| head -N`, `| tail -N`, `2>&1`
+   appended to commands that could handle output limits internally.
 
 ## Output Format
 
