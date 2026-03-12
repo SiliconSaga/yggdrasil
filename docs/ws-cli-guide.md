@@ -3,6 +3,12 @@
 How to add new subcommands, classify their permission level, and maintain
 the security model.
 
+## Purpose
+
+While many utility frameworks exist to provide convenience for a human user, this setup is also meant to simplify commands in a flexible workspace _for AI agents_ resulting in clearer commands that can be auto-approved more meaningfully and safely.
+
+Over time as more common patterns are detected they can result in new convenience scripts for better overall visibility and value in the utility framework. This is made available directly as an agent skill, auto-enabled at least for Claude.
+
 ## Architecture
 
 `scripts/ws` is a bash dispatcher. Each subcommand either:
@@ -127,6 +133,45 @@ regex `^[a-z][a-z0-9-]*$` prevents:
 - Shell metacharacters (`;`, `|`, `$`, etc.)
 - Newline injection (bash `=~` matches full string, not per-line)
 - yq expression injection (no dots, brackets, etc.)
+
+## Local Permission Overrides for Bulk Operations
+
+Side-effect commands (`push`, `pr`, `issue`) prompt for approval by default.
+For bulk operations (filing multiple issues, pushing several components),
+you can auto-approve them in your local settings.
+
+**Setup:** Copy the template and add bulk patterns:
+
+```bash
+cp .claude/settings.local.example.json .claude/settings.local.json
+```
+
+Then add the patterns you want to auto-approve. In Claude Code permission
+rules, each `*` matches **one argument** (not multiple). So multi-argument
+commands need one `*` per argument:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/ws push * *)",
+      "Bash(bash scripts/ws pr * * *)",
+      "Bash(bash scripts/ws issue * * * *)"
+    ]
+  }
+}
+```
+
+| Pattern | Matches | Example |
+|---|---|---|
+| `Bash(bash scripts/ws push *)` | Push with component only | `ws push ymir` |
+| `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push ymir feat/foo` |
+| `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr ymir "feat: add X" .prs/x.md` |
+| `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue ymir "fix: Y" bug .issues/y.md` |
+
+**Note:** `ws exec` is **permanently denied** at the project level
+(`.claude/settings.json`). Local settings cannot override project-level
+deny rules — this is intentional. See "Why exec is permanently denied" below.
 
 ## Finding Patterns Worth Scripting
 

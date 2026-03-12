@@ -81,3 +81,20 @@ ws exec ymir make test
 ws list
 ws push ymir
 ```
+
+### AI Agent Permissions
+
+Claude Code permissions are configured at two levels:
+
+- **Project** (`.claude/settings.json`, committed) — safe commands auto-approved,
+  `exec` permanently denied.
+- **Local** (`.claude/settings.local.json`, gitignored) — your personal overrides.
+
+To set up local permissions for bulk operations:
+
+```bash
+cp .claude/settings.local.example.json .claude/settings.local.json
+```
+
+Then add auto-approve patterns for side-effect commands you use frequently.
+See `docs/ws-cli-guide.md` for the full pattern reference.
