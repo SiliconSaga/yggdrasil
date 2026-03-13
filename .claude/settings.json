@@ -30,6 +30,7 @@
       "Bash(bash scripts/ws review *)",
       "Bash(bash scripts/ws review * *)",
       "Bash(bash scripts/ws review * * *)",
+      "Bash(bash scripts/ws review * * * *)",
       "Bash(bash scripts/ws review * * * * *)"
     ]
   }

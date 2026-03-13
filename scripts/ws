@@ -192,17 +192,20 @@ ws_test() {
 
 ws_review() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>]" >&2
+        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>] [--since <time>]" >&2
         echo "" >&2
         echo "Fetch PR review comments from GitHub." >&2
         echo "" >&2
         echo "Options:" >&2
         echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)" >&2
         echo "  --comp <component> Review a component repo's PR (default: yggdrasil)" >&2
+        echo "  --since <time>     Only show comments after this time (ISO 8601 or relative)" >&2
+        echo "                     Examples: 2026-03-13T15:00:00Z, 1h, 30m" >&2
         echo "" >&2
         echo "Examples:" >&2
         echo "  ws review 8                          # All comments on PR #8" >&2
         echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments" >&2
+        echo "  ws review 8 --since 1h               # Comments from the last hour" >&2
         echo "  ws review 5 --comp ymir              # PR #5 on ymir repo" >&2
         exit 1
     fi
@@ -212,6 +215,7 @@ ws_review() {
     shift
     local reviewer=""
     local comp=""
+    local since=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --reviewer)
@@ -220,6 +224,9 @@ ws_review() {
             --comp)
                 [[ $# -ge 2 ]] || { echo "ERROR: --comp requires a value" >&2; exit 1; }
                 comp="$2"; shift 2 ;;
+            --since)
+                [[ $# -ge 2 ]] || { echo "ERROR: --since requires a value" >&2; exit 1; }
+                since="$2"; shift 2 ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
     done
@@ -253,12 +260,43 @@ ws_review() {
         repo_slug="SiliconSaga/yggdrasil"
     fi
 
-    # Build reviewer filter for jq (case-insensitive)
-    local jq_filter=""
+    # Validate reviewer name (prevent jq filter injection)
+    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo "ERROR: Invalid reviewer name '$reviewer'. Use alphanumeric, dot, dash, underscore." >&2
+        exit 1
+    fi
+
+    # Resolve --since to ISO 8601 timestamp
+    local since_ts=""
+    if [[ -n "$since" ]]; then
+        if [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
+            # Relative time: 1h, 30m
+            local unit="${since: -1}"
+            local amount="${since%?}"
+            local seconds=0
+            if [[ "$unit" == "h" ]]; then
+                seconds=$((amount * 3600))
+            else
+                seconds=$((amount * 60))
+            fi
+            since_ts=$(date -u -d "$seconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                || date -u -v-"${seconds}S" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                || { echo "ERROR: Cannot compute relative time. Use ISO 8601 format." >&2; exit 1; })
+        else
+            since_ts="$since"
+        fi
+    fi
+
+    # Build jq filters (reviews use submitted_at, comments use created_at)
+    local reviewer_filter="."
     if [[ -n "$reviewer" ]]; then
-        jq_filter="select(.user.login | test(\"$reviewer\"; \"i\"))"
-    else
-        jq_filter="."
+        reviewer_filter="select(.user.login | test(\"$reviewer\"; \"i\"))"
+    fi
+    local comment_filter="$reviewer_filter"
+    local review_filter="$reviewer_filter"
+    if [[ -n "$since_ts" ]]; then
+        comment_filter="$comment_filter | select(.created_at > \"$since_ts\")"
+        review_filter="$review_filter | select(.submitted_at > \"$since_ts\")"
     fi
 
     # Fetch PR summary
@@ -275,7 +313,7 @@ ws_review() {
     echo "=== Reviews ==="
     local reviews
     reviews=$(gh api "repos/$repo_slug/pulls/$pr_num/reviews" \
-        --jq ".[] | $jq_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \": \" + (.[0:200]) else \"\" end)\"" 2>/dev/null)
+        --jq ".[] | $review_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \": \" + (.[0:200]) else \"\" end)\"" 2>/dev/null)
     if [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
@@ -287,7 +325,7 @@ ws_review() {
     echo "=== Inline Comments ==="
     local comments
     comments=$(gh api "repos/$repo_slug/pulls/$pr_num/comments" \
-        --jq ".[] | $jq_filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null)
+        --jq ".[] | $comment_filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null)
     if [[ -n "$comments" ]]; then
         echo "$comments"
     else
