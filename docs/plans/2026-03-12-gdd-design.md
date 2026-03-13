@@ -93,7 +93,7 @@ GDD is implemented as a hierarchy of skills. The top-level `gdd` skill
 detects context — active roles, modes, available time — and delegates to
 the appropriate practice and mode skills.
 
-```
+```text
 gdd (orchestrator)
 │
 │  Modes (modify behavior across all roles)
@@ -125,7 +125,7 @@ growing richer as we learn what each mode actually needs in practice.
 BDD scenarios are the universal unit of work in GDD. Every role can
 participate at some stage of the pipeline:
 
-```
+```text
   Write scenario          File issue           Implement & PR
   (Given/When/Then)  →   (GitHub issue)    →  (code + step defs)
        ↓                      ↓                     ↓

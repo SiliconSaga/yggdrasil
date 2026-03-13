@@ -84,6 +84,11 @@ ws_exec() {
         echo "Usage: ws exec <component> <command...>" >&2
         exit 1
     fi
+    if [[ $# -gt 7 ]]; then
+        echo "ERROR: Too many arguments (max 7: component + 6 command args)." >&2
+        echo "  For complex commands, use a Makefile target or shell script." >&2
+        exit 1
+    fi
     local comp="$1"
     shift
     ws_validate_component "$comp"
@@ -124,6 +129,11 @@ ws_test() {
         echo "Extra args are passed to the test runner:" >&2
         echo "  ws test ymir -run TestFoo -v" >&2
         echo "  ws test ymir ./internal/store/ -run TestFoo -v" >&2
+        exit 1
+    fi
+    if [[ $# -gt 7 ]]; then
+        echo "ERROR: Too many arguments (max 7: component + 6 test args)." >&2
+        echo "  Use a Makefile target for complex test invocations." >&2
         exit 1
     fi
     local comp="$1"
