@@ -2,7 +2,12 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "deny": [
-      "Bash(bash scripts/ws exec *)"
+      "Bash(bash scripts/ws exec *)",
+      "Bash(bash scripts/ws exec * *)",
+      "Bash(bash scripts/ws exec * * *)",
+      "Bash(bash scripts/ws exec * * * *)",
+      "Bash(bash scripts/ws exec * * * * *)",
+      "Bash(bash scripts/ws exec * * * * * *)"
     ],
     "allow": [
       "Bash(bash scripts/ws help)",

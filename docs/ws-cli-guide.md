@@ -90,7 +90,9 @@ a deny rule in `.claude/settings.json`. Currently only `exec` is in this tier.
 {
   "permissions": {
     "deny": [
-      "Bash(bash scripts/ws exec *)"
+      "Bash(bash scripts/ws exec *)",
+      "Bash(bash scripts/ws exec * *)",
+      "Bash(bash scripts/ws exec * * *)"
     ],
     "allow": [
       "Bash(bash scripts/ws mycommand)",

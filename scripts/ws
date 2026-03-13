@@ -58,7 +58,7 @@ ws_validate_component() {
 
     # Check component exists in ecosystem.yaml
     local exists
-    exists=$(yq ".components.$name // \"missing\"" "$ECOSYSTEM")
+    exists=$(yq ".components[\"$name\"] // \"missing\"" "$ECOSYSTEM")
     if [[ "$exists" == "missing" ]]; then
         echo "ERROR: '$name' is not declared in ecosystem.yaml." >&2
         echo "  Run 'ws list' to see available components." >&2
@@ -102,7 +102,7 @@ ws_push() {
 }
 
 ws_pr() {
-    if [[ $# -lt 1 ]]; then
+    if [[ $# -lt 3 ]]; then
         echo "Usage: ws pr <component> <title> <bodyfile>" >&2
         exit 1
     fi

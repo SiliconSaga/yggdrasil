@@ -56,7 +56,7 @@ The workspace includes MCP servers defined in `.mcp.json`. Currently:
 - **ymir** — AI-native operational inventory. Query and mutate the Ymir graph
   (nodes, edges, blast radius) via MCP tools.
   - **Requires:** The Ymir orchestrator must be running first:
-    `cd components/ymir && make dev-sqlite && make seed`
+    `bash scripts/ws exec ymir make dev-sqlite && bash scripts/ws exec ymir make seed`
   - The gateway is spawned automatically by Claude Code via stdio.
 
 ## Loading Skills

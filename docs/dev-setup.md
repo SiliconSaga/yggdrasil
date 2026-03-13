@@ -88,7 +88,7 @@ ws push ymir
 Claude Code permissions are configured at two levels:
 
 - **Project** (`.claude/settings.json`, committed) — safe commands auto-approved,
-  `exec` permanently denied.
+  `exec` denied across all arities.
 - **Local** (`.claude/settings.local.json`, gitignored) — your personal overrides.
 
 To set up local permissions for bulk operations:
