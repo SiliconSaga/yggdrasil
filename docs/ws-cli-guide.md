@@ -76,7 +76,7 @@ Every subcommand falls into one of three tiers:
 |------|---------------|------------|----------|
 | **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review`, `log` |
 | **Side-effect** | User's choice (ask) | No | `push`, `pr`, `issue` |
-| **Arbitrary execution** | Never (deny) | Yes | `exec` |
+| **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
 **Safe:** Read-only or creates local files only. Add to the `allow` list in
 `.claude/settings.json`.
@@ -129,7 +129,7 @@ These apply to all subcommands:
 4. **Don't source `.env` in the dispatcher** — only in scripts that need tokens
 5. **Bash 3.2 compatible** — no associative arrays, no `${var,,}`, no `readarray`
 
-### Why `exec` is permanently denied
+### Why `exec` always requires human approval
 
 `ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were
 auto-approvable, a compromised prompt or injected instruction could run
@@ -180,9 +180,9 @@ commands need one `*` per argument:
 | `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr ymir "feat: add X" .prs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue ymir "fix: Y" bug .issues/y.md` |
 
-**Note:** `ws exec` is **permanently denied** at the project level
-(`.claude/settings.json`). Local settings cannot override project-level
-deny rules — this is intentional. See "Why exec is permanently denied" below.
+**Note:** `ws exec` **always requires human approval** — the project-level
+deny rule in `.claude/settings.json` cannot be overridden by local settings.
+See "Why exec always requires human approval" above.
 
 ## Finding Patterns Worth Scripting
 
