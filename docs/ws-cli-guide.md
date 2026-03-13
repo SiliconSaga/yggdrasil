@@ -92,7 +92,10 @@ a deny rule in `.claude/settings.json`. Currently only `exec` is in this tier.
     "deny": [
       "Bash(bash scripts/ws exec *)",
       "Bash(bash scripts/ws exec * *)",
-      "Bash(bash scripts/ws exec * * *)"
+      "Bash(bash scripts/ws exec * * *)",
+      "Bash(bash scripts/ws exec * * * *)",
+      "Bash(bash scripts/ws exec * * * * *)",
+      "Bash(bash scripts/ws exec * * * * * *)"
     ],
     "allow": [
       "Bash(bash scripts/ws mycommand)",
@@ -129,7 +132,7 @@ every `exec` invocation requires human approval, regardless of user settings.
 
 ### Component name validation
 
-Component names pass through `yq` expressions (`.components.$name`). The
+Component names pass through `yq` expressions (`.components["$name"]`). The
 regex `^[a-z][a-z0-9-]*$` prevents:
 - Path traversal (`../../etc`)
 - Shell metacharacters (`;`, `|`, `$`, etc.)
