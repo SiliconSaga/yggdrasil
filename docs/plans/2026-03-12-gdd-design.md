@@ -152,12 +152,13 @@ appropriately-sized work based on available time.
 
 | Layer | What's Built | Status |
 |-------|-------------|--------|
-| Workflow engine | `ws` CLI, permission tiers, settings.json | Functional |
+| Workflow engine | `ws` CLI, permission tiers, `.claude/settings.json` | Functional |
 | Process skills | TDD, workflow-auditor, topic-branch, issue filing | Functional |
 | BDD artifacts | 20 .feature files across ymir, mimir, vordu | Written, partial automation |
 | Visualization | Vordu ingests Cucumber JSON, renders roadmap | Designed, early implementation |
 | Session recovery | Memory system (MEMORY.md + memory files) | Functional |
 | AI boundaries | Skill system, permission deny rules, ws exec blocked | Functional |
+| Code review | Copilot (one-shot), CodeRabbit (continuous), Claude (triage) | Active on PR #8+ |
 
 **Gaps:**
 - No BDD skill guiding scenario writing or runner integration
@@ -165,6 +166,7 @@ appropriately-sized work based on available time.
 - No session-sizing guidance (what can I do in 15 min?)
 - No scenario → issue automation
 - No mentoring mode
+- No coordinated multi-reviewer workflow (each AI reviewer acts independently)
 
 ---
 
@@ -186,6 +188,39 @@ appropriately-sized work based on available time.
 5. **Quick mode** — session sizing, context recovery, phone-friendly workflows.
 6. **Designer onboarding** — low-barrier scenario writing that doesn't require
    local tooling or Git knowledge.
+
+---
+
+## Multi-Reviewer Pattern
+
+GDD embraces multiple AI reviewers with different strengths, coordinated by
+a human or a session-context-aware agent (the "referee"):
+
+| Reviewer | Trigger | Strengths | Weaknesses |
+|----------|---------|-----------|------------|
+| **CodeRabbit** | Continuous (push events) | Broad coverage, lint, consistency | Over-suggests, some false positives |
+| **Copilot** | On-demand or auto | Focused code-level findings | Limited context, may go rogue (files PRs instead of reviewing) |
+| **Claude (session)** | Manual or skill-invoked | Full session context, can triage across reviewers | Requires active session |
+
+**The workflow:**
+1. Automated reviewers (CodeRabbit, Copilot) post findings on the PR
+2. The session agent pulls findings via `gh api`
+3. Applies the `receiving-code-review` discipline to triage: verify each
+   finding against the actual codebase, accept or push back with reasoning
+4. Presents a consolidated summary to the human: what's real, what's noise
+
+**Observed behaviors (PR #8):**
+- CodeRabbit re-triggers on each push, refining its review incrementally
+- Copilot does not re-trigger; when asked to re-review, it filed a separate
+  PR (#9) with fixes instead — all of which were already applied
+- Some findings conflict (CodeRabbit suggested 20+ mirror permission patterns
+  that would over-engineer the config)
+- Multiple reviewers *did* catch complementary issues: Copilot found the yq
+  hyphen bug, CodeRabbit found the `<body>`/`<bodyfile>` inconsistency
+
+**Key insight:** No single reviewer catches everything, and each has blind
+spots. The value is in the combination — but only with a referee who can
+triage across all of them. This is a natural fit for the Reviewer role in GDD.
 
 ---
 

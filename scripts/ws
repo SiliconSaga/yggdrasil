@@ -15,8 +15,8 @@
 #   push [comp] [branch] Push via HTTPS (sources .env)
 #   pr [comp] <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
-#   test <comp> [args...] Run tests in a component (auto-detects runner)
-#   exec <comp> <cmd...> Run a command in a component directory
+#   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
+#   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   help              Show this help message
 #
 # For shorthand access, add to your shell profile:
@@ -107,7 +107,7 @@ ws_push() {
 }
 
 ws_pr() {
-    if [[ $# -lt 3 ]]; then
+    if [[ $# -ne 3 ]]; then
         echo "Usage: ws pr <component> <title> <bodyfile>" >&2
         exit 1
     fi
@@ -190,6 +190,10 @@ ws_test() {
 }
 
 ws_issue() {
+    if [[ $# -ne 4 ]]; then
+        echo "Usage: ws issue <repo> <title> <label> <bodyfile>" >&2
+        exit 1
+    fi
     bash "$SCRIPT_DIR/gh-issue.sh" "$@"
 }
 
