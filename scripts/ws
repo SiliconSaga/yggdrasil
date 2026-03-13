@@ -16,6 +16,7 @@
 #   pr [comp] <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
+#   review <pr#> [--reviewer <name>] Fetch PR review comments
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   help              Show this help message
 #
@@ -189,6 +190,103 @@ ws_test() {
     fi
 }
 
+ws_review() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>]" >&2
+        echo "" >&2
+        echo "Fetch PR review comments from GitHub." >&2
+        echo "" >&2
+        echo "Options:" >&2
+        echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)" >&2
+        echo "  --comp <component> Review a component repo's PR (default: yggdrasil)" >&2
+        echo "" >&2
+        echo "Examples:" >&2
+        echo "  ws review 8                          # All comments on PR #8" >&2
+        echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments" >&2
+        echo "  ws review 5 --comp ymir              # PR #5 on ymir repo" >&2
+        exit 1
+    fi
+
+    # Parse arguments
+    local pr_num="$1"
+    shift
+    local reviewer=""
+    local comp=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --reviewer) reviewer="$2"; shift 2 ;;
+            --comp)     comp="$2"; shift 2 ;;
+            *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # Validate PR number is numeric
+    if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
+        exit 1
+    fi
+
+    # Source .env for GH_TOKEN
+    local env_file="$ROOT_DIR/.env"
+    if [[ -z "${GH_TOKEN:-}" ]] && [[ -f "$env_file" ]]; then
+        # shellcheck source=/dev/null
+        source "$env_file"
+    fi
+    if [[ -z "${GH_TOKEN:-}" ]]; then
+        echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
+        exit 1
+    fi
+
+    # Determine repo
+    local repo_slug
+    if [[ -n "$comp" ]]; then
+        ws_validate_component "$comp"
+        repo_slug="SiliconSaga/$comp"
+    else
+        repo_slug="SiliconSaga/yggdrasil"
+    fi
+
+    # Build reviewer filter for jq (case-insensitive)
+    local jq_filter=""
+    if [[ -n "$reviewer" ]]; then
+        jq_filter="select(.user.login | test(\"$reviewer\"; \"i\"))"
+    else
+        jq_filter="."
+    fi
+
+    # Fetch PR summary
+    echo "=== PR #$pr_num ($repo_slug) ==="
+    gh api "repos/$repo_slug/pulls/$pr_num" \
+        --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"' 2>/dev/null || {
+        echo "ERROR: Could not fetch PR #$pr_num from $repo_slug" >&2
+        exit 1
+    }
+    echo ""
+
+    # Fetch top-level reviews
+    echo "=== Reviews ==="
+    local reviews
+    reviews=$(gh api "repos/$repo_slug/pulls/$pr_num/reviews" \
+        --jq ".[] | $jq_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \": \" + (.[0:200]) else \"\" end)\"" 2>/dev/null)
+    if [[ -n "$reviews" ]]; then
+        echo "$reviews"
+    else
+        echo "(no reviews${reviewer:+ from $reviewer})"
+    fi
+    echo ""
+
+    # Fetch inline comments
+    echo "=== Inline Comments ==="
+    local comments
+    comments=$(gh api "repos/$repo_slug/pulls/$pr_num/comments" \
+        --jq ".[] | $jq_filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null)
+    if [[ -n "$comments" ]]; then
+        echo "$comments"
+    else
+        echo "(no inline comments${reviewer:+ from $reviewer})"
+    fi
+}
+
 ws_issue() {
     if [[ $# -ne 4 ]]; then
         echo "Usage: ws issue <repo> <title> <label> <bodyfile>" >&2
@@ -233,6 +331,9 @@ case "$COMMAND" in
         ;;
     test)
         ws_test "$@"
+        ;;
+    review)
+        ws_review "$@"
         ;;
     exec)
         ws_exec "$@"

@@ -5,6 +5,7 @@
 - Git
 - [yq v4+](https://github.com/mikefarah/yq) — YAML processor
 - [gh](https://cli.github.com/) — GitHub CLI (optional, for issues/PRs)
+- [uv](https://docs.astral.sh/uv/) — Python package manager (optional, for MCP servers and Python components)
 
 ## Getting Started
 
@@ -44,6 +45,7 @@ ws <command> [args...]
 | `ws resolve` | Generate ArgoCD Application manifests |
 | `ws vscode` | Generate VS Code workspace file |
 | `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |
+| `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws help` | Show help |
 

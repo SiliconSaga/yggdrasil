@@ -1,7 +1,7 @@
 # AI Agent Guidelines for This Workspace
 
 Yggdrasil is the workspace root for the SiliconSaga ecosystem. Component repos
-live in `components/` as independent Git repos, cloned via `ws clone`.
+live in `components/` as independent Git repos, cloned via `bash scripts/ws clone`.
 The `ecosystem.yaml` manifest declares all components, their tiers, and configuration.
 Per-developer overrides go in `ecosystem.local.yaml` (gitignored).
 
@@ -60,6 +60,7 @@ The unified entry point for workspace operations. Use `bash scripts/ws <cmd>`
 | `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
 | `ws vscode` | Generate VS Code workspace file from cloned components |
 | `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
+| `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws help` | Show available commands |
 

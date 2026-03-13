@@ -7,7 +7,8 @@
       "Bash(bash scripts/ws exec * * *)",
       "Bash(bash scripts/ws exec * * * *)",
       "Bash(bash scripts/ws exec * * * * *)",
-      "Bash(bash scripts/ws exec * * * * * *)"
+      "Bash(bash scripts/ws exec * * * * * *)",
+      "Bash(bash scripts/ws exec * * * * * * *)"
     ],
     "allow": [
       "Bash(bash scripts/ws help)",
@@ -24,7 +25,12 @@
       "Bash(bash scripts/ws test * * *)",
       "Bash(bash scripts/ws test * * * *)",
       "Bash(bash scripts/ws test * * * * *)",
-      "Bash(bash scripts/ws test * * * * * *)"
+      "Bash(bash scripts/ws test * * * * * *)",
+      "Bash(bash scripts/ws test * * * * * * *)",
+      "Bash(bash scripts/ws review *)",
+      "Bash(bash scripts/ws review * *)",
+      "Bash(bash scripts/ws review * * *)",
+      "Bash(bash scripts/ws review * * * * *)"
     ]
   }
 }

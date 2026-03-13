@@ -211,8 +211,9 @@ a human or a session-context-aware agent (the "referee"):
 
 **Observed behaviors (PR #8):**
 - CodeRabbit re-triggers on each push, refining its review incrementally
-- Copilot does not re-trigger; when asked to re-review, it filed a separate
-  PR (#9) with fixes instead — all of which were already applied
+- Copilot does not re-trigger on push. Use the "Re-request review" button
+  in GitHub's reviewer pane to trigger a re-review. Asking via PR comment
+  causes Copilot to file a separate fix PR instead of reviewing (#9)
 - Some findings conflict (CodeRabbit suggested 20+ mirror permission patterns
   that would over-engineer the config)
 - Multiple reviewers *did* catch complementary issues: Copilot found the yq

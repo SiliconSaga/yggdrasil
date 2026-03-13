@@ -70,7 +70,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test` |
+| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` |
 | **Side-effect** | User's choice (ask) | No | `push`, `pr`, `issue` |
 | **Arbitrary execution** | Never (deny) | Yes | `exec` |
 
@@ -101,6 +101,11 @@ a deny rule in `.claude/settings.json`. Currently only `exec` is in this tier.
   }
 }
 ```
+
+> **Note:** Deny patterns shown above are truncated. The actual
+> `.claude/settings.json` includes patterns for all supported arities
+> (up to 7 wildcards). Always check the repo's committed file for the
+> full set.
 
 ### 5. Update docs
 
