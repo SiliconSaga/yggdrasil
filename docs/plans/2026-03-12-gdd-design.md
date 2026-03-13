@@ -205,7 +205,7 @@ a human or a session-context-aware agent (the "referee"):
 | Reviewer | Trigger | Strengths | Weaknesses |
 |----------|---------|-----------|------------|
 | **CodeRabbit** | Continuous (push events) | Broad coverage, lint, consistency | Over-suggests, some false positives |
-| **Copilot** | On-demand or auto | Focused code-level findings | Limited context, may go rogue (files PRs instead of reviewing) |
+| **Copilot** | On-demand or auto | Focused code-level findings | Limited context, re-files resolved findings, may go rogue (files PRs instead of reviewing) |
 | **Claude (session)** | Manual or skill-invoked | Full session context, can triage across reviewers | Requires active session |
 
 **The workflow:**
@@ -220,6 +220,10 @@ a human or a session-context-aware agent (the "referee"):
 - Copilot does not re-trigger on push. Use the "Re-request review" button
   in GitHub's reviewer pane to trigger a re-review. Asking via PR comment
   causes Copilot to file a separate fix PR instead of reviewing (#9)
+- Copilot does not track resolved threads across re-reviews. It re-files the
+  same findings even after they've been addressed and resolved. Expect to
+  bulk-resolve stale threads after each Copilot re-review. Use
+  `ws review --since prev-push` if a review landed between pushes.
 - Some findings conflict (CodeRabbit suggested 20+ mirror permission patterns
   that would over-engineer the config)
 - Multiple reviewers *did* catch complementary issues: Copilot found the yq
