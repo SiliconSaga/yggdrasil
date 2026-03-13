@@ -17,6 +17,7 @@
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <pr#> [options]  Fetch PR review comments (see ws review --help)
+#   log [comp] [--oneline] Show commits on current branch vs main
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   help              Show this help message
 #
@@ -348,6 +349,79 @@ ws_review() {
     fi
 }
 
+ws_log() {
+    if [[ $# -gt 2 ]]; then
+        echo "Usage: ws log [component] [--oneline]" >&2
+        echo "" >&2
+        echo "Show commits on the current branch that aren't on main." >&2
+        echo "" >&2
+        echo "Options:" >&2
+        echo "  --oneline  One line per commit (default: full log)" >&2
+        echo "" >&2
+        echo "Examples:" >&2
+        echo "  ws log                # yggdrasil branch vs main" >&2
+        echo "  ws log --oneline      # compact format" >&2
+        echo "  ws log ymir           # ymir branch vs main" >&2
+        echo "  ws log ymir --oneline # ymir compact" >&2
+        exit 1
+    fi
+
+    local comp=""
+    local oneline=""
+    for arg in "$@"; do
+        case "$arg" in
+            --oneline) oneline="--oneline" ;;
+            *) comp="$arg" ;;
+        esac
+    done
+
+    if [[ -n "$comp" ]]; then
+        ws_validate_component "$comp"
+    else
+        COMPONENT_DIR="$ROOT_DIR"
+    fi
+
+    cd "$COMPONENT_DIR"
+
+    local branch
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+        echo "ERROR: Not on a branch (detached HEAD)." >&2
+        exit 1
+    fi
+
+    # Detect the main branch (main or master)
+    local main_branch="main"
+    if ! git rev-parse --verify main &>/dev/null; then
+        if git rev-parse --verify master &>/dev/null; then
+            main_branch="master"
+        else
+            echo "ERROR: Cannot find main or master branch." >&2
+            exit 1
+        fi
+    fi
+
+    if [[ "$branch" == "$main_branch" ]]; then
+        echo "(on $main_branch — nothing to compare)"
+        return
+    fi
+
+    local count
+    count=$(git rev-list --count "$main_branch..$branch" 2>/dev/null || echo 0)
+    echo "=== ${comp:-yggdrasil} ($branch, $count commits ahead of $main_branch) ==="
+
+    if [[ "$count" -eq 0 ]]; then
+        echo "(no commits ahead of $main_branch)"
+        return
+    fi
+
+    if [[ -n "$oneline" ]]; then
+        git log "$main_branch..$branch" --oneline
+    else
+        git log "$main_branch..$branch" --format="%h %s (%cr)"
+    fi
+}
+
 ws_issue() {
     if [[ $# -ne 4 ]]; then
         echo "Usage: ws issue <repo> <title> <label> <bodyfile>" >&2
@@ -395,6 +469,9 @@ case "$COMMAND" in
         ;;
     review)
         ws_review "$@"
+        ;;
+    log)
+        ws_log "$@"
         ;;
     exec)
         ws_exec "$@"

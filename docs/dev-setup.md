@@ -46,6 +46,7 @@ ws <command> [args...]
 | `ws vscode` | Generate VS Code workspace file |
 | `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |
 | `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
+| `ws log [comp] [--oneline]` | Show commits on current branch vs main |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws help` | Show help |
 
@@ -64,8 +65,8 @@ bash scripts/ws exec ymir git status
 # Push ymir to remote
 bash scripts/ws push ymir
 
-# Run a command in the yggdrasil root
-bash scripts/ws exec . git log --oneline -5
+# Show branch commits vs main
+bash scripts/ws log --oneline
 ```
 
 ### Optional: Add to PATH
