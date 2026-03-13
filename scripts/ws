@@ -214,8 +214,12 @@ ws_review() {
     local comp=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --reviewer) reviewer="$2"; shift 2 ;;
-            --comp)     comp="$2"; shift 2 ;;
+            --reviewer)
+                [[ $# -ge 2 ]] || { echo "ERROR: --reviewer requires a value" >&2; exit 1; }
+                reviewer="$2"; shift 2 ;;
+            --comp)
+                [[ $# -ge 2 ]] || { echo "ERROR: --comp requires a value" >&2; exit 1; }
+                comp="$2"; shift 2 ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
     done
@@ -237,10 +241,13 @@ ws_review() {
         exit 1
     fi
 
-    # Determine repo
+    # Determine repo (--comp only needs a valid name, not a local clone)
     local repo_slug
     if [[ -n "$comp" ]]; then
-        ws_validate_component "$comp"
+        if [[ ! "$comp" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            echo "ERROR: Invalid component name '$comp'." >&2
+            exit 1
+        fi
         repo_slug="SiliconSaga/$comp"
     else
         repo_slug="SiliconSaga/yggdrasil"
@@ -258,7 +265,8 @@ ws_review() {
     echo "=== PR #$pr_num ($repo_slug) ==="
     gh api "repos/$repo_slug/pulls/$pr_num" \
         --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"' 2>/dev/null || {
-        echo "ERROR: Could not fetch PR #$pr_num from $repo_slug" >&2
+        echo "ERROR: Could not fetch PR #$pr_num from $repo_slug." >&2
+        echo "  Check the PR number and repo name." >&2
         exit 1
     }
     echo ""
