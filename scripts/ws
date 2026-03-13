@@ -199,12 +199,13 @@ ws_review() {
         echo "Options:" >&2
         echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)" >&2
         echo "  --comp <component> Review a component repo's PR (default: yggdrasil)" >&2
-        echo "  --since <time>     Only show comments after this time (ISO 8601 or relative)" >&2
-        echo "                     Examples: 2026-03-13T15:00:00Z, 1h, 30m" >&2
+        echo "  --since <time>     Only show comments after this time" >&2
+        echo "                     Values: last-push, prev-push, 1h, 30m, or ISO 8601" >&2
         echo "" >&2
         echo "Examples:" >&2
         echo "  ws review 8                          # All comments on PR #8" >&2
         echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments" >&2
+        echo "  ws review 8 --since last-push          # Comments since last push" >&2
         echo "  ws review 8 --since 1h               # Comments from the last hour" >&2
         echo "  ws review 5 --comp ymir              # PR #5 on ymir repo" >&2
         exit 1
@@ -269,7 +270,21 @@ ws_review() {
     # Resolve --since to ISO 8601 timestamp
     local since_ts=""
     if [[ -n "$since" ]]; then
-        if [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
+        if [[ "$since" == "last-push" || "$since" == "prev-push" ]]; then
+            # Use GitHub Events API for accurate push timestamp
+            local branch
+            branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+            local push_index=0
+            [[ "$since" == "prev-push" ]] && push_index=1
+            since_ts=$(gh api "repos/$repo_slug/events" \
+                --jq "[.[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\")] | .[$push_index].created_at" 2>/dev/null)
+            if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
+                echo "ERROR: Cannot determine push time for '$branch'." >&2
+                echo "  Has this branch been pushed? Use an explicit timestamp instead." >&2
+                exit 1
+            fi
+            echo "(showing comments since $since: $since_ts)"
+        elif [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
             # Relative time: 1h, 30m
             local unit="${since: -1}"
             local amount="${since%?}"

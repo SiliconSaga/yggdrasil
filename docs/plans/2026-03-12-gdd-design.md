@@ -183,10 +183,16 @@ appropriately-sized work based on available time.
 3. **Scenario → issue automation** — extend `ws` or add a skill that converts
    a .feature scenario into a GitHub issue with proper labels.
 
+**Soon:**
+4. **Review triage skill** — orchestrates `ws review --since last-push` with
+   the `receiving-code-review` discipline. Fetches new comments, deduplicates
+   against already-addressed findings, triages by severity, presents a
+   consolidated action list. Knows to check after each push.
+
 **Later:**
-4. **Mentoring mode** — AI explains decisions, teaches practices in context.
-5. **Quick mode** — session sizing, context recovery, phone-friendly workflows.
-6. **Designer onboarding** — low-barrier scenario writing that doesn't require
+5. **Mentoring mode** — AI explains decisions, teaches practices in context.
+6. **Quick mode** — session sizing, context recovery, phone-friendly workflows.
+7. **Designer onboarding** — low-barrier scenario writing that doesn't require
    local tooling or Git knowledge.
 
 ---
