@@ -36,11 +36,13 @@ In `scripts/ws`, add three things:
 
 **a) Help text** — add a `#` comment line in the header block (between
 `# Commands:` and the blank line):
+
 ```bash
 #   mycommand [args]  Description of what it does
 ```
 
 **b) Case entry** — add before the `*)` catch-all:
+
 ```bash
     mycommand)
         bash "$SCRIPT_DIR/my-script.sh" "$@"
@@ -48,6 +50,7 @@ In `scripts/ws`, add three things:
 ```
 
 Or if it needs component resolution:
+
 ```bash
     mycommand)
         ws_mycommand "$@"
@@ -55,6 +58,7 @@ Or if it needs component resolution:
 ```
 
 **c) Function** (if component-aware) — add with the other `ws_*` functions:
+
 ```bash
 ws_mycommand() {
     local comp="${1:-.}"

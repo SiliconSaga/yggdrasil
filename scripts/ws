@@ -16,7 +16,7 @@
 #   pr [comp] <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
-#   review <pr#> [--reviewer <name>] Fetch PR review comments
+#   review <pr#> [options]  Fetch PR review comments (see ws review --help)
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   help              Show this help message
 #
