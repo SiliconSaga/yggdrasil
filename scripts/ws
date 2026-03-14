@@ -13,7 +13,7 @@
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch] Push via HTTPS (sources .env)
-#   pr [comp] <title> <bodyfile> Open a pull request to main
+#   pr <comp> <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <pr#> [options]  Fetch PR review comments (see ws review --help)

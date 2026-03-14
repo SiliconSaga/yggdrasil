@@ -21,9 +21,9 @@ This file covers only Claude-specific overrides.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
   Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
 - On first use of `ws` in a session, briefly note: "Using the workspace CLI
-  (`scripts/ws`). Run `ws help` in your terminal for available commands.
-  Add `export PATH="<yggdrasil>/scripts:$PATH"` to your shell profile for
-  shorthand access."
+  (`scripts/ws`). Run `bash scripts/ws help` in your terminal for available
+  commands. Add `export PATH="<yggdrasil>/scripts:$PATH"` to your shell
+  profile for shorthand access."
 
 ## Workspace Structure
 
