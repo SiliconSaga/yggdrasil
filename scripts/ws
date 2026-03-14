@@ -193,22 +193,26 @@ ws_test() {
 
 ws_review() {
     if [[ $# -lt 1 || "$1" == "--help" || "$1" == "-h" ]]; then
-        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>] [--since <time>]" >&2
-        echo "" >&2
-        echo "Fetch PR review comments from GitHub." >&2
-        echo "" >&2
-        echo "Options:" >&2
-        echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)" >&2
-        echo "  --comp <component> Review a component repo's PR (default: yggdrasil)" >&2
-        echo "  --since <time>     Only show comments after this time" >&2
-        echo "                     Values: last-push, prev-push, 1h, 30m, or ISO 8601" >&2
-        echo "" >&2
-        echo "Examples:" >&2
-        echo "  ws review 8                          # All comments on PR #8" >&2
-        echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments" >&2
-        echo "  ws review 8 --since last-push          # Comments since last push" >&2
-        echo "  ws review 8 --since 1h               # Comments from the last hour" >&2
-        echo "  ws review 5 --comp ymir              # PR #5 on ymir repo" >&2
+        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>] [--since <time>]"
+        echo ""
+        echo "Fetch PR review comments from GitHub."
+        echo ""
+        echo "Options:"
+        echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)"
+        echo "  --comp <component> Review a component repo's PR (default: yggdrasil)"
+        echo "  --since <time>     Only show comments after this time"
+        echo "                     Values: last-push, prev-push, 1h, 30m, or ISO 8601"
+        echo ""
+        echo "Examples:"
+        echo "  ws review 8                          # All comments on PR #8"
+        echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments"
+        echo "  ws review 8 --since last-push          # Comments since last push"
+        echo "  ws review 8 --since 1h               # Comments from the last hour"
+        echo "  ws review 5 --comp ymir              # PR #5 on ymir repo"
+        # Exit 0 for explicit --help, 1 for missing arguments
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            exit 0
+        fi
         exit 1
     fi
 
@@ -274,7 +278,16 @@ ws_review() {
         if [[ "$since" == "last-push" || "$since" == "prev-push" ]]; then
             # Use GitHub Events API for accurate push timestamp
             local branch
-            branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+            if [[ -n "$comp" ]]; then
+                # For component repos, get branch from the PR itself
+                branch=$(gh api "repos/$repo_slug/pulls/$pr_num" --jq '.head.ref' 2>/dev/null)
+                if [[ -z "$branch" || "$branch" == "null" ]]; then
+                    echo "ERROR: Cannot determine PR head branch for #$pr_num in $repo_slug." >&2
+                    exit 1
+                fi
+            else
+                branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+            fi
             local push_index=0
             [[ "$since" == "prev-push" ]] && push_index=1
             since_ts=$(gh api "repos/$repo_slug/events" \
@@ -371,7 +384,16 @@ ws_log() {
     for arg in "$@"; do
         case "$arg" in
             --oneline) oneline="--oneline" ;;
-            *) comp="$arg" ;;
+            -*)
+                echo "ERROR: Unknown option '$arg'" >&2
+                exit 1 ;;
+            *)
+                if [[ -n "$comp" ]]; then
+                    echo "ERROR: Multiple components specified ('$comp' and '$arg')." >&2
+                    echo "  Usage: ws log [component] [--oneline]" >&2
+                    exit 1
+                fi
+                comp="$arg" ;;
         esac
     done
 
