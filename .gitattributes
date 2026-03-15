@@ -2,3 +2,4 @@
 # Without this, Git's core.autocrlf may check out .sh files with CRLF, causing
 # "command not found" errors from invisible \r characters.
 *.sh text eol=lf
+scripts/ws text eol=lf

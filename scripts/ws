@@ -1,0 +1,511 @@
+#!/usr/bin/env bash
+# ws — Unified workspace CLI for yggdrasil
+#
+# Usage:
+#   ws <command> [args...]
+#   ws help
+#
+# Commands:
+#   list              List ecosystem components
+#   status [--verbose] Git status across workspace
+#   clone [comp|--all] Clone components
+#   pull [comp]       Pull all or one component
+#   resolve           Generate ArgoCD Applications
+#   vscode            Generate VS Code workspace file
+#   push [comp] [branch] Push via HTTPS (sources .env)
+#   pr <comp> <title> <bodyfile> Open a pull request to main
+#   issue <repo> <title> <label> <bodyfile> File GitHub issue
+#   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
+#   review <pr#> [options]  Fetch PR review comments (see ws review --help)
+#   log [comp] [--oneline] Show commits on current branch vs main
+#   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
+#   help              Show this help message
+#
+# For shorthand access, add to your shell profile:
+#   export PATH="<yggdrasil>/scripts:$PATH"
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
+COMPONENTS_DIR="$ROOT_DIR/components"
+COMPONENT_DIR=""  # Set by ws_validate_component
+
+# Validate a component name against ecosystem.yaml.
+# Usage: ws_validate_component <name>
+# Sets: COMPONENT_DIR to the resolved path
+ws_validate_component() {
+    local name="$1"
+
+    # Allow "." and "root" as aliases for yggdrasil root
+    if [[ "$name" == "." || "$name" == "root" ]]; then
+        COMPONENT_DIR="$ROOT_DIR"
+        return 0
+    fi
+
+    # Reject names that don't match safe pattern.
+    # Use bash regex directly — grep matches per-line and would pass
+    # newline-injected names like "ymir\nevil" (CVE-style bypass).
+    if [[ ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+        echo "ERROR: Invalid component name '$name'. Must match [a-z][a-z0-9-]*." >&2
+        exit 1
+    fi
+
+    # Check yq is available
+    if ! command -v yq &>/dev/null; then
+        echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+        exit 1
+    fi
+
+    # Check component exists in ecosystem.yaml
+    local exists
+    exists=$(yq ".components[\"$name\"] // \"missing\"" "$ECOSYSTEM")
+    if [[ "$exists" == "missing" ]]; then
+        echo "ERROR: '$name' is not declared in ecosystem.yaml." >&2
+        echo "  Run 'ws list' to see available components." >&2
+        exit 1
+    fi
+
+    COMPONENT_DIR="$COMPONENTS_DIR/$name"
+
+    # Check if cloned locally
+    if [[ ! -d "$COMPONENT_DIR" ]]; then
+        echo "ERROR: '$name' is not cloned locally." >&2
+        echo "  Run 'ws clone $name' to clone it." >&2
+        exit 1
+    fi
+}
+
+ws_help() {
+    sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \?//'
+}
+
+ws_exec() {
+    if [[ $# -lt 2 ]]; then
+        echo "Usage: ws exec <component> <command...>" >&2
+        exit 1
+    fi
+    if [[ $# -gt 7 ]]; then
+        echo "ERROR: Too many arguments (max 7: component + 6 command args)." >&2
+        echo "  For complex commands, use a Makefile target or shell script." >&2
+        exit 1
+    fi
+    local comp="$1"
+    shift
+    ws_validate_component "$comp"
+    cd "$COMPONENT_DIR" && "$@"
+}
+
+ws_push() {
+    if [[ $# -gt 2 ]]; then
+        echo "Usage: ws push [component] [branch]" >&2
+        exit 1
+    fi
+    local comp="${1:-.}"
+    local branch="${2:-}"
+    ws_validate_component "$comp"
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${branch:+"$branch"}
+}
+
+ws_pr() {
+    if [[ $# -ne 3 ]]; then
+        echo "Usage: ws pr <component> <title> <bodyfile>" >&2
+        exit 1
+    fi
+    local comp="$1"
+    shift
+    ws_validate_component "$comp"
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "$@"
+}
+
+ws_test() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws test <component> [args...]" >&2
+        echo "" >&2
+        echo "Auto-detects test runner:" >&2
+        echo "  Makefile with 'test' target → make test" >&2
+        echo "  go.mod                      → go test ./... -count=1" >&2
+        echo "  pyproject.toml              → uv run pytest" >&2
+        echo "" >&2
+        echo "Extra args are passed to the test runner:" >&2
+        echo "  ws test ymir -run TestFoo -v" >&2
+        echo "  ws test ymir ./internal/store/ -run TestFoo -v" >&2
+        exit 1
+    fi
+    if [[ $# -gt 7 ]]; then
+        echo "ERROR: Too many arguments (max 7: component + 6 test args)." >&2
+        echo "  Use a Makefile target for complex test invocations." >&2
+        exit 1
+    fi
+    local comp="$1"
+    shift
+    ws_validate_component "$comp"
+    cd "$COMPONENT_DIR"
+
+    # No extra args: prefer Makefile with 'test' target — it knows the
+    # project layout (e.g. ymir's Makefile cd's into orchestrator/ for go test)
+    if [[ $# -eq 0 ]] && [[ -f Makefile ]] && grep -q '^test:' Makefile; then
+        make test
+        return
+    fi
+
+    # Auto-detect test runner from project files
+    # If go.mod isn't at root, check one level down (e.g. components with a
+    # single Go module in a subdirectory)
+    local go_root=""
+    if [[ -f go.mod ]]; then
+        go_root="."
+    else
+        local candidates=()
+        for d in */go.mod; do
+            [[ -f "$d" ]] && candidates+=("${d%/go.mod}")
+        done
+        if [[ ${#candidates[@]} -eq 1 ]]; then
+            go_root="${candidates[0]}"
+        elif [[ ${#candidates[@]} -gt 1 ]]; then
+            echo "ERROR: Multiple Go modules found in $COMPONENT_DIR:" >&2
+            printf "  %s/\n" "${candidates[@]}" >&2
+            echo "  Use 'ws exec $comp go test <args>' to target a specific module." >&2
+            exit 1
+        fi
+    fi
+
+    if [[ -n "$go_root" ]]; then
+        cd "$go_root"
+        if [[ $# -eq 0 ]]; then
+            go test ./... -count=1
+        else
+            go test "$@"
+        fi
+    elif [[ -f pyproject.toml ]]; then
+        if [[ $# -eq 0 ]]; then
+            uv run pytest
+        else
+            uv run pytest "$@"
+        fi
+    else
+        echo "ERROR: Cannot detect test runner in $COMPONENT_DIR." >&2
+        echo "  Expected: Makefile with 'test' target, go.mod, or pyproject.toml" >&2
+        exit 1
+    fi
+}
+
+ws_review() {
+    if [[ $# -lt 1 || "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>] [--since <time>]"
+        echo ""
+        echo "Fetch PR review comments from GitHub."
+        echo ""
+        echo "Options:"
+        echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)"
+        echo "  --comp <component> Review a component repo's PR (default: yggdrasil)"
+        echo "  --since <time>     Only show comments after this time"
+        echo "                     Values: last-push, prev-push, 1h, 30m, or ISO 8601"
+        echo ""
+        echo "Examples:"
+        echo "  ws review 8                          # All comments on PR #8"
+        echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments"
+        echo "  ws review 8 --since last-push          # Comments since last push"
+        echo "  ws review 8 --since 1h               # Comments from the last hour"
+        echo "  ws review 5 --comp ymir              # PR #5 on ymir repo"
+        # Exit 0 for explicit --help, 1 for missing arguments
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            exit 0
+        fi
+        exit 1
+    fi
+
+    # Parse arguments
+    local pr_num="$1"
+    shift
+    local reviewer=""
+    local comp=""
+    local since=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --reviewer)
+                [[ $# -ge 2 ]] || { echo "ERROR: --reviewer requires a value" >&2; exit 1; }
+                reviewer="$2"; shift 2 ;;
+            --comp)
+                [[ $# -ge 2 ]] || { echo "ERROR: --comp requires a value" >&2; exit 1; }
+                comp="$2"; shift 2 ;;
+            --since)
+                [[ $# -ge 2 ]] || { echo "ERROR: --since requires a value" >&2; exit 1; }
+                since="$2"; shift 2 ;;
+            *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    # Validate PR number is numeric
+    if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
+        exit 1
+    fi
+
+    # Source .env for GH_TOKEN
+    local env_file="$ROOT_DIR/.env"
+    if [[ -z "${GH_TOKEN:-}" ]] && [[ -f "$env_file" ]]; then
+        # shellcheck source=/dev/null
+        source "$env_file"
+    fi
+    if [[ -z "${GH_TOKEN:-}" ]]; then
+        echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
+        exit 1
+    fi
+
+    # Determine repo (--comp only needs a valid name, not a local clone)
+    local repo_slug
+    if [[ -n "$comp" ]]; then
+        if [[ ! "$comp" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            echo "ERROR: Invalid component name '$comp'." >&2
+            exit 1
+        fi
+        repo_slug="SiliconSaga/$comp"
+    else
+        repo_slug="SiliconSaga/yggdrasil"
+    fi
+
+    # Validate reviewer name (prevent jq filter injection)
+    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo "ERROR: Invalid reviewer name '$reviewer'. Use alphanumeric, dot, dash, underscore." >&2
+        exit 1
+    fi
+
+    # Resolve --since to ISO 8601 timestamp
+    local since_ts=""
+    if [[ -n "$since" ]]; then
+        if [[ "$since" == "last-push" || "$since" == "prev-push" ]]; then
+            # Use GitHub Events API for accurate push timestamp
+            local branch
+            if [[ -n "$comp" ]]; then
+                # For component repos, get branch from the PR itself
+                branch=$(gh api "repos/$repo_slug/pulls/$pr_num" --jq '.head.ref' 2>/dev/null)
+                if [[ -z "$branch" || "$branch" == "null" ]]; then
+                    echo "ERROR: Cannot determine PR head branch for #$pr_num in $repo_slug." >&2
+                    exit 1
+                fi
+            else
+                branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+            fi
+            local push_index=0
+            [[ "$since" == "prev-push" ]] && push_index=1
+            since_ts=$(gh api "repos/$repo_slug/events" \
+                --jq "[.[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\")] | .[$push_index].created_at" 2>/dev/null)
+            if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
+                echo "ERROR: Cannot determine push time for '$branch'." >&2
+                echo "  Has this branch been pushed? Use an explicit timestamp instead." >&2
+                exit 1
+            fi
+            echo "(showing comments since $since: $since_ts)"
+        elif [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
+            # Relative time: 1h, 30m
+            local unit="${since: -1}"
+            local amount="${since%?}"
+            local seconds=0
+            if [[ "$unit" == "h" ]]; then
+                seconds=$((amount * 3600))
+            else
+                seconds=$((amount * 60))
+            fi
+            since_ts=$(date -u -d "$seconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                || date -u -v-"${seconds}S" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                || { echo "ERROR: Cannot compute relative time. Use ISO 8601 format." >&2; exit 1; })
+        else
+            # Validate ISO 8601 format to prevent jq filter injection
+            if [[ ! "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$ ]]; then
+                echo "ERROR: Invalid --since value '$since'." >&2
+                echo "  Expected: last-push, prev-push, Nh, Nm, or ISO 8601 (e.g. 2026-03-13T15:00:00Z)" >&2
+                exit 1
+            fi
+            since_ts="$since"
+        fi
+    fi
+
+    # Build jq filters (reviews use submitted_at, comments use created_at)
+    local reviewer_filter="."
+    if [[ -n "$reviewer" ]]; then
+        reviewer_filter="select(.user.login | test(\"$reviewer\"; \"i\"))"
+    fi
+    local comment_filter="$reviewer_filter"
+    local review_filter="$reviewer_filter"
+    if [[ -n "$since_ts" ]]; then
+        comment_filter="$comment_filter | select(.created_at > \"$since_ts\")"
+        review_filter="$review_filter | select(.submitted_at > \"$since_ts\")"
+    fi
+
+    # Fetch PR summary
+    echo "=== PR #$pr_num ($repo_slug) ==="
+    gh api "repos/$repo_slug/pulls/$pr_num" \
+        --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"' 2>/dev/null || {
+        echo "ERROR: Could not fetch PR #$pr_num from $repo_slug." >&2
+        echo "  Check the PR number and repo name." >&2
+        exit 1
+    }
+    echo ""
+
+    # Fetch top-level reviews
+    echo "=== Reviews ==="
+    local reviews
+    reviews=$(gh api "repos/$repo_slug/pulls/$pr_num/reviews" \
+        --jq ".[] | $review_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \": \" + (.[0:200]) else \"\" end)\"" 2>/dev/null)
+    if [[ -n "$reviews" ]]; then
+        echo "$reviews"
+    else
+        echo "(no reviews${reviewer:+ from $reviewer})"
+    fi
+    echo ""
+
+    # Fetch inline comments
+    echo "=== Inline Comments ==="
+    local comments
+    comments=$(gh api "repos/$repo_slug/pulls/$pr_num/comments" \
+        --jq ".[] | $comment_filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null)
+    if [[ -n "$comments" ]]; then
+        echo "$comments"
+    else
+        echo "(no inline comments${reviewer:+ from $reviewer})"
+    fi
+}
+
+ws_log() {
+    if [[ $# -gt 2 ]]; then
+        echo "Usage: ws log [component] [--oneline]" >&2
+        echo "" >&2
+        echo "Show commits on the current branch that aren't on main." >&2
+        echo "" >&2
+        echo "Options:" >&2
+        echo "  --oneline  One line per commit (default: full log)" >&2
+        echo "" >&2
+        echo "Examples:" >&2
+        echo "  ws log                # yggdrasil branch vs main" >&2
+        echo "  ws log --oneline      # compact format" >&2
+        echo "  ws log ymir           # ymir branch vs main" >&2
+        echo "  ws log ymir --oneline # ymir compact" >&2
+        exit 1
+    fi
+
+    local comp=""
+    local oneline=""
+    for arg in "$@"; do
+        case "$arg" in
+            --oneline) oneline="--oneline" ;;
+            -*)
+                echo "ERROR: Unknown option '$arg'" >&2
+                exit 1 ;;
+            *)
+                if [[ -n "$comp" ]]; then
+                    echo "ERROR: Multiple components specified ('$comp' and '$arg')." >&2
+                    echo "  Usage: ws log [component] [--oneline]" >&2
+                    exit 1
+                fi
+                comp="$arg" ;;
+        esac
+    done
+
+    if [[ -n "$comp" ]]; then
+        ws_validate_component "$comp"
+    else
+        COMPONENT_DIR="$ROOT_DIR"
+    fi
+
+    cd "$COMPONENT_DIR"
+
+    local branch
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+        echo "ERROR: Not on a branch (detached HEAD)." >&2
+        exit 1
+    fi
+
+    # Detect the main branch (main or master)
+    local main_branch="main"
+    if ! git rev-parse --verify main &>/dev/null; then
+        if git rev-parse --verify master &>/dev/null; then
+            main_branch="master"
+        else
+            echo "ERROR: Cannot find main or master branch." >&2
+            exit 1
+        fi
+    fi
+
+    if [[ "$branch" == "$main_branch" ]]; then
+        echo "(on $main_branch — nothing to compare)"
+        return
+    fi
+
+    local count
+    count=$(git rev-list --count "$main_branch..$branch" 2>/dev/null || echo 0)
+    echo "=== ${comp:-yggdrasil} ($branch, $count commits ahead of $main_branch) ==="
+
+    if [[ "$count" -eq 0 ]]; then
+        echo "(no commits ahead of $main_branch)"
+        return
+    fi
+
+    if [[ -n "$oneline" ]]; then
+        git log "$main_branch..$branch" --oneline
+    else
+        git log "$main_branch..$branch" --format="%h %s (%cr)"
+    fi
+}
+
+ws_issue() {
+    if [[ $# -ne 4 ]]; then
+        echo "Usage: ws issue <repo> <title> <label> <bodyfile>" >&2
+        exit 1
+    fi
+    bash "$SCRIPT_DIR/gh-issue.sh" "$@"
+}
+
+COMMAND="${1:-help}"
+shift 2>/dev/null || true
+
+case "$COMMAND" in
+    help|--help|-h)
+        ws_help
+        ;;
+    list)
+        bash "$SCRIPT_DIR/ws-list.sh" "$@"
+        ;;
+    status)
+        bash "$SCRIPT_DIR/ws-status.sh" "$@"
+        ;;
+    clone)
+        bash "$SCRIPT_DIR/ws-clone.sh" "$@"
+        ;;
+    pull)
+        bash "$SCRIPT_DIR/ws-pull.sh" "$@"
+        ;;
+    resolve)
+        bash "$SCRIPT_DIR/ws-resolve.sh" "$@"
+        ;;
+    vscode)
+        bash "$SCRIPT_DIR/ws-vscode.sh" "$@"
+        ;;
+    push)
+        ws_push "$@"
+        ;;
+    pr)
+        ws_pr "$@"
+        ;;
+    issue)
+        ws_issue "$@"
+        ;;
+    test)
+        ws_test "$@"
+        ;;
+    review)
+        ws_review "$@"
+        ;;
+    log)
+        ws_log "$@"
+        ;;
+    exec)
+        ws_exec "$@"
+        ;;
+    *)
+        echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2
+        exit 1
+        ;;
+esac

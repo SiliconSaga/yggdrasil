@@ -12,6 +12,9 @@
 
 set -euo pipefail
 
+# Prevent MSYS / Git Bash from converting /api-style paths to C:/… filesystem paths
+export MSYS_NO_PATHCONV=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/../.env"
 PASS="✓"
@@ -55,12 +58,20 @@ else
   exit 1
 fi
 
-GH_USER=$(gh api /user --jq .login 2>/dev/null || echo "")
-if [[ -n "$GH_USER" ]]; then
-  echo "  $PASS authenticated as: $GH_USER"
+if [[ -n "${GH_USER:-}" ]]; then
+  echo "  $PASS GH_USER set in environment: $GH_USER"
 else
-  echo "  $FAIL could not retrieve GitHub username"
-  ERRORS=$((ERRORS + 1))
+  GH_USER=$(gh api /user --jq .login 2>/dev/null || echo "")
+  if [[ -n "$GH_USER" ]]; then
+    echo "  $PASS authenticated as: $GH_USER"
+  else
+    echo "  $FAIL could not retrieve GitHub username"
+    echo "       Set GH_USER in .env, or add Account (read) permission to a fine-grained PAT."
+    ERRORS=$((ERRORS + 1))
+    echo ""
+    echo "Cannot continue without a confirmed identity. Fix auth first."
+    exit 1
+  fi
 fi
 
 # ── 2. git URL rewrite and credential helper ─────────────────────────────────
@@ -88,6 +99,7 @@ echo "[ repo access ]"
 REPOS=(nordri nidavellir mimir yggdrasil vordu)
 ORG="SiliconSaga"
 
+REPO_ERRORS=0
 for REPO in "${REPOS[@]}"; do
   PERMS=$(gh api "/repos/$ORG/$REPO" --jq '[.permissions.push, .permissions.pull] | @csv' 2>/dev/null || echo "false,false")
   CAN_PUSH=$(echo "$PERMS" | cut -d, -f1)
@@ -96,8 +108,18 @@ for REPO in "${REPOS[@]}"; do
   else
     echo "  $FAIL $ORG/$REPO (no push — check token scopes)"
     ERRORS=$((ERRORS + 1))
+    REPO_ERRORS=$((REPO_ERRORS + 1))
   fi
 done
+
+if [[ $REPO_ERRORS -eq ${#REPOS[@]} ]]; then
+  echo ""
+  echo "All repos inaccessible — token likely lacks Contents permission or is not scoped to $ORG."
+  echo "Skipping branch protection checks."
+  echo ""
+  echo "$ERRORS check(s) failed. Resolve before pushing code."
+  exit 1
+fi
 
 # ── 4. Branch protection ─────────────────────────────────────────────────────
 echo ""

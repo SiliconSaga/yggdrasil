@@ -1,7 +1,7 @@
 # AI Agent Guidelines for This Workspace
 
 Yggdrasil is the workspace root for the SiliconSaga ecosystem. Component repos
-live in `components/` as independent Git repos, cloned via `scripts/ws-clone.sh`.
+live in `components/` as independent Git repos, cloned via `bash scripts/ws clone`.
 The `ecosystem.yaml` manifest declares all components, their tiers, and configuration.
 Per-developer overrides go in `ecosystem.local.yaml` (gitignored).
 
@@ -38,28 +38,42 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 | **Multi-Repo Orchestration** | Session start/end discipline when a session touches more than one repo, TODO triage | [SKILL.md](./.agent/skills/multi-repo-orchestration/SKILL.md) |
 | **Nordri Bootstrap Guide** | Bootstrapping Nordri (refr-k8s) on k3d, Mimir integration, ArgoCD sync troubleshooting | [SKILL.md](./.agent/skills/nordri-bootstrap-guide/SKILL.md) |
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
+| **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
 | **Writing Yggdrasil Docs** | Conventions for documentation, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/writing-yggdrasil-docs/SKILL.md) |
 
 ---
 
-## Utility Scripts
+## Workspace CLI (`ws`)
 
-All scripts live in `scripts/` and auto-source `.env` for `GH_TOKEN`.
-Run from any workspace repo directory using the full path.
+The unified entry point for workspace operations. Use `bash scripts/ws <cmd>`
+(or just `ws <cmd>` if `scripts/` is on your PATH).
+
+| Command | Description |
+|---------|-------------|
+| `ws list` | List all components with tier, chart version, local status |
+| `ws status [--verbose]` | Git status across all cloned components |
+| `ws clone [name\|--all]` | Clone ecosystem component(s) into `components/` |
+| `ws pull [name]` | Pull latest for cloned components |
+| `ws push [comp] [branch]` | Push to `siliconsaga` via HTTPS (auto-sources `.env`) |
+| `ws pr <comp> <title> <bodyfile>` | Open PR from current branch to main |
+| `ws issue <repo> <title> <label> <bodyfile>` | File a GitHub issue with attribution check |
+| `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
+| `ws vscode` | Generate VS Code workspace file from cloned components |
+| `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
+| `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
+| `ws log [comp] [--oneline]` | Show commits on current branch vs main |
+| `ws exec <comp> <cmd...>` | Run a command in a component directory |
+| `ws help` | Show available commands |
+
+**Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
+for how to add commands and classify their permission tier.
+
+### Standalone scripts (not wrapped by `ws`)
 
 | Script | Usage |
 |--------|-------|
-| `git-push.sh [branch]` | Push current (or named) branch to `siliconsaga` via HTTPS token URL (bypasses GitKraken SSH rewrite) |
-| `git-pr.sh TITLE BODYFILE` | Open PR from current branch to main |
-| `gh-issue.sh REPO TITLE LABEL BODYFILE` | File a GitHub issue with attribution check |
 | `setup-branch-protection.sh` | One-time admin op — requires admin-scoped `GH_TOKEN` |
 | `validate-agent-setup.sh` | Verify GH_TOKEN, auth, repo access, branch protection |
-| `ws-clone.sh [name\|--all]` | Clone ecosystem component(s) into `components/` |
-| `ws-status.sh [--verbose]` | Git status across all cloned components |
-| `ws-pull.sh [name]` | Pull latest for cloned components |
-| `ws-list.sh` | List all components with tier, chart version, local status |
-| `ws-resolve.sh [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
-| `ws-vscode.sh` | Generate VS Code workspace file from cloned components |
 
 ---
 
@@ -80,13 +94,13 @@ git commit -m "type: description
 Co-Authored-By: <agent-name> <agent-email>"
 
 # 4. Push (MUST use script — plain git push fails due to GitKraken SSH rewrite)
-/path/to/yggdrasil/scripts/git-push.sh
+bash scripts/ws push <component>
 
 # 5. Draft PR body → .prs/<description>.md (gitignored)
 cp .agent/pr-template.md .prs/<description>.md
 
 # 6. Open PR
-/path/to/yggdrasil/scripts/git-pr.sh "type: description" .prs/<description>.md
+bash scripts/ws pr <component> "type: description" .prs/<description>.md
 ```
 
 **Why `git-push.sh` and not plain `git push`:** GitKraken adds a global
@@ -132,7 +146,7 @@ checked out locally (and any `forceChart` overrides).
 IDE workspace files are NOT tracked in Git — they vary per developer and
 per set of cloned components.
 
-- **VS Code**: Run `scripts/ws-vscode.sh` to generate `yggdrasil.code-workspace`
+- **VS Code**: Run `bash scripts/ws vscode` to generate `yggdrasil.code-workspace`
   from your currently cloned components. Re-run after cloning more.
 - **JetBrains**: Open the `yggdrasil/` directory, then attach component
   directories as modules via File > Project Structure.
