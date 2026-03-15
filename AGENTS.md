@@ -19,7 +19,11 @@ Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architectu
 | `mimir` | 2 component | Data services via Crossplane + operators | `components/mimir` |
 | `vordu` | 2 component | BDD roadmap visualization | `components/vordu` |
 | `heimdall` | 2 component | Observability stack | `components/heimdall` |
+| `tafl` | 2 | Board game engine service | `components/tafl` |
+| `bifrost` | 2 | Bridge/gateway service | `components/bifrost` |
 | `ymir` | 3 | End-user platform | `components/ymir` |
+| `terasology` | 3 | Voxel game (fork) | `components/terasology` |
+| `destinationsol` | 3 | Space shooter game (fork) | `components/destinationsol` |
 
 GitHub org: Avoid using a generic `origin` and use explicit remote names like `siliconsaga`
 

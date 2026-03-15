@@ -78,11 +78,34 @@ components:
     chartVersion: "0.0.0"
     namespace: heimdall
 
+  # -- Tier 2: Platform Services --------------------------------------------
+  tafl:
+    tier: 2
+    chartVersion: "0.0.0"
+    namespace: tafl
+
+  bifrost:
+    tier: 2
+    chartVersion: "0.0.0"
+    namespace: bifrost
+
   # -- Tier 3: End-User Platform -------------------------------------------
   ymir:
     tier: 3
     chartVersion: "0.0.0"
     namespace: ymir
+
+  terasology:
+    tier: 3
+    chartVersion: "0.0.0"
+    chartName: "ts-game"
+    namespace: terasology
+
+  destinationsol:
+    tier: 3
+    chartVersion: "0.0.0"
+    chartName: "ds-game"
+    namespace: destinationsol
 
   # -- Test chart (validates chart-mode resolution) ------------------------
   echo-test:
