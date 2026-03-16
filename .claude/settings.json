@@ -36,7 +36,8 @@
       "Bash(bash scripts/ws review * * * * * * *)",
       "Bash(bash scripts/ws log)",
       "Bash(bash scripts/ws log *)",
-      "Bash(bash scripts/ws log * *)"
+      "Bash(bash scripts/ws log * *)",
+      "Bash(bash scripts/ws clean)"
     ]
   }
 }
