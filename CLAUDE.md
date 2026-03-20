@@ -16,7 +16,7 @@ This file covers only Claude-specific overrides.
   operations. Use `bash scripts/ws exec <component> <cmd>` to run commands
   in component directories — never manually `cd` to components.
   Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`,
-  `ws pr`, `ws issue`, `ws test`, `ws review`, `ws log`, `ws clean`,
+  `ws pr`, `ws issue`, `ws test`, `ws review`, `ws commit`, `ws log`, `ws clean`,
   `ws resolve`, `ws vscode`, `ws exec`, `ws help`.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
   Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
