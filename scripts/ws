@@ -40,8 +40,8 @@ COMPONENT_DIR=""  # Set by ws_validate_component
 ws_validate_component() {
     local name="$1"
 
-    # Allow "yggdrasil", ".", and "root" as aliases for workspace root
-    if [[ "$name" == "yggdrasil" || "$name" == "." || "$name" == "root" ]]; then
+    # "yggdrasil" refers to the workspace root, not a component
+    if [[ "$name" == "yggdrasil" ]]; then
         COMPONENT_DIR="$ROOT_DIR"
         return 0
     fi
@@ -401,13 +401,21 @@ ws_commit() {
     local model="${CLAUDE_MODEL:-Opus 4.6}"
     local trailer="Co-Authored-By: Claude $model <noreply@anthropic.com>"
 
+    # Resolve bodyfile path before cd (relative paths are from workspace root)
+    if [[ -n "$bodyfile" ]]; then
+        if [[ ! -f "$bodyfile" ]]; then
+            echo "ERROR: body file not found: $bodyfile" >&2
+            exit 1
+        fi
+        # Convert to absolute path before changing directory
+        bodyfile="$(cd "$(dirname "$bodyfile")" && pwd)/$(basename "$bodyfile")"
+    fi
+
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR"
 
-    # Verify there are staged changes
-    if ! git diff --cached --quiet 2>/dev/null; then
-        : # staged changes exist, proceed
-    else
+    # Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
+    if git diff --cached --quiet 2>/dev/null; then
         echo "ERROR: No staged changes to commit in $comp." >&2
         echo "  Stage files first: git add <files>" >&2
         exit 1
@@ -418,10 +426,6 @@ ws_commit() {
 
     # Build the commit message
     if [[ -n "$bodyfile" ]]; then
-        if [[ ! -f "$bodyfile" ]]; then
-            echo "ERROR: body file not found: $bodyfile" >&2
-            exit 1
-        fi
         # Subject + blank line + body + blank line + trailer
         local full_message
         full_message="$message
