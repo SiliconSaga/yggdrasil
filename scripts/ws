@@ -104,7 +104,7 @@ ws_push() {
         echo "Usage: ws push [component] [branch]" >&2
         exit 1
     fi
-    local comp="${1:-.}"
+    local comp="${1:-yggdrasil}"
     local branch="${2:-}"
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${branch:+"$branch"}
@@ -403,12 +403,14 @@ ws_commit() {
 
     # Resolve bodyfile path before cd (relative paths are from workspace root)
     if [[ -n "$bodyfile" ]]; then
+        # Resolve relative paths from workspace root
+        if [[ "$bodyfile" != /* ]]; then
+            bodyfile="$ROOT_DIR/$bodyfile"
+        fi
         if [[ ! -f "$bodyfile" ]]; then
             echo "ERROR: body file not found: $bodyfile" >&2
             exit 1
         fi
-        # Convert to absolute path before changing directory
-        bodyfile="$(cd "$(dirname "$bodyfile")" && pwd)/$(basename "$bodyfile")"
     fi
 
     ws_validate_component "$comp"

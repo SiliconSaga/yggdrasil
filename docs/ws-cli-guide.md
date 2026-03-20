@@ -145,6 +145,22 @@ regex `^[a-z][a-z0-9-]*$` prevents:
 - Newline injection (bash `=~` matches full string, not per-line)
 - yq expression injection (no dots, brackets, etc.)
 
+### Forking and renaming
+
+The workspace name `yggdrasil` appears as a special case in `ws_validate_component`
+(one string comparison) and throughout documentation. To fork and rename:
+
+1. Change the `"yggdrasil"` check in `scripts/ws` → `ws_validate_component()`
+2. Search docs for `yggdrasil` and update narrative references
+3. Update the `siliconsaga` remote name and `SiliconSaga/` org prefix in
+   `scripts/git-push.sh`, `scripts/git-pr.sh`, and `scripts/gh-issue.sh`
+4. Update the domain in `ecosystem.yaml` (currently `cmdbee.org` via Nordri)
+5. Update `.mcp.json` if you change component names that host MCP servers
+
+The name is intentionally not stored in a variable — it's a single check in a
+security-sensitive function, and indirection would add complexity for a one-time
+operation.
+
 ## Local Permission Overrides for Bulk Operations
 
 Side-effect commands (`push`, `pr`, `issue`) prompt for approval by default.
