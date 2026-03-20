@@ -74,7 +74,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review`, `log` |
+| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review`, `log`, `clean` |
 | **Side-effect** | User's choice (ask) | No | `push`, `pr`, `issue` |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 

@@ -18,6 +18,7 @@
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <pr#> [options]  Fetch PR review comments (see ws review --help)
 #   log [comp] [--oneline] Show commits on current branch vs main
+#   clean             Remove draft files from .issues/, .prs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   help              Show this help message
 #
@@ -277,16 +278,12 @@ ws_review() {
     if [[ -n "$since" ]]; then
         if [[ "$since" == "last-push" || "$since" == "prev-push" ]]; then
             # Use GitHub Events API for accurate push timestamp
+            # Always get branch from the PR — local checkout may differ
             local branch
-            if [[ -n "$comp" ]]; then
-                # For component repos, get branch from the PR itself
-                branch=$(gh api "repos/$repo_slug/pulls/$pr_num" --jq '.head.ref' 2>/dev/null)
-                if [[ -z "$branch" || "$branch" == "null" ]]; then
-                    echo "ERROR: Cannot determine PR head branch for #$pr_num in $repo_slug." >&2
-                    exit 1
-                fi
-            else
-                branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+            branch=$(gh api "repos/$repo_slug/pulls/$pr_num" --jq '.head.ref' 2>/dev/null)
+            if [[ -z "$branch" || "$branch" == "null" ]]; then
+                echo "ERROR: Cannot determine PR head branch for #$pr_num in $repo_slug." >&2
+                exit 1
             fi
             local push_index=0
             [[ "$since" == "prev-push" ]] && push_index=1
@@ -450,6 +447,35 @@ ws_log() {
     fi
 }
 
+ws_clean() {
+    if [[ $# -gt 0 ]]; then
+        echo "Usage: ws clean" >&2
+        echo "" >&2
+        echo "Remove draft files from .issues/, .prs/, and .commits/ directories." >&2
+        exit 1
+    fi
+
+    local total=0
+    for dir in .issues .prs .commits; do
+        local dirpath="$ROOT_DIR/$dir"
+        if [[ -d "$dirpath" ]]; then
+            local count
+            count=$(find "$dirpath" -maxdepth 1 -name '*.md' -type f | wc -l)
+            if [[ "$count" -gt 0 ]]; then
+                find "$dirpath" -maxdepth 1 -name '*.md' -type f -delete
+                echo "  $dir/  $count file(s) removed"
+                total=$((total + count))
+            fi
+        fi
+    done
+
+    if [[ "$total" -eq 0 ]]; then
+        echo "(no draft files to clean)"
+    else
+        echo "Cleaned $total draft file(s) total."
+    fi
+}
+
 ws_issue() {
     if [[ $# -ne 4 ]]; then
         echo "Usage: ws issue <repo> <title> <label> <bodyfile>" >&2
@@ -500,6 +526,9 @@ case "$COMMAND" in
         ;;
     log)
         ws_log "$@"
+        ;;
+    clean)
+        ws_clean "$@"
         ;;
     exec)
         ws_exec "$@"
