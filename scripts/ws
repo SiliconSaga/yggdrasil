@@ -403,6 +403,9 @@ ws_commit() {
     model="${model%%$'\n'*}"
     local trailer="Co-Authored-By: Claude $model <noreply@anthropic.com>"
 
+    # Ensure .commits/ exists (may be first use on a fresh clone)
+    mkdir -p "$ROOT_DIR/.commits"
+
     # Resolve bodyfile path before cd (relative paths are from workspace root)
     if [[ -n "$bodyfile" ]]; then
         # Resolve relative paths from workspace root

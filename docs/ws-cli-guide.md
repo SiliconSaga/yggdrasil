@@ -183,7 +183,9 @@ commands need one `*` per argument:
     "allow": [
       "Bash(bash scripts/ws push * *)",
       "Bash(bash scripts/ws pr * * *)",
-      "Bash(bash scripts/ws issue * * * *)"
+      "Bash(bash scripts/ws issue * * * *)",
+      "Bash(bash scripts/ws commit * *)",
+      "Bash(bash scripts/ws commit * * *)"
     ]
   }
 }
@@ -195,6 +197,8 @@ commands need one `*` per argument:
 | `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push ymir feat/foo` |
 | `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr ymir "feat: add X" .prs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue ymir "fix: Y" bug .issues/y.md` |
+| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit ymir "fix: race"` |
+| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit ymir "feat: X" .commits/x.md` |
 
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.
