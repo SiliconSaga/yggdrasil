@@ -75,7 +75,7 @@ Every subcommand falls into one of three tiers:
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
 | **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review`, `log`, `clean` |
-| **Side-effect** | User's choice (ask) | No | `push`, `pr`, `issue` |
+| **Side-effect** | User's choice (ask) | No | `push`, `pr`, `issue`, `commit` |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
 **Safe:** Read-only or creates local files only. Add to the `allow` list in
@@ -145,9 +145,25 @@ regex `^[a-z][a-z0-9-]*$` prevents:
 - Newline injection (bash `=~` matches full string, not per-line)
 - yq expression injection (no dots, brackets, etc.)
 
+### Forking and renaming
+
+The workspace name `yggdrasil` appears as a special case in `ws_validate_component`
+(one string comparison) and throughout documentation. To fork and rename:
+
+1. Change the `"yggdrasil"` check in `scripts/ws` → `ws_validate_component()`
+2. Search docs for `yggdrasil` and update narrative references
+3. Update the `siliconsaga` remote name and `SiliconSaga/` org prefix in
+   `scripts/git-push.sh`, `scripts/git-pr.sh`, and `scripts/gh-issue.sh`
+4. Update the domain in `ecosystem.yaml` (currently `cmdbee.org` via Nordri)
+5. Update `.mcp.json` if you change component names that host MCP servers
+
+The name is intentionally not stored in a variable — it's a single check in a
+security-sensitive function, and indirection would add complexity for a one-time
+operation.
+
 ## Local Permission Overrides for Bulk Operations
 
-Side-effect commands (`push`, `pr`, `issue`) prompt for approval by default.
+Side-effect commands (`push`, `pr`, `issue`, `commit`) prompt for approval by default.
 For bulk operations (filing multiple issues, pushing several components),
 you can auto-approve them in your local settings.
 
@@ -167,7 +183,9 @@ commands need one `*` per argument:
     "allow": [
       "Bash(bash scripts/ws push * *)",
       "Bash(bash scripts/ws pr * * *)",
-      "Bash(bash scripts/ws issue * * * *)"
+      "Bash(bash scripts/ws issue * * * *)",
+      "Bash(bash scripts/ws commit * *)",
+      "Bash(bash scripts/ws commit * * *)"
     ]
   }
 }
@@ -179,6 +197,8 @@ commands need one `*` per argument:
 | `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push ymir feat/foo` |
 | `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr ymir "feat: add X" .prs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue ymir "fix: Y" bug .issues/y.md` |
+| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit ymir "fix: race"` |
+| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit ymir "feat: X" .commits/x.md` |
 
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.

@@ -17,6 +17,7 @@
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <pr#> [options]  Fetch PR review comments (see ws review --help)
+#   commit <comp> <message> [bodyfile] Commit with Co-Authored-By trailer
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .prs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
@@ -39,8 +40,8 @@ COMPONENT_DIR=""  # Set by ws_validate_component
 ws_validate_component() {
     local name="$1"
 
-    # Allow "." and "root" as aliases for yggdrasil root
-    if [[ "$name" == "." || "$name" == "root" ]]; then
+    # "yggdrasil" refers to the workspace root, not a component
+    if [[ "$name" == "yggdrasil" ]]; then
         COMPONENT_DIR="$ROOT_DIR"
         return 0
     fi
@@ -103,7 +104,7 @@ ws_push() {
         echo "Usage: ws push [component] [branch]" >&2
         exit 1
     fi
-    local comp="${1:-.}"
+    local comp="${1:-yggdrasil}"
     local branch="${2:-}"
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${branch:+"$branch"}
@@ -365,6 +366,84 @@ ws_review() {
     fi
 }
 
+ws_commit() {
+    if [[ $# -lt 2 || "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: ws commit <component> <message> [bodyfile]"
+        echo ""
+        echo "Commit staged changes with a Co-Authored-By trailer."
+        echo ""
+        echo "Arguments:"
+        echo "  component   Component name (or 'yggdrasil' for workspace root)"
+        echo "  message     Commit subject line"
+        echo "  bodyfile    Optional extended commit body (from .commits/)"
+        echo ""
+        echo "The Co-Authored-By trailer is appended automatically."
+        echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.6)."
+        echo ""
+        echo "Examples:"
+        echo "  ws commit ymir 'fix: resolve store race condition'"
+        echo "  ws commit yggdrasil 'feat(ws): add commit subcommand' .commits/ws-commit.md"
+        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+            exit 0
+        fi
+        exit 1
+    fi
+    if [[ $# -gt 3 ]]; then
+        echo "ERROR: Too many arguments." >&2
+        echo "  Usage: ws commit <component> <message> [bodyfile]" >&2
+        echo "  Wrap the message in quotes if it contains spaces." >&2
+        exit 1
+    fi
+
+    local comp="$1"
+    local message="$2"
+    local bodyfile="${3:-}"
+    local model="${CLAUDE_MODEL:-Opus 4.6}"
+    # Sanitize model name — newlines would break the trailer format
+    model="${model%%$'\n'*}"
+    local trailer="Co-Authored-By: Claude $model <noreply@anthropic.com>"
+
+    # Ensure .commits/ exists (may be first use on a fresh clone)
+    mkdir -p "$ROOT_DIR/.commits"
+
+    # Resolve bodyfile path before cd (relative paths are from workspace root)
+    if [[ -n "$bodyfile" ]]; then
+        # Resolve relative paths from workspace root
+        if [[ "$bodyfile" != /* ]]; then
+            bodyfile="$ROOT_DIR/$bodyfile"
+        fi
+        if [[ ! -f "$bodyfile" ]]; then
+            echo "ERROR: body file not found: $bodyfile" >&2
+            exit 1
+        fi
+    fi
+
+    ws_validate_component "$comp"
+    cd "$COMPONENT_DIR"
+
+    # Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
+    if git diff --cached --quiet 2>/dev/null; then
+        echo "ERROR: No staged changes to commit in $comp." >&2
+        echo "  Stage files first: git add <files>" >&2
+        exit 1
+    fi
+
+    # Build the commit message
+    if [[ -n "$bodyfile" ]]; then
+        # Subject + blank line + body + blank line + trailer
+        local full_message
+        full_message="$message
+
+$(cat "$bodyfile")
+
+$trailer"
+        git commit -m "$full_message"
+    else
+        # Subject + blank line + trailer
+        git commit -m "$message" -m "$trailer"
+    fi
+}
+
 ws_log() {
     if [[ $# -gt 2 ]]; then
         echo "Usage: ws log [component] [--oneline]" >&2
@@ -523,6 +602,9 @@ case "$COMMAND" in
         ;;
     review)
         ws_review "$@"
+        ;;
+    commit)
+        ws_commit "$@"
         ;;
     log)
         ws_log "$@"
