@@ -428,9 +428,6 @@ ws_commit() {
         exit 1
     fi
 
-    # Ensure .commits/ clearinghouse exists
-    mkdir -p "$ROOT_DIR/.commits"
-
     # Build the commit message
     if [[ -n "$bodyfile" ]]; then
         # Subject + blank line + body + blank line + trailer
