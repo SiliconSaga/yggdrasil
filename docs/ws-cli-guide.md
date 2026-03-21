@@ -163,7 +163,7 @@ operation.
 
 ## Local Permission Overrides for Bulk Operations
 
-Side-effect commands (`push`, `pr`, `issue`) prompt for approval by default.
+Side-effect commands (`push`, `pr`, `issue`, `commit`) prompt for approval by default.
 For bulk operations (filing multiple issues, pushing several components),
 you can auto-approve them in your local settings.
 

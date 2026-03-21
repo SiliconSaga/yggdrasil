@@ -399,6 +399,8 @@ ws_commit() {
     local message="$2"
     local bodyfile="${3:-}"
     local model="${CLAUDE_MODEL:-Opus 4.6}"
+    # Sanitize model name — newlines would break the trailer format
+    model="${model%%$'\n'*}"
     local trailer="Co-Authored-By: Claude $model <noreply@anthropic.com>"
 
     # Resolve bodyfile path before cd (relative paths are from workspace root)
