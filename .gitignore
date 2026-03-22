@@ -2,7 +2,6 @@
 .env
 .issues/
 .prs/
-.commits/
 .DS_Store
 
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
@@ -21,3 +20,7 @@ ecosystem.local.yaml
 
 # IDE workspace files — generated per-user via ws-vscode.sh, not shared
 *.code-workspace
+
+# SecondBrain — shared human-AI thinking space (local, never committed)
+SecondBrain.md
+SecondBrainNoGit.md
