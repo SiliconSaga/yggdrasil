@@ -95,8 +95,8 @@ The orchestrator selects skills based on what the user is doing:
 | Skill | Status | Description |
 |-------|--------|-------------|
 | Orientation (@gdd-orientation) | Exists | Session startup, SecondBrain, trust verification |
-| Housekeeping (@gdd-housekeeping) | Planned | Audit, prune, promote SecondBrain content |
-| Review Triage (@gdd-review-triage) | Planned | Multi-reviewer PR coordination |
+| Housekeeping (@gdd-housekeeping) | Exists | Audit, prune, promote SecondBrain content |
+| Review Triage (@gdd-review-triage) | Exists | Multi-reviewer PR coordination |
 
 ## Design Principles
 

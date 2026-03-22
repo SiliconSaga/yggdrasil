@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-22
 **Status:** Draft
-**Extends:** [GDD Design](../../plans/2026-03-12-gdd-design.md)
+**Extends:** [GDD Design](2026-03-12-gdd-design.md)
 
 ---
 

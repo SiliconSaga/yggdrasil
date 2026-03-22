@@ -51,9 +51,12 @@ staleness_days: 14
 
 **If frontmatter is malformed or missing:** warn the human and continue with
 defaults (all values treated as null). The file may have been hand-edited;
-don't treat parse errors as blocking.
+don't treat parse errors as blocking. **Do not rewrite frontmatter when
+parsing fails** — updating `last_session` could clobber the human's edits.
+Only update frontmatter after a successful parse, or if the human approves
+a repair.
 
-Update `last_session` to today's date.
+Update `last_session` to today's date (only if frontmatter parsed successfully).
 
 ### Step 3: Staleness Check
 
