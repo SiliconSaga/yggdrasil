@@ -2,6 +2,7 @@
 
 **Date:** 2026-03-12
 **Status:** Draft
+**Explainer:** [What is GDD?](../gdd.md) (reader-facing overview)
 
 ---
 
