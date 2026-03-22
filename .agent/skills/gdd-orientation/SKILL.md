@@ -33,9 +33,11 @@ Look for `SecondBrain.md` in the yggdrasil workspace root.
   > It's a gitignored shared thinking space for capturing observations,
   > concerns, and preferences between sessions."
 
-  If the user agrees, copy `.agent/secondbrain-template.md` to `SecondBrain.md`
-  in the workspace root. If declined, proceed without it — do not block the
-  session.
+  If the user agrees, first verify that `.gitignore` contains an entry for
+  `SecondBrain.md` — if it doesn't, warn the human and add it before creating
+  the file to prevent accidental commits. Then copy
+  `.agent/secondbrain-template.md` to `SecondBrain.md` in the workspace root.
+  If declined, proceed without it — do not block the session.
 
 ### Step 2: Parse Frontmatter
 
