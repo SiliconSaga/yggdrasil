@@ -132,10 +132,16 @@ git checkout main && git pull siliconsaga main   # pull may need HTTPS workaroun
 # 2. Create topic branch
 git checkout -b <type>/<description>             # feat, fix, docs, chore, test, refactor
 
-# 3. Commit (include Co-Authored-By trailer identifying the AI agent)
-git commit -m "type: description
-
-Co-Authored-By: <agent-name> <agent-email>"
+# 3. Commit (use ws commit — stages files and appends Co-Authored-By trailer)
+#    Write a bodyfile with add: frontmatter to stage files automatically:
+#    .commits/my-change.md:
+#      ---
+#      add:
+#        - path/to/file1.md
+#        - path/to/file2.md
+#      ---
+#      Extended commit body here.
+bash scripts/ws commit <component> "type: description" .commits/my-change.md
 
 # 4. Push (use ws push — handles auth and workarounds automatically)
 bash scripts/ws push <component>
