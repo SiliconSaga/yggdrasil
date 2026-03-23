@@ -27,8 +27,9 @@ Add to `.gitignore`:
 
 ```
 # SecondBrain — shared human-AI thinking space (local, never committed)
-SecondBrain.md
-SecondBrainNoGit.md
+# Root-only to avoid matching docs/gdd/second-brain.md or nested paths.
+# Note: SecondBrainNoGit.md is intentionally NOT gitignored — escape hatch.
+/SecondBrain.md
 ```
 
 - [ ] **Step 2: Verify gitignore works**
@@ -443,16 +444,21 @@ git commit -m "docs: register gdd-housekeeping skill in AGENTS.md"
 ### Task 9: Write the GDD explainer doc
 
 **Files:**
-- Create: `docs/gdd.md`
+- Create: `docs/gdd/index.md` (overview, key concepts, getting started)
+- Create: `docs/gdd/roles-and-modes.md`
+- Create: `docs/gdd/second-brain.md`
+- Create: `docs/gdd/trust-and-safety.md`
+- Create: `docs/gdd/self-improving-loop.md`
 
-This is a reader-facing document explaining GDD to someone encountering
-the project for the first time. It is NOT an operational artifact — it
-doesn't govern agent behavior. It explains the methodology for external
+This is a set of reader-facing documents explaining GDD to someone encountering
+the project for the first time. They are NOT operational artifacts — they
+don't govern agent behavior. They explain the methodology for external
 audiences: potential contributors, blog readers, curious developers.
 
-- [ ] **Step 1: Write the explainer document**
+- [ ] **Step 1: Write the explainer documents**
 
-Write `docs/gdd.md` covering:
+Write `docs/gdd/index.md` as the entry point with key concepts and links
+to topic pages. Write one focused page per topic:
 
 **What is GDD?** — the core insight (AI agents and newer contributors need
 similar things), the three guardian roles, why the name.
@@ -488,7 +494,7 @@ reading it?
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/gdd.md
+git add docs/gdd/
 git commit -m "docs: add GDD explainer for external audiences"
 ```
 
@@ -506,7 +512,7 @@ Add a brief section or link near the top of AGENTS.md pointing to the
 GDD explainer:
 
 ```markdown
-**Methodology:** This workspace uses [Guardian Driven Development (GDD)](docs/gdd.md).
+**Methodology:** This workspace uses [Guardian Driven Development (GDD)](docs/gdd/index.md).
 ```
 
 - [ ] **Step 2: Add link from GDD design doc**

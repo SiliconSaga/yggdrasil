@@ -15,7 +15,7 @@ close supervision. A methodology that serves one can serve both.
 
 - **Filling the gap** — between AI-private memory (invisible to humans) and
   committed project instructions (formal, policy-level), GDD introduces the
-  [SecondBrain](secondbrain.md): a shared, co-authored thinking space where
+  [SecondBrain](second-brain.md): a shared, co-authored thinking space where
   observations, concerns, and preferences live while they're being figured out.
 
 - **Adaptive ceremony** — [roles and modes](roles-and-modes.md) let the
@@ -64,7 +64,7 @@ The name reflects three protective roles:
 ## Learn More
 
 - [Roles and Modes](roles-and-modes.md) — how GDD adapts to who you are and what you're doing
-- [The SecondBrain](secondbrain.md) — shared thinking space between human and AI
+- [The SecondBrain](second-brain.md) — shared thinking space between human and AI
 - [Trust and Safety](trust-and-safety.md) — trust hierarchy, black-box pattern, community responsibility
 - [The Self-Improving Loop](self-improving-loop.md) — how the framework evolves through use
 - [GDD Design Doc](../plans/2026-03-12-gdd-design.md) — full methodology design

@@ -28,8 +28,9 @@ instructions) and prune what's resolved.
 A gitignored markdown file at `yggdrasil/SecondBrain.md`, created from a
 committed template at `.agent/secondbrain-template.md`.
 
-**Prerequisites:** The `.gitignore` must include entries for `SecondBrain.md`
-and `SecondBrainNoGit.md` before the file is created.
+**Prerequisites:** The `.gitignore` must include a root-only entry for
+`SecondBrain.md` (`/SecondBrain.md`) before the file is created.
+`SecondBrainNoGit.md` is intentionally NOT gitignored — see Fallback below.
 
 ### Lifecycle
 
