@@ -19,8 +19,9 @@ implementing step definitions, or reviewing results.
 Write scenario          File issue           Implement & PR
 (Given/When/Then)  →   (GitHub issue)    →  (code + step defs)
      ↓                      ↓                     ↓
-Anyone can do this    Auto from scenario    Developer or AI agent
-                      (@creating-github-issues)   picks it up
+Anyone can do this    Manual or future       Developer or AI agent
+                      automation             picks it up
+                      (@creating-github-issues)
      ↓                      ↓                     ↓
 Stored as .feature    Tagged & labeled      Vordu shows progress
 in the component      "good first issue"    on the roadmap

@@ -48,9 +48,11 @@ and `SecondBrainNoGit.md` before the file is created.
 
 If the agent encounters write failures (e.g. some AI tooling refuses writes to
 files matching `.gitignore` patterns), it surfaces this to the human in
-conversation and considers `SecondBrainNoGit.md` as an alternative filename
-(which is also gitignored, but may not match the tool's pattern check). The
-agent must never commit either file to git.
+conversation and considers `SecondBrainNoGit.md` as an alternative filename.
+`SecondBrainNoGit.md` is intentionally NOT gitignored — it exists as an escape
+hatch for tooling that blocks writes to gitignored files. The human should be
+aware that this file could be accidentally committed and should exercise care.
+The agent should not commit `SecondBrain.md` to git under any circumstances.
 
 ### Template
 

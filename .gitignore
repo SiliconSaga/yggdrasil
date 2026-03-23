@@ -2,6 +2,7 @@
 .env
 .issues/
 .prs/
+.commits/
 .DS_Store
 
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
@@ -22,5 +23,6 @@ ecosystem.local.yaml
 *.code-workspace
 
 # SecondBrain — shared human-AI thinking space (local, never committed)
+# Note: SecondBrainNoGit.md is intentionally NOT gitignored — it exists as an
+# escape hatch for tooling that refuses to write to gitignored files.
 SecondBrain.md
-SecondBrainNoGit.md
