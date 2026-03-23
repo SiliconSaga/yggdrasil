@@ -9,6 +9,15 @@ Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architectu
 
 **Methodology:** This workspace uses [Guardian Driven Development (GDD)](docs/gdd/index.md).
 
+## Session Start
+
+On every session start, load the **GDD orientation skill** (`gdd-orientation`)
+before other work. It checks for the SecondBrain shared thinking space, verifies
+trust of nested component instructions, and establishes the session mode and role.
+
+This is the entry point for GDD — it takes a few seconds and sets up the session
+context that all other skills build on.
+
 ---
 
 ## Repo Roles (quick reference)

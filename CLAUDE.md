@@ -1,7 +1,8 @@
 # Yggdrasil — Claude Code
 
-**Read [`AGENTS.md`](AGENTS.md) first** — it contains all shared workspace instructions:
-repo roles, skills, git workflow, utility scripts, auth setup, and issue/PR conventions.
+**Read [`AGENTS.md`](AGENTS.md) first** — it contains shared workspace instructions
+including **session startup** (GDD orientation), repo roles, skills, git workflow,
+utility scripts, auth setup, and issue/PR conventions.
 
 This file covers only Claude-specific overrides.
 
