@@ -133,15 +133,15 @@ git checkout main && git pull siliconsaga main   # pull may need HTTPS workaroun
 git checkout -b <type>/<description>             # feat, fix, docs, chore, test, refactor
 
 # 3. Commit (use ws commit — stages files and appends Co-Authored-By trailer)
-#    Write a bodyfile with add: frontmatter to stage files automatically:
-#    .commits/my-change.md:
+#    Write a bodyfile to .commits/ with frontmatter:
 #      ---
+#      message: "type: description"
 #      add:
 #        - path/to/file1.md
 #        - path/to/file2.md
 #      ---
 #      Extended commit body here.
-bash scripts/ws commit <component> "type: description" .commits/my-change.md
+bash scripts/ws commit <component> .commits/my-change.md
 
 # 4. Push (use ws push — handles auth and workarounds automatically)
 bash scripts/ws push <component>

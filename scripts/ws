@@ -368,25 +368,36 @@ ws_review() {
 
 ws_commit() {
     if [[ $# -lt 2 || "$1" == "--help" || "$1" == "-h" ]]; then
-        echo "Usage: ws commit <component> <message> [bodyfile]"
+        echo "Usage: ws commit <component> <bodyfile>"
+        echo "       ws commit <component> <message> [bodyfile]"
         echo ""
-        echo "Commit staged changes with a Co-Authored-By trailer."
+        echo "Commit with a Co-Authored-By trailer. Two modes:"
+        echo ""
+        echo "  Bodyfile mode (preferred):"
+        echo "    ws commit <component> .commits/my-change.md"
+        echo "    The bodyfile contains everything: message, files to stage, body text."
+        echo ""
+        echo "  Inline mode:"
+        echo "    ws commit <component> 'commit subject' [bodyfile]"
+        echo "    Message on the command line, optional bodyfile for extended body."
         echo ""
         echo "Arguments:"
         echo "  component   Component name (or 'yggdrasil' for workspace root)"
-        echo "  message     Commit subject line"
-        echo "  bodyfile    Optional extended commit body (from .commits/)"
+        echo "  bodyfile    Commit file from .commits/ (detected by .md extension)"
+        echo "  message     Commit subject line (inline mode)"
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
         echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.6)."
         echo ""
-        echo "Bodyfile frontmatter (optional YAML between --- markers):"
+        echo "Bodyfile frontmatter (YAML between --- markers):"
+        echo "  message:      Commit subject line (required in bodyfile mode)"
         echo "  add:          List of files to stage before committing"
         echo "  Frontmatter is stripped from the commit body automatically."
         echo ""
         echo "Examples:"
+        echo "  ws commit yggdrasil .commits/fix-store-race.md"
         echo "  ws commit ymir 'fix: resolve store race condition'"
-        echo "  ws commit yggdrasil 'feat(ws): add commit subcommand' .commits/ws-commit.md"
+        echo "  ws commit yggdrasil 'feat(ws): add feature' .commits/details.md"
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             exit 0
         fi
@@ -394,14 +405,30 @@ ws_commit() {
     fi
     if [[ $# -gt 3 ]]; then
         echo "ERROR: Too many arguments." >&2
+        echo "  Usage: ws commit <component> <bodyfile>" >&2
         echo "  Usage: ws commit <component> <message> [bodyfile]" >&2
-        echo "  Wrap the message in quotes if it contains spaces." >&2
         exit 1
     fi
 
+    # Detect mode: if second arg ends in .md, it's bodyfile mode
     local comp="$1"
-    local message="$2"
-    local bodyfile="${3:-}"
+    local message=""
+    local bodyfile=""
+    if [[ "$2" == *.md ]]; then
+        # Bodyfile mode: ws commit <comp> <bodyfile>
+        bodyfile="$2"
+        if [[ $# -gt 2 ]]; then
+            echo "ERROR: Too many arguments for bodyfile mode." >&2
+            echo "  Usage: ws commit <component> <bodyfile>" >&2
+            echo "  Put the commit message in the bodyfile frontmatter (message: field)." >&2
+            exit 1
+        fi
+    else
+        # Inline mode: ws commit <comp> <message> [bodyfile]
+        message="$2"
+        bodyfile="${3:-}"
+    fi
+
     local model="${CLAUDE_MODEL:-Opus 4.6}"
     # Sanitize model name — newlines would break the trailer format
     model="${model%%$'\n'*}"
@@ -445,6 +472,15 @@ ws_commit() {
             # We need to skip past the second --- too
             body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/{n++; next} n>=2')"
 
+            # Parse message: from frontmatter if not provided on command line
+            if [[ -z "$message" ]]; then
+                message="$(echo "$frontmatter" | yq -r '.message // ""' 2>/dev/null)"
+                if [[ -z "$message" ]]; then
+                    echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
+                    exit 1
+                fi
+            fi
+
             # Parse add: list from frontmatter using yq
             local add_files
             add_files="$(echo "$frontmatter" | yq -r '.add // [] | .[]' 2>/dev/null)"
@@ -469,6 +505,12 @@ ws_commit() {
             # No frontmatter — entire file is the body
             body_content="$file_content"
         fi
+    fi
+
+    # Verify we have a commit message at this point
+    if [[ -z "$message" ]]; then
+        echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
+        exit 1
     fi
 
     # Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
