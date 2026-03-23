@@ -380,6 +380,10 @@ ws_commit() {
         echo "The Co-Authored-By trailer is appended automatically."
         echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.6)."
         echo ""
+        echo "Bodyfile frontmatter (optional YAML between --- markers):"
+        echo "  add:          List of files to stage before committing"
+        echo "  Frontmatter is stripped from the commit body automatically."
+        echo ""
         echo "Examples:"
         echo "  ws commit ymir 'fix: resolve store race condition'"
         echo "  ws commit yggdrasil 'feat(ws): add commit subcommand' .commits/ws-commit.md"
@@ -421,25 +425,76 @@ ws_commit() {
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR"
 
+    # Parse bodyfile frontmatter for files to stage
+    local body_content=""
+    if [[ -n "$bodyfile" ]]; then
+        local file_content
+        file_content="$(cat "$bodyfile")"
+
+        # Check if file starts with YAML frontmatter (--- on first line)
+        if [[ "$file_content" == ---* ]]; then
+            # Extract frontmatter (between first and second --- lines)
+            local frontmatter
+            frontmatter="$(echo "$file_content" | sed -n '1,/^---$/p' | tail -n +2)"
+            # Remove the closing --- from frontmatter
+            frontmatter="$(echo "$frontmatter" | sed '$d')"
+
+            # Extract body after frontmatter (everything after second ---)
+            body_content="$(echo "$file_content" | sed '1,/^---$/!b; d')"
+            # The sed above deletes up to and including the first --- block
+            # We need to skip past the second --- too
+            body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/{n++; next} n>=2')"
+
+            # Parse add: list from frontmatter using yq
+            local add_files
+            add_files="$(echo "$frontmatter" | yq -r '.add // [] | .[]' 2>/dev/null)"
+
+            if [[ -n "$add_files" ]]; then
+                echo "Staging files from bodyfile frontmatter..."
+                local add_fail=0
+                while IFS= read -r f; do
+                    if [[ ! -e "$f" ]]; then
+                        echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
+                        add_fail=1
+                    fi
+                done <<< "$add_files"
+                if [[ "$add_fail" -eq 1 ]]; then
+                    exit 1
+                fi
+                while IFS= read -r f; do
+                    git add "$f"
+                done <<< "$add_files"
+            fi
+        else
+            # No frontmatter — entire file is the body
+            body_content="$file_content"
+        fi
+    fi
+
     # Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
     if git diff --cached --quiet 2>/dev/null; then
         echo "ERROR: No staged changes to commit in $comp." >&2
-        echo "  Stage files first: git add <files>" >&2
+        echo "  Stage files first with git add, or use a bodyfile with add: frontmatter." >&2
         exit 1
     fi
 
     # Build the commit message
-    if [[ -n "$bodyfile" ]]; then
+    if [[ -n "$body_content" ]]; then
         # Subject + blank line + body + blank line + trailer
+        # Trim leading/trailing whitespace from body
+        body_content="$(echo "$body_content" | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba}')"
         local full_message
         full_message="$message
 
-$(cat "$bodyfile")
+$body_content
 
 $trailer"
         git commit -m "$full_message"
+    elif [[ -n "$bodyfile" ]]; then
+        # Bodyfile existed but had only frontmatter, no body text
+        git commit -m "$message" -m "$trailer"
     else
-        # Subject + blank line + trailer
+        # No bodyfile at all
         git commit -m "$message" -m "$trailer"
     fi
 }
