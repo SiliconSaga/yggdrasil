@@ -20,7 +20,9 @@ establishes the session context (mode, role, active concerns).
 
 ## Startup Sequence
 
-Run these steps in order at session start.
+Run these steps in order at session start. **Steps 1-5 happen in the first
+response** (keep it brief). **Steps 6-7 happen after the human responds**
+and you've aligned on mode/role and what the session is about.
 
 ### Step 1: Check for SecondBrain.md
 

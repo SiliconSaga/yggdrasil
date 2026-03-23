@@ -11,18 +11,20 @@ Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architectu
 
 ## Session Start
 
-On every session start, read and follow the **GDD orientation skill** at
-`.agent/skills/gdd-orientation/SKILL.md` before other work. It checks for
-the SecondBrain shared thinking space, verifies trust of nested component
-instructions, and establishes the session mode and role.
+On every session start, read `.agent/skills/gdd-orientation/SKILL.md` and
+follow its startup sequence. Do NOT use any plugin/Skill tool to load it —
+just read the file with your Read tool and follow the instructions inside.
 
-If the user's first message is a greeting or open-ended ("hello", "what's up",
-"let's go"), respond with a brief orientation summary — SecondBrain status,
-any concerns, mode/role — and ask what they'd like to work on. Lead with
-context, not questions.
+**Keep the greeting brief and human-first.** On a greeting or open-ended
+first message:
 
-**Note:** Workspace skills live in `.agent/skills/<name>/SKILL.md` and are
-loaded by reading the file directly. They are not plugin skills.
+1. Note whether SecondBrain.md exists and offer to create it if not
+2. Ask about mode and role (or note the defaults from frontmatter)
+3. Ask what the human wants to work on
+
+That's it for the first response. Save the component scan, trust verification,
+and detailed workspace inventory for *after* the human has responded and you've
+aligned on what the session is about. Don't front-load everything at once.
 
 ---
 
