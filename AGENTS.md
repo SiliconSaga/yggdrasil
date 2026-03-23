@@ -7,7 +7,7 @@ Per-developer overrides go in `ecosystem.local.yaml` (gitignored).
 
 Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architecture.md)
 
-**Methodology:** This workspace uses [Guardian Driven Development (GDD)](docs/gdd.md).
+**Methodology:** This workspace uses [Guardian Driven Development (GDD)](docs/gdd/index.md).
 
 ---
 
