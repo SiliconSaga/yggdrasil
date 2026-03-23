@@ -11,12 +11,18 @@ Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architectu
 
 ## Session Start
 
-On every session start, load the **GDD orientation skill** (`gdd-orientation`)
-before other work. It checks for the SecondBrain shared thinking space, verifies
-trust of nested component instructions, and establishes the session mode and role.
+On every session start, read and follow the **GDD orientation skill** at
+`.agent/skills/gdd-orientation/SKILL.md` before other work. It checks for
+the SecondBrain shared thinking space, verifies trust of nested component
+instructions, and establishes the session mode and role.
 
-This is the entry point for GDD — it takes a few seconds and sets up the session
-context that all other skills build on.
+If the user's first message is a greeting or open-ended ("hello", "what's up",
+"let's go"), respond with a brief orientation summary — SecondBrain status,
+any concerns, mode/role — and ask what they'd like to work on. Lead with
+context, not questions.
+
+**Note:** Workspace skills live in `.agent/skills/<name>/SKILL.md` and are
+loaded by reading the file directly. They are not plugin skills.
 
 ---
 
