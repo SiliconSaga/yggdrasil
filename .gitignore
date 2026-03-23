@@ -23,6 +23,7 @@ ecosystem.local.yaml
 *.code-workspace
 
 # SecondBrain — shared human-AI thinking space (local, never committed)
+# Root-only to avoid matching docs/gdd/secondbrain.md or nested paths.
 # Note: SecondBrainNoGit.md is intentionally NOT gitignored — it exists as an
 # escape hatch for tooling that refuses to write to gitignored files.
-SecondBrain.md
+/SecondBrain.md

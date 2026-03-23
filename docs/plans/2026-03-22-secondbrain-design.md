@@ -361,6 +361,18 @@ Items identified during brainstorming, out of scope for the initial design:
 - **Obsidian personal setup** — dedicated session to bootstrap a personal
   Obsidian vault using Claudesidian and/or starter-kit PARA templates,
   separate from the GDD SecondBrain work.
+- **Design specs → ADRs** — design specs and implementation plans have a
+  half-life: they're maximally useful during brainstorming and execution,
+  then immediately start drifting from reality. After implementation, a
+  housekeeping-like review could distill spent design docs into Architecture
+  Decision Records (ADRs) that preserve the *why* — what alternatives were
+  considered, what constraints drove the design, what was chosen and what was
+  rejected. ADRs would live in `docs/adr/` as permanent records, while the
+  original specs could be archived or deleted. The SecondBrain could track
+  "this design spec is stale, consider ADR review" as an observation that
+  surfaces during housekeeping. A future `gdd-adr` skill could guide the
+  distillation process. See Michael Nygard's original ADR proposal and the
+  Backstage ADR plugin for prior art.
 
 ---
 

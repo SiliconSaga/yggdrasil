@@ -229,19 +229,21 @@ Key additions to GDD's architecture:
    against already-addressed findings, triages by severity, presents a
    consolidated action list.
 
+**Implemented (initial stubs, evolving through use):**
+- **Mentoring mode** — AI explains decisions, teaches practices in context.
+- **Quick mode** — session sizing, context recovery, phone-friendly workflows.
+- **BDD skill** — how to write scenarios, where to put them, how to run them
+  per language (godog, pytest-bdd, kuttl). One of potentially many practice
+  skills that plug into the orchestrator.
+
 **Later:**
 - **Session collaboration skill** — captures the natural working rhythm between
   human and AI: when to switch from coding to triage to planning, shorthand
   for known tools/reviewers, running audits at session boundaries, filing
   issues for deferred work instead of over-scoping. Adapts communication
   density to the user's current mode and role.
-- **Mentoring mode** — AI explains decisions, teaches practices in context.
-- **Quick mode** — session sizing, context recovery, phone-friendly workflows.
 - **Designer onboarding** — low-barrier scenario writing that doesn't require
   local tooling or Git knowledge.
-- **BDD skill** — how to write scenarios, where to put them, how to run them
-  per language (godog, pytest-bdd, kuttl). One of potentially many practice
-  skills that plug into the orchestrator.
 
 ---
 
