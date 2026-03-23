@@ -7,6 +7,8 @@ Per-developer overrides go in `ecosystem.local.yaml` (gitignored).
 
 Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architecture.md)
 
+**Methodology:** This workspace uses [Guardian Driven Development (GDD)](docs/gdd/index.md).
+
 ---
 
 ## Repo Roles (quick reference)
@@ -35,6 +37,15 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
+| **GDD (Orchestrator)** | Guardian Driven Development — detects roles/modes, delegates to practice and mode skills | [SKILL.md](./.agent/skills/gdd/SKILL.md) |
+| **GDD Orientation** | Session startup — reads SecondBrain.md, trust verification of component instructions, mode/role setup | [SKILL.md](./.agent/skills/gdd-orientation/SKILL.md) |
+| **GDD Housekeeping** | Audit SecondBrain.md — review, promote, prune observations and concerns with the human | [SKILL.md](./.agent/skills/gdd-housekeeping/SKILL.md) |
+| **GDD Review Triage** | Multi-reviewer PR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
+| **GDD Mentoring Mode** | AI explains decisions and teaches practices in context — request for any unfamiliar area | [SKILL.md](./.agent/skills/gdd-mentoring/SKILL.md) |
+| **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
+| **GDD Zen Mode** | Full ceremony for deep work — thorough brainstorming, reviews, audits | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
+| **GDD Autonomous Mode** | Permission-bounded independent work with reviewable increments | [SKILL.md](./.agent/skills/gdd-autonomous/SKILL.md) |
+| **BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
 | **ArgoCD Bootstrap on K3d** | Bootstrapping ArgoCD app-of-apps on k3d, CRD chicken-and-egg fixes, portable shell scripts | [SKILL.md](./.agent/skills/argocd-bootstrap-on-k3d/SKILL.md) |
 | **Crossplane on K3d** | Guide for configuring Crossplane in local K3d clusters | [SKILL.md](./.agent/skills/crossplane-on-k3d/SKILL.md) |
 | **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/creating-github-issues/SKILL.md) |

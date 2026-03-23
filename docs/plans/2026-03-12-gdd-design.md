@@ -2,6 +2,7 @@
 
 **Date:** 2026-03-12
 **Status:** Draft
+**Explainer:** [What is GDD?](../gdd/index.md) (reader-facing overview)
 
 ---
 
@@ -26,6 +27,7 @@ productively, where the AI teaches alongside generating, and the framework
 keeps everyone safe while they learn.
 
 The name "Guardian" reflects three protective roles:
+
 - **Guarding contributors** from tooling complexity and accidental damage
 - **Guarding the codebase** from unsafe or unreviewed changes
 - **Guarding the learning process** by making AI explain, not just generate
@@ -161,44 +163,87 @@ appropriately-sized work based on available time.
 | Code review | Copilot (one-shot), CodeRabbit (continuous), Claude (triage) | Active on PR #8+ |
 
 **Gaps:**
-- No BDD skill guiding scenario writing or runner integration
+- No session orientation or trust verification of nested components
+- No shared thinking space between human and AI (observations lost to chat logs)
 - No mode-aware behavior (everyone gets the same experience)
 - No session-sizing guidance (what can I do in 15 min?)
+- No BDD skill guiding scenario writing or runner integration
 - No scenario → issue automation
 - No mentoring mode
 - No coordinated multi-reviewer workflow (each AI reviewer acts independently)
 
 ---
 
+## SecondBrain
+
+The SecondBrain concept extends GDD with a shared, semi-persistent thinking
+space between one human and one local AI agent (at a time). It addresses
+several of the gaps above — session orientation, mode/role selection, trust
+verification, and the loss of observations between sessions.
+
+See [SecondBrain Design](2026-03-22-secondbrain-design.md) for the full spec.
+
+Key additions to GDD's architecture:
+
+- **`gdd-orientation` skill** (cross-cutting) — session startup, SecondBrain
+  read/write, trust verification of nested component instructions, black-box
+  safety pattern for hostile instruction detection
+- **`gdd-housekeeping` skill** (cross-cutting) — audit SecondBrain content,
+  promote observations to issues/skills/instructions, prune resolved items,
+  feed back into capture behavior
+- **SecondBrain.md** — gitignored file with PARA-inspired frontmatter
+  (mode, role, timestamps, staleness threshold) and sections for Preferences,
+  Observations, Concerns, and Audit Log
+- **Self-improving loop** — sessions capture observations → housekeeping
+  promotes them → updated skills change behavior → next housekeeping evaluates
+  whether capture improved
+
+---
+
 ## What's Next
 
-**Immediate (this cycle):**
-1. **BDD skill** — how to write scenarios, where to put them, how to run them
-   per language (godog, pytest-bdd, kuttl). This is the foundational practice
-   skill that everything else builds on.
+*Updated 2026-03-22 to reflect SecondBrain design work and revised priorities.*
 
-**Soon:**
-2. **GDD orchestrator skill** — lightweight skill that detects context and
-   delegates. Start simple: just ask who's working and what time they have.
+**Phase 1 — Foundation:**
+1. **Orientation skill + SecondBrain template** — session startup, trust
+   verification, mode/role from frontmatter. This unlocks everything else.
+
+**Phase 2 — Orchestration:**
+2. **GDD orchestrator skill** — detects context, delegates to mode and
+   practice skills. Builds on orientation to know who's working and how.
 3. **Scenario → issue automation** — extend `ws` or add a skill that converts
    a .feature scenario into a GitHub issue with proper labels.
 
-**Soon:**
-4. **Review triage skill** — orchestrates `ws review --since last-push` with
+**Phase 3 — Housekeeping:**
+4. **Housekeeping skill** — audit/prune/promote cycle for SecondBrain content.
+   Fundamental to the self-improving loop.
+
+**Phase 4 — Documentation:**
+5. **Static GDD explainer** — "What is GDD?" docs for newcomers, blog
+   references, external audiences. Not operational artifacts, but published
+   content explaining the methodology.
+
+**Phase 5 — Review coordination:**
+6. **Review triage skill** — orchestrates `ws review --since last-push` with
    the `receiving-code-review` discipline. Fetches new comments, deduplicates
    against already-addressed findings, triages by severity, presents a
-   consolidated action list. Knows to check after each push.
+   consolidated action list.
+
+**Implemented (initial stubs, evolving through use):**
+- **Mentoring mode** — AI explains decisions, teaches practices in context.
+- **Quick mode** — session sizing, context recovery, phone-friendly workflows.
+- **BDD skill** — how to write scenarios, where to put them, how to run them
+  per language (godog, pytest-bdd, kuttl). One of potentially many practice
+  skills that plug into the orchestrator.
 
 **Later:**
-5. **Session collaboration skill** — captures the natural working rhythm between
-   human and AI: when to switch from coding to triage to planning, shorthand
-   for known tools/reviewers, running audits at session boundaries, filing
-   issues for deferred work instead of over-scoping. Adapts communication
-   density to the user's current mode and role.
-6. **Mentoring mode** — AI explains decisions, teaches practices in context.
-7. **Quick mode** — session sizing, context recovery, phone-friendly workflows.
-8. **Designer onboarding** — low-barrier scenario writing that doesn't require
-   local tooling or Git knowledge.
+- **Session collaboration skill** — captures the natural working rhythm between
+  human and AI: when to switch from coding to triage to planning, shorthand
+  for known tools/reviewers, running audits at session boundaries, filing
+  issues for deferred work instead of over-scoping. Adapts communication
+  density to the user's current mode and role.
+- **Designer onboarding** — low-barrier scenario writing that doesn't require
+  local tooling or Git knowledge.
 
 ---
 
@@ -250,3 +295,6 @@ triage across all of them. This is a natural fit for the Reviewer role in GDD.
    preventing contribution.
 5. **Teach, don't just do** — in mentoring mode, the AI's job is to grow the
    human, not just ship the code.
+6. **Evolve through use** — the framework starts minimal and grows through
+   audit cycles. Each housekeeping session refines the skills, templates,
+   and capture behavior.
