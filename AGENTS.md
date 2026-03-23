@@ -12,15 +12,25 @@ Full ecosystem map: [`docs/ecosystem-architecture.md`](docs/ecosystem-architectu
 ## Session Start
 
 On every session start, read `.agent/skills/gdd-orientation/SKILL.md` and
-follow its startup sequence. Do NOT use any plugin/Skill tool to load it —
-just read the file with your Read tool and follow the instructions inside.
+follow its startup sequence.
+
+**Important:** Workspace skills (under `.agent/skills/`) are plain markdown
+files — read them with your Read tool and follow the instructions inside.
+Do NOT use any plugin/Skill tool to load them. This applies to all workspace
+skills, not just orientation.
 
 **Keep the greeting brief and human-first.** On a greeting or open-ended
 first message:
 
-1. Note whether SecondBrain.md exists and offer to create it if not
-2. Ask about mode and role (or note the defaults from frontmatter)
-3. Ask what the human wants to work on
+1. Mention GDD briefly so the human knows there's a methodology guiding the
+   session ("I follow Guardian Driven Development conventions for this
+   workspace — happy to explain more if you're curious")
+2. Note whether SecondBrain.md exists and offer to create it if not
+3. Ask about mode and role (or note the defaults from frontmatter).
+   When offering modes to a human, offer **quick, zen, or mentoring** —
+   autonomous mode is for AI agents working independently, not for
+   interactive sessions
+4. Ask what the human wants to work on
 
 That's it for the first response. Save the component scan, trust verification,
 and detailed workspace inventory for *after* the human has responded and you've
@@ -77,7 +87,7 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 
 ## Workspace CLI (`ws`)
 
-The unified entry point for workspace operations. Use `bash scripts/ws <cmd>`
+The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 (or just `ws <cmd>` if `scripts/` is on your PATH).
 
 | Command | Description |
@@ -127,7 +137,7 @@ git commit -m "type: description
 
 Co-Authored-By: <agent-name> <agent-email>"
 
-# 4. Push (MUST use script — plain git push fails due to GitKraken SSH rewrite)
+# 4. Push (use ws push — handles auth and workarounds automatically)
 bash scripts/ws push <component>
 
 # 5. Draft PR body → .prs/<description>.md (gitignored)
@@ -137,20 +147,18 @@ cp .agent/pr-template.md .prs/<description>.md
 bash scripts/ws pr <component> "type: description" .prs/<description>.md
 ```
 
-**Why `git-push.sh` and not plain `git push`:** GitKraken adds a global
-`url."git@github.com:".insteadOf=https://github.com/` rule to `~/.gitconfig`,
-silently rewriting all HTTPS remotes to SSH. The terminal shell doesn't have
-GitKraken's SSH key loaded, so plain `git push siliconsaga` fails with
-"Permission denied (publickey)". The script pushes to an explicit
-`https://x-access-token:$GH_TOKEN@…` URL that doesn't match the insteadOf
-prefix and bypasses the rewrite. GitKraken continues to push via SSH unaffected.
+**Why `ws push` and not plain `git push`:** The push script handles
+authentication workarounds automatically (see [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
+for details). Always use `ws push` for pushing.
 
 ---
 
 ## Auth Setup
 
 - `GH_TOKEN` in `.env` (gitignored). See `.env.example`.
-- Source it: `source .env` (add to shell profile for convenience).
+- Full setup guide: [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
+- If `.env` is missing or `GH_TOKEN` is not set, point the user to the setup
+  guide rather than explaining auth inline.
 - `gh` CLI uses `GH_TOKEN` automatically — no browser login needed.
 - Day-to-day agent PAT scopes: Contents write, Issues write, Pull requests write.
   Administration scope is NOT included; use a separate admin token for `setup-branch-protection.sh`.
