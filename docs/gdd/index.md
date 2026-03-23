@@ -35,11 +35,15 @@ close supervision. A methodology that serves one can serve both.
 
 ## Why "Guardian"?
 
-The name reflects three protective roles:
+The name reflects several protective roles:
 
 - **Guarding contributors** from tooling complexity and accidental damage
 - **Guarding the codebase** from unsafe or unreviewed changes
-- **Guarding the learning process** by making AI explain, not just generate
+- **Guarding the learning process** by having the agent mentor, not just generate
+- **Guarding the AI** from nested instructions that may conflict or be unsafe
+- **Helping guardians** of actual human dependents make do with "found" snippets of time
+
+The last entry relates to the original more amusing "Dad-Driven-Development" name from the author's struggles finding meaningful development time while raising young children.
 
 ## Getting Started
 
