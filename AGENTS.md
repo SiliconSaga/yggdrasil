@@ -104,7 +104,7 @@ The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 | `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
 | `ws vscode` | Generate VS Code workspace file from cloned components |
 | `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
-| `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
+| `ws review <comp> <pr#\|threads> [options]` | PR review comments and thread management (see `ws review --help`) |
 | `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer (bodyfile mode preferred) |
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
 | `ws clean` | Remove draft files from `.issues/`, `.prs/`, `.commits/` |
