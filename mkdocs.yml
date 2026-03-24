@@ -1,0 +1,69 @@
+site_name: Yggdrasil
+site_url: https://yggdrasil.siliconsaga.net
+site_description: Workspace root for the SiliconSaga ecosystem — docs, skills, and Guardian Driven Development
+repo_url: https://github.com/SiliconSaga/yggdrasil
+repo_name: SiliconSaga/yggdrasil
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - toc.integrate
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Yggdrasil:
+    - Ecosystem Architecture: ecosystem-architecture.md
+    - Dev Setup: dev-setup.md
+    - WS CLI Guide: ws-cli-guide.md
+    - GitHub CLI Setup: github-cli-setup.md
+    - Multi-Repo Workflow: multi-repo-workflow.md
+    - Agent Security:
+      - agent-security/openclaw-security.md
+      - agent-security/advanced-capability-model.md
+      - agent-security/implementation-phases.md
+      - agent-security/pattern-calendar.md
+      - agent-security/pattern-chat-segmentation.md
+      - agent-security/pattern-contact-management.md
+      - agent-security/pattern-email.md
+      - agent-security/pattern-gitops-staging.md
+      - agent-security/pattern-voice-pipeline.md
+  - Guardian Driven Development:
+    - Overview: gdd/index.md
+    - Roles and Modes: gdd/roles-and-modes.md
+    - The SecondBrain: gdd/second-brain.md
+    - Trust and Safety: gdd/trust-and-safety.md
+    - Self-Improving Loop: gdd/self-improving-loop.md
+  - Samples:
+    - samples/index.md
+  - Getting Started:
+    - getting-started/index.md
