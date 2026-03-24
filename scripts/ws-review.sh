@@ -271,8 +271,36 @@ threads_list() {
 }
 
 threads_status() {
-    echo "ERROR: threads_status not yet implemented" >&2
-    exit 1
+    local pr_num="$1"
+    local owner="${REPO_SLUG%%/*}"
+    local repo="${REPO_SLUG##*/}"
+
+    local response
+    response=$(gh api graphql -f query='
+        query($owner: String!, $repo: String!, $pr: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $pr) {
+              reviewThreads(first: 100) {
+                nodes {
+                  isResolved
+                }
+              }
+            }
+          }
+        }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || {
+        echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+        exit 1
+    }
+
+    echo "$response" | jq -r --arg pr "$pr_num" --arg slug "$REPO_SLUG" '
+        .data.repository.pullRequest.reviewThreads.nodes
+        | {
+            resolved: [.[] | select(.isResolved == true)] | length,
+            unresolved: [.[] | select(.isResolved == false)] | length,
+            total: length
+          }
+        | "PR #\($pr) (\($slug)): \(.unresolved) unresolved, \(.resolved) resolved (\(.total) total)"
+    '
 }
 
 threads_resolve_one() {
