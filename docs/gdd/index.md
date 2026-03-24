@@ -71,6 +71,7 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 - [The SecondBrain](second-brain.md) — shared thinking space between human and AI
 - [Trust and Safety](trust-and-safety.md) — trust hierarchy, black-box pattern, community responsibility
 - [The Self-Improving Loop](self-improving-loop.md) — how the framework evolves through use
+- [Samples](samples/index.md) — session transcripts, SecondBrain snapshots, GDD in action
 - [GDD Design Doc](../plans/2026-03-12-gdd-design.md) — full methodology design
 - [SecondBrain Design](../plans/2026-03-22-secondbrain-design.md) — detailed spec
 - [Implementation Plan](../plans/2026-03-22-gdd-implementation-plan.md) — what's built and what's next

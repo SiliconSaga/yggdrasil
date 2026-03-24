@@ -15,5 +15,5 @@ A methodology for human-AI collaboration in software projects. GDD wraps existin
 ### [Getting Started](getting-started/index.md)
 How to get set up — whether you're here to contribute to SiliconSaga components or to try GDD in your own projects.
 
-### [Samples](samples/index.md)
+### [GDD Samples](gdd/samples/index.md)
 GDD in action — session transcripts, SecondBrain file samples, and cross-workspace collaboration examples showing how the methodology works in practice.
