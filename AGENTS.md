@@ -132,7 +132,7 @@ git checkout main && git pull siliconsaga main   # pull may need HTTPS workaroun
 # 2. Create topic branch
 git checkout -b <type>/<description>             # feat, fix, docs, chore, test, refactor
 
-# 3. Commit (use ws commit — stages files and appends Co-Authored-By trailer)
+# 3. Commit (use ws commit — stages files listed in add: and appends Co-Authored-By trailer)
 #    Write a bodyfile to .commits/ with frontmatter:
 #      ---
 #      message: "type: description"

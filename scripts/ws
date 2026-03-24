@@ -412,9 +412,13 @@ ws_commit() {
 
     # Detect mode: if second arg ends in .md, it's bodyfile mode
     local comp="$1"
+    # Detect mode: if second arg is a path to an existing .md file, it's bodyfile mode.
+    # This avoids misclassifying messages like 'docs: update README.md' as bodyfiles.
     local message=""
     local bodyfile=""
-    if [[ "$2" == *.md ]]; then
+    local resolved_arg2="$2"
+    [[ "$resolved_arg2" != /* ]] && resolved_arg2="$ROOT_DIR/$resolved_arg2"
+    if [[ "$2" == *.md && -f "$resolved_arg2" ]]; then
         # Bodyfile mode: ws commit <comp> <bodyfile>
         bodyfile="$2"
         if [[ $# -gt 2 ]]; then
@@ -460,48 +464,51 @@ ws_commit() {
 
         # Check if file starts with YAML frontmatter (--- on first line)
         if [[ "$file_content" == ---* ]]; then
-            # Extract frontmatter (between first and second --- lines)
+            # Extract frontmatter (between first and second --- markers)
             local frontmatter
-            frontmatter="$(echo "$file_content" | sed -n '1,/^---$/p' | tail -n +2)"
-            # Remove the closing --- from frontmatter
-            frontmatter="$(echo "$frontmatter" | sed '$d')"
+            frontmatter="$(echo "$file_content" | awk '/^---$/{n++; next} n==1')"
 
-            # Extract body after frontmatter (everything after second ---)
-            body_content="$(echo "$file_content" | sed '1,/^---$/!b; d')"
-            # The sed above deletes up to and including the first --- block
-            # We need to skip past the second --- too
-            body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/{n++; next} n>=2')"
+            # Verify we found a closing --- (n should reach 2)
+            local marker_count
+            marker_count="$(echo "$file_content" | grep -c '^---$')"
+            if [[ "$marker_count" -lt 2 ]]; then
+                # No closing --- — treat entire file as body, no frontmatter
+                body_content="$file_content"
+            else
+                # Extract body (everything after the second --- marker)
+                body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/{n++; next} n>=2')"
 
-            # Parse message: from frontmatter if not provided on command line
-            if [[ -z "$message" ]]; then
-                message="$(echo "$frontmatter" | yq -r '.message // ""' 2>/dev/null)"
+                # Parse message: from frontmatter if not provided on command line
                 if [[ -z "$message" ]]; then
-                    echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
-                    exit 1
-                fi
-            fi
-
-            # Parse add: list from frontmatter using yq
-            local add_files
-            add_files="$(echo "$frontmatter" | yq -r '.add // [] | .[]' 2>/dev/null)"
-
-            if [[ -n "$add_files" ]]; then
-                echo "Staging files from bodyfile frontmatter..."
-                local add_fail=0
-                while IFS= read -r f; do
-                    [[ -z "$f" ]] && continue
-                    if [[ ! -e "$f" ]]; then
-                        echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
-                        add_fail=1
+                    message="$(echo "$frontmatter" | yq -r '.message // ""' 2>/dev/null)"
+                    if [[ -z "$message" ]]; then
+                        echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
+                        exit 1
                     fi
-                done <<< "$add_files"
-                if [[ "$add_fail" -eq 1 ]]; then
-                    exit 1
                 fi
-                while IFS= read -r f; do
-                    [[ -z "$f" ]] && continue
-                    git add "$f"
-                done <<< "$add_files"
+
+                # Parse add: list from frontmatter using yq
+                local add_files
+                add_files="$(echo "$frontmatter" | yq -r '.add // [] | .[]' 2>/dev/null)"
+
+                if [[ -n "$add_files" ]]; then
+                    echo "Staging files from bodyfile frontmatter..."
+                    local add_fail=0
+                    while IFS= read -r f; do
+                        [[ -z "$f" ]] && continue
+                        if [[ ! -e "$f" ]]; then
+                            echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
+                            add_fail=1
+                        fi
+                    done <<< "$add_files"
+                    if [[ "$add_fail" -eq 1 ]]; then
+                        exit 1
+                    fi
+                    while IFS= read -r f; do
+                        [[ -z "$f" ]] && continue
+                        git add "$f"
+                    done <<< "$add_files"
+                fi
             fi
         else
             # No frontmatter — entire file is the body
@@ -522,9 +529,9 @@ ws_commit() {
         exit 1
     fi
 
-    # Trim leading/trailing whitespace from body before checking
+    # Trim leading/trailing blank lines from body (portable awk)
     if [[ -n "$body_content" ]]; then
-        body_content="$(echo "$body_content" | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba}')"
+        body_content="$(echo "$body_content" | awk 'NF{found=1} found' | awk '{lines[NR]=$0} END{for(i=NR;i>=1;i--)if(lines[i]~/[^ \t]/){last=i;break} for(i=1;i<=last;i++)print lines[i]}')"
     fi
 
     # Build the commit message
