@@ -304,13 +304,81 @@ threads_status() {
 }
 
 threads_resolve_one() {
-    echo "ERROR: threads_resolve_one not yet implemented" >&2
-    exit 1
+    local pr_num="$1"
+    local thread_id="$2"
+
+    gh api graphql -f query='
+        mutation($id: ID!) {
+          resolveReviewThread(input: {threadId: $id}) {
+            thread { isResolved }
+          }
+        }' -f id="$thread_id" >/dev/null 2>&1 || {
+        echo "ERROR: Failed to resolve thread $thread_id on PR #$pr_num." >&2
+        exit 1
+    }
+
+    echo "Resolved thread $thread_id on PR #$pr_num."
 }
 
 threads_resolve_all() {
-    echo "ERROR: threads_resolve_all not yet implemented" >&2
-    exit 1
+    local pr_num="$1"
+    local owner="${REPO_SLUG%%/*}"
+    local repo="${REPO_SLUG##*/}"
+
+    # Fetch unresolved thread IDs
+    local response
+    response=$(gh api graphql -f query='
+        query($owner: String!, $repo: String!, $pr: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $pr) {
+              reviewThreads(first: 100) {
+                nodes {
+                  id
+                  isResolved
+                }
+              }
+            }
+          }
+        }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || {
+        echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+        exit 1
+    }
+
+    local ids
+    ids=$(echo "$response" | jq -r '
+        .data.repository.pullRequest.reviewThreads.nodes[]
+        | select(.isResolved == false)
+        | .id
+    ')
+
+    if [[ -z "$ids" ]]; then
+        echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
+        return
+    fi
+
+    local total=0
+    local resolved=0
+    local failed=0
+    while IFS= read -r thread_id; do
+        total=$((total + 1))
+        if gh api graphql -f query='
+            mutation($id: ID!) {
+              resolveReviewThread(input: {threadId: $id}) {
+                thread { isResolved }
+              }
+            }' -f id="$thread_id" >/dev/null 2>&1; then
+            resolved=$((resolved + 1))
+        else
+            failed=$((failed + 1))
+            echo "WARNING: Failed to resolve thread $thread_id" >&2
+        fi
+    done <<< "$ids"
+
+    if [[ "$failed" -eq 0 ]]; then
+        echo "Resolved $resolved threads on PR #$pr_num ($REPO_SLUG)."
+    else
+        echo "Resolved $resolved of $total threads on PR #$pr_num ($REPO_SLUG). $failed failed." >&2
+    fi
 }
 
 # --- Shared setup ---
