@@ -1,13 +1,15 @@
-# GDD Samples
+# Sessions
 
 GDD in action — real session transcripts and artifacts showing how the methodology works in practice.
 
+Note that these are raw (if condensed) transcripts and early 2nd brain files verbatim from points in time of the first two GDD sessions ever. Their content and methods will go out of date in no time and entirely vary between users of the system.
+
 ## Session Transcripts
 
-Lightly edited transcripts of actual development sessions using GDD. Technical implementation details (code diffs, file contents) are stubbed to focus on the human-AI collaboration flow.
+Condensed transcripts of actual development sessions using GDD. Technical implementation details (code diffs, file contents) are stubbed to focus on the human-AI collaboration flow.
 
-- [Session 1: GDD Design and Implementation](session-1-gdd-design.md) — the session that designed and built GDD itself (2026-03-22/23)
-- [Session 2: Review Threads Feature](session-2-review-threads.md) — a parallel session implementing `ws review --resolve` while GDD was being developed
+- [Session 1: GDD Pilot](session-1-gdd-pilot.md) — first session of "real" GDD just after initial MVP implementation, reworked git add/commit process.
+- [Session 2: Review Threads Feature](session-2-review-threads.md) — a parallel session from a workspace on another computer, refactoring code review tooling.
 
 These two sessions ran concurrently and [intersected](#cross-workspace-intersection) when review comments on PR #19 were resolved from the other workspace.
 
@@ -15,8 +17,9 @@ These two sessions ran concurrently and [intersected](#cross-workspace-intersect
 
 Snapshots of SecondBrain files from both workspaces, showing how observations accumulate and get processed through housekeeping.
 
-- [SecondBrain: Primary Workspace](secondbrain-primary.md) — the yggdrasil workspace where GDD was designed
-- [SecondBrain: Parallel Workspace](secondbrain-parallel.md) — the workspace where review threads were implemented
+- [SecondBrain: Primary Workspace](secondbrain-primary.md) — the main workspace's 2nd brain file at the end of the first session
+- [SecondBrain: Primary Processed](secondbrain-processed.md) — the main workspace's 2nd brain file after housekeeping
+- [SecondBrain: Parallel Workspace](secondbrain-parallel.md) — the secondary workspace's 2nd brain file where review threads were implemented
 
 ## Cross-Workspace Intersection
 

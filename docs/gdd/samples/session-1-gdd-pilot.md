@@ -1,4 +1,4 @@
-# Session 1: GDD Design and Implementation
+# Session 1: GDD Pilot
 
 **Date:** 2026-03-22/23
 **Workspace:** yggdrasil (primary)
