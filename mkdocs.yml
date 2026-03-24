@@ -26,6 +26,14 @@ theme:
     - toc.integrate
     - content.code.copy
 
+not_in_nav: |
+  /agent-security/**
+  /plans/**
+
+validation:
+  links:
+    not_found: info
+
 markdown_extensions:
   - admonition
   - pymdownx.details
@@ -47,16 +55,6 @@ nav:
     - WS CLI Guide: ws-cli-guide.md
     - GitHub CLI Setup: github-cli-setup.md
     - Multi-Repo Workflow: multi-repo-workflow.md
-    - Agent Security:
-      - agent-security/openclaw-security.md
-      - agent-security/advanced-capability-model.md
-      - agent-security/implementation-phases.md
-      - agent-security/pattern-calendar.md
-      - agent-security/pattern-chat-segmentation.md
-      - agent-security/pattern-contact-management.md
-      - agent-security/pattern-email.md
-      - agent-security/pattern-gitops-staging.md
-      - agent-security/pattern-voice-pipeline.md
   - Guardian Driven Development:
     - Overview: gdd/index.md
     - Roles and Modes: gdd/roles-and-modes.md
