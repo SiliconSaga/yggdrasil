@@ -103,7 +103,7 @@ The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 | `ws vscode` | Generate VS Code workspace file from cloned components |
 | `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
 | `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
-| `ws commit <comp> <message> [bodyfile]` | Commit with Co-Authored-By trailer |
+| `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer (bodyfile mode preferred) |
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
 | `ws clean` | Remove draft files from `.issues/`, `.prs/`, `.commits/` |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
@@ -132,10 +132,16 @@ git checkout main && git pull siliconsaga main   # pull may need HTTPS workaroun
 # 2. Create topic branch
 git checkout -b <type>/<description>             # feat, fix, docs, chore, test, refactor
 
-# 3. Commit (include Co-Authored-By trailer identifying the AI agent)
-git commit -m "type: description
-
-Co-Authored-By: <agent-name> <agent-email>"
+# 3. Commit (use ws commit — stages files listed in add: and appends Co-Authored-By trailer)
+#    Write a bodyfile to .commits/ with frontmatter:
+#      ---
+#      message: "type: description"
+#      add:                              # paths relative to component root
+#        - path/to/file1.md
+#        - path/to/file2.md
+#      ---
+#      Extended commit body here.
+bash scripts/ws commit <component> .commits/my-change.md
 
 # 4. Push (use ws push — handles auth and workarounds automatically)
 bash scripts/ws push <component>

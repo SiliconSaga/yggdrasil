@@ -17,7 +17,7 @@
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <pr#> [options]  Fetch PR review comments (see ws review --help)
-#   commit <comp> <message> [bodyfile] Commit with Co-Authored-By trailer
+#   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .prs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
@@ -368,21 +368,36 @@ ws_review() {
 
 ws_commit() {
     if [[ $# -lt 2 || "$1" == "--help" || "$1" == "-h" ]]; then
-        echo "Usage: ws commit <component> <message> [bodyfile]"
+        echo "Usage: ws commit <component> <bodyfile>"
+        echo "       ws commit <component> <message> [bodyfile]"
         echo ""
-        echo "Commit staged changes with a Co-Authored-By trailer."
+        echo "Commit with a Co-Authored-By trailer. Two modes:"
+        echo ""
+        echo "  Bodyfile mode (preferred):"
+        echo "    ws commit <component> .commits/my-change.md"
+        echo "    The bodyfile contains everything: message, files to stage, body text."
+        echo ""
+        echo "  Inline mode:"
+        echo "    ws commit <component> 'commit subject' [bodyfile]"
+        echo "    Message on the command line, optional bodyfile for extended body."
         echo ""
         echo "Arguments:"
         echo "  component   Component name (or 'yggdrasil' for workspace root)"
-        echo "  message     Commit subject line"
-        echo "  bodyfile    Optional extended commit body (from .commits/)"
+        echo "  bodyfile    Commit file from .commits/ (detected by .md extension)"
+        echo "  message     Commit subject line (inline mode)"
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
         echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.6)."
         echo ""
+        echo "Bodyfile frontmatter (YAML between --- markers):"
+        echo "  message:      Commit subject line (required in bodyfile mode)"
+        echo "  add:          List of files to stage before committing"
+        echo "  Frontmatter is stripped from the commit body automatically."
+        echo ""
         echo "Examples:"
+        echo "  ws commit yggdrasil .commits/fix-store-race.md"
         echo "  ws commit ymir 'fix: resolve store race condition'"
-        echo "  ws commit yggdrasil 'feat(ws): add commit subcommand' .commits/ws-commit.md"
+        echo "  ws commit yggdrasil 'feat(ws): add feature' .commits/details.md"
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             exit 0
         fi
@@ -390,14 +405,41 @@ ws_commit() {
     fi
     if [[ $# -gt 3 ]]; then
         echo "ERROR: Too many arguments." >&2
+        echo "  Usage: ws commit <component> <bodyfile>" >&2
         echo "  Usage: ws commit <component> <message> [bodyfile]" >&2
-        echo "  Wrap the message in quotes if it contains spaces." >&2
         exit 1
     fi
 
+    # Detect mode: if second arg ends in .md, it's bodyfile mode
     local comp="$1"
-    local message="$2"
-    local bodyfile="${3:-}"
+    # Detect mode: if second arg is a path to an existing .md file, it's bodyfile mode.
+    # This avoids misclassifying messages like 'docs: update README.md' as bodyfiles.
+    local message=""
+    local bodyfile=""
+    local resolved_arg2="$2"
+    [[ "$resolved_arg2" != /* ]] && resolved_arg2="$ROOT_DIR/$resolved_arg2"
+    if [[ "$2" == *.md ]]; then
+        # Looks like a bodyfile path — verify it exists
+        if [[ ! -f "$resolved_arg2" ]]; then
+            echo "ERROR: bodyfile not found: $2" >&2
+            echo "  If this was meant as a commit message, note that arguments" >&2
+            echo "  ending in .md are treated as bodyfile paths." >&2
+            exit 1
+        fi
+        # Bodyfile mode: ws commit <comp> <bodyfile>
+        bodyfile="$2"
+        if [[ $# -gt 2 ]]; then
+            echo "ERROR: Too many arguments for bodyfile mode." >&2
+            echo "  Usage: ws commit <component> <bodyfile>" >&2
+            echo "  Put the commit message in the bodyfile frontmatter (message: field)." >&2
+            exit 1
+        fi
+    else
+        # Inline mode: ws commit <comp> <message> [bodyfile]
+        message="$2"
+        bodyfile="${3:-}"
+    fi
+
     local model="${CLAUDE_MODEL:-Opus 4.6}"
     # Sanitize model name — newlines would break the trailer format
     model="${model%%$'\n'*}"
@@ -421,25 +463,98 @@ ws_commit() {
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR"
 
-    # Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
-    if git diff --cached --quiet 2>/dev/null; then
-        echo "ERROR: No staged changes to commit in $comp." >&2
-        echo "  Stage files first: git add <files>" >&2
+    # Parse bodyfile frontmatter for files to stage
+    local body_content=""
+    if [[ -n "$bodyfile" ]]; then
+        local file_content
+        file_content="$(cat "$bodyfile")"
+
+        # Check if file starts with YAML frontmatter (--- on first line)
+        if [[ "$file_content" == ---* ]]; then
+            # Extract frontmatter (between first and second --- markers)
+            local frontmatter
+            frontmatter="$(echo "$file_content" | awk '/^---$/{n++; next} n==1')"
+
+            # Verify we found a closing --- (n should reach 2)
+            local marker_count
+            marker_count="$(echo "$file_content" | grep -c '^---$')"
+            if [[ "$marker_count" -lt 2 ]]; then
+                # No closing --- — treat entire file as body, no frontmatter
+                body_content="$file_content"
+            else
+                # Extract body (everything after the second --- marker)
+                # Only skip the first two --- delimiters; pass through any later
+                # ones (e.g. markdown horizontal rules in the commit body)
+                body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/ && n<2 {n++; next} n>=2')"
+
+                # Parse message: from frontmatter if not provided on command line
+                if [[ -z "$message" ]]; then
+                    message="$(echo "$frontmatter" | yq -r '.message // ""' 2>/dev/null)"
+                    if [[ -z "$message" ]]; then
+                        echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
+                        exit 1
+                    fi
+                fi
+
+                # Parse add: list from frontmatter using yq
+                local add_files
+                add_files="$(echo "$frontmatter" | yq -r '.add // [] | .[]' 2>/dev/null)"
+
+                if [[ -n "$add_files" ]]; then
+                    echo "Staging files from bodyfile frontmatter..."
+                    local add_fail=0
+                    while IFS= read -r f; do
+                        [[ -z "$f" ]] && continue
+                        if [[ ! -e "$f" ]]; then
+                            echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
+                            add_fail=1
+                        fi
+                    done <<< "$add_files"
+                    if [[ "$add_fail" -eq 1 ]]; then
+                        exit 1
+                    fi
+                    while IFS= read -r f; do
+                        [[ -z "$f" ]] && continue
+                        git add "$f"
+                    done <<< "$add_files"
+                fi
+            fi
+        else
+            # No frontmatter — entire file is the body
+            body_content="$file_content"
+        fi
+    fi
+
+    # Verify we have a commit message at this point
+    if [[ -z "$message" ]]; then
+        echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
         exit 1
     fi
 
+    # Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
+    if git diff --cached --quiet 2>/dev/null; then
+        echo "ERROR: No staged changes to commit in $comp." >&2
+        echo "  Stage files first with git add, or use a bodyfile with add: frontmatter." >&2
+        exit 1
+    fi
+
+    # Trim leading/trailing blank lines from body (portable awk)
+    if [[ -n "$body_content" ]]; then
+        body_content="$(echo "$body_content" | awk 'NF{found=1} found' | awk '{lines[NR]=$0} END{for(i=NR;i>=1;i--)if(lines[i]~/[^ \t]/){last=i;break} for(i=1;i<=last;i++)print lines[i]}')"
+    fi
+
     # Build the commit message
-    if [[ -n "$bodyfile" ]]; then
+    if [[ -n "$body_content" ]]; then
         # Subject + blank line + body + blank line + trailer
         local full_message
         full_message="$message
 
-$(cat "$bodyfile")
+$body_content
 
 $trailer"
         git commit -m "$full_message"
     else
-        # Subject + blank line + trailer
+        # No body (no bodyfile, or bodyfile was frontmatter-only/whitespace-only)
         git commit -m "$message" -m "$trailer"
     fi
 }
