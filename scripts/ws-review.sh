@@ -171,7 +171,117 @@ review_comments() {
 }
 
 review_threads() {
-    echo "ERROR: review_threads not yet implemented" >&2
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]" >&2
+        exit 1
+    fi
+
+    local pr_num="$1"
+    shift
+
+    # Validate PR number
+    if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
+        exit 1
+    fi
+
+    # Parse flags
+    local mode="list"  # list, status, resolve, resolve-all
+    local resolve_id=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --status)
+                mode="status"; shift ;;
+            --resolve-all)
+                mode="resolve-all"; shift ;;
+            --resolve)
+                [[ $# -ge 2 ]] || { echo "ERROR: --resolve requires a thread ID" >&2; exit 1; }
+                mode="resolve"
+                resolve_id="$2"
+                # Validate thread ID format (base64-encoded GitHub node IDs)
+                if [[ ! "$resolve_id" =~ ^[A-Za-z0-9_=/-]+$ ]]; then
+                    echo "ERROR: Invalid thread ID '$resolve_id'." >&2
+                    exit 1
+                fi
+                shift 2 ;;
+            *)
+                echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    case "$mode" in
+        list)        threads_list "$pr_num" ;;
+        status)      threads_status "$pr_num" ;;
+        resolve)     threads_resolve_one "$pr_num" "$resolve_id" ;;
+        resolve-all) threads_resolve_all "$pr_num" ;;
+    esac
+}
+
+threads_list() {
+    local pr_num="$1"
+    local owner="${REPO_SLUG%%/*}"
+    local repo="${REPO_SLUG##*/}"
+
+    local response
+    response=$(gh api graphql -f query='
+        query($owner: String!, $repo: String!, $pr: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $pr) {
+              reviewThreads(first: 100) {
+                nodes {
+                  id
+                  isResolved
+                  comments(first: 1) {
+                    nodes {
+                      author { login }
+                      body
+                      path
+                      line
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || {
+        echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+        exit 1
+    }
+
+    local threads
+    threads=$(echo "$response" | jq -r '
+        .data.repository.pullRequest.reviewThreads.nodes[]
+        | select(.isResolved == false)
+        | {
+            id: .id,
+            author: (.comments.nodes[0].author.login // "unknown"),
+            path: (.comments.nodes[0].path // "?"),
+            line: (.comments.nodes[0].line // "?"),
+            body: (.comments.nodes[0].body // "" | .[0:80] | gsub("\n"; " "))
+          }
+        | "[\(.author)] \(.path):\(.line) (\(.id))\n  \"\(.body)...\""
+    ')
+
+    if [[ -z "$threads" ]]; then
+        echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
+    else
+        echo "=== Unresolved threads: PR #$pr_num ($REPO_SLUG) ==="
+        printf '%b\n' "$threads"
+    fi
+}
+
+threads_status() {
+    echo "ERROR: threads_status not yet implemented" >&2
+    exit 1
+}
+
+threads_resolve_one() {
+    echo "ERROR: threads_resolve_one not yet implemented" >&2
+    exit 1
+}
+
+threads_resolve_all() {
+    echo "ERROR: threads_resolve_all not yet implemented" >&2
     exit 1
 }
 
