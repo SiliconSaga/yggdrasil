@@ -418,7 +418,14 @@ ws_commit() {
     local bodyfile=""
     local resolved_arg2="$2"
     [[ "$resolved_arg2" != /* ]] && resolved_arg2="$ROOT_DIR/$resolved_arg2"
-    if [[ "$2" == *.md && -f "$resolved_arg2" ]]; then
+    if [[ "$2" == *.md ]]; then
+        # Looks like a bodyfile path — verify it exists
+        if [[ ! -f "$resolved_arg2" ]]; then
+            echo "ERROR: bodyfile not found: $2" >&2
+            echo "  If this was meant as a commit message, note that arguments" >&2
+            echo "  ending in .md are treated as bodyfile paths." >&2
+            exit 1
+        fi
         # Bodyfile mode: ws commit <comp> <bodyfile>
         bodyfile="$2"
         if [[ $# -gt 2 ]]; then
@@ -476,7 +483,9 @@ ws_commit() {
                 body_content="$file_content"
             else
                 # Extract body (everything after the second --- marker)
-                body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/{n++; next} n>=2')"
+                # Only skip the first two --- delimiters; pass through any later
+                # ones (e.g. markdown horizontal rules in the commit body)
+                body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/ && n<2 {n++; next} n>=2')"
 
                 # Parse message: from frontmatter if not provided on command line
                 if [[ -z "$message" ]]; then

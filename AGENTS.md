@@ -136,7 +136,7 @@ git checkout -b <type>/<description>             # feat, fix, docs, chore, test,
 #    Write a bodyfile to .commits/ with frontmatter:
 #      ---
 #      message: "type: description"
-#      add:
+#      add:                              # paths relative to component root
 #        - path/to/file1.md
 #        - path/to/file2.md
 #      ---
