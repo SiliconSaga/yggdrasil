@@ -191,11 +191,14 @@ review_threads() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --status)
+                [[ "$mode" == "list" ]] || { echo "ERROR: --status, --resolve, and --resolve-all are mutually exclusive" >&2; exit 1; }
                 mode="status"; shift ;;
             --resolve-all)
+                [[ "$mode" == "list" ]] || { echo "ERROR: --status, --resolve, and --resolve-all are mutually exclusive" >&2; exit 1; }
                 mode="resolve-all"; shift ;;
             --resolve)
                 [[ $# -ge 2 ]] || { echo "ERROR: --resolve requires a thread ID" >&2; exit 1; }
+                [[ "$mode" == "list" ]] || { echo "ERROR: --status, --resolve, and --resolve-all are mutually exclusive" >&2; exit 1; }
                 mode="resolve"
                 resolve_id="$2"
                 # Validate thread ID format (base64-encoded GitHub node IDs)
@@ -215,6 +218,16 @@ review_threads() {
         resolve)     threads_resolve_one "$pr_num" "$resolve_id" ;;
         resolve-all) threads_resolve_all "$pr_num" ;;
     esac
+}
+
+# Warn if thread count hits the 100-per-page GraphQL limit.
+# Full cursor pagination is deferred until needed — see design spec.
+warn_if_truncated() {
+    local count="$1"
+    local pr_num="$2"
+    if [[ "$count" -ge 100 ]]; then
+        echo "WARNING: PR #$pr_num has $count+ threads (GitHub returns max 100 per page). Results may be incomplete." >&2
+    fi
 }
 
 threads_list() {
@@ -247,6 +260,10 @@ threads_list() {
         echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
         exit 1
     }
+
+    local thread_count
+    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
+    warn_if_truncated "$thread_count" "$pr_num"
 
     local threads
     threads=$(echo "$response" | jq -r '
@@ -291,6 +308,10 @@ threads_status() {
         echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
         exit 1
     }
+
+    local thread_count
+    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
+    warn_if_truncated "$thread_count" "$pr_num"
 
     echo "$response" | jq -r --arg pr "$pr_num" --arg slug "$REPO_SLUG" '
         .data.repository.pullRequest.reviewThreads.nodes
@@ -344,6 +365,10 @@ threads_resolve_all() {
         exit 1
     }
 
+    local thread_count
+    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
+    warn_if_truncated "$thread_count" "$pr_num"
+
     local ids
     ids=$(echo "$response" | jq -r '
         .data.repository.pullRequest.reviewThreads.nodes[]
@@ -378,6 +403,7 @@ threads_resolve_all() {
         echo "Resolved $resolved threads on PR #$pr_num ($REPO_SLUG)."
     else
         echo "Resolved $resolved of $total threads on PR #$pr_num ($REPO_SLUG). $failed failed." >&2
+        exit 1
     fi
 }
 
@@ -393,6 +419,7 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
     echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
     exit 1
 fi
+export GH_TOKEN
 
 # Handle --help before component parsing (--help is not a valid component name)
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
