@@ -1,9 +1,9 @@
 # Session 1: GDD Pilot
 
-**Date:** 2026-03-22/23
-**Workspace:** yggdrasil (primary)
-**Mode:** Zen / Developer
-**Duration:** Extended session across two days
+* **Date:** 2026-03-22/23
+* **Workspace:** yggdrasil (primary)
+* **Mode:** Zen / Developer
+* **Duration:** Extended session across two days
 
 ## Overview
 
