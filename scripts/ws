@@ -489,6 +489,7 @@ ws_commit() {
                 echo "Staging files from bodyfile frontmatter..."
                 local add_fail=0
                 while IFS= read -r f; do
+                    [[ -z "$f" ]] && continue
                     if [[ ! -e "$f" ]]; then
                         echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
                         add_fail=1
@@ -498,6 +499,7 @@ ws_commit() {
                     exit 1
                 fi
                 while IFS= read -r f; do
+                    [[ -z "$f" ]] && continue
                     git add "$f"
                 done <<< "$add_files"
             fi
@@ -520,11 +522,14 @@ ws_commit() {
         exit 1
     fi
 
+    # Trim leading/trailing whitespace from body before checking
+    if [[ -n "$body_content" ]]; then
+        body_content="$(echo "$body_content" | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba}')"
+    fi
+
     # Build the commit message
     if [[ -n "$body_content" ]]; then
         # Subject + blank line + body + blank line + trailer
-        # Trim leading/trailing whitespace from body
-        body_content="$(echo "$body_content" | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba}')"
         local full_message
         full_message="$message
 
@@ -532,11 +537,8 @@ $body_content
 
 $trailer"
         git commit -m "$full_message"
-    elif [[ -n "$bodyfile" ]]; then
-        # Bodyfile existed but had only frontmatter, no body text
-        git commit -m "$message" -m "$trailer"
     else
-        # No bodyfile at all
+        # No body (no bodyfile, or bodyfile was frontmatter-only/whitespace-only)
         git commit -m "$message" -m "$trailer"
     fi
 }
