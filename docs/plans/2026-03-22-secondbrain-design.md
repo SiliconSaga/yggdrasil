@@ -1,8 +1,14 @@
-# SecondBrain — Design Spec
+# Thalamus (formerly SecondBrain) — Design Spec
 
 **Date:** 2026-03-22
 **Status:** Draft
 **Extends:** [GDD Design](2026-03-12-gdd-design.md)
+
+> **Note:** This spec was written using the working name "SecondBrain."
+> The concept was renamed to **Thalamus** post-implementation — named after
+> the brain's relay station that processes and routes input rather than
+> storing it. References to "SecondBrain" in this document are historical.
+> See the [Thalamus docs](../gdd/thalamus.md) for current content.
 
 ---
 

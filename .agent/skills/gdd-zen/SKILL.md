@@ -22,7 +22,7 @@ and proactive maintenance. For when you have time to do things right.
 
 | Activity | Without Zen | With Zen |
 |----------|------------|----------|
-| Orientation | Standard | Full — review all SecondBrain content, proactively suggest housekeeping if stale |
+| Orientation | Standard | Full — review all Thalamus content, proactively suggest housekeeping if stale |
 | Brainstorming | Normal flow | Full brainstorming skill with all steps |
 | Code review | Standard | Comprehensive — check all findings, no shortcuts |
 | Commits | Standard messages | Detailed messages with context |
@@ -36,7 +36,7 @@ and proactive maintenance. For when you have time to do things right.
 Zen mode encourages:
 
 - **End-to-end completion** — finish what you start, don't leave half-done work
-- **Audit accumulated debt** — review SecondBrain observations, process concerns
+- **Audit accumulated debt** — review Thalamus observations, process concerns
 - **Triage deferred work** — items noted as "deal with later" get filed as
   issues or addressed
 - **Comprehensive reviews** — don't skip the hard parts of code review

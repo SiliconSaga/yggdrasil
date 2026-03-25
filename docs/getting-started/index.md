@@ -47,7 +47,7 @@ This should evolve further soon.
 
 4. **Start Claude Code** from the `yggdrasil/` directory (more validated agents coming soon)
 
-5. **Say hello.** The GDD orientation will kick in automatically — it'll mention SecondBrain, ask about your mode, and ask what you want to work on.
+5. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your mode, and ask what you want to work on.
 
 6. **Ask for Mentoring mode.** This is the key for your first session:
 
@@ -65,7 +65,7 @@ This should evolve further soon.
 
 ## What Happens Next
 
-As you work, the AI captures observations in the **SecondBrain** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `SecondBrain.md` in the workspace root).
+As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root).
 
 After a few sessions, try **housekeeping** — review what's accumulated, promote useful observations to issues or skill updates, prune what's resolved. This is how GDD improves itself through use.
 
@@ -76,13 +76,37 @@ When you're comfortable, try other modes:
 
 See the [GDD overview](../gdd/index.md) for the full methodology, or browse the [session transcripts](../gdd/samples/index.md) for examples of real sessions (though honestly, the transcripts can't capture the feel of it — the best way is to try it yourself).
 
-## Bringing GDD to Your Own Projects
+## Bringing GDD to Your Own Community
 
-<!-- TODO: GDD extraction is not yet automated. The skills reference yggdrasil-specific
-paths and conventions. A future effort could create a portable GDD starter kit or
-extraction script. For now, the best way to use GDD is within the yggdrasil workspace,
-with your project cloned into components/. -->
+Yggdrasil is designed as scaffolding around your projects, not something embedded in them. Your target projects don't need to adopt any agentic conventions — no AGENTS.md, no `.claude/` directory, no AI config files. The workspace provides the skills, tooling, and methodology; your projects stay clean.
 
-GDD currently lives in the yggdrasil workspace. The most practical way to use it with your own project is to clone your repo into `components/` as described above — you get the full workspace, CLI, and all the skills.
+This means you can use GDD to contribute to any project, even one that hasn't adopted AI tooling. The human is always the one submitting work — the agent is your collaborator, clearly labeled.
 
-A standalone GDD starter kit (extract the skills and templates for use in any repo) is a future goal but not yet available.
+### How adoption works (initial design — details will evolve)
+
+The idea is a three-layer configuration:
+
+1. **Yggdrasil upstream** — fork or clone the generic workspace. Ships with tutorial components and sample configuration. Works out of the box for exploring GDD.
+
+2. **Your overlay** — a small separate repo (named with a `ygg-overlay` convention, e.g. `siliconsaga-ygg-overlay`) containing your community's configuration: which components to work on, agent identity and attribution, domain settings. When this repo is present in `components/`, Yggdrasil detects it automatically and merges its config — no config file edits needed. Convention over configuration.
+
+3. **Local overrides** — `ecosystem.local.yaml` (gitignored) for per-developer settings on top of the overlay. Same as today.
+
+The bootstrap for a new community member:
+
+```bash
+git clone https://github.com/SiliconSaga/yggdrasil.git   # or your fork
+cd yggdrasil
+bash scripts/ws clone https://github.com/YourOrg/your-ygg-overlay.git
+bash scripts/ws clone --all    # pulls components declared in the overlay
+```
+
+One person sets up the overlay repo for the community. Everyone else runs two commands. The overlay declares which components to clone, so `ws clone --all` pulls exactly what the community needs.
+
+`ws clone` would accept arbitrary git URLs for flexibility — any repo gets cloned into `components/`. But only a repo matching the `ygg-overlay` naming convention gets picked up as configuration automatically.
+
+When you make it your own, tutorial components are just independent repos in `components/` — don't clone them, or remove them. Nothing in Yggdrasil changes. Your overlay declares your components, your agent identity, your domains.
+
+The overlay also solves multi-workspace sharing: same overlay repo on different machines gives you consistent configuration, while `ecosystem.local.yaml` handles per-machine differences.
+
+**This is an initial design concept, not yet implemented.** The current practical path is still: clone Yggdrasil, clone your project into `components/`, and use the workspace as-is. The overlay architecture is the next evolution — see the [GDD design docs](../gdd/index.md) for where things are headed.

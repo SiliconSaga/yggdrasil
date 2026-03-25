@@ -11,11 +11,15 @@ AI agents and newer contributors need similar things: clear boundaries,
 incremental tasks, safety rails, and enough context to be productive without
 close supervision. A methodology that serves one can serve both.
 
+GDD grew out of open-source community work, where contributors range from experienced maintainers to first-time coders, and where AI is reshaping how people learn and contribute. As traditional mentorship paths erode — in both OSS and commercial settings — GDD is an attempt to put something helpful out there: a way for humans and AI to collaborate productively, where the AI teaches alongside generating, and the framework keeps everyone safe while they learn.
+
+The name "Guardian" reflects this protective intent. The AI isn't just a code generator — it's a patient collaborator that explains its reasoning, flags risks, and helps people grow. In a world where it's tempting to use AI purely as a throughput amplifier, GDD asks: what if we also used it to make the experience of building software more human?
+
 ## Key Concepts
 
 - **Filling the gap** — between AI-private memory (invisible to humans) and
   committed project instructions (formal, policy-level), GDD introduces the
-  [SecondBrain](second-brain.md): a shared, co-authored thinking space where
+  [Thalamus](thalamus.md): a shared, co-authored thinking space where
   observations, concerns, and preferences live while they're being figured out.
 
 - **Adaptive ceremony** — [roles and modes](roles-and-modes.md) let the
@@ -68,10 +72,10 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 ## Learn More
 
 - [Roles and Modes](roles-and-modes.md) — how GDD adapts to who you are and what you're doing
-- [The SecondBrain](second-brain.md) — shared thinking space between human and AI
+- [The Thalamus](thalamus.md) — shared thinking space between human and AI
 - [Trust and Safety](trust-and-safety.md) — trust hierarchy, black-box pattern, community responsibility
 - [The Self-Improving Loop](self-improving-loop.md) — how the framework evolves through use
-- [Samples](samples/index.md) — session transcripts, SecondBrain snapshots, GDD in action
+- [Samples](samples/index.md) — session transcripts, Thalamus snapshots, GDD in action
 - [GDD Design Doc](../plans/2026-03-12-gdd-design.md) — full methodology design
-- [SecondBrain Design](../plans/2026-03-22-secondbrain-design.md) — detailed spec
+- [Thalamus Design](../plans/2026-03-22-secondbrain-design.md) — detailed spec
 - [Implementation Plan](../plans/2026-03-22-gdd-implementation-plan.md) — what's built and what's next

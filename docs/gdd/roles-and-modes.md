@@ -47,7 +47,7 @@ leans into thorough brainstorming, comprehensive reviews, auditing accumulated
 concerns, and completing large chunks of work end-to-end.
 
 Zen mode may proactively suggest housekeeping if observations have accumulated
-in the SecondBrain.
+in the Thalamus.
 
 ### Autonomous
 

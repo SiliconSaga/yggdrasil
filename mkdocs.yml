@@ -58,15 +58,15 @@ nav:
   - Guardian Driven Development:
     - Overview: gdd/index.md
     - Roles and Modes: gdd/roles-and-modes.md
-    - The SecondBrain: gdd/second-brain.md
+    - The Thalamus: gdd/thalamus.md
     - Trust and Safety: gdd/trust-and-safety.md
     - Self-Improving Loop: gdd/self-improving-loop.md
     - Samples:
       - gdd/samples/index.md
       - "Session 1: GDD Pilot": gdd/samples/session-1-gdd-pilot.md
       - "Session 2: Review Threads": gdd/samples/session-2-review-threads.md
-      - "SecondBrain: Primary": gdd/samples/secondbrain-primary.md
-      - "SecondBrain: Primary Processed": gdd/samples/secondbrain-processed.md
-      - "SecondBrain: Parallel": gdd/samples/secondbrain-parallel.md
+      - "Thalamus: Primary": gdd/samples/thalamus-primary.md
+      - "Thalamus: Primary Processed": gdd/samples/thalamus-processed.md
+      - "Thalamus: Parallel": gdd/samples/thalamus-parallel.md
   - Getting Started:
     - getting-started/index.md

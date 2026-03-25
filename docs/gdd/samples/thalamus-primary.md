@@ -1,8 +1,8 @@
-# SecondBrain: Primary Workspace
+# Thalamus: Primary Workspace
 
-Snapshot of the SecondBrain file from the yggdrasil workspace at the end of the GDD pilot session (Session 1).
+Snapshot of the Thalamus file from the yggdrasil workspace at the end of the GDD pilot session (Session 1).
 
-# SecondBrain frontmatter — read by orientation skill on session start
+# Thalamus frontmatter — read by orientation skill on session start
 
 ```
 last_session: 2026-03-23
@@ -13,7 +13,7 @@ staleness_days: 14  # suggest housekeeping after this many days without audit
 ```
 
 
-# SecondBrain
+# Thalamus
 
 Shared thinking space between one human and one local AI agent (at a time).
 Created from `.agent/secondbrain-template.md`. This file is gitignored —
@@ -39,7 +39,7 @@ it is local to this workspace instance.
   information dump, now brief and human-first. Key learning: defer component
   scan until after alignment on mode/role.
   - Interestingly the component scan didn't come up at all in a new session focused on implementing the review threads feature. Which probably makes sense, both because that's yggdrasil-specific, and a user may not need to know about all the components unless they're working a crosscutting feature of some sort, especially if they already know exactly what component they want to work on.
-- GDD design and SecondBrain brainstormed and implemented in one long session
+- GDD design and Thalamus brainstormed and implemented in one long session
   (2026-03-22/23). Design specs, 9 skills, multi-page docs, PR #17 with
   multi-reviewer triage (CodeRabbit + Copilot).
 - Human observation: what's with the linebreaks in markdown (edit: not visible when Markdown rendered, but can be seen raw) - word wrap is a thing, and arbitrarily ending a line at some character count seems odd. It leads to odd mixed appeareances like right in this section as items I've added do not arbitrarily line break, and as a human having to resize lines repeatedly would be painful.

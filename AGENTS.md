@@ -25,7 +25,7 @@ first message:
 1. Mention GDD briefly so the human knows there's a methodology guiding the
    session ("I follow Guardian Driven Development conventions for this
    workspace — happy to explain more if you're curious")
-2. Note whether SecondBrain.md exists and offer to create it if not
+2. Note whether Thalamus.md exists and offer to create it if not
 3. Ask about mode and role (or note the defaults from frontmatter).
    When offering modes to a human, offer **quick, zen, or mentoring** —
    autonomous mode is for AI agents working independently, not for
@@ -65,8 +65,8 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
 | **GDD (Orchestrator)** | Guardian Driven Development — detects roles/modes, delegates to practice and mode skills | [SKILL.md](./.agent/skills/gdd/SKILL.md) |
-| **GDD Orientation** | Session startup — reads SecondBrain.md, trust verification of component instructions, mode/role setup | [SKILL.md](./.agent/skills/gdd-orientation/SKILL.md) |
-| **GDD Housekeeping** | Audit SecondBrain.md — review, promote, prune observations and concerns with the human | [SKILL.md](./.agent/skills/gdd-housekeeping/SKILL.md) |
+| **GDD Orientation** | Session startup — reads Thalamus.md, trust verification of component instructions, mode/role setup | [SKILL.md](./.agent/skills/gdd-orientation/SKILL.md) |
+| **GDD Housekeeping** | Audit Thalamus.md — review, promote, prune observations and concerns with the human | [SKILL.md](./.agent/skills/gdd-housekeeping/SKILL.md) |
 | **GDD Review Triage** | Multi-reviewer PR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
 | **GDD Mentoring Mode** | AI explains decisions and teaches practices in context — request for any unfamiliar area | [SKILL.md](./.agent/skills/gdd-mentoring/SKILL.md) |
 | **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |

@@ -1,10 +1,10 @@
-# SecondBrain: Primary Processed
+# Thalamus: Primary Processed
 
-Snapshot of the SecondBrain file from the yggdrasil workspace after the first housekeeping audit processed observations into issues and pruned resolved items.
+Snapshot of the Thalamus file from the yggdrasil workspace after the first housekeeping audit processed observations into issues and pruned resolved items.
 
-Compare with the [pre-housekeeping snapshot](secondbrain-primary.md) to see what changed.
+Compare with the [pre-housekeeping snapshot](thalamus-primary.md) to see what changed.
 
-# SecondBrain frontmatter — read by orientation skill on session start
+# Thalamus frontmatter — read by orientation skill on session start
 
 ```
 last_session: 2026-03-24
@@ -14,7 +14,7 @@ role: developer     # developer, designer, reviewer — or null for "ask me"
 staleness_days: 14  # suggest housekeeping after this many days without audit
 ```
 
-# SecondBrain
+# Thalamus
 
 Shared thinking space between one human and one local AI agent (at a time).
 Created from `.agent/secondbrain-template.md`. This file is gitignored —
@@ -29,8 +29,8 @@ it is local to this workspace instance.
 ## Observations
 
 - Orientation principle: keep greeting brief and human-first. Defer component scan until after mode/role alignment — in focused sessions the scan may not be needed at all.
-- Potential "Flow" mode distinct from Zen: Flow = productive drift across tasks, possibly overseeing multiple agents, async SecondBrain interaction. Zen = deep single-topic focus, SecondBrain input-only, housekeeping deferred. The async back-and-forth where human writes thoughts while agent works felt like shared flow — worth exploring as a mode concept.
-- Cross-workspace SecondBrain sync: the file evolves quickly and needs a system to avoid losing useful content in forgotten workspaces. Obsidian vault organized by workspace is one option. Not a primary Git usage thing.
+- Potential "Flow" mode distinct from Zen: Flow = productive drift across tasks, possibly overseeing multiple agents, async Thalamus interaction. Zen = deep single-topic focus, Thalamus input-only, housekeeping deferred. The async back-and-forth where human writes thoughts while agent works felt like shared flow — worth exploring as a mode concept.
+- Cross-workspace Thalamus sync: the file evolves quickly and needs a system to avoid losing useful content in forgotten workspaces. Obsidian vault organized by workspace is one option. Not a primary Git usage thing.
 
 ## Upcoming Work (captured end of 2026-03-23 session)
 
@@ -43,13 +43,13 @@ it is local to this workspace instance.
   4. "Samples" section with:
      - Session transcript from this GDD workspace (technical work stubbed)
      - Session transcript from the parallel workspace (review-threads work)
-     - SecondBrain file samples from both workspaces
+     - Thalamus file samples from both workspaces
      - Cross-reference marker where the two sessions intersected (PR #19 review resolved from other workspace)
 - The transcripts should show GDD in action for people who learn by example
 
 ### Deferred from this session
 - Flow mode concept (distinct from Zen) — brainstorm in a future session
-- Obsidian vault for SecondBrain cross-workspace sync — future exploration
+- Obsidian vault for Thalamus cross-workspace sync — future exploration
 - writing-yggdrasil-docs skill update to stop hard-wrapping prose
 
 ## Concerns

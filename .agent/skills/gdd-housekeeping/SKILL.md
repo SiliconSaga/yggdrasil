@@ -1,7 +1,7 @@
 ---
 name: gdd-housekeeping
 description: >
-  Audit and triage SecondBrain.md content. Review observations and concerns
+  Audit and triage Thalamus.md content. Review observations and concerns
   with the human, promote actionable items to issues/skills/instructions,
   prune resolved items. Use when staleness threshold is reached, when the
   human requests housekeeping, or during dedicated tidy-up sessions.
@@ -9,7 +9,7 @@ description: >
 
 # GDD Housekeeping
 
-A collaborative audit process for the SecondBrain shared thinking space.
+A collaborative audit process for the Thalamus shared thinking space.
 The agent facilitates, but the human decides what to promote, keep, or prune.
 
 ## When to Use
@@ -21,12 +21,12 @@ The agent facilitates, but the human decides what to promote, keep, or prune.
 
 ## The Housekeeping Process
 
-### Step 1: Read SecondBrain.md
+### Step 1: Read Thalamus.md
 
 Load the full file. Identify all items in the Observations and Concerns
 sections. Count them and give the human a quick summary before diving in:
 
-> "SecondBrain has 5 observations and 2 concerns since the last audit on
+> "Thalamus has 5 observations and 2 concerns since the last audit on
 > March 15th. Want to walk through them?"
 
 ### Step 2: Review Each Item with the Human
@@ -79,7 +79,7 @@ Set `last_audit` to today's date in the YAML frontmatter.
 
 Ask the human:
 
-> "Did the SecondBrain capture useful things since last audit? Too much
+> "Did the Thalamus capture useful things since last audit? Too much
 > noise? Too little? Should we adjust what gets written?"
 
 This is the self-improving loop — feedback here can result in:

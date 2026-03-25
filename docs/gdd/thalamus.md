@@ -1,4 +1,8 @@
-# The SecondBrain
+# The Thalamus
+
+*Named after the brain's relay station — it receives input, processes it, and
+routes it to the right destination. Like the thalamus, this file doesn't store
+things permanently; it processes and forwards.*
 
 Between "private AI memory" (invisible to humans) and "committed project
 instructions" (formal, policy-level) there's a gap: where do observations,
@@ -6,7 +10,7 @@ half-formed ideas, and session-to-session context live?
 
 ## What It Is
 
-The SecondBrain is a shared, gitignored markdown file — a thinking space
+The Thalamus is a shared, gitignored markdown file — a thinking space
 co-authored by one human and one local AI agent (at a time). It's not a
 knowledge base, not a project management tool, and not a replacement for
 committed instructions. It's the place where things live while they're
@@ -18,7 +22,7 @@ being figured out.
 |-------|----------|-------------|---------|
 | Committed instructions | All agents + all humans | Permanent, versioned | Policy and process |
 | Claude memory | One AI tool installation | Durable but private | AI-internal recall |
-| **SecondBrain** | **One human + one agent** | **Semi-persistent, gitignored** | **Shared thinking** |
+| **Thalamus** | **One human + one agent** | **Semi-persistent, gitignored** | **Shared thinking** |
 | Session context | One conversation | Ephemeral | Immediate work |
 
 ## What It Captures
@@ -31,7 +35,7 @@ being figured out.
 
 ## The Lifecycle
 
-Content flows through the SecondBrain, not into it permanently:
+Content flows through the Thalamus, not into it permanently:
 
 1. **Capture** — observations accumulate during sessions
 2. **Review** — housekeeping audits process items with the human
@@ -70,4 +74,4 @@ skill walks through accumulated content:
 Housekeeping also reflects on its own process: "Did we capture useful things?
 Too much noise?" This feedback tunes the capture behavior for next time.
 
-For the full spec, see the [SecondBrain Design](../plans/2026-03-22-secondbrain-design.md).
+For the full spec, see the [Thalamus Design](../plans/2026-03-22-secondbrain-design.md) (the concept began as "SecondBrain").

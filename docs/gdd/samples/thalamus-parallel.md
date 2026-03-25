@@ -1,8 +1,8 @@
-# SecondBrain: Parallel Workspace
+# Thalamus: Parallel Workspace
 
-Snapshot of the SecondBrain file from the parallel workspace at the end of the review threads session (Session 2).
+Snapshot of the Thalamus file from the parallel workspace at the end of the review threads session (Session 2).
 
-# SecondBrain frontmatter — read by orientation skill on session start
+# Thalamus frontmatter — read by orientation skill on session start
 
 ```
 last_session: 2026-03-23
@@ -12,7 +12,7 @@ role: developer
 staleness_days: 14
 ```
 
-# SecondBrain
+# Thalamus
 
 Shared thinking space between one human and one local AI agent (at a time).
 Created from `.agent/secondbrain-template.md`. This file is gitignored —

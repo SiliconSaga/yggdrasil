@@ -1,4 +1,8 @@
-# GDD + SecondBrain Implementation Plan
+# GDD + Thalamus (formerly SecondBrain) Implementation Plan
+
+> **Note:** This plan was written using the working name "SecondBrain."
+> The concept was renamed to **Thalamus** post-implementation. References
+> to "SecondBrain" throughout this document are historical.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

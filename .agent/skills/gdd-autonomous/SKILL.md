@@ -28,7 +28,7 @@ for later human review.
 | Brainstorming | Collaborative | Skip — work from existing spec or issue |
 | Code review | Present findings | Log findings, apply obvious fixes, flag ambiguities |
 | Commits | Standard | Detailed messages — they're the primary communication channel |
-| SecondBrain writes | Standard | Log observations and decisions for later human review |
+| Thalamus writes | Standard | Log observations and decisions for later human review |
 | Housekeeping | Interactive | Skip — requires human participation |
 
 ## Permission Boundaries
@@ -40,7 +40,7 @@ The agent works within established permissions:
 - Do not make architectural decisions without existing spec/plan
 - Do not push to remote without explicit permission
 - Do not modify shared infrastructure (CI/CD, branch protection, etc.)
-- Log anything unexpected to SecondBrain Concerns
+- Log anything unexpected to Thalamus Concerns
 
 ## Reviewable Increments
 

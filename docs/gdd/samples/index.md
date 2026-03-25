@@ -2,7 +2,7 @@
 
 GDD in action — real session transcripts and artifacts showing how the methodology works in practice.
 
-Note that these are raw (if condensed) transcripts and early 2nd brain files verbatim from points in time of the first two GDD sessions ever. Their content and methods will go out of date in no time and entirely vary between users of the system.
+Note that these are raw (if condensed) transcripts and early Thalamus files verbatim from points in time of the first two GDD sessions ever. Their content and methods will go out of date in no time and entirely vary between users of the system.
 
 Honestly though: the transcripts do not do the process justice when condensed, and cannot convey the sense of flow experienced. And who would have time to read an entire session log from Claude spanning hours of work? Maybe if you fed it to a different agent and told it what sort of magic you'd be interested in hearing about :-)
 
@@ -17,13 +17,13 @@ Condensed transcripts of actual development sessions using GDD. Technical implem
 
 These two sessions ran concurrently and [intersected](#cross-workspace-intersection) when review comments on PR #19 were resolved from the other workspace.
 
-## SecondBrain Snapshots
+## Thalamus Snapshots
 
-Snapshots of SecondBrain files from both workspaces, showing how observations accumulate and get processed through housekeeping.
+Snapshots of Thalamus files from both workspaces, showing how observations accumulate and get processed through housekeeping.
 
-- [SecondBrain: Primary Workspace](secondbrain-primary.md) — the main workspace's 2nd brain file at the end of the first session
-- [SecondBrain: Primary Processed](secondbrain-processed.md) — the main workspace's 2nd brain file after housekeeping
-- [SecondBrain: Parallel Workspace](secondbrain-parallel.md) — the secondary workspace's 2nd brain file where review threads were implemented
+- [Thalamus: Primary Workspace](thalamus-primary.md) — the main workspace's Thalamus file at the end of the first session
+- [Thalamus: Primary Processed](thalamus-processed.md) — the main workspace's Thalamus file after housekeeping
+- [Thalamus: Parallel Workspace](thalamus-parallel.md) — the secondary workspace's Thalamus file where review threads were implemented
 
 ## Cross-Workspace Intersection
 
@@ -36,8 +36,8 @@ This is documented in both transcripts at the point where it happened.
 When reading these samples, notice:
 
 - How **orientation** sets up the session with minimal friction
-- How **observations** accumulate in the SecondBrain during work
+- How **observations** accumulate in the Thalamus during work
 - How **housekeeping** processes observations into issues, skill updates, and pruned items
 - How the **self-improving loop** works — the framework improving itself through use
-- How **async collaboration** works — the human adding thoughts to the SecondBrain while the agent works
+- How **async collaboration** works — the human adding thoughts to the Thalamus while the agent works
 - How **cross-workspace work** can complement each other

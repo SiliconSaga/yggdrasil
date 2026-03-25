@@ -17,13 +17,13 @@ This is the parallel session to Session 1 (the commit bodyfile work). The two se
 
 *The human started a fresh session on a second workstation, mentioning they had GitHub issues to work on.*
 
-**Agent:** I follow Guardian Driven Development conventions for this workspace — happy to explain more if you're curious. No SecondBrain.md found. Want me to create one from the template?
+**Agent:** I follow Guardian Driven Development conventions for this workspace — happy to explain more if you're curious. No Thalamus.md found. Want me to create one from the template?
 
 **Human:** Yes please! Both on initializing the second brain process and getting details from the issue about "threads." I'm going to check in here occasionally throughout the day so it'll be a bit like zen as a developer.
 
-*The agent created SecondBrain.md with zen/developer defaults, fetched issue #11, and summarized it. The orientation was brief and human-first — no component scan, no information dump.*
+*The agent created Thalamus.md with zen/developer defaults, fetched issue #11, and summarized it. The orientation was brief and human-first — no component scan, no information dump.*
 
-> **GDD note:** This was the first session on the Win11 workstation. Orientation followed the refined instructions from Session 1's iterations — mention GDD briefly, offer SecondBrain, ask about mode, ask what to work on. The component scan and trust verification were deferred until after alignment.
+> **GDD note:** This was the first session on the Win11 workstation. Orientation followed the refined instructions from Session 1's iterations — mention GDD briefly, offer Thalamus, ask about mode, ask what to work on. The component scan and trust verification were deferred until after alignment.
 
 ---
 
@@ -55,7 +55,7 @@ This is the parallel session to Session 1 (the commit bodyfile work). The two se
 
 **Human:** I'm leaning toward A. I don't feel like threads is an independent thing — it's housekeeping for reviews. I don't think a human would go into deep utility commands to interact with a code review process — they'd use the GitHub GUI.
 
-*The agent agreed. This insight — that review tooling is agent-first, not human-first — became a key design principle captured in SecondBrain.*
+*The agent agreed. This insight — that review tooling is agent-first, not human-first — became a key design principle captured in Thalamus.*
 
 ### Normalizing the interface
 
@@ -74,7 +74,7 @@ ws review <comp> <pr#> [--reviewer <name>] [--since <time>]
 
 ### Side notes captured
 
-Several tangential observations were captured to SecondBrain during brainstorming rather than derailing the design:
+Several tangential observations were captured to Thalamus during brainstorming rather than derailing the design:
 
 - **`ws resolve` naming collision** — ArgoCD manifest generation vs thread resolution. Future rename needed.
 - **GraphQL expansion path** — this is the first GraphQL consumer; if we hit 4-5+ queries, extract to `scripts/graphql/`.
@@ -143,7 +143,7 @@ PR #19 (SiliconSaga/yggdrasil): 0 unresolved, 11 resolved (11 total)
 
 *The agent used `cat > .prs/foo.md << 'EOF'` to create the PR body file instead of the Write tool.*
 
-**Human:** *(via SecondBrain note)* The creation of a PR triggered an unexpected approval request. Is that because you inlined the creation of the file with mkdir, cat, etc, instead of just using a file writing tool?
+**Human:** *(via Thalamus note)* The creation of a PR triggered an unexpected approval request. Is that because you inlined the creation of the file with mkdir, cat, etc, instead of just using a file writing tool?
 
 **Agent:** Yes — should have used the Write tool. System instructions explicitly say to prefer Write for file creation. The heredoc syntax triggered the approval prompt because it looked like a suspicious command pattern.
 
@@ -153,7 +153,7 @@ PR #19 (SiliconSaga/yggdrasil): 0 unresolved, 11 resolved (11 total)
 
 **Agent:** The `ws pr` prompt was correct — it's Side-effect tier. But the observation connects to issue #16 (frontmatter in bodyfiles for stable command shapes). PR #19 is proving the pattern for `ws commit`; extending to `ws pr` would make the command shape stable and auto-approvable.
 
-> **GDD observation:** The async SecondBrain collaboration pattern from Session 1 repeated here — the human wrote notes while the agent worked, and the agent noticed and responded on the next file read. Both sessions independently discovered this workflow.
+> **GDD observation:** The async Thalamus collaboration pattern from Session 1 repeated here — the human wrote notes while the agent worked, and the agent noticed and responded on the next file read. Both sessions independently discovered this workflow.
 
 ---
 
@@ -178,7 +178,7 @@ PR #19 (SiliconSaga/yggdrasil): 0 unresolved, 11 resolved (11 total)
 
 - **Agent-first design** — the insight that review tooling is primarily for AI agents (humans use GitHub's GUI) shaped every decision: non-interactive, compact output, composable flags
 - **Archaeology reveals accidents** — investigating *why* `ws review` used `--comp` as a flag (answer: no reason, just how it was first written) led to normalizing the interface
-- **Side notes prevent derailment** — SecondBrain captured 6 tangential observations during brainstorming that would have otherwise interrupted the design flow
+- **Side notes prevent derailment** — Thalamus captured 6 tangential observations during brainstorming that would have otherwise interrupted the design flow
 - **Two-stage spec review caught real bugs** — the `--help` routing bug, permission security gap, and thread ID regex issue were all found before code was written
 - **Eat your own cooking** — using the newly built tool to resolve threads on its own PR and fetch its own review comments validated the design against real data
 - **Approval UX is a design surface** — both the heredoc and PR-title friction revealed that command shape stability matters for the agent workflow, connecting back to issue #16

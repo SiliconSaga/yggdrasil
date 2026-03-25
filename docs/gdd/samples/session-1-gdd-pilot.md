@@ -7,7 +7,7 @@
 
 ## Overview
 
-This transcript covers the second half of a long session — after GDD's initial implementation (design specs, 9 skills, multi-page docs, PR #17) was complete. It starts with the first real test of GDD orientation in a fresh session, then follows the ws commit bodyfile evolution and the first-ever SecondBrain housekeeping audit.
+This transcript covers the second half of a long session — after GDD's initial implementation (design specs, 9 skills, multi-page docs, PR #17) was complete. It starts with the first real test of GDD orientation in a fresh session, then follows the ws commit bodyfile evolution and the first-ever Thalamus housekeeping audit.
 
 The earlier part of the session (brainstorming, design, implementation) is not included here — this focuses on GDD being used for the first time to guide actual development work.
 
@@ -23,7 +23,7 @@ The earlier part of the session (brainstorming, design, implementation) is not i
 
 *The agent added a Session Start section to AGENTS.md pointing to the orientation skill.*
 
-**Human:** *(tests again)* Much better! But it still tried to use the Skill tool first, got an error, then recovered by reading the file directly. The response is a bit abrupt — it assumes I know what SecondBrain and BDD are. Also it listed all 16 components before I'd even said what I wanted to work on.
+**Human:** *(tests again)* Much better! But it still tried to use the Skill tool first, got an error, then recovered by reading the file directly. The response is a bit abrupt — it assumes I know what Thalamus and BDD are. Also it listed all 16 components before I'd even said what I wanted to work on.
 
 **Agent:** Two issues: the agent sees "skill" in the instruction text and reflexively tries the Skill tool instead of reading the file. And the component scan is too much too fast — it should happen after alignment on mode/role, not as part of the greeting.
 
@@ -33,7 +33,7 @@ The earlier part of the session (brainstorming, design, implementation) is not i
 
 > "Hey! Welcome to the session.
 >
-> No SecondBrain.md found — it's a gitignored shared thinking space for capturing observations, concerns, and preferences between sessions. Want me to create one from the template?
+> No Thalamus.md found — it's a gitignored shared thinking space for capturing observations, concerns, and preferences between sessions. Want me to create one from the template?
 >
 > Mode/Role: Defaults are available (zen/developer) or you can pick what suits today — quick, zen, mentoring, or autonomous mode?
 >
@@ -103,17 +103,17 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 ---
 
-## Part 4: SecondBrain Initialization
+## Part 4: Thalamus Initialization
 
 **Human:** We should probably also initialize the second brain process.
 
-**Agent:** Want me to create SecondBrain.md from the template? I'll set the frontmatter defaults based on this session — we've been in what amounts to Zen/Developer mode.
+**Agent:** Want me to create Thalamus.md from the template? I'll set the frontmatter defaults based on this session — we've been in what amounts to Zen/Developer mode.
 
-*The agent created SecondBrain.md with session defaults and pre-populated observations from the session: Skill tool misfires, cwd drift, orientation iterations, bodyfile evolution.*
+*The agent created Thalamus.md with session defaults and pre-populated observations from the session: Skill tool misfires, cwd drift, orientation iterations, bodyfile evolution.*
 
 **Human:** *(later, adding thoughts to the file while the agent worked on something else)* The interaction we had about comments I made here were surprisingly nice. I was able to type here while you did other work. That felt almost like flow shared between two entities — and I wonder if that is *not* Zen. Are there two modes where in "Flow" you drift in and out of different tasks while in "Zen" you go for deep insight in a single topic?
 
-*The agent noticed the human's additions on the next file read — the async SecondBrain collaboration pattern in action.*
+*The agent noticed the human's additions on the next file read — the async Thalamus collaboration pattern in action.*
 
 ---
 
@@ -121,7 +121,7 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 **Human:** Let's try the new housekeeping steps to round out the session.
 
-**Agent:** SecondBrain has 9 observations and 0 concerns in its first-ever audit. Here's the triage:
+**Agent:** Thalamus has 9 observations and 0 concerns in its first-ever audit. Here's the triage:
 
 | # | Observation | Recommendation |
 |---|---|---|
@@ -138,7 +138,7 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 *The agent ran an exploration that found a contradiction: CLAUDE.md says "Use the Skill tool" while AGENTS.md says "Do NOT use any plugin/Skill tool." Two superpowers dependencies were also identified. All captured in issue #21.*
 
-*Issue #22 filed for the linebreaks. SecondBrain updated with audit log entry. Frontmatter `last_audit` set to today.*
+*Issue #22 filed for the linebreaks. Thalamus updated with audit log entry. Frontmatter `last_audit` set to today.*
 
 **Human:** What other related changes could we take care of? Should session wrap-up be part of housekeeping? And the workflow-auditor and auto-approve audit seem close together.
 
@@ -156,9 +156,9 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 ## Key Takeaways
 
-- **Orientation took several iterations** to get right — the first version was an information dump, the final version is three lines: SecondBrain status, mode/role, what to work on
+- **Orientation took several iterations** to get right — the first version was an information dump, the final version is three lines: Thalamus status, mode/role, what to work on
 - **"Be more careful" is not a fix** — structural solutions (scripts, bodyfiles) are more reliable across session resets than behavioral notes
 - **The bodyfile pattern** emerged organically from discussing auto-approve concerns — the `.commits/` file is inspectable, auto-approvable, and follows the same pattern as `.prs/` and `.issues/`
-- **SecondBrain async collaboration** was an unexpected emergent behavior — the human writing thoughts while the agent worked created a shared flow
+- **Thalamus async collaboration** was an unexpected emergent behavior — the human writing thoughts while the agent worked created a shared flow
 - **First housekeeping** promoted 2 items to issues, pruned 4 resolved items, kept 3 for future exploration
 - **Auto-approve audit** revealed massive pattern accumulation from unique commands — cleaned from 59 to 4 entries

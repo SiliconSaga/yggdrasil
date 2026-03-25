@@ -7,7 +7,7 @@ framework starts minimal and grows through a continuous feedback cycle.
 
 ```mermaid
 graph LR
-    A["Sessions produce<br/>observations"] --> B["SecondBrain<br/>captures them"]
+    A["Sessions produce<br/>observations"] --> B["Thalamus<br/>captures them"]
     B --> C["Housekeeping<br/>reviews and promotes"]
     C --> D["Skills and instructions<br/>get updated"]
     D --> E["Agent behavior<br/>changes"]
@@ -30,7 +30,7 @@ Three artifacts evolve together:
 
 | Artifact | What it does | How it evolves |
 |----------|-------------|----------------|
-| **SecondBrain.md** | Captures observations | Sections added/removed based on what's useful |
+| **Thalamus.md** | Captures observations | Sections added/removed based on what's useful |
 | **Orientation skill** | Governs capture behavior | Heuristics tuned by housekeeping feedback |
 | **Housekeeping skill** | Audits and promotes | Process refined as we learn what promotions are valuable |
 

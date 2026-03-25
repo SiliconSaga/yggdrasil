@@ -174,24 +174,25 @@ appropriately-sized work based on available time.
 
 ---
 
-## SecondBrain
+## Thalamus (formerly Thalamus)
 
-The SecondBrain concept extends GDD with a shared, semi-persistent thinking
-space between one human and one local AI agent (at a time). It addresses
-several of the gaps above — session orientation, mode/role selection, trust
-verification, and the loss of observations between sessions.
+The Thalamus extends GDD with a shared, semi-persistent thinking
+space between one human and one local AI agent (at a time). Named after the
+brain's relay station — it processes and routes input rather than storing it.
+It addresses several of the gaps above — session orientation, mode/role
+selection, trust verification, and the loss of observations between sessions.
 
-See [SecondBrain Design](2026-03-22-secondbrain-design.md) for the full spec.
+See [Thalamus Design](2026-03-22-secondbrain-design.md) for the full spec.
 
 Key additions to GDD's architecture:
 
-- **`gdd-orientation` skill** (cross-cutting) — session startup, SecondBrain
+- **`gdd-orientation` skill** (cross-cutting) — session startup, Thalamus
   read/write, trust verification of nested component instructions, black-box
   safety pattern for hostile instruction detection
-- **`gdd-housekeeping` skill** (cross-cutting) — audit SecondBrain content,
+- **`gdd-housekeeping` skill** (cross-cutting) — audit Thalamus content,
   promote observations to issues/skills/instructions, prune resolved items,
   feed back into capture behavior
-- **SecondBrain.md** — gitignored file with PARA-inspired frontmatter
+- **Thalamus.md** — gitignored file with PARA-inspired frontmatter
   (mode, role, timestamps, staleness threshold) and sections for Preferences,
   Observations, Concerns, and Audit Log
 - **Self-improving loop** — sessions capture observations → housekeeping
@@ -202,10 +203,10 @@ Key additions to GDD's architecture:
 
 ## What's Next
 
-*Updated 2026-03-22 to reflect SecondBrain design work and revised priorities.*
+*Updated 2026-03-22 to reflect Thalamus design work and revised priorities.*
 
 **Phase 1 — Foundation:**
-1. **Orientation skill + SecondBrain template** — session startup, trust
+1. **Orientation skill + Thalamus template** — session startup, trust
    verification, mode/role from frontmatter. This unlocks everything else.
 
 **Phase 2 — Orchestration:**
@@ -215,7 +216,7 @@ Key additions to GDD's architecture:
    a .feature scenario into a GitHub issue with proper labels.
 
 **Phase 3 — Housekeeping:**
-4. **Housekeeping skill** — audit/prune/promote cycle for SecondBrain content.
+4. **Housekeeping skill** — audit/prune/promote cycle for Thalamus content.
    Fundamental to the self-improving loop.
 
 **Phase 4 — Documentation:**
