@@ -23,7 +23,7 @@ theme:
     - navigation.sections
     - navigation.expand
     - navigation.path
-    - toc.integrate
+    - toc.follow
     - content.code.copy
 
 not_in_nav: |

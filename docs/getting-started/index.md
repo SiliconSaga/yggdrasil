@@ -82,7 +82,11 @@ Yggdrasil is designed as scaffolding around your projects, not something embedde
 
 This means you can use GDD to contribute to any project, even one that hasn't adopted AI tooling. The human is always the one submitting work — the agent is your collaborator, clearly labeled.
 
-### How adoption works (initial design — details will evolve)
+### How adoption works
+
+<!-- Backlink anchor from https://siliconsaga.net/guardian-driven-development/ -->
+
+Initial design — details will evolve!
 
 The idea is a three-layer configuration:
 
