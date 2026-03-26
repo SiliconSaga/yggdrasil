@@ -27,8 +27,9 @@ first message:
    workspace — happy to explain more if you're curious")
 2. Note whether Thalamus.md exists and offer to create it if not
 3. Ask about mode and role (or note the defaults from frontmatter).
-   When offering modes to a human, offer **quick, zen, or mentoring** —
-   autonomous mode is for AI agents working independently, not for
+   When offering modes to a human, offer **quick, zen, flow, or mentoring** —
+   flow is the natural default for sessions without a single fixed goal.
+   Autonomous mode is for AI agents working independently, not for
    interactive sessions
 4. Ask what the human wants to work on
 
@@ -70,7 +71,8 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 | **GDD Review Triage** | Multi-reviewer PR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
 | **GDD Mentoring Mode** | AI explains decisions and teaches practices in context — request for any unfamiliar area | [SKILL.md](./.agent/skills/gdd-mentoring/SKILL.md) |
 | **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
-| **GDD Zen Mode** | Full ceremony for deep work — thorough brainstorming, reviews, audits | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
+| **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
+| **GDD Flow Mode** | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
 | **GDD Autonomous Mode** | Permission-bounded independent work with reviewable increments | [SKILL.md](./.agent/skills/gdd-autonomous/SKILL.md) |
 | **BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
 | **ArgoCD Bootstrap on K3d** | Bootstrapping ArgoCD app-of-apps on k3d, CRD chicken-and-egg fixes, portable shell scripts | [SKILL.md](./.agent/skills/argocd-bootstrap-on-k3d/SKILL.md) |

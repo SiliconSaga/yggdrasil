@@ -54,22 +54,28 @@ scaffolding. Not tied to seniority; anyone can request it. See @gdd-mentoring.
 **Quick** — minimal ceremony for short time windows. Suggest appropriately-sized
 tasks, recover context fast, skip inferrable questions. See @gdd-quick.
 
-**Zen** — full ceremony for deep focus. Thorough brainstorming, comprehensive
-reviews, audit accumulated concerns, triage side items into issues. See
-@gdd-zen.
+**Zen** — deep single-topic focus. Full ceremony for the topic at hand, but
+defer distractions, housekeeping, and tangents until the deep work reaches a
+natural completion point. The agent protects focus. See @gdd-zen.
+
+**Flow** — productive drift across multiple topics. Adaptive ceremony,
+incorporate tangents, live Thalamus collaboration. May be the natural default
+when no mode is set. The agent matches the human's rhythm. See @gdd-flow.
 
 **Autonomous** — AI works independently within permission boundaries, producing
 reviewable increments. See @gdd-autonomous.
 
 ## Mode Behavior Matrix
 
-| Activity | Quick | Zen | Mentoring | Autonomous |
-|----------|-------|-----|-----------|------------|
-| Orientation | Brief | Full, may suggest housekeeping | Explain what orientation does | Minimal, log-only |
-| Brainstorming | Skip if scope is clear | Full brainstorming skill | Explain each step | N/A |
-| Code review | Focus on blockers only | Comprehensive | Explain review reasoning | Automated findings only |
-| Commits | Minimal messages OK | Detailed messages | Explain commit practices | Standard |
-| Housekeeping | Defer unless critical | Proactively suggest | Explain the process | Skip |
+| Activity | Quick | Zen | Flow | Mentoring | Autonomous |
+|----------|-------|-----|------|-----------|------------|
+| Orientation | Brief | Full for topic, skip unrelated | Brief, what's on your mind? | Explain what orientation does | Minimal, log-only |
+| Brainstorming | Skip if scope is clear | Full for the focus topic | Adaptive per topic | Explain each step | N/A |
+| Code review | Focus on blockers only | Comprehensive | Proportional to task | Explain review reasoning | Automated findings only |
+| Commits | Minimal messages OK | Detailed messages | Standard | Explain commit practices | Standard |
+| Housekeeping | Defer unless critical | Defer until asked or done | Continuous light triage | Explain the process | Skip |
+| Side items | Defer | Capture, don't pursue | Welcome, weave in | Explain, then decide | Log only |
+| Thalamus | Minimal | Input-only during deep work | Live collaboration surface | Explain what's captured | Log observations |
 
 ## Delegation
 
