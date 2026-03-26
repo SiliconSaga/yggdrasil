@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "ymir": {
-      "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", "components/ymir/gateway", "python", "-m", "ymir_gateway"]
-    }
-  }
-}
