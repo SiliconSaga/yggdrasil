@@ -202,7 +202,7 @@ review_threads() {
                 mode="resolve"
                 resolve_id="$2"
                 # Validate thread ID format (base64-encoded GitHub node IDs)
-                if [[ ! "$resolve_id" =~ ^[A-Za-z0-9_=/-]+$ ]]; then
+                if [[ ! "$resolve_id" =~ ^[A-Za-z0-9_=+/-]+$ ]]; then
                     echo "ERROR: Invalid thread ID '$resolve_id'." >&2
                     exit 1
                 fi
@@ -449,7 +449,9 @@ REPO_SLUG="SiliconSaga/$COMP"
 # --- Route to subcommand ---
 # All function definitions are above this block.
 
-if [[ "${1:-}" == "threads" ]]; then
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    review_help
+elif [[ "${1:-}" == "threads" ]]; then
     shift
     review_threads "$@"
 else
