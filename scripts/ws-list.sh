@@ -11,8 +11,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPONENTS_DIR="$ROOT_DIR/components"
 
 # Source shared overlay/merge functions
-# shellcheck source=ws-lib.sh
-source "$SCRIPT_DIR/ws-lib.sh"
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2

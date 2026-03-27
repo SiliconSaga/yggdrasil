@@ -32,7 +32,7 @@ This file covers only Claude-specific overrides.
 Yggdrasil is the workspace root. Component repos live in `components/` and
 community overlays in `overlays/` — both gitignored, independent Git repos.
 
-```
+```text
 yggdrasil/
   ecosystem.yaml          # Upstream defaults (generic, no components)
   ecosystem.local.yaml    # Per-developer overrides (gitignored)
@@ -45,7 +45,7 @@ yggdrasil/
     overlay-yggdrasil-template/ # Tutorial overlay
   scripts/
     ws                    # Unified CLI — run `ws help` for subcommands
-    ws-lib.sh             # Shared functions (overlay detection, config merge)
+    ws-overlay.sh         # Overlay management + shared config merge functions
     ws-clone.sh           # Clone components from merged ecosystem config
     ws-status.sh          # Git status across workspace
     ws-pull.sh            # Pull all cloned components

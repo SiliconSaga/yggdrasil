@@ -204,13 +204,15 @@ ws_resolve_ecosystem() {
 }
 ```
 
-All existing `ws` functions that read `$ECOSYSTEM` are updated to use the
-merged file instead. The temp file is cleaned up at script exit.
+Core `ws` functions (`ws list`, `ws clone`, `ws_validate_component`) are
+updated to use the merged file. The temp file is cleaned up at script exit.
+Remaining callers (`ws status`, `ws resolve`) still read `$ECOSYSTEM`
+directly and will be migrated incrementally.
 
-### Identity and attribution
+### Identity and attribution *(not yet implemented)*
 
-`ws commit`, `ws pr`, and `ws issue` read `identity` from the merged
-ecosystem config. Fields use simple shell variable interpolation
+`ws commit`, `ws pr`, and `ws issue` will read `identity` from the merged
+ecosystem config. Fields will use simple shell variable interpolation
 (`${agent_account}`). Environment variables override: if `CLAUDE_MODEL` is
 set, it takes precedence over `identity.co_authored_by`.
 

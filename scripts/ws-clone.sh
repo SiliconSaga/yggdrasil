@@ -15,8 +15,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPONENTS_DIR="$ROOT_DIR/components"
 
 # Source shared overlay/merge functions
-# shellcheck source=ws-lib.sh
-source "$SCRIPT_DIR/ws-lib.sh"
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 # Source .env if present (for GH_TOKEN)
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
