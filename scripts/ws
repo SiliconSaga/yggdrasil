@@ -545,7 +545,9 @@ ws_overlay() {
         init)
             # Clone template overlay from configured URL
             local template_url
-            template_url=$(yq '.defaults.templateOverlay // ""' "$ECOSYSTEM" 2>/dev/null)
+            local eco
+            eco="$(ws_resolve_ecosystem)"
+            template_url=$(yq '.defaults.templateOverlay // ""' "$eco" 2>/dev/null)
             if [[ -z "$template_url" || "$template_url" == "null" ]]; then
                 echo "ERROR: No template overlay URL configured." >&2
                 echo "  Set defaults.templateOverlay in ecosystem.yaml." >&2
@@ -569,6 +571,11 @@ ws_overlay() {
                 exit 1
             fi
             local name="$1"
+            # Validate overlay name — prevent path traversal
+            if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+                echo "ERROR: Invalid overlay name '$name'. Must be alphanumeric with dots, dashes, underscores." >&2
+                exit 1
+            fi
             if [[ ! -d "$OVERLAYS_DIR/$name" ]]; then
                 echo "ERROR: Overlay '$name' not found in overlays/." >&2
                 echo "  Available overlays:" >&2

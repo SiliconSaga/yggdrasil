@@ -54,7 +54,6 @@ clone_component() {
 
 if [[ "${1:-}" == "--all" ]]; then
     # Safety check: no components declared
-    local comp_count
     comp_count=$(yq '.components | length' "$ECO" 2>/dev/null || echo 0)
     if [[ "$comp_count" -eq 0 ]]; then
         echo "No components declared." >&2

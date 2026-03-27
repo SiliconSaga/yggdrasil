@@ -223,7 +223,7 @@ set, it takes precedence over `identity.co_authored_by`.
 ```bash
 ws overlay init                    # Clone template repo → overlays/overlay-yggdrasil-template
 ws overlay <git-url>               # Clone community overlay → overlays/overlay-yggdrasil-live
-                                   # Replaces existing -live if present (only one live overlay)
+                                   # Errors if -live exists (only one live overlay)
 ws overlay use <name>              # Set active overlay in ecosystem.local.yaml
 ws overlay list                    # Show available overlays, mark which is active
 ws actions <comp>                  # List available adapter commands for a component
@@ -259,17 +259,18 @@ found at all, shows guidance to configure an adapter file.
   `ws overlay init` to get started, or `ws overlay <url>` for your community."
 - **`ws clone --all`** — same zero-component safety check before cloning.
 - **`ws clone`** — resolves `gitOrg` from merged config defaults.
-- **`ws test/build/run <comp>`** — checks adapter config before auto-detection.
-  When an adapter defines the requested command, it replaces the existing
-  auto-detection entirely for that invocation. The current `ws_test`
+- **`ws test/build/run <comp>`** *(not yet implemented)* — will check adapter
+  config before auto-detection. When an adapter defines the requested command,
+  it replaces auto-detection for that invocation. The current `ws_test`
   auto-detection logic (Makefile → Go → Python) becomes the fallback, not
-  the primary path.
-- **`ws commit/pr/issue`** — reads identity config from merged ecosystem
-  config for attribution templates.
+  the primary path. `ws actions <comp>` already shows what commands are
+  configured vs auto-detected.
+- **`ws commit/pr/issue`** *(not yet implemented)* — will read identity config
+  from merged ecosystem config for attribution templates.
 
-### Adapter command resolution
+### Adapter command resolution *(planned)*
 
-```
+```text
 ws build terasology
     ↓
 1. Read merged ecosystem config (ws_resolve_ecosystem)
@@ -283,7 +284,7 @@ ws build terasology
 
 The existing `ws test` detection logic becomes the general fallback:
 
-```
+```text
 gradlew present     → Gradle (./gradlew <command>)
 Makefile present    → Make
 go.mod present      → Go

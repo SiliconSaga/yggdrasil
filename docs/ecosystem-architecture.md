@@ -159,7 +159,7 @@ Two separate numbering schemes exist:
 Component repos live inside yggdrasil under `components/`. Community-specific
 configuration lives in overlay repos under `overlays/`.
 
-```
+```text
 yggdrasil/
   ecosystem.yaml            # Upstream defaults (generic, no components)
   ecosystem.local.yaml      # Per-developer overrides (gitignored)
@@ -181,7 +181,7 @@ yggdrasil/
 
 Configuration is assembled from three layers, merged in order:
 
-```
+```text
 ecosystem.yaml (upstream Yggdrasil — generic defaults)
     ↓ deep merge
 overlay/ecosystem.yaml (community config — components, identity)

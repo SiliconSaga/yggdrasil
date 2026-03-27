@@ -94,11 +94,7 @@ git rebase siliconsaga/main
 grep -rn "^<<<<<<<" <files-that-conflicted>
 
 # 5. Force push (rebase rewrites history)
-# --force-with-lease is preferred but requires tracking refs.
-# ws push uses raw HTTPS URLs which don't maintain tracking,
-# so plain --force may be needed for now.
-source .env
-git push --force "https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/<repo>.git" <branch>
+bash scripts/ws push <component> --force
 ```
 
 ### Conflict resolution principles
