@@ -17,7 +17,10 @@ ws_detect_overlay() {
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
         local selector
-        selector=$(yq '.overlay // ""' "$local_file" 2>/dev/null)
+        if ! selector="$(yq '.overlay // ""' "$local_file")"; then
+            echo "ERROR: Failed to parse $local_file. Check YAML syntax." >&2
+            exit 1
+        fi
         if [[ -n "$selector" && "$selector" != "null" ]]; then
             if [[ -d "$OVERLAYS_DIR/$selector" ]]; then
                 echo "$selector"
