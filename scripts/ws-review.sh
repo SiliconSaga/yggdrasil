@@ -274,9 +274,9 @@ threads_list() {
             author: (.comments.nodes[0].author.login // "unknown"),
             path: (.comments.nodes[0].path // "?"),
             line: (.comments.nodes[0].line // "?"),
-            body: (.comments.nodes[0].body // "" | .[0:80] | gsub("\n"; " "))
+            body: (.comments.nodes[0].body // "")
           }
-        | "[\(.author)] \(.path):\(.line) (\(.id))\n  \"\(.body)...\""
+        | "---\n[\(.author)] \(.path):\(.line) (\(.id))\n\(.body)\n"
     ')
 
     if [[ -z "$threads" ]]; then
