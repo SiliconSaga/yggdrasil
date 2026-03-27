@@ -132,6 +132,11 @@ for how to add commands and classify their permission tier.
 
 ## Git Workflow
 
+**Never use raw `git add`, `git commit`, or `git push`** — always use
+`ws commit` and `ws push`. They handle staging, attribution trailers,
+and auth automatically. For deleted files, use `remove:` in the bodyfile
+frontmatter.
+
 Always use a topic branch. Main is protected.
 
 ```bash
@@ -148,6 +153,8 @@ git checkout -b <type>/<description>             # feat, fix, docs, chore, test,
 #      add:                              # paths relative to component root
 #        - path/to/file1.md
 #        - path/to/file2.md
+#      remove:                           # deleted files to stage for removal
+#        - path/to/old-file.md
 #      ---
 #      Extended commit body here.
 bash scripts/ws commit <component> .commits/my-change.md
