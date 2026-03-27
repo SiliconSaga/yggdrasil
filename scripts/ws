@@ -21,6 +21,11 @@
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .prs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
+#   overlay init      Clone template overlay for tutorials
+#   overlay <url>     Clone a community overlay
+#   overlay use <name> Set active overlay
+#   overlay list      Show available overlays
+#   actions <comp>    List adapter commands for a component
 #   help              Show this help message
 #
 # For shorthand access, add to your shell profile:
@@ -31,8 +36,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
+OVERLAYS_DIR="$ROOT_DIR/overlays"
 COMPONENTS_DIR="$ROOT_DIR/components"
 COMPONENT_DIR=""  # Set by ws_validate_component
+
+# Source shared overlay/merge functions
+# shellcheck source=ws-lib.sh
+source "$SCRIPT_DIR/ws-lib.sh"
 
 # Validate a component name against ecosystem.yaml.
 # Usage: ws_validate_component <name>
@@ -60,11 +70,13 @@ ws_validate_component() {
         exit 1
     fi
 
-    # Check component exists in ecosystem.yaml
+    # Check component exists in merged ecosystem config
+    local eco
+    eco="$(ws_resolve_ecosystem)"
     local exists
-    exists=$(yq ".components[\"$name\"] // \"missing\"" "$ECOSYSTEM")
+    exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
     if [[ "$exists" == "missing" ]]; then
-        echo "ERROR: '$name' is not declared in ecosystem.yaml." >&2
+        echo "ERROR: '$name' is not declared in ecosystem config." >&2
         echo "  Run 'ws list' to see available components." >&2
         exit 1
     fi
@@ -514,6 +526,194 @@ ws_issue() {
     bash "$SCRIPT_DIR/gh-issue.sh" "$@"
 }
 
+ws_overlay() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws overlay <subcommand>" >&2
+        echo "" >&2
+        echo "Subcommands:" >&2
+        echo "  init            Clone the template overlay for tutorials" >&2
+        echo "  <git-url>       Clone a community overlay as overlay-yggdrasil-live" >&2
+        echo "  use <name>      Set active overlay in ecosystem.local.yaml" >&2
+        echo "  list            Show available overlays and which is active" >&2
+        exit 1
+    fi
+
+    local subcmd="$1"
+    shift
+
+    case "$subcmd" in
+        init)
+            # Clone template overlay from configured URL
+            local template_url
+            template_url=$(yq '.defaults.templateOverlay // ""' "$ECOSYSTEM" 2>/dev/null)
+            if [[ -z "$template_url" || "$template_url" == "null" ]]; then
+                echo "ERROR: No template overlay URL configured." >&2
+                echo "  Set defaults.templateOverlay in ecosystem.yaml." >&2
+                exit 1
+            fi
+            local target="$OVERLAYS_DIR/overlay-yggdrasil-template"
+            if [[ -d "$target" ]]; then
+                echo "SKIP: Template overlay already exists at $target"
+                return 0
+            fi
+            mkdir -p "$OVERLAYS_DIR"
+            echo "CLONE: template overlay -> $target"
+            git clone "$template_url" "$target"
+            echo ""
+            echo "Template overlay ready. Run 'ws clone --all' to clone tutorial components."
+            ;;
+
+        use)
+            if [[ $# -ne 1 ]]; then
+                echo "Usage: ws overlay use <name>" >&2
+                exit 1
+            fi
+            local name="$1"
+            if [[ ! -d "$OVERLAYS_DIR/$name" ]]; then
+                echo "ERROR: Overlay '$name' not found in overlays/." >&2
+                echo "  Available overlays:" >&2
+                for d in "$OVERLAYS_DIR"/*/; do
+                    [[ -d "$d" ]] && echo "    $(basename "$d")"
+                done
+                exit 1
+            fi
+            local local_file="$ROOT_DIR/ecosystem.local.yaml"
+            if [[ -f "$local_file" ]]; then
+                yq -i ".overlay = \"$name\"" "$local_file"
+            else
+                echo "overlay: \"$name\"" > "$local_file"
+            fi
+            echo "Active overlay set to: $name"
+            ;;
+
+        list)
+            echo "=== Overlays ==="
+            local active
+            active="$(ws_detect_overlay)"
+            local found=0
+            for d in "$OVERLAYS_DIR"/*/; do
+                [[ -d "$d" ]] || continue
+                local dname
+                dname="$(basename "$d")"
+                [[ "$dname" == ".gitkeep" ]] && continue
+                found=1
+                if [[ "$dname" == "$active" ]]; then
+                    echo "  * $dname (active)"
+                else
+                    echo "    $dname"
+                fi
+            done
+            if [[ "$found" -eq 0 ]]; then
+                echo "  (none)"
+                echo ""
+                echo "Run 'ws overlay init' for tutorials, or 'ws overlay <url>' for your community."
+            fi
+            ;;
+
+        *)
+            # Treat as a git URL — clone as overlay-yggdrasil-live
+            local url="$subcmd"
+            # Basic URL validation
+            if [[ ! "$url" =~ ^(https?://|git@) ]]; then
+                echo "ERROR: Unknown subcommand or invalid URL '$url'." >&2
+                echo "  Run 'ws overlay' for usage." >&2
+                exit 1
+            fi
+            local target="$OVERLAYS_DIR/overlay-yggdrasil-live"
+            if [[ -d "$target" ]]; then
+                echo "ERROR: Live overlay already exists at $target." >&2
+                echo "  Remove it first or use 'ws overlay use' to switch." >&2
+                exit 1
+            fi
+            mkdir -p "$OVERLAYS_DIR"
+            echo "CLONE: community overlay -> $target"
+            git clone "$url" "$target"
+            echo ""
+            echo "Community overlay ready. Run 'ws clone --all' to clone components."
+            ;;
+    esac
+}
+
+ws_actions() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ws actions <component>" >&2
+        exit 1
+    fi
+    local comp="$1"
+
+    # Validate component name (safe pattern, exists in config)
+    if [[ ! "$comp" =~ ^[a-z][a-z0-9-]*$ ]]; then
+        echo "ERROR: Invalid component name '$comp'." >&2
+        exit 1
+    fi
+
+    local eco
+    eco="$(ws_resolve_ecosystem)"
+    local exists
+    exists=$(yq ".components[\"$comp\"] // \"missing\"" "$eco")
+    if [[ "$exists" == "missing" ]]; then
+        echo "ERROR: '$comp' is not declared in ecosystem config." >&2
+        exit 1
+    fi
+
+    echo "=== $comp ==="
+
+    # Check for adapter file in active overlay
+    local active_overlay
+    active_overlay="$(ws_detect_overlay)"
+    local adapter_file=""
+    if [[ -n "$active_overlay" ]]; then
+        adapter_file="$OVERLAYS_DIR/$active_overlay/adapters/$comp.yaml"
+    fi
+
+    local has_configured=0
+    if [[ -n "$adapter_file" && -f "$adapter_file" ]]; then
+        echo "Configured (from overlay):"
+        local commands
+        commands=$(yq '.commands // {} | to_entries | .[] | "  " + .key + "    " + .value' "$adapter_file" 2>/dev/null)
+        if [[ -n "$commands" ]]; then
+            echo "$commands"
+            has_configured=1
+        fi
+    fi
+
+    # Auto-detection check
+    local comp_dir="$COMPONENTS_DIR/$comp"
+    if [[ -d "$comp_dir" ]]; then
+        echo "Auto-detected:"
+        local has_auto=0
+        if [[ -f "$comp_dir/gradlew" ]]; then
+            echo "  build    ./gradlew build"
+            echo "  test     ./gradlew test"
+            has_auto=1
+        elif [[ -f "$comp_dir/Makefile" ]]; then
+            echo "  build    make build (if target exists)"
+            echo "  test     make test (if target exists)"
+            has_auto=1
+        elif [[ -f "$comp_dir/go.mod" ]]; then
+            echo "  test     go test ./..."
+            has_auto=1
+        elif [[ -f "$comp_dir/pyproject.toml" ]]; then
+            echo "  test     uv run pytest"
+            has_auto=1
+        elif [[ -f "$comp_dir/package.json" ]]; then
+            echo "  test     npm test"
+            has_auto=1
+        fi
+        if [[ "$has_auto" -eq 0 ]]; then
+            if [[ "$has_configured" -eq 1 ]]; then
+                echo "  (none - overlay commands take precedence)"
+            else
+                echo "  (none detected)"
+                echo ""
+                echo "Configure an adapter file: overlays/<overlay>/adapters/$comp.yaml"
+            fi
+        fi
+    else
+        echo "(not cloned locally — run 'ws clone $comp')"
+    fi
+}
+
 COMMAND="${1:-help}"
 shift 2>/dev/null || true
 
@@ -565,6 +765,12 @@ case "$COMMAND" in
         ;;
     exec)
         ws_exec "$@"
+        ;;
+    overlay)
+        ws_overlay "$@"
+        ;;
+    actions)
+        ws_actions "$@"
         ;;
     *)
         echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2

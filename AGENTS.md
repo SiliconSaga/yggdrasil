@@ -25,7 +25,9 @@ first message:
 1. Mention GDD briefly so the human knows there's a methodology guiding the
    session ("I follow Guardian Driven Development conventions for this
    workspace — happy to explain more if you're curious")
-2. Note whether Thalamus.md exists and offer to create it if not
+2. Read `Thalamus.md` at the workspace root (it's gitignored but readable).
+   If it exists, use its frontmatter for mode/role defaults.
+   If it doesn't exist, offer to create it.
 3. Ask about mode and role (or note the defaults from frontmatter).
    When offering modes to a human, offer **quick, zen, flow, or mentoring** —
    flow is the natural default for sessions without a single fixed goal.
@@ -109,6 +111,11 @@ The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
 | `ws clean` | Remove draft files from `.issues/`, `.prs/`, `.commits/` |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
+| `ws overlay init` | Clone template overlay for tutorials |
+| `ws overlay <url>` | Clone a community overlay |
+| `ws overlay use <name>` | Set active overlay in ecosystem.local.yaml |
+| `ws overlay list` | Show available overlays and which is active |
+| `ws actions <comp>` | List adapter commands for a component |
 | `ws help` | Show available commands |
 
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
@@ -175,19 +182,24 @@ Full setup guide: [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
 
 ---
 
-## Ecosystem Manifest
+## Ecosystem Config (Three-Layer Merge)
 
-`ecosystem.yaml` is the central declaration of all SiliconSaga components.
-It defines tiers, chart versions, namespaces, and Helm values overrides.
+Configuration is assembled from three layers, merged in order:
 
-`ecosystem.local.yaml` (gitignored) lets developers override any field
-per-machine without touching the shared manifest. Common uses:
+1. `ecosystem.yaml` — upstream Yggdrasil defaults (generic, no components)
+2. `overlays/<active>/ecosystem.yaml` — community overlay (components, identity)
+3. `ecosystem.local.yaml` — per-developer overrides (gitignored)
+
+All `ws` commands read the merged result via `ws_resolve_ecosystem()`.
+
+`ecosystem.local.yaml` common uses:
 
 - `forceChart: true` on a component to use its chart even with local source
 - Override `values:` for local environment specifics (hostnames, feature flags)
 - `disabled: false` on echo-test to validate chart-mode resolution
+- `overlay: <name>` to select a specific overlay (auto-detection is default)
 
-The `ws-resolve.sh` script merges both files and generates ArgoCD Application
+The `ws-resolve.sh` script uses the merged config to generate ArgoCD Application
 manifests, choosing Git source or OCI chart per component based on what's
 checked out locally (and any `forceChart` overrides).
 

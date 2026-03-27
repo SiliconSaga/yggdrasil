@@ -10,6 +10,10 @@
 /components/*
 !/components/.gitkeep
 
+# Overlay repos — cloned by ws overlay, ignored by yggdrasil's Git.
+/overlays/*
+!/overlays/.gitkeep
+
 # Local ecosystem overrides (per-developer, never committed)
 ecosystem.local.yaml
 
