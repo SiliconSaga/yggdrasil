@@ -62,9 +62,17 @@ Use `bash scripts/ws list` to see what's declared and what's checked out locally
 
 Use the `Skill` tool to load skills from `.agent/skills/<name>/SKILL.md`.
 
-## Co-Authored-By Trailer
+## Committing
 
-When committing, use this exact trailer format:
+**Always use `ws commit`** — never raw `git add` / `git commit`. The `ws commit`
+command handles file staging (via bodyfile `add:` frontmatter) and appends the
+Co-Authored-By trailer automatically. Write a bodyfile to `.commits/` and use:
+
+```bash
+bash scripts/ws commit <component> .commits/<name>.md
+```
+
+The Co-Authored-By trailer format (handled by `ws commit`):
 
 ```
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
