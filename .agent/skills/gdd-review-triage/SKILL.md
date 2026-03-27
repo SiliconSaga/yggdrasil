@@ -44,19 +44,25 @@ Understanding each reviewer's quirks is essential for effective triage.
   findings even after they've been addressed. Expect to bulk-resolve stale
   threads after each Copilot re-review
 
-## Fetching Comments
+## Fetching Comments and Threads
 
-Use `ws review` or the GitHub API directly:
+Use `ws review` for all review operations:
 
 ```bash
-# Via ws CLI
-bash scripts/ws review <pr#>
-bash scripts/ws review <pr#> --since prev-push   # if a review landed between pushes
+# Review comments
+bash scripts/ws review <comp> <pr#>
+bash scripts/ws review <comp> <pr#> --since prev-push
+bash scripts/ws review <comp> <pr#> --reviewer coderabbitai
 
-# Via gh API (for more control)
-gh api repos/{owner}/{repo}/pulls/{pr}/comments
-gh api repos/{owner}/{repo}/pulls/{pr}/reviews
+# Review threads (unresolved items, status, resolution)
+bash scripts/ws review <comp> threads <pr#>              # list unresolved
+bash scripts/ws review <comp> threads <pr#> --status     # counts
+bash scripts/ws review <comp> threads <pr#> --resolve-all  # bulk resolve
+bash scripts/ws review <comp> threads <pr#> --resolve <id> # resolve one
 ```
+
+Thread resolution is a Side-effect operation (prompts for approval).
+Use `--resolve-all` after addressing stale Copilot re-filed findings.
 
 ## Triage Process
 
@@ -102,7 +108,10 @@ When processing findings, apply the `receiving-code-review` discipline
 ## After Triage
 
 - Address actionable findings (fix the code, update tests)
-- Resolve noise threads in GitHub
+- Resolve noise threads: `ws review <comp> threads <pr#> --resolve-all`
+  or `--resolve <id>` for individual threads
 - Flag conflicts for human decision
 - Push and re-check (CodeRabbit will re-trigger; Copilot needs manual
   re-request)
+- After rebase or new push, use `ws review <comp> threads <pr#> --status`
+  to check if new threads appeared

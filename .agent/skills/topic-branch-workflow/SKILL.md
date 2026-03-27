@@ -60,6 +60,65 @@ cp ../yggdrasil/.agent/pr-template.md .prs/<description>.md
 ../yggdrasil/scripts/git-pr.sh "type: description" .prs/<description>.md
 ```
 
+## Rebasing onto Updated Main
+
+When main moves ahead during code review (e.g., another PR merges), rebase
+to keep a clean linear history before merging.
+
+### Pre-rebase checklist
+
+1. **Announce intent** — tell the human before switching branches or rebasing
+2. **Check for uncommitted work** — `git status` must be clean
+3. **Create a backup branch** — `git branch <name>-backup` before rebasing.
+   Cost is zero (just a pointer), safety is real. Reflog also works but a
+   named branch is simpler to find.
+
+### Rebase procedure
+
+```bash
+# 1. Fetch latest main
+git fetch siliconsaga main
+
+# 2. Survey the conflict surface before starting
+git diff --name-only HEAD...siliconsaga/main   # files they changed
+git diff --name-only siliconsaga/main...HEAD    # files we changed
+# Files in both lists are potential conflicts
+
+# 3. Rebase
+git rebase siliconsaga/main
+# Resolve conflicts as they appear, then:
+#   git add <resolved-files>
+#   git rebase --continue
+
+# 4. Verify — no conflict markers left
+grep -rn "^<<<<<<<" <files-that-conflicted>
+
+# 5. Force push (rebase rewrites history)
+# --force-with-lease is preferred but requires tracking refs.
+# ws push uses raw HTTPS URLs which don't maintain tracking,
+# so plain --force may be needed for now.
+source .env
+git push --force "https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/<repo>.git" <branch>
+```
+
+### Conflict resolution principles
+
+- **Read both sides** before resolving — understand what each change intended
+- **Take both changes** when they modify adjacent but independent content
+  (e.g., different rows in a table, different functions in a file)
+- **Favor the newer main** for shared infrastructure (formatting, imports)
+  and **favor our branch** for feature-specific changes
+- **Never silently drop changes** — if unsure, ask the human
+- If a rebase goes badly: `git rebase --abort` returns to the pre-rebase
+  state. Or restore from backup: `git reset --hard <name>-backup`
+
+### When to rebase
+
+- **Before merge** — when main has moved ahead and the PR has conflicts
+- **After code review fixes** — to pick up main changes before final push
+- **Not during active review** — avoid force-pushing while reviewers are
+  mid-review (they lose their place). Coordinate with the human.
+
 ## After the PR is Merged
 
 ```bash
