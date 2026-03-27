@@ -161,6 +161,8 @@ bash scripts/ws commit <component> .commits/my-change.md
 
 # 4. Push (use ws push — handles auth and workarounds automatically)
 bash scripts/ws push <component>
+# Only use --force immediately after a rebase (which rewrites history).
+# Normal commits on a topic branch use regular push.
 
 # 5. Draft PR body → .prs/<description>.md (gitignored)
 cp .agent/pr-template.md .prs/<description>.md
