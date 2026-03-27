@@ -12,7 +12,7 @@
 #   pull [comp]       Pull all or one component
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
-#   push [comp] [branch] Push via HTTPS (sources .env)
+#   push [comp] [branch] [--force] Push via HTTPS (sources .env)
 #   pr <comp> <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
@@ -100,14 +100,23 @@ ws_exec() {
 }
 
 ws_push() {
-    if [[ $# -gt 2 ]]; then
-        echo "Usage: ws push [component] [branch]" >&2
+    if [[ $# -gt 3 ]]; then
+        echo "Usage: ws push [component] [branch] [--force]" >&2
         exit 1
     fi
     local comp="${1:-yggdrasil}"
-    local branch="${2:-}"
+    local branch=""
+    local force=""
+    shift 2>/dev/null || true
+    for arg in "$@"; do
+        case "$arg" in
+            --force) force="--force" ;;
+            -*) echo "ERROR: Unknown option '$arg'" >&2; exit 1 ;;
+            *) branch="$arg" ;;
+        esac
+    done
     ws_validate_component "$comp"
-    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${branch:+"$branch"}
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
 
 ws_pr() {
