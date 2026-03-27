@@ -409,6 +409,11 @@ threads_resolve_all() {
 
 # --- Shared setup ---
 
+# Handle --help before requiring GH_TOKEN — help should always work
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    review_help
+fi
+
 # Source .env for GH_TOKEN
 env_file="$ROOT_DIR/.env"
 if [[ -z "${GH_TOKEN:-}" ]] && [[ -f "$env_file" ]]; then
@@ -420,11 +425,6 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
     exit 1
 fi
 export GH_TOKEN
-
-# Handle --help before component parsing (--help is not a valid component name)
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    review_help
-fi
 
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
