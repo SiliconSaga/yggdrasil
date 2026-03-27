@@ -45,7 +45,7 @@ ws <command> [args...]
 | `ws resolve` | Generate ArgoCD Application manifests |
 | `ws vscode` | Generate VS Code workspace file |
 | `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |
-| `ws review <pr#> [--reviewer <name>]` | Fetch PR review comments from GitHub |
+| `ws review <comp> <pr#\|threads> [options]` | PR review comments and thread management |
 | `ws commit <comp> <message> [bodyfile]` | Commit with Co-Authored-By trailer |
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
 | `ws clean` | Remove draft files from `.issues/`, `.prs/`, `.commits/` |

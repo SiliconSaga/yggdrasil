@@ -12,11 +12,11 @@
 #   pull [comp]       Pull all or one component
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
-#   push [comp] [branch] Push via HTTPS (sources .env)
+#   push [comp] [branch] [--force] Push via HTTPS (sources .env)
 #   pr <comp> <title> <bodyfile> Open a pull request to main
 #   issue <repo> <title> <label> <bodyfile> File GitHub issue
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
-#   review <pr#> [options]  Fetch PR review comments (see ws review --help)
+#   review <comp> <pr#|threads> [options]  PR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .prs/, .commits/
@@ -100,14 +100,23 @@ ws_exec() {
 }
 
 ws_push() {
-    if [[ $# -gt 2 ]]; then
-        echo "Usage: ws push [component] [branch]" >&2
+    if [[ $# -gt 3 ]]; then
+        echo "Usage: ws push [component] [branch] [--force]" >&2
         exit 1
     fi
     local comp="${1:-yggdrasil}"
-    local branch="${2:-}"
+    local branch=""
+    local force=""
+    shift 2>/dev/null || true
+    for arg in "$@"; do
+        case "$arg" in
+            --force) force="--force" ;;
+            -*) echo "ERROR: Unknown option '$arg'" >&2; exit 1 ;;
+            *) branch="$arg" ;;
+        esac
+    done
     ws_validate_component "$comp"
-    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${branch:+"$branch"}
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
 
 ws_pr() {
@@ -190,179 +199,6 @@ ws_test() {
         echo "ERROR: Cannot detect test runner in $COMPONENT_DIR." >&2
         echo "  Expected: Makefile with 'test' target, go.mod, or pyproject.toml" >&2
         exit 1
-    fi
-}
-
-ws_review() {
-    if [[ $# -lt 1 || "$1" == "--help" || "$1" == "-h" ]]; then
-        echo "Usage: ws review <pr-number> [--reviewer <name>] [--comp <component>] [--since <time>]"
-        echo ""
-        echo "Fetch PR review comments from GitHub."
-        echo ""
-        echo "Options:"
-        echo "  --reviewer <name>  Filter by reviewer login (e.g. coderabbitai, copilot)"
-        echo "  --comp <component> Review a component repo's PR (default: yggdrasil)"
-        echo "  --since <time>     Only show comments after this time"
-        echo "                     Values: last-push, prev-push, 1h, 30m, or ISO 8601"
-        echo ""
-        echo "Examples:"
-        echo "  ws review 8                          # All comments on PR #8"
-        echo "  ws review 8 --reviewer coderabbitai  # Only CodeRabbit comments"
-        echo "  ws review 8 --since last-push          # Comments since last push"
-        echo "  ws review 8 --since 1h               # Comments from the last hour"
-        echo "  ws review 5 --comp ymir              # PR #5 on ymir repo"
-        # Exit 0 for explicit --help, 1 for missing arguments
-        if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-            exit 0
-        fi
-        exit 1
-    fi
-
-    # Parse arguments
-    local pr_num="$1"
-    shift
-    local reviewer=""
-    local comp=""
-    local since=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --reviewer)
-                [[ $# -ge 2 ]] || { echo "ERROR: --reviewer requires a value" >&2; exit 1; }
-                reviewer="$2"; shift 2 ;;
-            --comp)
-                [[ $# -ge 2 ]] || { echo "ERROR: --comp requires a value" >&2; exit 1; }
-                comp="$2"; shift 2 ;;
-            --since)
-                [[ $# -ge 2 ]] || { echo "ERROR: --since requires a value" >&2; exit 1; }
-                since="$2"; shift 2 ;;
-            *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
-        esac
-    done
-
-    # Validate PR number is numeric
-    if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
-        echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
-        exit 1
-    fi
-
-    # Source .env for GH_TOKEN
-    local env_file="$ROOT_DIR/.env"
-    if [[ -z "${GH_TOKEN:-}" ]] && [[ -f "$env_file" ]]; then
-        # shellcheck source=/dev/null
-        source "$env_file"
-    fi
-    if [[ -z "${GH_TOKEN:-}" ]]; then
-        echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
-        exit 1
-    fi
-
-    # Determine repo (--comp only needs a valid name, not a local clone)
-    local repo_slug
-    if [[ -n "$comp" ]]; then
-        if [[ ! "$comp" =~ ^[a-z][a-z0-9-]*$ ]]; then
-            echo "ERROR: Invalid component name '$comp'." >&2
-            exit 1
-        fi
-        repo_slug="SiliconSaga/$comp"
-    else
-        repo_slug="SiliconSaga/yggdrasil"
-    fi
-
-    # Validate reviewer name (prevent jq filter injection)
-    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ ^[a-zA-Z0-9._-]+$ ]]; then
-        echo "ERROR: Invalid reviewer name '$reviewer'. Use alphanumeric, dot, dash, underscore." >&2
-        exit 1
-    fi
-
-    # Resolve --since to ISO 8601 timestamp
-    local since_ts=""
-    if [[ -n "$since" ]]; then
-        if [[ "$since" == "last-push" || "$since" == "prev-push" ]]; then
-            # Use GitHub Events API for accurate push timestamp
-            # Always get branch from the PR — local checkout may differ
-            local branch
-            branch=$(gh api "repos/$repo_slug/pulls/$pr_num" --jq '.head.ref' 2>/dev/null)
-            if [[ -z "$branch" || "$branch" == "null" ]]; then
-                echo "ERROR: Cannot determine PR head branch for #$pr_num in $repo_slug." >&2
-                exit 1
-            fi
-            local push_index=0
-            [[ "$since" == "prev-push" ]] && push_index=1
-            since_ts=$(gh api "repos/$repo_slug/events" \
-                --jq "[.[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\")] | .[$push_index].created_at" 2>/dev/null)
-            if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
-                echo "ERROR: Cannot determine push time for '$branch'." >&2
-                echo "  Has this branch been pushed? Use an explicit timestamp instead." >&2
-                exit 1
-            fi
-            echo "(showing comments since $since: $since_ts)"
-        elif [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
-            # Relative time: 1h, 30m
-            local unit="${since: -1}"
-            local amount="${since%?}"
-            local seconds=0
-            if [[ "$unit" == "h" ]]; then
-                seconds=$((amount * 3600))
-            else
-                seconds=$((amount * 60))
-            fi
-            since_ts=$(date -u -d "$seconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
-                || date -u -v-"${seconds}S" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
-                || { echo "ERROR: Cannot compute relative time. Use ISO 8601 format." >&2; exit 1; })
-        else
-            # Validate ISO 8601 format to prevent jq filter injection
-            if [[ ! "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$ ]]; then
-                echo "ERROR: Invalid --since value '$since'." >&2
-                echo "  Expected: last-push, prev-push, Nh, Nm, or ISO 8601 (e.g. 2026-03-13T15:00:00Z)" >&2
-                exit 1
-            fi
-            since_ts="$since"
-        fi
-    fi
-
-    # Build jq filters (reviews use submitted_at, comments use created_at)
-    local reviewer_filter="."
-    if [[ -n "$reviewer" ]]; then
-        reviewer_filter="select(.user.login | test(\"$reviewer\"; \"i\"))"
-    fi
-    local comment_filter="$reviewer_filter"
-    local review_filter="$reviewer_filter"
-    if [[ -n "$since_ts" ]]; then
-        comment_filter="$comment_filter | select(.created_at > \"$since_ts\")"
-        review_filter="$review_filter | select(.submitted_at > \"$since_ts\")"
-    fi
-
-    # Fetch PR summary
-    echo "=== PR #$pr_num ($repo_slug) ==="
-    gh api "repos/$repo_slug/pulls/$pr_num" \
-        --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"' 2>/dev/null || {
-        echo "ERROR: Could not fetch PR #$pr_num from $repo_slug." >&2
-        echo "  Check the PR number and repo name." >&2
-        exit 1
-    }
-    echo ""
-
-    # Fetch top-level reviews
-    echo "=== Reviews ==="
-    local reviews
-    reviews=$(gh api "repos/$repo_slug/pulls/$pr_num/reviews" \
-        --jq ".[] | $review_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \": \" + (.[0:200]) else \"\" end)\"" 2>/dev/null)
-    if [[ -n "$reviews" ]]; then
-        echo "$reviews"
-    else
-        echo "(no reviews${reviewer:+ from $reviewer})"
-    fi
-    echo ""
-
-    # Fetch inline comments
-    echo "=== Inline Comments ==="
-    local comments
-    comments=$(gh api "repos/$repo_slug/pulls/$pr_num/comments" \
-        --jq ".[] | $comment_filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null)
-    if [[ -n "$comments" ]]; then
-        echo "$comments"
-    else
-        echo "(no inline comments${reviewer:+ from $reviewer})"
     fi
 }
 
@@ -716,7 +552,7 @@ case "$COMMAND" in
         ws_test "$@"
         ;;
     review)
-        ws_review "$@"
+        bash "$SCRIPT_DIR/ws-review.sh" "$@"
         ;;
     commit)
         ws_commit "$@"

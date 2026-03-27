@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # git-push.sh — push a branch to the siliconsaga remote
 #
-# Usage: git-push.sh [branch]
-#   branch — branch to push (default: current branch)
+# Usage: git-push.sh [--force] [branch]
+#   --force — force push (for rebased branches). Refuses to force-push main/master.
+#   branch  — branch to push (default: current branch)
 #
 # Sources .env automatically. Run from any workspace repo directory.
 #
 # Example:
 #   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh
 #   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh feat/my-feature
+#   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh --force feat/my-feature
 
 set -euo pipefail
 
@@ -26,13 +28,31 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
   fi
 fi
 
+# Parse --force flag
+FORCE=""
+if [[ "${1:-}" == "--force" ]]; then
+  FORCE="--force"
+  shift
+fi
+
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 REPO=$(git remote get-url siliconsaga 2>/dev/null | sed 's|.*/||; s|\.git$||')
+
+# Safety: refuse to force-push main or master
+if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+  echo "ERROR: Refusing to force-push to $BRANCH. This is almost certainly a mistake." >&2
+  exit 1
+fi
 
 # Push via explicit HTTPS URL to bypass any global url.insteadOf SSH rewrite
 # (GitKraken sets url."git@github.com:".insteadOf=https://github.com/ in ~/.gitconfig,
 #  which redirects all https:// remotes to SSH — the embedded-token URL avoids this.)
 PUSH_URL="https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/${REPO}.git"
 
-echo "Pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
-git push "$PUSH_URL" "$BRANCH"
+if [[ -n "$FORCE" ]]; then
+  echo "Force pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
+  git push --force "$PUSH_URL" "$BRANCH"
+else
+  echo "Pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
+  git push "$PUSH_URL" "$BRANCH"
+fi
