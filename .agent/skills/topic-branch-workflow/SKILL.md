@@ -115,6 +115,22 @@ bash scripts/ws push <component> --force
 - **Not during active review** — avoid force-pushing while reviewers are
   mid-review (they lose their place). Coordinate with the human.
 
+### During review-fix cycles
+
+Once you've fetched and addressed review comments in a session, check
+for new findings before each subsequent push:
+
+```bash
+bash scripts/ws review <comp> <pr#> --since prev-push
+```
+
+Reviewers (especially automated ones like CodeRabbit) may post new
+comments between your pushes. Addressing them before pushing avoids
+a leapfrog cycle where each push triggers new review that you only
+see after the next push.
+
+This does not apply to pre-PR pushes — there's no PR to check against.
+
 ## After the PR is Merged
 
 ```bash
