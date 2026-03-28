@@ -21,28 +21,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
-LOCAL_OVERRIDES="$ROOT_DIR/ecosystem.local.yaml"
 COMPONENTS_DIR="$ROOT_DIR/components"
 OUTPUT_DIR="$ROOT_DIR/.generated/applications"
 DRY_RUN="${1:-}"
+
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1
 fi
 
-# Merge ecosystem.yaml with local overrides (if present)
-EFFECTIVE_FILE=$(mktemp)
-trap "rm -f $EFFECTIVE_FILE" EXIT
-
-if [[ -f "$LOCAL_OVERRIDES" ]]; then
-    echo "(using local overrides from ecosystem.local.yaml)"
-    yq eval-all 'select(fileIndex==0) *d select(fileIndex==1)' \
-        "$ECOSYSTEM" "$LOCAL_OVERRIDES" > "$EFFECTIVE_FILE"
-else
-    cp "$ECOSYSTEM" "$EFFECTIVE_FILE"
-fi
+# Three-layer merge: upstream + overlay + local
+EFFECTIVE_FILE="$(ws_resolve_ecosystem)"
 
 if [[ "$DRY_RUN" != "--dry-run" ]]; then
     mkdir -p "$OUTPUT_DIR"

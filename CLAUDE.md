@@ -19,7 +19,7 @@ This file covers only Claude-specific overrides.
   directories — never manually `cd` to components.
   Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`,
   `ws pr`, `ws issue`, `ws test`, `ws review`, `ws commit`, `ws log`, `ws clean`,
-  `ws resolve`, `ws vscode`, `ws exec`, `ws help`.
+  `ws resolve`, `ws vscode`, `ws exec`, `ws overlay`, `ws actions`, `ws help`.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
   Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
 - On first use of `ws` in a session, briefly note: "Using the workspace CLI
@@ -29,20 +29,24 @@ This file covers only Claude-specific overrides.
 
 ## Workspace Structure
 
-Yggdrasil is the workspace root. Component repos live in `components/` as
-independent Git repos (gitignored from yggdrasil's history).
+Yggdrasil is the workspace root. Component repos live in `components/` and
+community overlays in `overlays/` — both gitignored, independent Git repos.
 
-```
+```text
 yggdrasil/
-  ecosystem.yaml          # Central manifest — tiers, chart versions, values
+  ecosystem.yaml          # Upstream defaults (generic, no components)
   ecosystem.local.yaml    # Per-developer overrides (gitignored)
   components/
-    nordri/               # Cloned via ws-clone.sh
+    nordri/               # Cloned via ws clone
     mimir/
     ...
+  overlays/
+    overlay-yggdrasil-live/    # Community config (components, identity, adapters)
+    overlay-yggdrasil-template/ # Tutorial overlay
   scripts/
     ws                    # Unified CLI — run `ws help` for subcommands
-    ws-clone.sh           # Clone components from ecosystem.yaml
+    ws-overlay.sh         # Overlay management + shared config merge functions
+    ws-clone.sh           # Clone components from merged ecosystem config
     ws-status.sh          # Git status across workspace
     ws-pull.sh            # Pull all cloned components
     ws-list.sh            # List components and local status
@@ -50,6 +54,7 @@ yggdrasil/
     ws-vscode.sh          # Generate VS Code workspace file
 ```
 
+Config is three-layer merged: `ecosystem.yaml` → overlay → `ecosystem.local.yaml`.
 Use `bash scripts/ws list` to see what's declared and what's checked out locally.
 
 
@@ -57,9 +62,17 @@ Use `bash scripts/ws list` to see what's declared and what's checked out locally
 
 Use the `Skill` tool to load skills from `.agent/skills/<name>/SKILL.md`.
 
-## Co-Authored-By Trailer
+## Committing
 
-When committing, use this exact trailer format:
+**Always use `ws commit`** — never raw `git add` / `git commit`. The `ws commit`
+command handles file staging (via bodyfile `add:` frontmatter) and appends the
+Co-Authored-By trailer automatically. Write a bodyfile to `.commits/` and use:
+
+```bash
+bash scripts/ws commit <component> .commits/<name>.md
+```
+
+The Co-Authored-By trailer format (handled by `ws commit`):
 
 ```
 Co-Authored-By: Claude <model> <noreply@anthropic.com>

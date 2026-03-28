@@ -12,8 +12,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
 COMPONENTS_DIR="$ROOT_DIR/components"
+
+# Source shared overlay/merge functions
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 # Source .env if present (for GH_TOKEN)
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
@@ -22,6 +25,8 @@ if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
     exit 1
 fi
+
+ECO="$(ws_resolve_ecosystem)"
 
 clone_component() {
     local name="$1"
@@ -33,14 +38,19 @@ clone_component() {
     fi
 
     local disabled
-    disabled=$(yq ".components.$name.disabled // false" "$ECOSYSTEM")
+    disabled=$(yq ".components.$name.disabled // false" "$ECO")
     if [[ "$disabled" == "true" ]]; then
-        echo "SKIP: $name (disabled in ecosystem.yaml)"
+        echo "SKIP: $name (disabled)"
         return 0
     fi
 
     local git_org
-    git_org=$(yq '.defaults.gitOrg' "$ECOSYSTEM")
+    git_org=$(yq '.defaults.gitOrg // ""' "$ECO")
+    if [[ -z "$git_org" || "$git_org" == "null" ]]; then
+        echo "ERROR: defaults.gitOrg is not set in ecosystem config." >&2
+        echo "  Set it in your overlay's ecosystem.yaml." >&2
+        return 1
+    fi
     local repo_url="$git_org/$name.git"
 
     echo "CLONE: $name -> $target"
@@ -48,13 +58,19 @@ clone_component() {
 }
 
 if [[ "${1:-}" == "--all" ]]; then
-    for name in $(yq '.components | keys | .[]' "$ECOSYSTEM"); do
+    # Safety check: no components declared
+    comp_count=$(yq '.components | length' "$ECO" 2>/dev/null || echo 0)
+    if [[ "$comp_count" -eq 0 ]]; then
+        echo "No components declared." >&2
+        echo "  Run 'ws overlay init' to get started, or 'ws overlay <url>' for your community." >&2
+        exit 1
+    fi
+    for name in $(yq '.components | keys | .[]' "$ECO"); do
         clone_component "$name"
     done
 elif [[ -n "${1:-}" ]]; then
-    # Validate component exists in manifest
-    if [[ "$(yq ".components.${1} // \"missing\"" "$ECOSYSTEM")" == "missing" ]]; then
-        echo "ERROR: '$1' is not declared in ecosystem.yaml" >&2
+    if [[ "$(yq ".components.${1} // \"missing\"" "$ECO")" == "missing" ]]; then
+        echo "ERROR: '$1' is not declared in ecosystem config." >&2
         exit 1
     fi
     clone_component "$1"

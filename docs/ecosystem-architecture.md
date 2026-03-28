@@ -156,22 +156,56 @@ Two separate numbering schemes exist:
 
 ## Workspace Structure
 
-Component repos live inside yggdrasil under `components/`:
+Component repos live inside yggdrasil under `components/`. Community-specific
+configuration lives in overlay repos under `overlays/`.
 
-```
+```text
 yggdrasil/
-  ecosystem.yaml            # Manifest: components, tiers, chart versions, values
+  ecosystem.yaml            # Upstream defaults (generic, no components)
   ecosystem.local.yaml      # Per-developer overrides (gitignored)
   components/
     nordri/                  # Independent Git repo (gitignored)
     nidavellir/
     mimir/
-    vordu/
-    heimdall/
-    ymir/
+    ...
+  overlays/
+    overlay-yggdrasil-live/  # Community overlay (gitignored, independent repo)
+      ecosystem.yaml         # Components, identity, defaults
+      adapters/              # Per-component build/test commands
+    overlay-yggdrasil-template/  # Tutorial overlay
   .generated/
     applications/            # ArgoCD manifests from ws-resolve.sh (gitignored)
 ```
+
+### Three-Layer Config Merge
+
+Configuration is assembled from three layers, merged in order:
+
+```text
+ecosystem.yaml (upstream Yggdrasil — generic defaults)
+    ↓ deep merge
+overlay/ecosystem.yaml (community config — components, identity)
+    ↓ deep merge
+ecosystem.local.yaml (per-developer overrides)
+```
+
+All `ws` commands read the merged result. Overlays own the component list;
+upstream provides methodology and tooling.
+
+### Overlays
+
+An overlay is a small git repo containing community-specific configuration.
+Use `ws overlay` to manage them:
+
+```bash
+ws overlay init              # Clone the template overlay (tutorials)
+ws overlay <git-url>         # Clone a community overlay
+ws overlay list              # Show available overlays
+ws overlay use <name>        # Switch active overlay
+```
+
+See [overlay architecture design](plans/2026-03-26-overlay-architecture-design.md)
+for the full specification.
 
 ### Dual-Mode Source Resolution
 
@@ -189,8 +223,6 @@ Developers can override resolution per-component via `ecosystem.local.yaml`:
 - `forceChart: true` — use chart even when local source exists
 - Override `values:` for local environment specifics
 - Toggle `disabled` to include/exclude components
-
-See `ecosystem.yaml` for the full component inventory.
 
 ## Environments
 

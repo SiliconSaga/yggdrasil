@@ -94,11 +94,7 @@ git rebase siliconsaga/main
 grep -rn "^<<<<<<<" <files-that-conflicted>
 
 # 5. Force push (rebase rewrites history)
-# --force-with-lease is preferred but requires tracking refs.
-# ws push uses raw HTTPS URLs which don't maintain tracking,
-# so plain --force may be needed for now.
-source .env
-git push --force "https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/<repo>.git" <branch>
+bash scripts/ws push <component> --force
 ```
 
 ### Conflict resolution principles
@@ -118,6 +114,22 @@ git push --force "https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/<rep
 - **After code review fixes** — to pick up main changes before final push
 - **Not during active review** — avoid force-pushing while reviewers are
   mid-review (they lose their place). Coordinate with the human.
+
+### During review-fix cycles
+
+Once you've fetched and addressed review comments in a session, check
+for new findings before each subsequent push:
+
+```bash
+bash scripts/ws review <comp> <pr#> --since prev-push
+```
+
+Reviewers (especially automated ones like CodeRabbit) may post new
+comments between your pushes. Addressing them before pushing avoids
+a leapfrog cycle where each push triggers new review that you only
+see after the next push.
+
+This does not apply to pre-PR pushes — there's no PR to check against.
 
 ## After the PR is Merged
 

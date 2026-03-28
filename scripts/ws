@@ -21,6 +21,11 @@
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .prs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
+#   overlay init      Clone template overlay for tutorials
+#   overlay <url>     Clone a community overlay
+#   overlay use <name> Set active overlay
+#   overlay list      Show available overlays
+#   actions <comp>    List adapter commands for a component
 #   help              Show this help message
 #
 # For shorthand access, add to your shell profile:
@@ -31,8 +36,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
+OVERLAYS_DIR="$ROOT_DIR/overlays"
 COMPONENTS_DIR="$ROOT_DIR/components"
 COMPONENT_DIR=""  # Set by ws_validate_component
+
+# Source shared overlay/merge functions
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 # Validate a component name against ecosystem.yaml.
 # Usage: ws_validate_component <name>
@@ -46,7 +56,13 @@ ws_validate_component() {
         return 0
     fi
 
-    # Reject names that don't match safe pattern.
+    # Check if name is an overlay directory (uses broader name pattern)
+    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$OVERLAYS_DIR/$name/.git" ]]; then
+        COMPONENT_DIR="$OVERLAYS_DIR/$name"
+        return 0
+    fi
+
+    # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "ymir\nevil" (CVE-style bypass).
     if [[ ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
@@ -60,11 +76,13 @@ ws_validate_component() {
         exit 1
     fi
 
-    # Check component exists in ecosystem.yaml
+    # Check component exists in merged ecosystem config
+    local eco
+    eco="$(ws_resolve_ecosystem)"
     local exists
-    exists=$(yq ".components[\"$name\"] // \"missing\"" "$ECOSYSTEM")
+    exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
     if [[ "$exists" == "missing" ]]; then
-        echo "ERROR: '$name' is not declared in ecosystem.yaml." >&2
+        echo "ERROR: '$name' is not declared in ecosystem config." >&2
         echo "  Run 'ws list' to see available components." >&2
         exit 1
     fi
@@ -228,6 +246,7 @@ ws_commit() {
         echo "Bodyfile frontmatter (YAML between --- markers):"
         echo "  message:      Commit subject line (required in bodyfile mode)"
         echo "  add:          List of files to stage before committing"
+        echo "  remove:       List of deleted files to stage for removal"
         echo "  Frontmatter is stripped from the commit body automatically."
         echo ""
         echo "Examples:"
@@ -336,6 +355,10 @@ ws_commit() {
                 local add_files
                 add_files="$(echo "$frontmatter" | yq -r '.add // [] | .[]' 2>/dev/null)"
 
+                # Parse remove: list from frontmatter (for deleted files)
+                local remove_files
+                remove_files="$(echo "$frontmatter" | yq -r '.remove // [] | .[]' 2>/dev/null)"
+
                 if [[ -n "$add_files" ]]; then
                     echo "Staging files from bodyfile frontmatter..."
                     local add_fail=0
@@ -353,6 +376,17 @@ ws_commit() {
                         [[ -z "$f" ]] && continue
                         git add "$f"
                     done <<< "$add_files"
+                fi
+
+                # Stage deleted files from remove: list
+                if [[ -n "$remove_files" ]]; then
+                    echo "Staging removals from bodyfile frontmatter..."
+                    while IFS= read -r f; do
+                        [[ -z "$f" ]] && continue
+                        git rm --cached "$f" 2>/dev/null || git rm "$f" 2>/dev/null || {
+                            echo "WARNING: could not stage removal of $f" >&2
+                        }
+                    done <<< "$remove_files"
                 fi
             fi
         else
@@ -565,6 +599,12 @@ case "$COMMAND" in
         ;;
     exec)
         ws_exec "$@"
+        ;;
+    overlay)
+        bash "$SCRIPT_DIR/ws-overlay.sh" "$@"
+        ;;
+    actions)
+        bash "$SCRIPT_DIR/ws-overlay.sh" actions "$@"
         ;;
     *)
         echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2

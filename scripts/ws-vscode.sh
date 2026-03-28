@@ -11,18 +11,22 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
 COMPONENTS_DIR="$ROOT_DIR/components"
 OUTPUT="$ROOT_DIR/yggdrasil.code-workspace"
+
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1
 fi
 
+ECO="$(ws_resolve_ecosystem)"
+
 # Build folder list: yggdrasil root first, then cloned components
 folders='[{"path": "."}'
-for name in $(yq '.components | keys | .[]' "$ECOSYSTEM"); do
+for name in $(yq '.components | keys | .[]' "$ECO"); do
     if [[ -d "$COMPONENTS_DIR/$name/.git" ]]; then
         folders="$folders, {\"path\": \"components/$name\"}"
     fi

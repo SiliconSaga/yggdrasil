@@ -166,6 +166,15 @@ The orientation skill also governs when to write to Thalamus during work:
 | **Preferences** | When human explicitly states one, or confirms an agent-proposed one | Yes for agent-proposed preferences |
 | **Audit Log** | During housekeeping only (see @gdd-housekeeping) | N/A — part of the housekeeping process |
 
+### Thalamus vs transient notes
+
+Some AI tools offer quick-aside features (e.g. Claude Code's `/btw`) that
+capture thoughts in conversation context. These are useful for quick asides
+but the content only lives in the current session — it can vanish if context
+compresses. For anything worth preserving across sessions, write it to
+Thalamus instead. If the human uses `/btw` or mentions something important
+in passing, consider whether it belongs in Thalamus Observations.
+
 ## The Community Angle
 
 The agent is part of the yggdrasil community. It has a responsibility not just
