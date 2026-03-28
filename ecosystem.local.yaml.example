@@ -1,0 +1,30 @@
+# ecosystem.local.yaml — Per-developer overrides (gitignored)
+#
+# Copy this file to ecosystem.local.yaml and fill in your details.
+# This file is deep-merged on top of the overlay and upstream configs.
+#
+# Setup:
+#   cp ecosystem.local.yaml.example ecosystem.local.yaml
+#   # Edit the identity section below
+
+# Template overlay URL — used by `ws overlay init` to clone tutorial content.
+# Your community overlay may override this.
+defaults:
+  templateOverlay: https://github.com/SiliconSaga/overlay-yggdrasil-template.git
+
+# Your identity — used for commit attribution and PR/issue templates.
+# human_account is personal and should NOT be in shared overlay configs.
+identity:
+  human_account: your-github-username
+
+# Overlay selector — uncomment to override auto-detection.
+# overlay: overlay-yggdrasil-live
+
+# Component overrides — uncomment and modify as needed.
+# components:
+#   echo-test:
+#     disabled: false         # Enable to test chart resolution
+#   some-component:
+#     forceChart: true        # Use chart even with local source
+#     values:
+#       key: local-value

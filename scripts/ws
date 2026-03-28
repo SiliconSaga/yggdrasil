@@ -295,10 +295,21 @@ ws_commit() {
         bodyfile="${3:-}"
     fi
 
-    local model="${CLAUDE_MODEL:-Opus 4.6}"
-    # Sanitize model name — newlines would break the trailer format
-    model="${model%%$'\n'*}"
-    local trailer="Co-Authored-By: Claude $model <noreply@anthropic.com>"
+    # Build Co-Authored-By trailer from identity config
+    local eco
+    eco="$(ws_resolve_ecosystem)"
+    local co_authored_by
+    co_authored_by=$(yq '.identity.co_authored_by // ""' "$eco" 2>/dev/null)
+    if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
+        co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.6}"
+    fi
+    # Environment variable overrides config
+    if [[ -n "${CLAUDE_MODEL:-}" ]]; then
+        co_authored_by="Claude $CLAUDE_MODEL"
+    fi
+    # Sanitize — newlines would break the trailer format
+    co_authored_by="${co_authored_by%%$'\n'*}"
+    local trailer="Co-Authored-By: $co_authored_by <noreply@anthropic.com>"
 
     # Ensure .commits/ exists (may be first use on a fresh clone)
     mkdir -p "$ROOT_DIR/.commits"

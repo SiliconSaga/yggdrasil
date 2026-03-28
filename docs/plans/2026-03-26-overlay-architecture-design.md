@@ -75,9 +75,8 @@ defaults:
 
 identity:
   agent_account: agent-refr
-  human_account: Cervator
-  attribution: "Submitted via @{agent_account} on behalf of @{human_account}"
   co_authored_by: "Claude Opus 4.6"
+  # human_account is personal — set in ecosystem.local.yaml
 
 components:
   nordri:
@@ -207,12 +206,20 @@ ws_resolve_ecosystem() {
 All `ws` functions that read ecosystem config use the merged file via
 `ws_resolve_ecosystem()`. The temp file is cleaned up at script exit.
 
-### Identity and attribution *(not yet implemented)*
+### Identity and attribution
 
-`ws commit`, `ws pr`, and `ws issue` will read `identity` from the merged
-ecosystem config. Fields will use simple shell variable interpolation
-(`${agent_account}`). Environment variables override: if `CLAUDE_MODEL` is
-set, it takes precedence over `identity.co_authored_by`.
+`ws commit` reads `identity` from the merged ecosystem config:
+
+- `co_authored_by` → used in the `Co-Authored-By` git trailer
+- `agent_account` → shared, set in the overlay
+- `human_account` → personal, set in `ecosystem.local.yaml`
+
+Attribution is built at runtime from these fields. When `human_account`
+is unset, attribution omits the human reference. `CLAUDE_MODEL` env var
+overrides `co_authored_by` when set.
+
+`ws pr` and `ws issue` identity integration is planned but not yet
+implemented.
 
 ---
 
