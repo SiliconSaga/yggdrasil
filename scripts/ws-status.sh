@@ -9,8 +9,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
 COMPONENTS_DIR="$ROOT_DIR/components"
+
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 VERBOSE="${1:-}"
 
@@ -18,6 +20,8 @@ if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1
 fi
+
+ECO="$(ws_resolve_ecosystem)"
 
 # Status of yggdrasil itself
 echo "=== yggdrasil ==="
@@ -30,7 +34,7 @@ fi
 echo ""
 
 # Status of each component
-for name in $(yq '.components | keys | .[]' "$ECOSYSTEM"); do
+for name in $(yq '.components | keys | .[]' "$ECO"); do
     target="$COMPONENTS_DIR/$name"
     if [[ ! -d "$target/.git" ]]; then
         echo "=== $name === (not cloned)"

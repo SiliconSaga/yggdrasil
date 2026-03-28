@@ -204,10 +204,8 @@ ws_resolve_ecosystem() {
 }
 ```
 
-Core `ws` functions (`ws list`, `ws clone`, `ws_validate_component`) are
-updated to use the merged file. The temp file is cleaned up at script exit.
-Remaining callers (`ws status`, `ws resolve`) still read `$ECOSYSTEM`
-directly and will be migrated incrementally.
+All `ws` functions that read ecosystem config use the merged file via
+`ws_resolve_ecosystem()`. The temp file is cleaned up at script exit.
 
 ### Identity and attribution *(not yet implemented)*
 

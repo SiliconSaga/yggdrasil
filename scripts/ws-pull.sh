@@ -9,8 +9,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
 COMPONENTS_DIR="$ROOT_DIR/components"
+
+# shellcheck source=ws-overlay.sh
+source "$SCRIPT_DIR/ws-overlay.sh"
 
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
@@ -18,6 +20,8 @@ if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1
 fi
+
+ECO="$(ws_resolve_ecosystem)"
 
 pull_component() {
     local name="$1"
@@ -61,7 +65,7 @@ HAD_FAILURES=0
 if [[ -n "${1:-}" ]]; then
     pull_component "$1"
 else
-    for name in $(yq '.components | keys | .[]' "$ECOSYSTEM"); do
+    for name in $(yq '.components | keys | .[]' "$ECO"); do
         pull_component "$name"
     done
 fi

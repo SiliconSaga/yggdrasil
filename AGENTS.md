@@ -199,10 +199,7 @@ Configuration is assembled from three layers, merged in order:
 2. `overlays/<active>/ecosystem.yaml` — community overlay (components, identity)
 3. `ecosystem.local.yaml` — per-developer overrides (gitignored)
 
-Overlay-aware commands (`list`, `clone`, `overlay`, `actions`, `commit`,
-`push`, `log`) read the merged result via `ws_resolve_ecosystem()`.
-Legacy commands (`status`, `pull`, `resolve`, `vscode`) still read
-`ecosystem.yaml` directly and will be migrated incrementally.
+All `ws` commands read the merged result via `ws_resolve_ecosystem()`.
 
 `ecosystem.local.yaml` common uses:
 

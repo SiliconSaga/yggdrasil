@@ -189,10 +189,8 @@ overlay/ecosystem.yaml (community config — components, identity)
 ecosystem.local.yaml (per-developer overrides)
 ```
 
-Core `ws` commands (`list`, `clone`, `overlay`, `actions`) read the merged
-result. Legacy commands (`status`, `resolve`, `pull`, `vscode`) still read
-`ecosystem.yaml` directly and will be migrated incrementally. Overlays own
-the component list; upstream provides methodology and tooling.
+All `ws` commands read the merged result. Overlays own the component list;
+upstream provides methodology and tooling.
 
 ### Overlays
 
