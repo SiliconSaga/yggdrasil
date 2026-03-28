@@ -56,7 +56,13 @@ ws_validate_component() {
         return 0
     fi
 
-    # Reject names that don't match safe pattern.
+    # Check if name is an overlay directory (uses broader name pattern)
+    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$OVERLAYS_DIR/$name/.git" ]]; then
+        COMPONENT_DIR="$OVERLAYS_DIR/$name"
+        return 0
+    fi
+
+    # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "ymir\nevil" (CVE-style bypass).
     if [[ ! "$name" =~ ^[a-z][a-z0-9-]*$ ]]; then
@@ -70,35 +76,12 @@ ws_validate_component() {
         exit 1
     fi
 
-    # Check if name is an overlay directory
-    local is_overlay=false
-    if [[ -d "$OVERLAYS_DIR/$name/.git" ]]; then
-        is_overlay=true
-    fi
-
     # Check component exists in merged ecosystem config
     local eco
     eco="$(ws_resolve_ecosystem)"
-    local is_component=false
     local exists
     exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
-    if [[ "$exists" != "missing" ]]; then
-        is_component=true
-    fi
-
-    # Clash detection
-    if [[ "$is_component" == true && "$is_overlay" == true ]]; then
-        echo "ERROR: '$name' matches both a component and an overlay." >&2
-        echo "  Rename the overlay to avoid ambiguity." >&2
-        exit 1
-    fi
-
-    if [[ "$is_overlay" == true ]]; then
-        COMPONENT_DIR="$OVERLAYS_DIR/$name"
-        return 0
-    fi
-
-    if [[ "$is_component" != true ]]; then
+    if [[ "$exists" == "missing" ]]; then
         echo "ERROR: '$name' is not declared in ecosystem config." >&2
         echo "  Run 'ws list' to see available components." >&2
         exit 1
