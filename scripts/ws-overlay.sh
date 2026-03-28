@@ -80,7 +80,7 @@ ws_resolve_ecosystem() {
     local merged
     merged="$(mktemp)"
     if [[ -n "$overlay_file" ]]; then
-        yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' \
+        yq eval-all 'select(fileIndex == 0) *d select(fileIndex == 1)' \
             "$base" "$overlay_file" > "$merged"
     else
         cp "$base" "$merged"
@@ -88,7 +88,7 @@ ws_resolve_ecosystem() {
     if [[ -f "$local_file" ]]; then
         local tmp
         tmp="$(mktemp)"
-        yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' \
+        yq eval-all 'select(fileIndex == 0) *d select(fileIndex == 1)' \
             "$merged" "$local_file" > "$tmp"
         mv "$tmp" "$merged"
     fi
@@ -105,6 +105,11 @@ trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 
 # Guard: if sourced by another script, stop here — don't parse $1 as a command
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
+
+if ! command -v yq &>/dev/null; then
+    echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+    exit 1
+fi
 
 ws_overlay_help() {
     echo "Usage: ws overlay <subcommand>" >&2
@@ -250,7 +255,7 @@ ws_actions() {
     if [[ -n "$adapter_file" && -f "$adapter_file" ]]; then
         echo "Configured (from overlay):"
         local commands
-        commands=$(yq '.commands // {} | to_entries | .[] | "  " + .key + "    " + .value' "$adapter_file" 2>/dev/null)
+        commands=$(yq -r '.commands // {} | to_entries | .[] | "  " + .key + "    " + .value' "$adapter_file" 2>/dev/null)
         if [[ -n "$commands" ]]; then
             echo "$commands"
             has_configured=1

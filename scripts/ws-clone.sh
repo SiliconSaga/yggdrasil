@@ -45,7 +45,12 @@ clone_component() {
     fi
 
     local git_org
-    git_org=$(yq '.defaults.gitOrg' "$ECO")
+    git_org=$(yq '.defaults.gitOrg // ""' "$ECO")
+    if [[ -z "$git_org" || "$git_org" == "null" ]]; then
+        echo "ERROR: defaults.gitOrg is not set in ecosystem config." >&2
+        echo "  Set it in your overlay's ecosystem.yaml." >&2
+        return 1
+    fi
     local repo_url="$git_org/$name.git"
 
     echo "CLONE: $name -> $target"
