@@ -125,6 +125,18 @@ ws_overlay_help() {
 }
 
 ws_overlay_init() {
+    # Copy ecosystem.local.yaml.example if no local config exists.
+    # Must happen BEFORE ws_resolve_ecosystem — the example file contains
+    # defaults.templateOverlay which the merge needs to find.
+    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local example_file="$ROOT_DIR/ecosystem.local.yaml.example"
+    if [[ ! -f "$local_file" && -f "$example_file" ]]; then
+        cp "$example_file" "$local_file"
+        echo "Created ecosystem.local.yaml from example."
+        echo "  Edit it to set your identity.human_account."
+        echo ""
+    fi
+
     local eco
     eco="$(ws_resolve_ecosystem)"
     local template_url
@@ -133,16 +145,6 @@ ws_overlay_init() {
         echo "ERROR: No template overlay URL configured." >&2
         echo "  Set defaults.templateOverlay in ecosystem.local.yaml or your overlay." >&2
         exit 1
-    fi
-
-    # Copy ecosystem.local.yaml.example if no local config exists
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
-    local example_file="$ROOT_DIR/ecosystem.local.yaml.example"
-    if [[ ! -f "$local_file" && -f "$example_file" ]]; then
-        cp "$example_file" "$local_file"
-        echo "Created ecosystem.local.yaml from example."
-        echo "  Edit it to set your identity.human_account."
-        echo ""
     fi
 
     local target="$OVERLAYS_DIR/overlay-yggdrasil-template"
