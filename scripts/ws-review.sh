@@ -150,7 +150,7 @@ review_comments() {
     echo "=== Reviews ==="
     local reviews
     reviews=$(gh api "repos/$REPO_SLUG/pulls/$pr_num/reviews" \
-        --jq ".[] | $review_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \": \" + (.[0:200]) else \"\" end)\"" 2>/dev/null)
+        --jq ".[] | $review_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \":\n\" + . else \"\" end)\n\"" 2>/dev/null)
     if [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
