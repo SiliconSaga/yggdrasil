@@ -71,15 +71,15 @@ Feature: <Capability name>
 Feature with scenarios (see Writing Scenarios section):
 ```gherkin
 Feature: <Capability name>
-  As a <actor>
-  I want to <action>
-  So that <benefit>
 
   Scenario: <Outcome description>
     Given <context>
     When <action>
     Then <observable result>
 ```
+
+The `As a / I want / So that` narrative is optional. Some components
+use it, others don't. Match the existing style in the component.
 
 ### 4. Commit
 
