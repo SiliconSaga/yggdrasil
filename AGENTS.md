@@ -78,6 +78,8 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 | **GDD Autonomous Mode** | Permission-bounded independent work with reviewable increments | [SKILL.md](./.agent/skills/gdd-autonomous/SKILL.md) |
 | **BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
 | **ArgoCD Bootstrap on K3d** | Bootstrapping ArgoCD app-of-apps on k3d, CRD chicken-and-egg fixes, portable shell scripts | [SKILL.md](./.agent/skills/argocd-bootstrap-on-k3d/SKILL.md) |
+| **BDD** | Write and organize BDD feature files — planning features, scenarios, and conventions | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
+| **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/bdd-pytest/SKILL.md) |
 | **Crossplane on K3d** | Guide for configuring Crossplane in local K3d clusters | [SKILL.md](./.agent/skills/crossplane-on-k3d/SKILL.md) |
 | **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/creating-github-issues/SKILL.md) |
 | **KUTTL Testing** | Guidelines for writing and running KUTTL tests | [SKILL.md](./.agent/skills/kuttl-testing/SKILL.md) |
