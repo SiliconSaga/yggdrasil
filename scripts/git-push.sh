@@ -36,7 +36,15 @@ if [[ "${1:-}" == "--force" ]]; then
 fi
 
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
-REPO=$(git remote get-url siliconsaga 2>/dev/null | sed 's|.*/||; s|\.git$||')
+
+# Find the SiliconSaga remote (case-insensitive)
+REMOTE_NAME=$(git remote | grep -i '^siliconsaga$' | head -1)
+if [[ -z "$REMOTE_NAME" ]]; then
+  echo "ERROR: No 'siliconsaga' remote found (checked case-insensitive)." >&2
+  echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
+  exit 1
+fi
+REPO=$(git remote get-url "$REMOTE_NAME" 2>/dev/null | sed 's|.*/||; s|\.git$||')
 
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then

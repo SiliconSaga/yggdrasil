@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-# git-pr.sh — open a pull request from the current branch to main
+# git-pr.sh — open a pull request from the current branch
 #
-# Usage: git-pr.sh TITLE BODYFILE
-#   TITLE    — PR title, e.g. 'feat: add topic branch workflow scripts'
-#   BODYFILE — path to markdown file containing the PR body
+# Usage: git-pr.sh [--upstream] TITLE BODYFILE
+#   --upstream — target the upstream (non-SiliconSaga) remote instead of the fork.
+#                Creates a cross-fork PR: SiliconSaga:branch → upstream:base.
+#   TITLE     — PR title, e.g. 'feat: add topic branch workflow scripts'
+#   BODYFILE  — path to markdown file containing the PR body
+#
+# Without --upstream, targets the SiliconSaga fork repo with --base main.
+# With --upstream, auto-detects the upstream remote and targets its default branch.
 #
 # Draft files live in .prs/ (gitignored, auto-created).
 # Copy .agent/pr-template.md to .prs/<descriptive-name>.md to start a draft.
 #
 # Sources .env automatically. Run from the repo the branch belongs to.
-#
-# Example:
-#   cp .agent/pr-template.md .prs/git-workflow-scripts.md
-#   # ... fill in content ...
-#   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-pr.sh \
-#     "feat: add git workflow scripts" .prs/git-workflow-scripts.md
 
 set -euo pipefail
 
@@ -32,10 +31,25 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
   fi
 fi
 
+# Parse --upstream flag
+UPSTREAM=""
+if [[ "${1:-}" == "--upstream" ]]; then
+  UPSTREAM="1"
+  shift
+fi
+
 TITLE="${1:-}"
 BODYFILE="${2:-}"
 
-REPO=$(git remote get-url siliconsaga 2>/dev/null | sed 's|.*/||; s|\.git$||')
+# Find the SiliconSaga remote (case-insensitive)
+FORK_REMOTE=$(git remote | grep -i '^siliconsaga$' | head -1)
+if [[ -z "$FORK_REMOTE" ]]; then
+  echo "ERROR: No 'siliconsaga' remote found (checked case-insensitive)." >&2
+  echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
+  exit 1
+fi
+FORK_REPO=$(git remote get-url "$FORK_REMOTE" 2>/dev/null | sed 's|.*github.com[:/]||; s|\.git$||')
+
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
@@ -43,7 +57,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 mkdir -p "$REPO_ROOT/.prs"
 
 if [[ -z "$TITLE" || -z "$BODYFILE" ]]; then
-  echo "Usage: $0 TITLE BODYFILE" >&2
+  echo "Usage: $0 [--upstream] TITLE BODYFILE" >&2
   exit 1
 fi
 
@@ -52,19 +66,50 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
-if [[ "$BRANCH" == "main" ]]; then
-  echo "ERROR: current branch is 'main' — check out a topic branch first" >&2
+if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
+  echo "ERROR: current branch is '$BRANCH' — check out a topic branch first" >&2
   exit 1
 fi
 
-echo "Opening PR for $REPO/$BRANCH → main"
-echo "  Title: $TITLE"
-echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
-echo ""
+if [[ -n "$UPSTREAM" ]]; then
+  # Cross-fork PR: find the upstream (non-SiliconSaga) remote
+  UPSTREAM_REMOTE=""
+  for remote in $(git remote); do
+    if [[ "$(echo "$remote" | tr '[:upper:]' '[:lower:]')" != "siliconsaga" ]]; then
+      UPSTREAM_REMOTE="$remote"
+      break
+    fi
+  done
+  if [[ -z "$UPSTREAM_REMOTE" ]]; then
+    echo "ERROR: No upstream remote found (only SiliconSaga exists)." >&2
+    exit 1
+  fi
+  UPSTREAM_REPO=$(git remote get-url "$UPSTREAM_REMOTE" 2>/dev/null | sed 's|.*github.com[:/]||; s|\.git$||')
 
-gh pr create \
-  --repo "SiliconSaga/$REPO" \
-  --base main \
-  --head "$BRANCH" \
-  --title "$TITLE" \
-  --body-file "$BODYFILE"
+  # Detect the default branch of the upstream repo
+  UPSTREAM_DEFAULT=$(gh api "repos/$UPSTREAM_REPO" --jq '.default_branch' 2>/dev/null || echo "main")
+
+  echo "Opening cross-fork PR: $FORK_REPO:$BRANCH → $UPSTREAM_REPO:$UPSTREAM_DEFAULT"
+  echo "  Title: $TITLE"
+  echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
+  echo ""
+
+  gh pr create \
+    --repo "$UPSTREAM_REPO" \
+    --base "$UPSTREAM_DEFAULT" \
+    --head "SiliconSaga:$BRANCH" \
+    --title "$TITLE" \
+    --body-file "$BODYFILE"
+else
+  echo "Opening PR for $FORK_REPO/$BRANCH → main"
+  echo "  Title: $TITLE"
+  echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
+  echo ""
+
+  gh pr create \
+    --repo "$FORK_REPO" \
+    --base main \
+    --head "$BRANCH" \
+    --title "$TITLE" \
+    --body-file "$BODYFILE"
+fi
