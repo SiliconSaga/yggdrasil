@@ -13,6 +13,8 @@ close supervision. A methodology that serves one can serve both.
 
 GDD grew out of open-source community work, where contributors range from experienced maintainers to first-time coders, and where AI is reshaping how people learn and contribute. As traditional mentorship paths erode — in both OSS and commercial settings — GDD is an attempt to put something helpful out there: a way for humans and AI to collaborate productively, where the AI teaches alongside generating, and the framework keeps everyone safe while they learn.
 
+It also encourages what researchers call the "cyborg" approach to AI collaboration ([Bhargava, 2026](https://www.businessinsider.com/ai-impact-on-thinking-cognitive-skills-researcher-2026-3); [Mollick, 2023](https://www.oneusefulthing.org/p/centaurs-and-cyborgs-on-the-jagged)) — rather than outsourcing thinking to AI or using it as an echo chamber, you develop an iterative back-and-forth where both human and agent build on each other's contributions. The [Thalamus](thalamus.md) serves as shared working memory for this collaboration. This has been the author's experience while developing the framework.
+
 The name "Guardian" reflects this protective intent. The AI isn't just a code generator — it's a patient collaborator that explains its reasoning, flags risks, and helps people grow. In a world where it's tempting to use AI purely as a throughput amplifier, GDD asks: what if we also used it to make the experience of building software more human?
 
 ## Key Concepts
