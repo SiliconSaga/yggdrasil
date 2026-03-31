@@ -75,6 +75,11 @@ if ! grep -q 'AI-assisted issue' "$BODYFILE"; then
   exit 1
 fi
 
+# Substitute @HUMAN_ACCOUNT placeholder in a temp copy of the body file
+RESOLVED_BODY=$(mktemp)
+trap 'rm -f "$RESOLVED_BODY"' EXIT
+sed "s/@HUMAN_ACCOUNT/@${HUMAN_ACCOUNT}/g" "$BODYFILE" > "$RESOLVED_BODY"
+
 # Resolve org/repo from the remote URL (case-insensitive remote lookup)
 REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1)
 if [[ -z "$REMOTE_NAME" ]]; then
@@ -103,4 +108,4 @@ gh issue create \
   --repo "$TARGET_REPO" \
   --title "$TITLE" \
   --label "$LABEL" \
-  --body-file "$BODYFILE"
+  --body-file "$RESOLVED_BODY"

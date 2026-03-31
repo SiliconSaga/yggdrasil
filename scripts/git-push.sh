@@ -44,7 +44,9 @@ if [[ -z "$REMOTE_NAME" ]]; then
   echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
   exit 1
 fi
-REPO=$(git remote get-url "$REMOTE_NAME" 2>/dev/null | sed 's|.*/||; s|\.git$||')
+ORG_REPO=$(git remote get-url "$REMOTE_NAME" 2>/dev/null | sed 's|.*github.com[:/]||; s|\.git$||')
+ORG="${ORG_REPO%/*}"
+REPO="${ORG_REPO##*/}"
 
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
@@ -55,12 +57,12 @@ fi
 # Push via explicit HTTPS URL to bypass any global url.insteadOf SSH rewrite
 # (GitKraken sets url."git@github.com:".insteadOf=https://github.com/ in ~/.gitconfig,
 #  which redirects all https:// remotes to SSH — the embedded-token URL avoids this.)
-PUSH_URL="https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/${REPO}.git"
+PUSH_URL="https://x-access-token:${GH_TOKEN}@github.com/${ORG}/${REPO}.git"
 
 if [[ -n "$FORCE" ]]; then
-  echo "Force pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
+  echo "Force pushing ${ORG}/${REPO}/$BRANCH → $REMOTE_NAME (HTTPS)"
   git push --force "$PUSH_URL" "$BRANCH"
 else
-  echo "Pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
+  echo "Pushing ${ORG}/${REPO}/$BRANCH → $REMOTE_NAME (HTTPS)"
   git push "$PUSH_URL" "$BRANCH"
 fi

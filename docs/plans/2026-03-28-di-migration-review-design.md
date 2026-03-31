@@ -15,7 +15,7 @@ Review comments exist from:
 - **BSA (BenjaminAmos)** — PR author, 14 inline comments on #5299 (high signal)
 - **Copilot** — 3 blocking findings, no inline comments
 - **CodeRabbit** — 17 inline comments (not yet triaged)
-- **BSA on PR #5304** — secondary PR (Gemini-generated, low quality code but
+- **BSA on PR #5304** — secondary PR (Gemini-generated, low-quality code but
   useful review discussion, especially around DI patterns and test conventions)
 
 Review threads on PR #5299 will NOT be resolved — kept for future reference.
