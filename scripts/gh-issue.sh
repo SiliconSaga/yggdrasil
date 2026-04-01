@@ -77,7 +77,7 @@ fi
 
 # Substitute @HUMAN_ACCOUNT placeholder in a temp copy of the body file
 RESOLVED_BODY=$(mktemp)
-trap 'rm -f "$RESOLVED_BODY"' EXIT
+trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 sed "s/@HUMAN_ACCOUNT/@${HUMAN_ACCOUNT}/g" "$BODYFILE" > "$RESOLVED_BODY"
 
 # Resolve org/repo from the remote URL (case-insensitive remote lookup)

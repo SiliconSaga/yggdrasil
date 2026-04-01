@@ -48,6 +48,12 @@ ORG_REPO=$(git remote get-url "$REMOTE_NAME" 2>/dev/null | sed 's|.*github.com[:
 ORG="${ORG_REPO%/*}"
 REPO="${ORG_REPO##*/}"
 
+if [[ -z "$ORG" || -z "$REPO" || "$ORG_REPO" != */* ]]; then
+  echo "ERROR: Could not parse org/repo from remote '$REMOTE_NAME' URL." >&2
+  echo "  Got: $ORG_REPO" >&2
+  exit 1
+fi
+
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
   echo "ERROR: Refusing to force-push to $BRANCH. This is almost certainly a mistake." >&2
