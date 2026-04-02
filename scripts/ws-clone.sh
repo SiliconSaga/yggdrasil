@@ -30,6 +30,14 @@ if ! command -v yq &>/dev/null; then
     exit 1
 fi
 
+# Extract org name from a Git URL for use as the remote name.
+# e.g., https://github.com/MovingBlocks/repo.git -> MovingBlocks
+#       git@github.com:SiliconSaga/repo.git -> SiliconSaga
+remote_name_from_url() {
+    local url="$1"
+    echo "$url" | sed 's|.*github.com[:/]||; s|/.*||'
+}
+
 clone_component() {
     local name="$1"
     local eco="$2"
@@ -60,8 +68,11 @@ clone_component() {
         repo_url="$git_org/$name.git"
     fi
 
-    echo "CLONE: $name -> $target"
-    git clone "$repo_url" "$target"
+    local remote
+    remote=$(remote_name_from_url "$repo_url")
+
+    echo "CLONE: $name -> $target (remote: $remote)"
+    git clone --origin "$remote" "$repo_url" "$target"
 }
 
 clone_url() {
@@ -93,8 +104,11 @@ clone_url() {
         return 0
     fi
 
-    echo "CLONE: $url -> $target"
-    git clone "$url" "$target"
+    local remote
+    remote=$(remote_name_from_url "$url")
+
+    echo "CLONE: $url -> $target (remote: $remote)"
+    git clone --origin "$remote" "$url" "$target"
 
     if [[ "$add_eco" == "true" ]]; then
         local local_config="$ROOT_DIR/ecosystem.local.yaml"
