@@ -1,32 +1,17 @@
 #!/usr/bin/env bash
-# git-push.sh — push a branch to the siliconsaga remote
+# git-push.sh — push a branch to a named remote
 #
 # Usage: git-push.sh [--force] [branch]
 #   --force — force push (for rebased branches). Refuses to force-push main/master.
 #   branch  — branch to push (default: current branch)
 #
-# Sources .env automatically. Run from any workspace repo directory.
+# Auth is handled by the system credential helper (credential.helper=manager
+# on Windows, osxkeychain on macOS, or gh/glab auth). No token needed here.
 #
-# Example:
-#   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh
-#   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh feat/my-feature
-#   /Users/cervator/dev/git_ws/yggdrasil/scripts/git-push.sh --force feat/my-feature
+# The target remote is detected by finding a non-origin remote whose name
+# matches the org (case-insensitive). Override by setting GIT_PUSH_REMOTE.
 
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
-
-if [[ -z "${GH_TOKEN:-}" ]]; then
-  if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck source=/dev/null
-    source "$ENV_FILE"
-  else
-    echo "ERROR: GH_TOKEN not set and $ENV_FILE not found" >&2
-    echo "  Create it from .env.example or set GH_TOKEN in your environment." >&2
-    exit 1
-  fi
-fi
 
 # Parse --force flag
 FORCE=""
@@ -37,22 +22,31 @@ fi
 
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 
-# Find the SiliconSaga remote (case-insensitive)
-REMOTE_NAME=$(git remote | grep -i '^siliconsaga$' | head -1)
+# Find the push remote.
+# If GIT_PUSH_REMOTE is set, use that. Otherwise, pick the first remote
+# that isn't literally "origin" (our convention: remotes are named after orgs).
+if [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
+  REMOTE_NAME="$GIT_PUSH_REMOTE"
+else
+  REMOTE_NAME=""
+  for r in $(git remote); do
+    if [[ "$(echo "$r" | tr '[:upper:]' '[:lower:]')" != "origin" ]]; then
+      REMOTE_NAME="$r"
+      break
+    fi
+  done
+fi
+
 if [[ -z "$REMOTE_NAME" ]]; then
-  echo "ERROR: No 'siliconsaga' remote found (checked case-insensitive)." >&2
+  echo "ERROR: No named remote found (only 'origin' exists)." >&2
+  echo "  Name your remote after the org: git remote rename origin <orgname>" >&2
+  echo "  Or set GIT_PUSH_REMOTE=<remote-name>." >&2
   echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
   exit 1
 fi
-ORG_REPO=$(git remote get-url "$REMOTE_NAME" 2>/dev/null | sed 's|.*github.com[:/]||; s|\.git$||')
-ORG="${ORG_REPO%/*}"
-REPO="${ORG_REPO##*/}"
 
-if [[ -z "$ORG" || -z "$REPO" || "$ORG_REPO" != */* ]]; then
-  echo "ERROR: Could not parse org/repo from remote '$REMOTE_NAME' URL." >&2
-  echo "  Got: $ORG_REPO" >&2
-  exit 1
-fi
+REMOTE_URL=$(git remote get-url "$REMOTE_NAME" 2>/dev/null || echo "")
+ORG_REPO=$(echo "$REMOTE_URL" | sed 's|.*[:/]\([^/]*/[^/]*\)$|\1|; s|\.git$||')
 
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
@@ -60,15 +54,10 @@ if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
   exit 1
 fi
 
-# Push via explicit HTTPS URL to bypass any global url.insteadOf SSH rewrite
-# (GitKraken sets url."git@github.com:".insteadOf=https://github.com/ in ~/.gitconfig,
-#  which redirects all https:// remotes to SSH — the embedded-token URL avoids this.)
-PUSH_URL="https://x-access-token:${GH_TOKEN}@github.com/${ORG}/${REPO}.git"
-
 if [[ -n "$FORCE" ]]; then
-  echo "Force pushing ${ORG}/${REPO}/$BRANCH → $REMOTE_NAME (HTTPS)"
-  git push --force "$PUSH_URL" "$BRANCH"
+  echo "Force pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
+  git push --force "$REMOTE_NAME" "$BRANCH"
 else
-  echo "Pushing ${ORG}/${REPO}/$BRANCH → $REMOTE_NAME (HTTPS)"
-  git push "$PUSH_URL" "$BRANCH"
+  echo "Pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
+  git push "$REMOTE_NAME" "$BRANCH"
 fi
