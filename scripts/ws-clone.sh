@@ -47,14 +47,18 @@ clone_component() {
         return 0
     fi
 
-    local git_org
-    git_org=$(yq '.defaults.gitOrg // ""' "$eco")
-    if [[ -z "$git_org" || "$git_org" == "null" ]]; then
-        echo "ERROR: defaults.gitOrg is not set in ecosystem config." >&2
-        echo "  Set it in your overlay's ecosystem.yaml." >&2
-        return 1
+    # Prefer explicit repo URL if set, otherwise build from gitOrg
+    local repo_url
+    repo_url=$(yq ".components[\"$name\"].repo // \"\"" "$eco")
+    if [[ -z "$repo_url" || "$repo_url" == "null" ]]; then
+        local git_org
+        git_org=$(yq '.defaults.gitOrg // ""' "$eco")
+        if [[ -z "$git_org" || "$git_org" == "null" ]]; then
+            echo "ERROR: No repo URL or defaults.gitOrg set for '$name'." >&2
+            return 1
+        fi
+        repo_url="$git_org/$name.git"
     fi
-    local repo_url="$git_org/$name.git"
 
     echo "CLONE: $name -> $target"
     git clone "$repo_url" "$target"
@@ -76,7 +80,7 @@ clone_url() {
         echo "  Use --name <name> to specify one." >&2
         exit 1
     fi
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z][a-z0-9-]*[a-z0-9])*$ ]]; then
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Derived name '$name' is not a valid component name." >&2
         echo "  Use --name <name> to specify a valid one (lowercase, alphanumeric, hyphens, dots)." >&2
         exit 1
@@ -106,9 +110,10 @@ clone_url() {
             fi
         fi
 
-        # Add component entry
+        # Add component entry with repo URL for future re-cloning
         yq -i ".components[\"$name\"].tier = \"supporting\"" "$local_config"
-        echo "ADDED: $name to ecosystem.local.yaml (tier: supporting)"
+        yq -i ".components[\"$name\"].repo = \"$url\"" "$local_config"
+        echo "ADDED: $name to ecosystem.local.yaml (tier: supporting, repo: $url)"
         echo "  Edit $local_config to adjust tier or add config."
     else
         echo ""

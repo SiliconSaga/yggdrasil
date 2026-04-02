@@ -65,7 +65,7 @@ ws_validate_component() {
     # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "ymir\nevil" (CVE-style bypass).
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z][a-z0-9-]*[a-z0-9])*$ ]]; then
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Invalid component name '$name'. Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
         exit 1
     fi
