@@ -1,13 +1,36 @@
 ---
 name: bdd
-description: Write and organize BDD feature files — planning features, scenarios, conventions, and bridging to implementation
+description: >
+  Behavior Driven Development practice skill. Guides writing Gherkin scenarios,
+  placing .feature files, and bridging to implementation via runner sub-skills
+  and TDD. Use when writing scenarios, planning features, implementing step
+  definitions, or setting up BDD infrastructure in any component.
 ---
 
-# BDD — Behavior-Driven Development
+# BDD (Behavior Driven Development)
 
-Write well-structured `.feature` files for any component in the workspace.
-A feature file without scenarios is a valid deliverable — it declares
-planned work. Scenarios mean implementation has started.
+BDD scenarios are the universal unit of work in GDD. Every role can
+participate at some stage of the pipeline. A feature file without scenarios
+is a valid deliverable — it declares planned work. Scenarios mean
+implementation has started.
+
+## The Scenario Pipeline
+
+```text
+Write scenario          File issue           Implement & PR
+(Given/When/Then)  →   (GitHub issue)    →  (code + step defs)
+     ↓                      ↓                     ↓
+Anyone can do this    Manual or future       Developer or AI agent
+                      automation             picks it up
+                      (@creating-github-issues)
+     ↓                      ↓                     ↓
+Stored as .feature    Tagged & labeled      Vordu shows progress
+in the component      "good first issue"    on the roadmap
+```
+
+Each stage is independently useful. Writing a scenario is a complete
+contribution even if nobody implements it for weeks. Writing a feature
+without scenarios is a complete contribution — it makes the work visible.
 
 ## When to Use
 
@@ -15,7 +38,7 @@ planned work. Scenarios mean implementation has started.
 - User asks to write a `.feature` file or BDD scenario
 - User asks to add a capability or feature to a component
 - You are about to implement a new feature and no `.feature` file exists
-- GDD orchestrator (future) delegates here
+- GDD orchestrator delegates here
 
 **Do not use for:**
 - Running existing tests (use runner sub-skill or `ws test`)
@@ -23,10 +46,10 @@ planned work. Scenarios mean implementation has started.
 - Vordu roadmap tagging (future `bdd-vordu` sub-skill)
 
 **Progressive depth:** Read only as far as needed.
-- Section 2 (Feature Authoring) — always read
-- Section 3 (Writing Scenarios) — only when scenarios are needed
-- Section 4 (Bridging to Implementation) — only when moving to code
-- Section 5 (Session Retrospective) — suggested at end of session
+- Feature Authoring — always read
+- Writing Scenarios — only when scenarios are needed
+- Bridging to Implementation — only when moving to code
+- Session Retrospective — suggested at end of session
 
 ---
 
@@ -53,6 +76,7 @@ Match the voice, step phrasing, and structure.
 - Python: `tests/features/<name>.feature`
 - Go: `features/<name>.feature`
 - Java: `src/test/resources/features/<name>.feature`
+- Infrastructure (kuttl): `tests/e2e/` per @kuttl-testing conventions
 - Some components use subdirectories by subsystem — match what's there
 - Naming: `kebab-case.feature`
 
@@ -107,8 +131,23 @@ Before writing new scenarios:
 - **Name describes the outcome:** "Over-band offer without VP approval
   is denied" — not "Test policy with high salary"
 - **Given** = state/context, **When** = action, **Then** = observable outcome
-- **Domain language, not implementation:** "When the policy is evaluated"
-  — not "When I POST to /evaluate"
+- **Declarative, not imperative** — describe *what*, not *how*
+- **Business language** — scenarios should be readable by non-developers
+- **Concrete examples** — use specific values, not abstractions
+
+```gherkin
+# Good — declarative, specific, domain language
+Scenario: Expired session redirects to login
+  Given a user with an expired session token
+  When they request the dashboard
+  Then they are redirected to the login page
+
+# Bad — imperative, implementation-leaking
+Scenario: Test login redirect
+  Given I set the cookie "session" to "expired-token-123"
+  When I send a GET request to "/api/dashboard"
+  Then I receive a 302 status code with Location header "/login"
+```
 
 ### Anti-patterns
 
@@ -137,19 +176,49 @@ implement step definitions and production code.
 Check the component's project files:
 - `pyproject.toml` or `requirements.txt` with `pytest-bdd`
   → activate `bdd-pytest` sub-skill
+- `go.mod` with `godog` → use godog conventions (see below)
+- Infrastructure components → see @kuttl-testing skill
 - `pom.xml` or `build.gradle` with `cucumber`
   → activate `bdd-java` sub-skill (future)
 - Nothing detected → ask the user
 
+### Quick runner reference
+
+**Go (godog):**
+```bash
+godog ./features/              # all scenarios
+godog ./features/auth.feature  # specific feature
+godog --tags="@smoke"          # by tag
+```
+Step definitions go in `*_test.go` files alongside features or in `steps/`.
+
+**Python (pytest-bdd):** See the `bdd-pytest` sub-skill for full guidance.
+
+**Infrastructure (kuttl):** See @kuttl-testing for conventions. KUTTL uses
+directory-based structure rather than `.feature` files.
+
 ### Hand off to TDD
 
 Once step definitions exist, production code follows. Hand off to
-the TDD skill (superpowers:test-driven-development):
+the TDD skill:
 
 > Scenarios define WHAT should happen. TDD implements HOW.
 > Each scenario becomes a failing test to drive implementation.
 
 The BDD skill does not manage red-green-refactor. That's TDD's job.
+
+---
+
+## Session Sizing
+
+What's achievable in a given time window:
+
+| Time | Suggested Activity |
+|------|--------------------|
+| 15 min | Write a planning feature or 1-2 scenarios |
+| 30 min | Write scenarios + implement step definitions for one feature |
+| 45 min | End-to-end: scenarios → issue → implementation → PR |
+| 2+ hours | Multiple features, runner setup, CI integration |
 
 ---
 
@@ -177,3 +246,12 @@ modified in this session.
 
 **Output:** 3-5 bullet points of observations. The user decides
 whether to act on any of it.
+
+---
+
+## Relationship to Other Skills
+
+- **@creating-github-issues** — convert a scenario into a GitHub issue
+- **@kuttl-testing** — infrastructure BDD uses kuttl conventions
+- **@bdd-pytest** — pytest-bdd runner sub-skill (step defs, execution)
+- **@gdd** — BDD is a practice skill in the GDD hierarchy
