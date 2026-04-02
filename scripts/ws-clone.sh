@@ -33,9 +33,16 @@ fi
 # Extract org name from a Git URL for use as the remote name.
 # e.g., https://github.com/MovingBlocks/repo.git -> MovingBlocks
 #       git@github.com:SiliconSaga/repo.git -> SiliconSaga
+#       https://gitlab.com/MyOrg/repo.git -> MyOrg
 remote_name_from_url() {
     local url="$1"
-    echo "$url" | sed 's|.*github.com[:/]||; s|/.*||'
+    if [[ "$url" =~ ^https?://[^/]+/([^/]+)/ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    elif [[ "$url" =~ ^git@[^:]+:([^/]+)/ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo "origin"
+    fi
 }
 
 # Redact credentials from a URL for safe logging.
