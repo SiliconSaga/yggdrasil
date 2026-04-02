@@ -74,6 +74,7 @@ clone_component() {
     if [[ -z "$repo_url" || "$repo_url" == "null" ]]; then
         local git_org
         git_org=$(yq '.defaults.gitOrg // ""' "$eco")
+        git_org="${git_org%/}"
         if [[ -z "$git_org" || "$git_org" == "null" ]]; then
             echo "ERROR: No repo URL or defaults.gitOrg set for '$name'." >&2
             return 1
