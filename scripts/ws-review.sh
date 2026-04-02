@@ -439,8 +439,8 @@ COMP="$1"
 shift
 
 # Validate component name (same regex as ws_validate_component)
-if [[ ! "$COMP" =~ ^[a-z][a-z0-9-]*$ ]]; then
-    echo "ERROR: Invalid component name '$COMP'. Must match [a-z][a-z0-9-]*." >&2
+if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    echo "ERROR: Invalid component name '$COMP'. Must be lowercase alphanumeric with hyphens/dots." >&2
     exit 1
 fi
 

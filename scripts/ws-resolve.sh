@@ -47,23 +47,30 @@ resolve_component() {
     local name="$1"
 
     local disabled
-    disabled=$(yq ".components.$name.disabled // false" "$EFFECTIVE_FILE")
+    disabled=$(yq ".components[\"$name\"].disabled // false" "$EFFECTIVE_FILE")
     if [[ "$disabled" == "true" ]]; then
         echo "SKIP: $name (disabled)"
         return 0
     fi
 
     local tier namespace chart_version chart_name path sync_wave force_chart values_yaml
-    tier=$(yq ".components.$name.tier" "$EFFECTIVE_FILE")
-    namespace=$(yq ".components.$name.namespace // \"$name\"" "$EFFECTIVE_FILE")
-    chart_version=$(yq ".components.$name.chartVersion // \"0.0.0\"" "$EFFECTIVE_FILE")
-    chart_name=$(yq ".components.$name.chartName // \"$name\"" "$EFFECTIVE_FILE")
-    path=$(yq ".components.$name.path // \".\"" "$EFFECTIVE_FILE")
-    sync_wave=$(yq ".components.$name.syncWave // \"0\"" "$EFFECTIVE_FILE")
-    force_chart=$(yq ".components.$name.forceChart // false" "$EFFECTIVE_FILE")
+    tier=$(yq ".components[\"$name\"].tier" "$EFFECTIVE_FILE")
+
+    # Skip non-deployable components (supporting, test, or no tier)
+    if [[ "$tier" == "supporting" || "$tier" == "test" || "$tier" == "null" ]]; then
+        echo "SKIP: $name (tier: $tier, not deployable)"
+        return 0
+    fi
+
+    namespace=$(yq ".components[\"$name\"].namespace // \"$name\"" "$EFFECTIVE_FILE")
+    chart_version=$(yq ".components[\"$name\"].chartVersion // \"0.0.0\"" "$EFFECTIVE_FILE")
+    chart_name=$(yq ".components[\"$name\"].chartName // \"$name\"" "$EFFECTIVE_FILE")
+    path=$(yq ".components[\"$name\"].path // \".\"" "$EFFECTIVE_FILE")
+    sync_wave=$(yq ".components[\"$name\"].syncWave // \"0\"" "$EFFECTIVE_FILE")
+    force_chart=$(yq ".components[\"$name\"].forceChart // false" "$EFFECTIVE_FILE")
 
     # Extract values as a YAML block (empty string if no values)
-    values_yaml=$(yq ".components.$name.values // \"\"" "$EFFECTIVE_FILE")
+    values_yaml=$(yq ".components[\"$name\"].values // \"\"" "$EFFECTIVE_FILE")
 
     local source_type repo_url target_revision source_block
 
