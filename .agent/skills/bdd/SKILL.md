@@ -42,7 +42,7 @@ without scenarios is a complete contribution — it makes the work visible.
 
 **Do not use for:**
 - Running existing tests (use runner sub-skill or `ws test`)
-- Writing unit tests without BDD context (use TDD skill)
+- Writing unit tests without BDD context (use superpowers:test-driven-development)
 - Vordu roadmap tagging (future `bdd-vordu` sub-skill)
 
 **Progressive depth:** Read only as far as needed.
@@ -200,12 +200,12 @@ directory-based structure rather than `.feature` files.
 ### Hand off to TDD
 
 Once step definitions exist, production code follows. Hand off to
-the TDD skill:
+superpowers:test-driven-development:
 
 > Scenarios define WHAT should happen. TDD implements HOW.
 > Each scenario becomes a failing test to drive implementation.
 
-The BDD skill does not manage red-green-refactor. That's TDD's job.
+The BDD skill does not manage red-green-refactor. That's the TDD skill's job.
 
 ---
 

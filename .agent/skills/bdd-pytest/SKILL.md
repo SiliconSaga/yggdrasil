@@ -32,6 +32,8 @@ Match the component's existing pattern. Common conventions:
 import pytest
 from pytest_bdd import scenario, given, when, then, parsers
 
+# Path is relative to this test file — adjust to match your component's layout
+# e.g. "features/<name>.feature" if tests/ and features/ are siblings
 FEATURE = "features/<name>.feature"
 
 @scenario(FEATURE, "Scenario name here")
