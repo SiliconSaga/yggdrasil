@@ -78,8 +78,8 @@ pytest --cucumber-json=cucumber.json
 
 ## Cucumber JSON Output
 
-pytest-bdd can output Cucumber JSON format, which is the standard
-ingestion format for Vordu and CI systems:
+pytest-bdd can output Cucumber JSON format via the `pytest-cucumber-json`
+plugin. This is the standard ingestion format for Vordu and CI systems:
 
 ```bash
 pip install pytest-cucumber-json
