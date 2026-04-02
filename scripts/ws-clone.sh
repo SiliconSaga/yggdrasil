@@ -65,15 +65,20 @@ clone_url() {
     local name="$2"
     local add_eco="$3"
 
-    # Derive name from URL if not specified
+    # Derive name from URL if not specified, lowercased
     if [[ -z "$name" ]]; then
-        name=$(echo "$url" | sed 's|.*/||; s|\.git$||')
+        name=$(echo "$url" | sed 's|.*/||; s|\.git$||' | tr '[:upper:]' '[:lower:]')
     fi
 
-    # Validate derived name
+    # Validate derived name against the safe component pattern
     if [[ -z "$name" ]]; then
         echo "ERROR: Could not derive component name from URL: $url" >&2
         echo "  Use --name <name> to specify one." >&2
+        exit 1
+    fi
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z][a-z0-9-]*[a-z0-9])*$ ]]; then
+        echo "ERROR: Derived name '$name' is not a valid component name." >&2
+        echo "  Use --name <name> to specify a valid one (lowercase, alphanumeric, hyphens, dots)." >&2
         exit 1
     fi
 
@@ -90,9 +95,15 @@ clone_url() {
     if [[ "$add_eco" == "true" ]]; then
         local local_config="$ROOT_DIR/ecosystem.local.yaml"
 
-        # Ensure ecosystem.local.yaml exists
+        # Ensure ecosystem.local.yaml exists — copy from example template if available
         if [[ ! -f "$local_config" ]]; then
-            echo "components:" > "$local_config"
+            local example="$ROOT_DIR/ecosystem.local.yaml.example"
+            if [[ -f "$example" ]]; then
+                cp "$example" "$local_config"
+                echo "Created ecosystem.local.yaml from example template."
+            else
+                echo "identity:" > "$local_config"
+            fi
         fi
 
         # Add component entry

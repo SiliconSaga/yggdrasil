@@ -55,6 +55,13 @@ resolve_component() {
 
     local tier namespace chart_version chart_name path sync_wave force_chart values_yaml
     tier=$(yq ".components[\"$name\"].tier" "$EFFECTIVE_FILE")
+
+    # Skip non-deployable components (supporting, test, or no tier)
+    if [[ "$tier" == "supporting" || "$tier" == "test" || "$tier" == "null" ]]; then
+        echo "SKIP: $name (tier: $tier, not deployable)"
+        return 0
+    fi
+
     namespace=$(yq ".components[\"$name\"].namespace // \"$name\"" "$EFFECTIVE_FILE")
     chart_version=$(yq ".components[\"$name\"].chartVersion // \"0.0.0\"" "$EFFECTIVE_FILE")
     chart_name=$(yq ".components[\"$name\"].chartName // \"$name\"" "$EFFECTIVE_FILE")
