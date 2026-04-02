@@ -314,8 +314,8 @@ Captured here for reference. Each is a separate spec when the time comes.
 
 ### GDD Integration
 - GDD orchestrator delegates to BDD skill based on context
-- Session sizing: 15min = planning feature, 45min = scenarios + step defs,
-  2hr = full BDD → TDD → implementation cycle
+- Session sizing: 15 min = planning feature, 45 min = scenarios + step defs,
+  2+ hours = full BDD → TDD → implementation cycle
 - Mode awareness (mentoring, quick, zen, autonomous)
 
 ### Policy-as-BDD (Nornir/Demicracy)

@@ -175,11 +175,11 @@ implement step definitions and production code.
 
 Check the component's project files:
 - `pyproject.toml` or `requirements.txt` with `pytest-bdd`
-  → activate `bdd-pytest` sub-skill
+  → activate @bdd-pytest sub-skill
 - `go.mod` with `godog` → use godog conventions (see below)
 - Infrastructure components → see @kuttl-testing skill
 - `pom.xml` or `build.gradle` with `cucumber`
-  → activate `bdd-java` sub-skill (future)
+  → activate @bdd-java sub-skill (future)
 - Nothing detected → ask the user
 
 ### Quick runner reference
@@ -192,7 +192,7 @@ godog --tags="@smoke"          # by tag
 ```
 Step definitions go in `*_test.go` files alongside features or in `steps/`.
 
-**Python (pytest-bdd):** See the `bdd-pytest` sub-skill for full guidance.
+**Python (pytest-bdd):** See the @bdd-pytest sub-skill for full guidance.
 
 **Infrastructure (kuttl):** See @kuttl-testing for conventions. KUTTL uses
 directory-based structure rather than `.feature` files.
