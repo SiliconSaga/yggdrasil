@@ -240,7 +240,7 @@ ws_actions() {
     local comp="$1"
 
     # Validate component name (safe pattern, exists in config)
-    if [[ ! "$comp" =~ ^[a-z][a-z0-9-]*$ ]]; then
+    if [[ ! "$comp" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Invalid component name '$comp'." >&2
         exit 1
     fi

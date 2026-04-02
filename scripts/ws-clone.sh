@@ -54,6 +54,13 @@ redact_url() {
 clone_component() {
     local name="$1"
     local eco="$2"
+
+    # Validate component name (same pattern as ws_validate_component)
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+        echo "SKIP: $name (invalid component name)"
+        return 0
+    fi
+
     local target="$COMPONENTS_DIR/$name"
 
     if [[ -d "$target/.git" ]]; then
@@ -62,7 +69,7 @@ clone_component() {
     fi
 
     local disabled
-    disabled=$(yq ".components[\"$name\"].disabled // false" "$eco")
+    disabled=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)].disabled // false' "$eco")
     if [[ "$disabled" == "true" ]]; then
         echo "SKIP: $name (disabled)"
         return 0
@@ -70,7 +77,7 @@ clone_component() {
 
     # Prefer explicit repo URL if set, otherwise build from gitOrg
     local repo_url
-    repo_url=$(yq ".components[\"$name\"].repo // \"\"" "$eco")
+    repo_url=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)].repo // ""' "$eco")
     if [[ -z "$repo_url" || "$repo_url" == "null" ]]; then
         local git_org
         git_org=$(yq '.defaults.gitOrg // ""' "$eco")
@@ -139,10 +146,14 @@ clone_url() {
             fi
         fi
 
-        # Canonicalize local paths before storing
+        # Canonicalize local paths before storing (portable fallback for macOS)
         local stored_url="$url"
         if [[ ! "$url" =~ ^(git@|https?://) ]]; then
-            stored_url=$(realpath "$url")
+            if command -v realpath &>/dev/null; then
+                stored_url=$(realpath "$url")
+            else
+                stored_url=$(cd "$(dirname "$url")" && pwd)/$(basename "$url")
+            fi
         fi
 
         # Add component entry with repo URL for future re-cloning (use strenv for safe interpolation)
