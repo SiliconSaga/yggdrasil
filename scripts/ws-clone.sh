@@ -38,6 +38,12 @@ remote_name_from_url() {
     echo "$url" | sed 's|.*github.com[:/]||; s|/.*||'
 }
 
+# Redact credentials from a URL for safe logging.
+# e.g., https://user:token@github.com/... -> https://***@github.com/...
+redact_url() {
+    echo "$1" | sed 's|://[^@]*@|://***@|'
+}
+
 clone_component() {
     local name="$1"
     local eco="$2"
@@ -98,17 +104,18 @@ clone_url() {
     fi
 
     local target="$COMPONENTS_DIR/$name"
+    local safe_url
+    safe_url=$(redact_url "$url")
 
     if [[ -d "$target/.git" ]]; then
         echo "SKIP: $name (already cloned at $target)"
-        return 0
+    else
+        local remote
+        remote=$(remote_name_from_url "$url")
+
+        echo "CLONE: $safe_url -> $target (remote: $remote)"
+        git clone --origin "$remote" "$url" "$target"
     fi
-
-    local remote
-    remote=$(remote_name_from_url "$url")
-
-    echo "CLONE: $url -> $target (remote: $remote)"
-    git clone --origin "$remote" "$url" "$target"
 
     if [[ "$add_eco" == "true" ]]; then
         local local_config="$ROOT_DIR/ecosystem.local.yaml"
@@ -124,10 +131,19 @@ clone_url() {
             fi
         fi
 
-        # Add component entry with repo URL for future re-cloning
-        yq -i ".components[\"$name\"].tier = \"supporting\"" "$local_config"
-        yq -i ".components[\"$name\"].repo = \"$url\"" "$local_config"
-        echo "ADDED: $name to ecosystem.local.yaml (tier: supporting, repo: $url)"
+        # Canonicalize local paths before storing
+        local stored_url="$url"
+        if [[ ! "$url" =~ ^(git@|https?://) ]]; then
+            stored_url=$(realpath "$url")
+        fi
+
+        # Add component entry with repo URL for future re-cloning (use strenv for safe interpolation)
+        COMPONENT_NAME="$name" REPO_URL="$stored_url" \
+            yq -i '
+                .components[strenv(COMPONENT_NAME)].tier = "supporting" |
+                .components[strenv(COMPONENT_NAME)].repo = strenv(REPO_URL)
+            ' "$local_config"
+        echo "ADDED: $name to ecosystem.local.yaml (tier: supporting, repo: $safe_url)"
         echo "  Edit $local_config to adjust tier or add config."
     else
         echo ""
