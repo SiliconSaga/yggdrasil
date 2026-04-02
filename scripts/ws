@@ -13,8 +13,8 @@
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch] [--force] Push via HTTPS (sources .env)
-#   pr <comp> <title> <bodyfile> Open a pull request to main
-#   issue <repo> <title> <label> <bodyfile> File GitHub issue
+#   pr <comp> [--upstream] <title> <bodyfile> Open a PR (--upstream for cross-fork)
+#   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote=siliconsaga)
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <comp> <pr#|threads> [options]  PR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
@@ -138,8 +138,8 @@ ws_push() {
 }
 
 ws_pr() {
-    if [[ $# -ne 3 ]]; then
-        echo "Usage: ws pr <component> <title> <bodyfile>" >&2
+    if [[ $# -lt 3 || $# -gt 4 ]]; then
+        echo "Usage: ws pr <component> [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
@@ -552,11 +552,20 @@ ws_clean() {
 }
 
 ws_issue() {
-    if [[ $# -ne 4 ]]; then
-        echo "Usage: ws issue <repo> <title> <label> <bodyfile>" >&2
+    if [[ $# -lt 4 || $# -gt 5 ]]; then
+        echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
+        echo "  remote defaults to siliconsaga. Use a remote name to target upstream." >&2
         exit 1
     fi
-    bash "$SCRIPT_DIR/gh-issue.sh" "$@"
+    local comp="$1"
+    shift
+    ws_validate_component "$comp"
+    local remote="siliconsaga"
+    if [[ $# -eq 4 ]]; then
+        remote="$1"
+        shift
+    fi
+    bash "$SCRIPT_DIR/gh-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
 COMMAND="${1:-help}"

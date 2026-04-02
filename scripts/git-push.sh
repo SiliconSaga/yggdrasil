@@ -36,7 +36,23 @@ if [[ "${1:-}" == "--force" ]]; then
 fi
 
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
-REPO=$(git remote get-url siliconsaga 2>/dev/null | sed 's|.*/||; s|\.git$||')
+
+# Find the SiliconSaga remote (case-insensitive)
+REMOTE_NAME=$(git remote | grep -i '^siliconsaga$' | head -1)
+if [[ -z "$REMOTE_NAME" ]]; then
+  echo "ERROR: No 'siliconsaga' remote found (checked case-insensitive)." >&2
+  echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
+  exit 1
+fi
+ORG_REPO=$(git remote get-url "$REMOTE_NAME" 2>/dev/null | sed 's|.*github.com[:/]||; s|\.git$||')
+ORG="${ORG_REPO%/*}"
+REPO="${ORG_REPO##*/}"
+
+if [[ -z "$ORG" || -z "$REPO" || "$ORG_REPO" != */* ]]; then
+  echo "ERROR: Could not parse org/repo from remote '$REMOTE_NAME' URL." >&2
+  echo "  Got: $ORG_REPO" >&2
+  exit 1
+fi
 
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
@@ -47,12 +63,12 @@ fi
 # Push via explicit HTTPS URL to bypass any global url.insteadOf SSH rewrite
 # (GitKraken sets url."git@github.com:".insteadOf=https://github.com/ in ~/.gitconfig,
 #  which redirects all https:// remotes to SSH — the embedded-token URL avoids this.)
-PUSH_URL="https://x-access-token:${GH_TOKEN}@github.com/SiliconSaga/${REPO}.git"
+PUSH_URL="https://x-access-token:${GH_TOKEN}@github.com/${ORG}/${REPO}.git"
 
 if [[ -n "$FORCE" ]]; then
-  echo "Force pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
+  echo "Force pushing ${ORG}/${REPO}/$BRANCH → $REMOTE_NAME (HTTPS)"
   git push --force "$PUSH_URL" "$BRANCH"
 else
-  echo "Pushing $REPO/$BRANCH → siliconsaga (HTTPS)"
+  echo "Pushing ${ORG}/${REPO}/$BRANCH → $REMOTE_NAME (HTTPS)"
   git push "$PUSH_URL" "$BRANCH"
 fi

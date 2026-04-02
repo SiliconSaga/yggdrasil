@@ -1,4 +1,4 @@
-> **AI-generated issue.** Created by an AI agent on behalf of the repo owner. For workflow details see https://github.com/SiliconSaga/yggdrasil
+> **AI-assisted issue.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](https://siliconsaga.github.io/yggdrasil/gdd/).
 
 ## Context
 
