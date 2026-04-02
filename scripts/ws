@@ -8,7 +8,7 @@
 # Commands:
 #   list              List ecosystem components
 #   status [--verbose] Git status across workspace
-#   clone [comp|--all] Clone components
+#   clone [comp|--all|--url <url> [--name N] [--add-eco]] Clone components
 #   pull [comp]       Pull all or one component
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
