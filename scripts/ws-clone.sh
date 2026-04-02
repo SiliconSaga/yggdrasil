@@ -41,7 +41,7 @@ clone_component() {
     fi
 
     local disabled
-    disabled=$(yq ".components.$name.disabled // false" "$eco")
+    disabled=$(yq ".components[\"$name\"].disabled // false" "$eco")
     if [[ "$disabled" == "true" ]]; then
         echo "SKIP: $name (disabled)"
         return 0
@@ -96,7 +96,7 @@ clone_url() {
         fi
 
         # Add component entry
-        yq -i ".components.\"$name\".tier = \"supporting\"" "$local_config"
+        yq -i ".components[\"$name\"].tier = \"supporting\"" "$local_config"
         echo "ADDED: $name to ecosystem.local.yaml (tier: supporting)"
         echo "  Edit $local_config to adjust tier or add config."
     else
@@ -152,7 +152,7 @@ elif [[ "${1:-}" == "--all" ]]; then
     done
 elif [[ -n "${1:-}" ]]; then
     ECO="$(ws_resolve_ecosystem)"
-    if [[ "$(yq ".components.${1} // \"missing\"" "$ECO")" == "missing" ]]; then
+    if [[ "$(yq ".components[\"${1}\"] // \"missing\"" "$ECO")" == "missing" ]]; then
         echo "ERROR: '$1' is not declared in ecosystem config." >&2
         echo "  Use 'ws clone --url <git-url>' for repos not in the ecosystem." >&2
         exit 1
