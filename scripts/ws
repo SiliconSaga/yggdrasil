@@ -149,11 +149,13 @@ ws_push() {
         esac
     done
     ws_validate_component "$comp"
-    # Pass forkOrg as default push remote if set and not already overridden
+    # Pass forkOrg as push remote hint (only if set and not already overridden)
     local fork_org
     fork_org=$(ws_resolve_fork_org)
-    cd "$COMPONENT_DIR" && GIT_PUSH_REMOTE="${GIT_PUSH_REMOTE:-$fork_org}" \
-        bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
+    if [[ -n "$fork_org" && -z "${GIT_PUSH_REMOTE:-}" ]]; then
+        export GIT_PUSH_REMOTE="$fork_org"
+    fi
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
 
 ws_pr() {

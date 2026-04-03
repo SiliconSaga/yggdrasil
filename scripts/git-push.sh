@@ -23,31 +23,39 @@ fi
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 
 # Find the push remote.
-# If GIT_PUSH_REMOTE is set, use that. Otherwise, pick the first remote
-# that isn't literally "origin" (our convention: remotes are named after orgs).
-if [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
+# Collect non-origin remotes, then decide:
+#   1 remote  → use it (no ambiguity)
+#   N remotes → use GIT_PUSH_REMOTE if it matches one (case-insensitive)
+#   N remotes, no match → fail with clear error
+REMOTES=()
+for r in $(git remote); do
+  if [[ "$(echo "$r" | tr '[:upper:]' '[:lower:]')" != "origin" ]]; then
+    REMOTES+=("$r")
+  fi
+done
+
+if [[ ${#REMOTES[@]} -eq 0 ]]; then
+  echo "ERROR: No named remote found (only 'origin' exists)." >&2
+  echo "  Name your remote after the org: git remote rename origin <orgname>" >&2
+  exit 1
+fi
+
+REMOTE_NAME=""
+if [[ ${#REMOTES[@]} -eq 1 ]]; then
+  REMOTE_NAME="${REMOTES[0]}"
+elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
   # Case-insensitive match against available remotes
   REMOTE_NAME=$(git remote | grep -i "^${GIT_PUSH_REMOTE}$" | head -1)
   if [[ -z "$REMOTE_NAME" ]]; then
-    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' found." >&2
-    echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
+    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from identity.forkOrg)." >&2
+    echo "  Available remotes: ${REMOTES[*]}" >&2
+    echo "  Set identity.forkOrg in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
     exit 1
   fi
 else
-  REMOTE_NAME=""
-  for r in $(git remote); do
-    if [[ "$(echo "$r" | tr '[:upper:]' '[:lower:]')" != "origin" ]]; then
-      REMOTE_NAME="$r"
-      break
-    fi
-  done
-fi
-
-if [[ -z "$REMOTE_NAME" ]]; then
-  echo "ERROR: No named remote found (only 'origin' exists)." >&2
-  echo "  Name your remote after the org: git remote rename origin <orgname>" >&2
-  echo "  Or set GIT_PUSH_REMOTE=<remote-name>." >&2
-  echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
+  echo "ERROR: Multiple remotes found and no forkOrg configured to choose between them." >&2
+  echo "  Available remotes: ${REMOTES[*]}" >&2
+  echo "  Set identity.forkOrg in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
   exit 1
 fi
 
