@@ -114,5 +114,5 @@ If the issue blocks current or near-future work, note the URL and number in MEMO
 - **Requires reading this conversation to understand**: not agent-actionable — write a memory note instead
 - **Vague acceptance criteria**: a fresh agent won't know when it's done
 - **Wrong repo**: always verify with `git remote -v` before filing
-- **`gh` not authenticated**: set `GH_TOKEN` env var (`source yggdrasil/.env`); see `yggdrasil/docs/github-cli-setup.md`
+- **CLI not authenticated**: set provider token env var (`source yggdrasil/.env`); see `yggdrasil/docs/git-provider-setup.md`
 - **Spans multiple repos**: file a design doc instead, not an issue

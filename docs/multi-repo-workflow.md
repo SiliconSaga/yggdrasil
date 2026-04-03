@@ -73,5 +73,5 @@ These skills are invoked by the agent automatically when the task matches. The w
 ## Related Docs
 
 - `docs/ecosystem-architecture.md` — repo map and tier structure
-- `docs/github-cli-setup.md` — installing and authenticating `gh`
+- `docs/git-provider-setup.md` — installing and authenticating `gh`/`glab`
 - `project-constellation.md` — narrative description of each project
