@@ -12,11 +12,13 @@
 defaults:
   templateOverlay: https://github.com/SiliconSaga/overlay-yggdrasil-template.git
 
-# Your identity — used for commit attribution and PR/issue templates.
+# Your identity — used for commit attribution, PR/issue templates, and push.
 # human_account is personal and should NOT be in shared overlay configs.
+# forkOrg is the org/group name used as the default git remote for push/issue.
 # co_authored_by is typically set by the overlay; override here if needed.
 identity:
   human_account: your-github-username
+  forkOrg: your-org-name               # matches your git remote name
   # co_authored_by: "Claude Opus 4.6"   # override overlay default
 
 # Git provider detection — usually auto-detected from remote URLs.

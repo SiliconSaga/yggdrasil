@@ -26,7 +26,13 @@ BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 # If GIT_PUSH_REMOTE is set, use that. Otherwise, pick the first remote
 # that isn't literally "origin" (our convention: remotes are named after orgs).
 if [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
-  REMOTE_NAME="$GIT_PUSH_REMOTE"
+  # Case-insensitive match against available remotes
+  REMOTE_NAME=$(git remote | grep -i "^${GIT_PUSH_REMOTE}$" | head -1)
+  if [[ -z "$REMOTE_NAME" ]]; then
+    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' found." >&2
+    echo "  Available remotes: $(git remote | tr '\n' ' ')" >&2
+    exit 1
+  fi
 else
   REMOTE_NAME=""
   for r in $(git remote); do
