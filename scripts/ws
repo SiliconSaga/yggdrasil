@@ -565,7 +565,7 @@ ws_issue() {
         remote="$1"
         shift
     fi
-    bash "$SCRIPT_DIR/gh-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
+    bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
 COMMAND="${1:-help}"
