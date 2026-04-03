@@ -19,6 +19,19 @@ identity:
   human_account: your-github-username
   # co_authored_by: "Claude Opus 4.6"   # override overlay default
 
+# Git provider detection — usually auto-detected from remote URLs.
+# Override here for self-hosted instances or mixed-provider workspaces.
+# defaults:
+#   gitProvider: github            # workspace-wide default
+#   gitProviders:                  # domain → provider mapping
+#     git.mycompany.com: gitlab
+#     gitea.local: gitea
+
+# Per-component provider override:
+# components:
+#   some-corp-thing:
+#     gitProvider: gitlab
+
 # Overlay selector — uncomment to override auto-detection.
 # overlay: overlay-yggdrasil-live
 
