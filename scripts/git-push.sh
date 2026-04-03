@@ -8,8 +8,12 @@
 # Auth is handled by the system credential helper (credential.helper=manager
 # on Windows, osxkeychain on macOS, or gh/glab auth). No token needed here.
 #
-# The target remote is detected by finding a non-origin remote whose name
-# matches the org (case-insensitive). Override by setting GIT_PUSH_REMOTE.
+# Remote selection:
+#   1 remote  → use it (no ambiguity, any name including origin)
+#   N remotes → use GIT_PUSH_REMOTE to disambiguate (case-insensitive)
+#   N remotes, no match → fail with clear error
+#
+# GIT_PUSH_REMOTE is typically set by ws from identity.forkOrg in ecosystem config.
 
 set -euo pipefail
 
@@ -23,29 +27,26 @@ fi
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 
 # Find the push remote.
-# Collect non-origin remotes, then decide:
-#   1 remote  → use it (no ambiguity)
-#   N remotes → use GIT_PUSH_REMOTE if it matches one (case-insensitive)
-#   N remotes, no match → fail with clear error
-REMOTES=()
-for r in $(git remote); do
-  if [[ "$(echo "$r" | tr '[:upper:]' '[:lower:]')" != "origin" ]]; then
-    REMOTES+=("$r")
-  fi
-done
+mapfile -t REMOTES < <(git remote)
 
 if [[ ${#REMOTES[@]} -eq 0 ]]; then
-  echo "ERROR: No named remote found (only 'origin' exists)." >&2
-  echo "  Name your remote after the org: git remote rename origin <orgname>" >&2
+  echo "ERROR: No remotes configured." >&2
+  echo "  Add a remote: git remote add <orgname> <url>" >&2
   exit 1
 fi
 
 REMOTE_NAME=""
 if [[ ${#REMOTES[@]} -eq 1 ]]; then
   REMOTE_NAME="${REMOTES[0]}"
+  # Gentle nudge if using origin — not a blocker
+  if [[ "$REMOTE_NAME" == "origin" ]]; then
+    echo "TIP: Consider renaming 'origin' to your org name for clarity:" >&2
+    echo "  git remote rename origin <orgname>" >&2
+    echo "" >&2
+  fi
 elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
   # Case-insensitive match against available remotes
-  REMOTE_NAME=$(git remote | grep -i "^${GIT_PUSH_REMOTE}$" | head -1)
+  REMOTE_NAME=$(printf '%s\n' "${REMOTES[@]}" | grep -i "^${GIT_PUSH_REMOTE}$" | head -1)
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from identity.forkOrg)." >&2
     echo "  Available remotes: ${REMOTES[*]}" >&2
@@ -53,7 +54,7 @@ elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
     exit 1
   fi
 else
-  echo "ERROR: Multiple remotes found and no forkOrg configured to choose between them." >&2
+  echo "ERROR: Multiple remotes found — cannot determine which to push to." >&2
   echo "  Available remotes: ${REMOTES[*]}" >&2
   echo "  Set identity.forkOrg in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
   exit 1
