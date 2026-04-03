@@ -39,9 +39,9 @@ source "$SCRIPT_DIR/git-provider.sh"
 # Source shared overlay/merge functions for ecosystem config
 source "$SCRIPT_DIR/ws-overlay.sh"
 
-# Validate arguments
-if [[ -z "$COMPONENT_DIR" || -z "$REMOTE" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then
-  echo "Usage: $0 COMPONENT_DIR REMOTE TITLE LABEL BODYFILE" >&2
+# Validate arguments (REMOTE may be empty for auto-detection)
+if [[ -z "$COMPONENT_DIR" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then
+  echo "Usage: $0 COMPONENT_DIR [REMOTE] TITLE LABEL BODYFILE" >&2
   exit 1
 fi
 
@@ -72,11 +72,29 @@ RESOLVED_BODY=$(mktemp)
 trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 sed "s/@HUMAN_ACCOUNT/@${HUMAN_ACCOUNT}/g" "$BODYFILE" > "$RESOLVED_BODY"
 
-# Resolve remote URL and detect provider
-REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1)
-if [[ -z "$REMOTE_NAME" ]]; then
-  echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
-  echo "  Available remotes: $(cd "$COMPONENT_DIR" && git remote | tr '\n' ' ')" >&2
+# Resolve remote:
+#   1 remote  → use it (any name)
+#   N remotes + REMOTE hint → case-insensitive match
+#   N remotes, no match → fail with clear error
+mapfile -t _REMOTES < <(cd "$COMPONENT_DIR" && git remote)
+
+REMOTE_NAME=""
+if [[ ${#_REMOTES[@]} -eq 0 ]]; then
+  echo "ERROR: No remotes configured in $COMPONENT_DIR." >&2
+  exit 1
+elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
+  REMOTE_NAME="${_REMOTES[0]}"
+elif [[ -n "$REMOTE" ]]; then
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1)
+  if [[ -z "$REMOTE_NAME" ]]; then
+    echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
+    echo "  Available remotes: ${_REMOTES[*]}" >&2
+    exit 1
+  fi
+else
+  echo "ERROR: Multiple remotes in $COMPONENT_DIR — specify which one." >&2
+  echo "  Available remotes: ${_REMOTES[*]}" >&2
+  echo "  Usage: ws issue <comp> <remote> <title> <label> <bodyfile>" >&2
   exit 1
 fi
 REMOTE_URL=$(cd "$COMPONENT_DIR" && git remote get-url "$REMOTE_NAME")

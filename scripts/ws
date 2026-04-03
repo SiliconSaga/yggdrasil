@@ -575,7 +575,7 @@ ws_clean() {
 ws_issue() {
     if [[ $# -lt 4 || $# -gt 5 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
-        echo "  remote defaults to identity.forkOrg from ecosystem config." >&2
+        echo "  remote auto-detects if single remote, uses forkOrg if multiple." >&2
         exit 1
     fi
     local comp="$1"
@@ -586,13 +586,9 @@ ws_issue() {
         remote="$1"
         shift
     else
+        # Let git-issue.sh auto-detect; pass forkOrg as hint for multi-remote
         remote=$(ws_resolve_fork_org)
-        if [[ -z "$remote" ]]; then
-            echo "ERROR: No remote specified and identity.forkOrg not set in ecosystem config." >&2
-            echo "  Either pass a remote name: ws issue <comp> <remote> <title> <label> <bodyfile>" >&2
-            echo "  Or set identity.forkOrg in ecosystem.local.yaml." >&2
-            exit 1
-        fi
+        # remote may be empty — git-issue.sh handles auto-detect for single remote
     fi
     bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
