@@ -140,22 +140,26 @@ review_comments() {
     }
     echo ""
 
-    # Fetch reviews (|| true prevents set -e abort on API failure)
+    # Fetch reviews — warn on failure instead of aborting mid-report
     echo "=== Reviews ==="
-    local reviews
-    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter" || true)
-    if [[ -n "$reviews" ]]; then
+    local reviews="" _rc=0
+    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "(failed to fetch reviews — check auth and connectivity)" >&2
+    elif [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
         echo "(no reviews${reviewer:+ from $reviewer})"
     fi
     echo ""
 
-    # Fetch inline comments (|| true prevents set -e abort on API failure)
+    # Fetch inline comments — warn on failure instead of aborting mid-report
     echo "=== Inline Comments ==="
-    local comments
-    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter" || true)
-    if [[ -n "$comments" ]]; then
+    local comments="" _rc=0
+    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "(failed to fetch inline comments — check auth and connectivity)" >&2
+    elif [[ -n "$comments" ]]; then
         echo "$comments"
     else
         echo "(no inline comments${reviewer:+ from $reviewer})"
