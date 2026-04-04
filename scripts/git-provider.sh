@@ -34,7 +34,7 @@ gp_detect() {
     local domain=""
     if [[ "$url" =~ ^ssh://[^@]*@([^:/]+) ]]; then
         domain="${BASH_REMATCH[1]}"
-    elif [[ "$url" =~ ^https?://([^/]+)/ ]]; then
+    elif [[ "$url" =~ ^https?://([^/:]+) ]]; then
         domain="${BASH_REMATCH[1]}"
     elif [[ "$url" =~ ^git@([^:]+): ]]; then
         domain="${BASH_REMATCH[1]}"
