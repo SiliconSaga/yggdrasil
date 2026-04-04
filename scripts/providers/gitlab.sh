@@ -58,6 +58,12 @@ gp_create_pr() {
         esac
     done
 
+    if [[ -z "$repo" || -z "$base" || -z "$head" || -z "$title" || -z "$body_file" ]]; then
+        echo "ERROR: gp_create_pr: missing required argument(s)" >&2
+        echo "  Required: --repo, --base, --head, --title, --body-file" >&2
+        return 1
+    fi
+
     # glab mr create uses --source-branch and --target-branch
     # For cross-project MRs from a fork, glab uses --repo for the target
     # and --source-project for the source (fork) project
@@ -100,7 +106,7 @@ gp_create_issue() {
 # --- Review functions ---
 
 # Helper: URL-encode a slug for GitLab API paths.
-_gl_encode() { echo "$1" | sed 's|/|%2F|g'; }
+_gl_encode() { printf '%s' "${1//\//%2F}"; }
 
 # Print MR summary.
 # Usage: gp_review_summary SLUG MR_NUM

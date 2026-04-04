@@ -67,7 +67,7 @@ else
 fi
 
 REMOTE_URL=$(git remote get-url "$REMOTE_NAME" 2>/dev/null || echo "")
-ORG_REPO=$(echo "$REMOTE_URL" | sed 's|.*[:/]\([^/]*/[^/]*\)$|\1|; s|\.git$||')
+ORG_REPO=$(echo "$REMOTE_URL" | sed 's|^ssh://[^/]*/||; s|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||')
 
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then

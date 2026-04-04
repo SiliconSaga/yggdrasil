@@ -11,12 +11,14 @@
 #   gp_create_issue ARGS    — file an issue (delegates to loaded provider)
 #   gp_default_branch SLUG  — query default branch (delegates to loaded provider)
 #
-# Provider detection order:
-#   1. Per-component gitProvider in ecosystem config (caller passes it)
-#   2. defaults.gitProviders.<domain> mapping in ecosystem config
-#   3. Auto-detect from remote URL domain (github.com, gitlab.com)
-#   4. defaults.gitProvider workspace-wide default in ecosystem config
-#   5. Fail with error
+# Provider detection order (gp_detect):
+#   1. defaults.gitProviders.<domain> mapping in ecosystem config
+#   2. Auto-detect from remote URL domain (github.com, gitlab.com)
+#   3. defaults.gitProvider workspace-wide default in ecosystem config
+#   4. Fail with error
+#
+# Per-component gitProvider overrides are handled by callers before
+# invoking gp_detect (see design spec for the full 5-step order).
 
 _GP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _GP_LOADED_PROVIDER=""
