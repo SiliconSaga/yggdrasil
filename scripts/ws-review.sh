@@ -277,7 +277,7 @@ fi
 COMP_DIR="$ROOT_DIR/components/$COMP"
 [[ "$COMP" == "yggdrasil" ]] && COMP_DIR="$ROOT_DIR"
 
-if [[ ! -d "$COMP_DIR/.git" ]] && [[ ! -d "$COMP_DIR" ]]; then
+if [[ ! -d "$COMP_DIR" ]] || [[ ! -d "$COMP_DIR/.git" ]]; then
     echo "ERROR: Component '$COMP' is not cloned locally." >&2
     echo "  Run 'ws clone $COMP' first." >&2
     exit 1
