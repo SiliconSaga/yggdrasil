@@ -31,8 +31,8 @@ gp_check_cli() {
 # Usage: gp_extract_slug URL
 gp_extract_slug() {
     local url="$1"
-    # Handle HTTPS (https://host/org/repo) and SSH (git@host:org/repo)
-    echo "$url" | sed 's|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
+    # Handle SSH (ssh://git@host:port/org/repo), HTTPS (https://host/org/repo), and git@ (git@host:org/repo)
+    echo "$url" | sed 's|^ssh://[^/]*/||; s|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitHub repo.

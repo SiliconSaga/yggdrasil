@@ -31,8 +31,8 @@ gp_check_cli() {
 # Usage: gp_extract_slug URL
 gp_extract_slug() {
     local url="$1"
-    # Handle HTTPS (https://host/group/repo) and SSH (git@host:group/repo)
-    echo "$url" | sed 's|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
+    # Handle SSH (ssh://git@host:port/group/repo), HTTPS (https://host/group/repo), and git@ (git@host:group/repo)
+    echo "$url" | sed 's|^ssh://[^/]*/||; s|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitLab repo.
