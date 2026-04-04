@@ -4,11 +4,9 @@ The fastest way to experience GDD is to clone the yggdrasil workspace and start 
 
 Note that this currently assumes a variety of prerequisites:
 
-- You're using Claude Code as your AI agent
-- You're using GitHub for version control
+- You're using Claude Code as your AI agent (more validated agents coming soon)
+- You're using GitHub or GitLab for version control (Gitea/Forgejo planned)
 - You're using a Unix-like shell (Linux, macOS, WSL, Git Bash)
-
-This should evolve further soon.
 
 ## Setup
 
@@ -18,9 +16,23 @@ This should evolve further soon.
    cd yggdrasil
    ```
 
-2. _Optionally_ **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env`. This enables the `ws` CLI to push, file issues, and manage PRs/MRs. Without auth you can still do local commits and play with the system, but you won't be able to push changes or create PRs and issues.
+2. **Configure your identity** — copy the example config and fill in your details:
+   ```bash
+   cp ecosystem.local.yaml.example ecosystem.local.yaml
+   ```
+   Edit `ecosystem.local.yaml` and set at minimum:
+   - `identity.human_account` — your GitHub/GitLab username
+   - `identity.forkOrg` — the org/group name for your git remote (e.g., `SiliconSaga`)
 
-3. **Clone a component to work on:**
+3. **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env` and install the CLI tools (`gh` for GitHub, `glab` for GitLab). This enables the `ws` CLI to push, file issues, and manage PRs/MRs.
+
+4. **Add `ws` to your PATH** _(recommended)_ — so you can run `ws` from anywhere:
+   ```bash
+   # Add to your ~/.bashrc or shell profile:
+   export PATH="<path-to-yggdrasil>/scripts:$PATH"
+   ```
+
+5. **Clone a component to work on:**
 
    Note that these components are fairly centric to nerdy homelab or indie game dev projects.
 
@@ -45,17 +57,17 @@ This should evolve further soon.
 
 ## Your First Session
 
-4. **Start Claude Code** from the `yggdrasil/` directory (more validated agents coming soon)
+6. **Start Claude Code** from the `yggdrasil/` directory
 
-5. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your mode, and ask what you want to work on.
+7. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your mode, and ask what you want to work on.
 
-6. **Ask for Mentoring mode.** This is the key for your first session:
+8. **Ask for Mentoring mode.** This is the key for your first session:
 
    > "Let's use mentoring mode. I'm new to this workspace and want to understand how things work."
 
    In Mentoring mode, the AI explains its decisions, teaches practices in context, and walks you through the tools. It's like pair programming with someone who knows the codebase.
 
-7. **Pick something small to do.** Some ideas:
+9. **Pick something small to do.** Some ideas:
    - Explore a component: "What does tafl do? Walk me through the code."
    - Write a BDD scenario: "Help me write a test scenario for [feature]."
    - Fix something: Check the [open issues](https://github.com/SiliconSaga/yggdrasil/issues) for anything labeled `good first issue`.
