@@ -88,15 +88,8 @@ Read each file before proceeding to confirm content.
 **Step 4 — submit via the workspace CLI** (fixed invocation — one approval covers all future issues):
 
 ```bash
-# Preferred: use ws issue (from yggdrasil root)
+# Use ws issue (from yggdrasil root)
 bash scripts/ws issue <comp> <remote> "verb: description" <label> .issues/<filename>.md
-
-# Or call git-issue.sh directly:
-# From a sibling repo:
-../yggdrasil/scripts/git-issue.sh COMPONENT_DIR REMOTE "verb: description" LABEL \
-  ../yggdrasil/.issues/<filename>.md
-# From within yggdrasil itself:
-./scripts/git-issue.sh . REMOTE "verb: description" LABEL .issues/<filename>.md
 ```
 
 Labels: `bug`, `enhancement`, `documentation`

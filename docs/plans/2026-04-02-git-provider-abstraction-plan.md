@@ -190,12 +190,12 @@ gp_check_cli() {
     fi
 }
 
-# Extract org/repo slug from a GitHub remote URL.
-# Handles both HTTPS and SSH formats.
+# Extract org/repo slug from a remote URL.
+# Handles SSH (ssh://), HTTPS, and git@ formats for any domain.
 # Usage: gp_extract_slug URL
 gp_extract_slug() {
     local url="$1"
-    echo "$url" | sed 's|.*github.com[:/]||; s|\.git$||'
+    echo "$url" | sed 's|^ssh://[^/]*/||; s|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitHub repo.
@@ -321,13 +321,12 @@ gp_check_cli() {
     fi
 }
 
-# Extract group/repo slug from a GitLab remote URL.
-# Handles both HTTPS and SSH formats, including subgroups.
+# Extract group/repo slug from a remote URL.
+# Handles SSH (ssh://), HTTPS, and git@ formats for any domain, including subgroups.
 # Usage: gp_extract_slug URL
 gp_extract_slug() {
     local url="$1"
-    # Remove protocol + domain prefix and trailing .git
-    echo "$url" | sed 's|.*gitlab\.com[:/]||; s|.*://[^/]*/||; s|\.git$||'
+    echo "$url" | sed 's|^ssh://[^/]*/||; s|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitLab repo.
