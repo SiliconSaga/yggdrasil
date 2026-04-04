@@ -46,7 +46,13 @@ if [[ ${#REMOTES[@]} -eq 1 ]]; then
   fi
 elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
   # Case-insensitive match against available remotes
-  REMOTE_NAME=$(printf '%s\n' "${REMOTES[@]}" | grep -i "^${GIT_PUSH_REMOTE}$" | head -1)
+  REMOTE_NAME=""
+  for _r in "${REMOTES[@]}"; do
+    if [[ "${_r,,}" == "${GIT_PUSH_REMOTE,,}" ]]; then
+      REMOTE_NAME="$_r"
+      break
+    fi
+  done
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from identity.forkOrg)." >&2
     echo "  Available remotes: ${REMOTES[*]}" >&2

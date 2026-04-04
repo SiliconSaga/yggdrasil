@@ -89,7 +89,7 @@ if [[ ${#_REMOTES[@]} -eq 0 ]]; then
 elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
   REMOTE_NAME="${_REMOTES[0]}"
 elif [[ -n "$REMOTE" ]]; then
-  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1)
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1 || true)
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
     echo "  Available remotes: ${_REMOTES[*]}" >&2
