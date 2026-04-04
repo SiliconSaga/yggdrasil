@@ -20,6 +20,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
+_ENV_FILE="$SCRIPT_DIR/../.env"
+[[ -f "$_ENV_FILE" ]] && source "$_ENV_FILE"
+
 # Source provider dispatcher
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
@@ -115,14 +119,16 @@ if [[ -n "$UPSTREAM" ]]; then
     --title "$TITLE" \
     --body-file "$BODYFILE"
 else
-  echo "Opening PR/MR for $FORK_SLUG/$BRANCH → main"
+  DEFAULT_BRANCH=$(gp_default_branch "$FORK_SLUG")
+
+  echo "Opening PR/MR for $FORK_SLUG/$BRANCH → $DEFAULT_BRANCH"
   echo "  Title: $TITLE"
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
   echo ""
 
   gp_create_pr \
     --repo "$FORK_SLUG" \
-    --base main \
+    --base "$DEFAULT_BRANCH" \
     --head "$BRANCH" \
     --title "$TITLE" \
     --body-file "$BODYFILE"

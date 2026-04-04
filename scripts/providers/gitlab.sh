@@ -39,7 +39,7 @@ gp_extract_slug() {
 # Usage: gp_default_branch SLUG
 gp_default_branch() {
     local slug="$1"
-    glab api "projects/$(echo "$slug" | sed 's|/|%2F|g')" --jq '.default_branch' 2>/dev/null || echo "main"
+    glab api "projects/$(echo "$slug" | sed 's|/|%2F|g')" 2>/dev/null | jq -r '.default_branch' 2>/dev/null || echo "main"
 }
 
 # Create a merge request.
