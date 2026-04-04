@@ -166,7 +166,13 @@ ws_pr() {
     local comp="$1"
     shift
     ws_validate_component "$comp"
-    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "$@"
+    # Resolve bodyfile path before cd (last arg is always the bodyfile)
+    local args=("$@")
+    local last_idx=$(( ${#args[@]} - 1 ))
+    if [[ "${args[$last_idx]}" != /* ]]; then
+        args[$last_idx]="$ROOT_DIR/${args[$last_idx]}"
+    fi
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "${args[@]}"
 }
 
 ws_test() {
