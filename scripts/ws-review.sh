@@ -414,17 +414,16 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     review_help
 fi
 
-# Source .env for GH_TOKEN
+# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
 env_file="$ROOT_DIR/.env"
-if [[ -z "${GH_TOKEN:-}" ]] && [[ -f "$env_file" ]]; then
+if [[ -f "$env_file" ]]; then
     # shellcheck source=/dev/null
     source "$env_file"
 fi
-if [[ -z "${GH_TOKEN:-}" ]]; then
-    echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
-    exit 1
-fi
-export GH_TOKEN
+
+# Source provider dispatcher for slug extraction
+# shellcheck source=git-provider.sh
+source "$SCRIPT_DIR/git-provider.sh"
 
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
@@ -444,7 +443,86 @@ if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]
     exit 1
 fi
 
-REPO_SLUG="SiliconSaga/$COMP"
+# Resolve repo slug from component's remotes.
+# Unlike push/issue (which target YOUR fork), review reads PRs that may live
+# on any remote (typically upstream). Strategy: extract the PR number from args,
+# try each remote's slug until the PR is found.
+COMP_DIR="$ROOT_DIR/components/$COMP"
+[[ "$COMP" == "yggdrasil" ]] && COMP_DIR="$ROOT_DIR"
+
+if [[ ! -d "$COMP_DIR/.git" ]] && [[ ! -d "$COMP_DIR" ]]; then
+    echo "ERROR: Component '$COMP' is not cloned locally." >&2
+    echo "  Run 'ws clone $COMP' first." >&2
+    exit 1
+fi
+
+# Build list of candidate slugs from all remotes (GitHub only for now)
+_CANDIDATE_SLUGS=()
+_FIRST_PROVIDER=""
+for _r in $(cd "$COMP_DIR" && git remote); do
+    _url=$(cd "$COMP_DIR" && git remote get-url "$_r" 2>/dev/null) || continue
+    _prov=$(gp_detect "$_url" "" 2>/dev/null) || continue
+    if [[ -z "$_FIRST_PROVIDER" ]]; then
+        _FIRST_PROVIDER="$_prov"
+    fi
+    if [[ "$_prov" == "github" ]]; then
+        gp_load github 2>/dev/null || continue
+        _slug=$(gp_extract_slug "$_url")
+        [[ -n "$_slug" && "$_slug" == */* ]] && _CANDIDATE_SLUGS+=("$_slug")
+    fi
+done
+
+if [[ ${#_CANDIDATE_SLUGS[@]} -eq 0 ]]; then
+    if [[ "$_FIRST_PROVIDER" != "github" && -n "$_FIRST_PROVIDER" ]]; then
+        echo "ERROR: ws review currently only supports GitHub repositories." >&2
+        echo "  GitLab review support is planned for a future update." >&2
+    else
+        echo "ERROR: No GitHub remotes found for '$COMP'." >&2
+    fi
+    exit 1
+fi
+
+# Peek at the PR number from remaining args to probe which slug has it
+_PEEK_PR=""
+if [[ "${1:-}" == "threads" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_PR="$2"
+elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_PR="$1"
+fi
+
+REPO_SLUG=""
+if [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
+    REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
+elif [[ -n "$_PEEK_PR" ]]; then
+    # Try each slug until the PR is found
+    for _slug in "${_CANDIDATE_SLUGS[@]}"; do
+        if gh api "repos/$_slug/pulls/$_PEEK_PR" --jq '.number' &>/dev/null; then
+            REPO_SLUG="$_slug"
+            break
+        fi
+    done
+    if [[ -z "$REPO_SLUG" ]]; then
+        echo "ERROR: PR #$_PEEK_PR not found on any remote for '$COMP'." >&2
+        echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
+        exit 1
+    fi
+else
+    # Can't probe without a PR number — use forkOrg or first slug
+    REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
+fi
+
+# Review currently requires GitHub
+if [[ -z "${GH_TOKEN:-}" ]]; then
+    echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
+    exit 1
+fi
+export GH_TOKEN
+
+if [[ -z "${GH_TOKEN:-}" ]]; then
+    echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
+    exit 1
+fi
+export GH_TOKEN
 
 # --- Route to subcommand ---
 # All function definitions are above this block.
