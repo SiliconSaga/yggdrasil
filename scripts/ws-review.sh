@@ -252,6 +252,13 @@ fi
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
 
+# Load merged ecosystem config for provider detection (self-hosted mappings)
+_ECO=""
+if [[ -f "$SCRIPT_DIR/ws-overlay.sh" ]]; then
+    source "$SCRIPT_DIR/ws-overlay.sh"
+    _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
+fi
+
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
     echo "Usage: ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]" >&2
@@ -288,7 +295,7 @@ _CANDIDATE_SLUGS=()
 _CANDIDATE_PROVIDERS=()
 for _r in $(cd "$COMP_DIR" && git remote); do
     _url=$(cd "$COMP_DIR" && git remote get-url "$_r" 2>/dev/null) || continue
-    _prov=$(gp_detect "$_url" "" 2>/dev/null) || continue
+    _prov=$(gp_detect "$_url" "$_ECO" 2>/dev/null) || continue
     gp_load "$_prov" 2>/dev/null || continue
     _slug=$(gp_extract_slug "$_url")
     if [[ -n "$_slug" && "$_slug" == */* ]]; then
