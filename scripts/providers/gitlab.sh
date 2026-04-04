@@ -121,7 +121,7 @@ gp_review_list_reviews() {
     # Show approvals
     local approvals
     approvals=$(glab api "projects/$encoded/merge_requests/$mr_num/approvals" 2>/dev/null | jq -r "
-        .approved_by[]? | $filter | \"[\(.user.username)] APPROVED\n\"
+        .approved_by[]? | {user: {login: .user.username, username: .user.username}, author: {username: .user.username}} | $filter | \"[\(.user.username)] APPROVED\n\"
     " 2>/dev/null)
     if [[ -n "$approvals" ]]; then
         echo "$approvals"
