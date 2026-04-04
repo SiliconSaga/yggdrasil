@@ -121,6 +121,20 @@ if [[ -n "$UPSTREAM" ]]; then
   fi
   UPSTREAM_REMOTE="${UPSTREAM_REMOTES[0]}"
   UPSTREAM_URL=$(git remote get-url "$UPSTREAM_REMOTE" 2>/dev/null)
+
+  # Verify both remotes use the same provider
+  UPSTREAM_PROVIDER=$(gp_detect "$UPSTREAM_URL" "$_ECO" 2>/dev/null) || {
+    echo "ERROR: Cannot detect provider for upstream remote '$UPSTREAM_REMOTE'." >&2
+    exit 1
+  }
+  FORK_PROVIDER=$(gp_detect "$FORK_URL" "$_ECO" 2>/dev/null) || FORK_PROVIDER=""
+  if [[ "$UPSTREAM_PROVIDER" != "$FORK_PROVIDER" ]]; then
+    echo "ERROR: Cross-provider PR/MR creation is not supported." >&2
+    echo "  Fork ($FORK_REMOTE): $FORK_PROVIDER" >&2
+    echo "  Upstream ($UPSTREAM_REMOTE): $UPSTREAM_PROVIDER" >&2
+    exit 1
+  fi
+
   UPSTREAM_SLUG=$(gp_extract_slug "$UPSTREAM_URL")
 
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
