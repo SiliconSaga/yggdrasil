@@ -105,17 +105,21 @@ FORK_SLUG=$(gp_extract_slug "$FORK_URL")
 
 if [[ -n "$UPSTREAM" ]]; then
   # Cross-fork PR: find the upstream (non-fork) remote
-  UPSTREAM_REMOTE=""
-  for remote in $(git remote); do
+  UPSTREAM_REMOTES=()
+  for remote in "${_ALL_REMOTES[@]}"; do
     if [[ "$remote" != "$FORK_REMOTE" ]]; then
-      UPSTREAM_REMOTE="$remote"
-      break
+      UPSTREAM_REMOTES+=("$remote")
     fi
   done
-  if [[ -z "$UPSTREAM_REMOTE" ]]; then
+  if [[ ${#UPSTREAM_REMOTES[@]} -eq 0 ]]; then
     echo "ERROR: No upstream remote found (only '$FORK_REMOTE' exists)." >&2
     exit 1
+  elif [[ ${#UPSTREAM_REMOTES[@]} -gt 1 ]]; then
+    echo "ERROR: Multiple upstream remotes found: ${UPSTREAM_REMOTES[*]}" >&2
+    echo "  Cannot determine which to target. Remove extra remotes or specify explicitly." >&2
+    exit 1
   fi
+  UPSTREAM_REMOTE="${UPSTREAM_REMOTES[0]}"
   UPSTREAM_URL=$(git remote get-url "$UPSTREAM_REMOTE" 2>/dev/null)
   UPSTREAM_SLUG=$(gp_extract_slug "$UPSTREAM_URL")
 

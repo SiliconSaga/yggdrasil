@@ -212,7 +212,7 @@ review_threads() {
                 echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
             else
                 echo "=== Unresolved threads: PR #$pr_num ($REPO_SLUG) ==="
-                printf '%b\n' "$threads"
+                printf '%s\n' "$threads"
             fi
             ;;
         status)
