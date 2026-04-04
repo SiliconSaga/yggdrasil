@@ -66,17 +66,33 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]];
   exit 1
 fi
 
-# Find the fork remote (first non-origin remote)
+# Find the fork remote.
+# Single remote: use it. Multiple: match forkOrg. No match: fail.
+mapfile -t _ALL_REMOTES < <(git remote)
+
 FORK_REMOTE=""
-for r in $(git remote); do
-  if [[ "$(echo "$r" | tr '[:upper:]' '[:lower:]')" != "origin" ]]; then
-    FORK_REMOTE="$r"
-    break
+if [[ ${#_ALL_REMOTES[@]} -eq 1 ]]; then
+  FORK_REMOTE="${_ALL_REMOTES[0]}"
+elif [[ -n "$_ECO" ]]; then
+  _FORK_ORG=$(yq '.identity.forkOrg // ""' "$_ECO" 2>/dev/null)
+  [[ "$_FORK_ORG" == "null" ]] && _FORK_ORG=""
+  if [[ -n "$_FORK_ORG" ]]; then
+    for _r in "${_ALL_REMOTES[@]}"; do
+      if [[ "${_r,,}" == "${_FORK_ORG,,}" ]]; then
+        FORK_REMOTE="$_r"
+        break
+      fi
+    done
   fi
-done
+fi
 if [[ -z "$FORK_REMOTE" ]]; then
-  echo "ERROR: No named remote found (only 'origin' exists)." >&2
-  echo "  Name your remote after the org: git remote rename origin <orgname>" >&2
+  if [[ ${#_ALL_REMOTES[@]} -eq 0 ]]; then
+    echo "ERROR: No remotes configured." >&2
+  else
+    echo "ERROR: Multiple remotes found — cannot determine fork remote." >&2
+    echo "  Available remotes: ${_ALL_REMOTES[*]}" >&2
+    echo "  Set identity.forkOrg in ecosystem.local.yaml." >&2
+  fi
   exit 1
 fi
 FORK_URL=$(git remote get-url "$FORK_REMOTE" 2>/dev/null)
