@@ -102,7 +102,6 @@ gp_detect_and_load "$FORK_URL" "$_ECO"
 gp_check_cli
 
 FORK_SLUG=$(gp_extract_slug "$FORK_URL")
-FORK_ORG="${FORK_SLUG%%/*}"
 
 if [[ -n "$UPSTREAM" ]]; then
   # Cross-fork PR: find the upstream (non-fork) remote
@@ -131,7 +130,7 @@ if [[ -n "$UPSTREAM" ]]; then
     --repo "$UPSTREAM_SLUG" \
     --base "$UPSTREAM_DEFAULT" \
     --head "$BRANCH" \
-    --fork-org "$FORK_ORG" \
+    --fork-slug "$FORK_SLUG" \
     --title "$TITLE" \
     --body-file "$BODYFILE"
 else

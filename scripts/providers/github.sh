@@ -43,9 +43,9 @@ gp_default_branch() {
 }
 
 # Create a pull request.
-# Usage: gp_create_pr --repo SLUG --base BRANCH --head REF --title TEXT --body-file PATH [--fork-org ORG]
+# Usage: gp_create_pr --repo SLUG --base BRANCH --head REF --title TEXT --body-file PATH [--fork-slug SLUG]
 gp_create_pr() {
-    local repo="" base="" head="" title="" body_file="" fork_org=""
+    local repo="" base="" head="" title="" body_file="" fork_slug=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --repo)      repo="$2"; shift 2 ;;
@@ -53,14 +53,15 @@ gp_create_pr() {
             --head)      head="$2"; shift 2 ;;
             --title)     title="$2"; shift 2 ;;
             --body-file) body_file="$2"; shift 2 ;;
-            --fork-org)  fork_org="$2"; shift 2 ;;
+            --fork-slug) fork_slug="$2"; shift 2 ;;
             *) echo "ERROR: gp_create_pr: unknown arg '$1'" >&2; return 1 ;;
         esac
     done
 
     # GitHub cross-fork PRs use "Org:branch" as head ref
     local head_ref="$head"
-    if [[ -n "$fork_org" ]]; then
+    if [[ -n "$fork_slug" ]]; then
+        local fork_org="${fork_slug%%/*}"
         head_ref="${fork_org}:${head}"
     fi
 
