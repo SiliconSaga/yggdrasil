@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# ws-review.sh — PR review comments and thread management
+# ws-review.sh — PR/MR review comments and thread management
 #
 # Usage:
 #   ws-review.sh <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]
 #   ws-review.sh <comp> <pr#> [--reviewer <name>] [--since <time>]
 #
-# Requires GH_TOKEN in .env. Component name is always required.
-#
-# GraphQL expansion note: if this script accumulates 4-5+ queries,
-# consider extracting them to scripts/graphql/*.graphql loaded at runtime.
+# Supports GitHub (gh) and GitLab (glab). Component name is always required.
+# Provider is auto-detected from the component's remote URL.
 
 set -euo pipefail
 
@@ -21,7 +19,7 @@ review_help() {
     echo "Usage: ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]"
     echo "       ws review <comp> <pr#> [--reviewer <name>] [--since <time>]"
     echo ""
-    echo "PR review comments and thread management."
+    echo "PR/MR review comments and thread management."
     echo ""
     echo "Subcommands:"
     echo "  threads <pr#>              List unresolved review threads"
@@ -32,6 +30,7 @@ review_help() {
     echo "  <pr#>                      List review comments (default)"
     echo "    --reviewer <name>        Filter by reviewer login"
     echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
+    echo "                             (--since push events: GitHub only)"
     echo ""
     echo "Examples:"
     echo "  ws review yggdrasil threads 8              # List unresolved threads"
@@ -82,26 +81,23 @@ review_comments() {
     local since_ts=""
     if [[ -n "$since" ]]; then
         if [[ "$since" == "last-push" || "$since" == "prev-push" ]]; then
-            # Use GitHub Events API for accurate push timestamp
-            # Always get branch from the PR — local checkout may differ
             local branch
-            branch=$(gh api "repos/$REPO_SLUG/pulls/$pr_num" --jq '.head.ref' 2>/dev/null)
+            branch=$(gp_review_head_branch "$REPO_SLUG" "$pr_num")
             if [[ -z "$branch" || "$branch" == "null" ]]; then
                 echo "ERROR: Cannot determine PR head branch for #$pr_num in $REPO_SLUG." >&2
                 exit 1
             fi
             local push_index=0
             [[ "$since" == "prev-push" ]] && push_index=1
-            since_ts=$(gh api "repos/$REPO_SLUG/events" \
-                --jq "[.[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\")] | .[$push_index].created_at" 2>/dev/null)
+            since_ts=$(gp_review_push_timestamp "$REPO_SLUG" "$branch" "$push_index")
             if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
                 echo "ERROR: Cannot determine push time for '$branch'." >&2
-                echo "  Has this branch been pushed? Use an explicit timestamp instead." >&2
+                echo "  Push event lookup may not be supported for this provider." >&2
+                echo "  Use an explicit timestamp instead." >&2
                 exit 1
             fi
             echo "(showing comments since $since: $since_ts)"
         elif [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
-            # Relative time: 1h, 30m
             local unit="${since: -1}"
             local amount="${since%?}"
             local seconds=0
@@ -114,7 +110,6 @@ review_comments() {
                 || date -u -v-"${seconds}S" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
                 || { echo "ERROR: Cannot compute relative time. Use ISO 8601 format." >&2; exit 1; })
         else
-            # Validate ISO 8601 format to prevent jq filter injection
             if [[ ! "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$ ]]; then
                 echo "ERROR: Invalid --since value '$since'." >&2
                 echo "  Expected: last-push, prev-push, Nh, Nm, or ISO 8601 (e.g. 2026-03-13T15:00:00Z)" >&2
@@ -124,46 +119,47 @@ review_comments() {
         fi
     fi
 
-    # Build jq filters (reviews use submitted_at, comments use created_at)
+    # Build jq filters
     local reviewer_filter="."
     if [[ -n "$reviewer" ]]; then
-        reviewer_filter="select(.user.login | test(\"$reviewer\"; \"i\"))"
+        reviewer_filter="select(.user.login // .author.username | test(\"$reviewer\"; \"i\"))"
     fi
     local comment_filter="$reviewer_filter"
     local review_filter="$reviewer_filter"
     if [[ -n "$since_ts" ]]; then
-        comment_filter="$comment_filter | select(.created_at > \"$since_ts\")"
-        review_filter="$review_filter | select(.submitted_at > \"$since_ts\")"
+        comment_filter="$comment_filter | select((.created_at // .updated_at) > \"$since_ts\")"
+        review_filter="$review_filter | select((.submitted_at // .created_at) > \"$since_ts\")"
     fi
 
-    # Fetch PR summary
+    # Fetch PR/MR summary
     echo "=== PR #$pr_num ($REPO_SLUG) ==="
-    gh api "repos/$REPO_SLUG/pulls/$pr_num" \
-        --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"' 2>/dev/null || {
+    gp_review_summary "$REPO_SLUG" "$pr_num" || {
         echo "ERROR: Could not fetch PR #$pr_num from $REPO_SLUG." >&2
         echo "  Check the PR number and repo name." >&2
         exit 1
     }
     echo ""
 
-    # Fetch top-level reviews
+    # Fetch reviews — warn on failure instead of aborting mid-report
     echo "=== Reviews ==="
-    local reviews
-    reviews=$(gh api "repos/$REPO_SLUG/pulls/$pr_num/reviews" \
-        --jq ".[] | $review_filter | \"[\(.user.login)] \(.state)\(.body | if . != \"\" then \":\n\" + . else \"\" end)\n\"" 2>/dev/null)
-    if [[ -n "$reviews" ]]; then
+    local reviews="" _rc=0
+    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "(failed to fetch reviews — check auth and connectivity)" >&2
+    elif [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
         echo "(no reviews${reviewer:+ from $reviewer})"
     fi
     echo ""
 
-    # Fetch inline comments
+    # Fetch inline comments — warn on failure instead of aborting mid-report
     echo "=== Inline Comments ==="
-    local comments
-    comments=$(gh api "repos/$REPO_SLUG/pulls/$pr_num/comments" \
-        --jq ".[] | $comment_filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null)
-    if [[ -n "$comments" ]]; then
+    local comments="" _rc=0
+    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "(failed to fetch inline comments — check auth and connectivity)" >&2
+    elif [[ -n "$comments" ]]; then
         echo "$comments"
     else
         echo "(no inline comments${reviewer:+ from $reviewer})"
@@ -179,14 +175,12 @@ review_threads() {
     local pr_num="$1"
     shift
 
-    # Validate PR number
     if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
         echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
         exit 1
     fi
 
-    # Parse flags
-    local mode="list"  # list, status, resolve, resolve-all
+    local mode="list"
     local resolve_id=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -201,8 +195,7 @@ review_threads() {
                 [[ "$mode" == "list" ]] || { echo "ERROR: --status, --resolve, and --resolve-all are mutually exclusive" >&2; exit 1; }
                 mode="resolve"
                 resolve_id="$2"
-                # Validate thread ID format (base64-encoded GitHub node IDs)
-                if [[ ! "$resolve_id" =~ ^[A-Za-z0-9_=+/-]+$ ]]; then
+                if [[ ! "$resolve_id" =~ ^[A-Za-z0-9_=+/.:-]+$ ]]; then
                     echo "ERROR: Invalid thread ID '$resolve_id'." >&2
                     exit 1
                 fi
@@ -213,218 +206,62 @@ review_threads() {
     done
 
     case "$mode" in
-        list)        threads_list "$pr_num" ;;
-        status)      threads_status "$pr_num" ;;
-        resolve)     threads_resolve_one "$pr_num" "$resolve_id" ;;
-        resolve-all) threads_resolve_all "$pr_num" ;;
+        list)
+            local threads
+            threads=$(gp_review_threads_list "$REPO_SLUG" "$pr_num") || {
+                echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+                exit 1
+            }
+            if [[ -z "$threads" ]]; then
+                echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
+            else
+                echo "=== Unresolved threads: PR #$pr_num ($REPO_SLUG) ==="
+                printf '%s\n' "$threads"
+            fi
+            ;;
+        status)
+            gp_review_threads_status "$REPO_SLUG" "$pr_num" || {
+                echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+                exit 1
+            }
+            ;;
+        resolve)
+            gp_review_thread_resolve "$REPO_SLUG" "$pr_num" "$resolve_id" || {
+                echo "ERROR: Failed to resolve thread $resolve_id on PR #$pr_num." >&2
+                exit 1
+            }
+            echo "Resolved thread $resolve_id on PR #$pr_num."
+            ;;
+        resolve-all)
+            gp_review_threads_resolve_all "$REPO_SLUG" "$pr_num"
+            ;;
     esac
-}
-
-# Warn if thread count hits the 100-per-page GraphQL limit.
-# Full cursor pagination is deferred until needed — see design spec.
-warn_if_truncated() {
-    local count="$1"
-    local pr_num="$2"
-    if [[ "$count" -ge 100 ]]; then
-        echo "WARNING: PR #$pr_num has $count+ threads (GitHub returns max 100 per page). Results may be incomplete." >&2
-    fi
-}
-
-threads_list() {
-    local pr_num="$1"
-    local owner="${REPO_SLUG%%/*}"
-    local repo="${REPO_SLUG##*/}"
-
-    local response
-    response=$(gh api graphql -f query='
-        query($owner: String!, $repo: String!, $pr: Int!) {
-          repository(owner: $owner, name: $repo) {
-            pullRequest(number: $pr) {
-              reviewThreads(first: 100) {
-                nodes {
-                  id
-                  isResolved
-                  comments(first: 1) {
-                    nodes {
-                      author { login }
-                      body
-                      path
-                      line
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || {
-        echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
-        exit 1
-    }
-
-    local thread_count
-    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
-    warn_if_truncated "$thread_count" "$pr_num"
-
-    local threads
-    threads=$(echo "$response" | jq -r '
-        .data.repository.pullRequest.reviewThreads.nodes[]
-        | select(.isResolved == false)
-        | {
-            id: .id,
-            author: (.comments.nodes[0].author.login // "unknown"),
-            path: (.comments.nodes[0].path // "?"),
-            line: (.comments.nodes[0].line // "?"),
-            body: (.comments.nodes[0].body // "")
-          }
-        | "---\n[\(.author)] \(.path):\(.line) (\(.id))\n\(.body)\n"
-    ')
-
-    if [[ -z "$threads" ]]; then
-        echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
-    else
-        echo "=== Unresolved threads: PR #$pr_num ($REPO_SLUG) ==="
-        printf '%b\n' "$threads"
-    fi
-}
-
-threads_status() {
-    local pr_num="$1"
-    local owner="${REPO_SLUG%%/*}"
-    local repo="${REPO_SLUG##*/}"
-
-    local response
-    response=$(gh api graphql -f query='
-        query($owner: String!, $repo: String!, $pr: Int!) {
-          repository(owner: $owner, name: $repo) {
-            pullRequest(number: $pr) {
-              reviewThreads(first: 100) {
-                nodes {
-                  isResolved
-                }
-              }
-            }
-          }
-        }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || {
-        echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
-        exit 1
-    }
-
-    local thread_count
-    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
-    warn_if_truncated "$thread_count" "$pr_num"
-
-    echo "$response" | jq -r --arg pr "$pr_num" --arg slug "$REPO_SLUG" '
-        .data.repository.pullRequest.reviewThreads.nodes
-        | {
-            resolved: [.[] | select(.isResolved == true)] | length,
-            unresolved: [.[] | select(.isResolved == false)] | length,
-            total: length
-          }
-        | "PR #\($pr) (\($slug)): \(.unresolved) unresolved, \(.resolved) resolved (\(.total) total)"
-    '
-}
-
-threads_resolve_one() {
-    local pr_num="$1"
-    local thread_id="$2"
-
-    gh api graphql -f query='
-        mutation($id: ID!) {
-          resolveReviewThread(input: {threadId: $id}) {
-            thread { isResolved }
-          }
-        }' -f id="$thread_id" >/dev/null 2>&1 || {
-        echo "ERROR: Failed to resolve thread $thread_id on PR #$pr_num." >&2
-        exit 1
-    }
-
-    echo "Resolved thread $thread_id on PR #$pr_num."
-}
-
-threads_resolve_all() {
-    local pr_num="$1"
-    local owner="${REPO_SLUG%%/*}"
-    local repo="${REPO_SLUG##*/}"
-
-    # Fetch unresolved thread IDs
-    local response
-    response=$(gh api graphql -f query='
-        query($owner: String!, $repo: String!, $pr: Int!) {
-          repository(owner: $owner, name: $repo) {
-            pullRequest(number: $pr) {
-              reviewThreads(first: 100) {
-                nodes {
-                  id
-                  isResolved
-                }
-              }
-            }
-          }
-        }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || {
-        echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
-        exit 1
-    }
-
-    local thread_count
-    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
-    warn_if_truncated "$thread_count" "$pr_num"
-
-    local ids
-    ids=$(echo "$response" | jq -r '
-        .data.repository.pullRequest.reviewThreads.nodes[]
-        | select(.isResolved == false)
-        | .id
-    ')
-
-    if [[ -z "$ids" ]]; then
-        echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
-        return
-    fi
-
-    local total=0
-    local resolved=0
-    local failed=0
-    while IFS= read -r thread_id; do
-        total=$((total + 1))
-        if gh api graphql -f query='
-            mutation($id: ID!) {
-              resolveReviewThread(input: {threadId: $id}) {
-                thread { isResolved }
-              }
-            }' -f id="$thread_id" >/dev/null 2>&1; then
-            resolved=$((resolved + 1))
-        else
-            failed=$((failed + 1))
-            echo "WARNING: Failed to resolve thread $thread_id" >&2
-        fi
-    done <<< "$ids"
-
-    if [[ "$failed" -eq 0 ]]; then
-        echo "Resolved $resolved threads on PR #$pr_num ($REPO_SLUG)."
-    else
-        echo "Resolved $resolved of $total threads on PR #$pr_num ($REPO_SLUG). $failed failed." >&2
-        exit 1
-    fi
 }
 
 # --- Shared setup ---
 
-# Handle --help before requiring GH_TOKEN — help should always work
+# Handle --help before requiring auth — help should always work
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     review_help
 fi
 
-# Source .env for GH_TOKEN
+# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
 env_file="$ROOT_DIR/.env"
-if [[ -z "${GH_TOKEN:-}" ]] && [[ -f "$env_file" ]]; then
+if [[ -f "$env_file" ]]; then
     # shellcheck source=/dev/null
     source "$env_file"
 fi
-if [[ -z "${GH_TOKEN:-}" ]]; then
-    echo "ERROR: GH_TOKEN not set. Create .env from .env.example." >&2
-    exit 1
+
+# Source provider dispatcher for slug extraction
+# shellcheck source=git-provider.sh
+source "$SCRIPT_DIR/git-provider.sh"
+
+# Load merged ecosystem config for provider detection (self-hosted mappings)
+_ECO=""
+if [[ -f "$SCRIPT_DIR/ws-overlay.sh" ]]; then
+    source "$SCRIPT_DIR/ws-overlay.sh"
+    _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 fi
-export GH_TOKEN
 
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
@@ -444,10 +281,89 @@ if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]
     exit 1
 fi
 
-REPO_SLUG="SiliconSaga/$COMP"
+# Resolve repo slug from component's remotes.
+# Unlike push/issue (which target YOUR fork), review reads PRs that may live
+# on any remote (typically upstream). Strategy: extract the PR number from args,
+# try each remote's slug until the PR is found.
+COMP_DIR="$ROOT_DIR/components/$COMP"
+[[ "$COMP" == "yggdrasil" ]] && COMP_DIR="$ROOT_DIR"
+
+if [[ ! -d "$COMP_DIR" ]] || [[ ! -d "$COMP_DIR/.git" ]]; then
+    echo "ERROR: Component '$COMP' is not cloned locally." >&2
+    echo "  Run 'ws clone $COMP' first." >&2
+    exit 1
+fi
+
+# Build list of candidate slugs from all remotes, grouped by provider
+_CANDIDATE_SLUGS=()
+_CANDIDATE_PROVIDERS=()
+for _r in $(cd "$COMP_DIR" && git remote); do
+    _url=$(cd "$COMP_DIR" && git remote get-url "$_r" 2>/dev/null) || continue
+    _prov=$(gp_detect "$_url" "$_ECO" 2>/dev/null) || continue
+    gp_load "$_prov" 2>/dev/null || continue
+    _slug=$(gp_extract_slug "$_url")
+    if [[ -n "$_slug" && "$_slug" == */* ]]; then
+        _CANDIDATE_SLUGS+=("$_slug")
+        _CANDIDATE_PROVIDERS+=("$_prov")
+    fi
+done
+
+if [[ ${#_CANDIDATE_SLUGS[@]} -eq 0 ]]; then
+    echo "ERROR: No supported remotes found for '$COMP'." >&2
+    exit 1
+fi
+
+# Peek at the PR number from remaining args to probe which slug has it
+_PEEK_PR=""
+if [[ "${1:-}" == "threads" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_PR="$2"
+elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_PR="$1"
+fi
+
+REPO_SLUG=""
+_SELECTED_PROVIDER=""
+if [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
+    REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
+    _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
+elif [[ -n "$_PEEK_PR" ]]; then
+    # Try each slug — collect all matches (PR numbers aren't unique across repos)
+    _MATCH_SLUGS=()
+    _MATCH_PROVIDERS=()
+    for i in "${!_CANDIDATE_SLUGS[@]}"; do
+        _slug="${_CANDIDATE_SLUGS[$i]}"
+        _prov="${_CANDIDATE_PROVIDERS[$i]}"
+        gp_load "$_prov" 2>/dev/null || continue
+        if gp_review_summary "$_slug" "$_PEEK_PR" &>/dev/null; then
+            _MATCH_SLUGS+=("$_slug")
+            _MATCH_PROVIDERS+=("$_prov")
+        fi
+    done
+    if [[ ${#_MATCH_SLUGS[@]} -eq 0 ]]; then
+        echo "ERROR: PR/MR #$_PEEK_PR not found on any remote for '$COMP'." >&2
+        echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
+        exit 1
+    elif [[ ${#_MATCH_SLUGS[@]} -gt 1 ]]; then
+        echo "ERROR: PR/MR #$_PEEK_PR found on multiple remotes for '$COMP'." >&2
+        echo "  Matches: ${_MATCH_SLUGS[*]}" >&2
+        echo "  Remove extra remotes or specify which repo to review." >&2
+        exit 1
+    fi
+    REPO_SLUG="${_MATCH_SLUGS[0]}"
+    _SELECTED_PROVIDER="${_MATCH_PROVIDERS[0]}"
+else
+    # Can't probe without a PR number — use first slug
+    REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
+    _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
+fi
+
+# Ensure the selected provider is loaded
+gp_load "$_SELECTED_PROVIDER"
+
+# Provider-specific auth check
+gp_check_cli || exit 1
 
 # --- Route to subcommand ---
-# All function definitions are above this block.
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     review_help

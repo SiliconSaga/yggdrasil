@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# gh-issue.sh — file a GitHub issue from a draft file
+# git-issue.sh — file an issue from a draft file
 #
-# Usage: ./scripts/gh-issue.sh COMPONENT_DIR REMOTE TITLE LABEL BODYFILE
+# Usage: ./scripts/git-issue.sh COMPONENT_DIR REMOTE TITLE LABEL BODYFILE
 #   COMPONENT_DIR — path to the component git repo
-#   REMOTE        — git remote name (e.g. 'SiliconSaga', 'MovingBlocks')
-#                   The org/repo is resolved from the remote URL.
-#   TITLE         — issue title, e.g. 'fix: remove hardcoded storageClassName'
+#   REMOTE        — git remote name (e.g. 'SiliconSaga', 'MyGitLabGroup')
+#                   The org/repo slug is resolved from the remote URL.
+#   TITLE         — issue title
 #   LABEL         — single label: bug | enhancement | documentation
 #   BODYFILE      — path to the issue body markdown file
 #
@@ -16,9 +16,7 @@
 # Draft files live in .issues/ (gitignored, created on first use).
 # Copy .agent/issue-template.md to .issues/<descriptive-name>.md to start a draft.
 #
-# Example:
-#   ./scripts/gh-issue.sh components/terasology MovingBlocks \
-#     "fix: overlapping NUIManagers" enhancement .issues/nui-overlap.md
+# Uses git-provider.sh for provider-agnostic issue creation.
 
 set -euo pipefail
 
@@ -30,25 +28,24 @@ BODYFILE="${5:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR/.."
-ENV_FILE="$REPO_ROOT/.env"
 
 # Ensure clearinghouse directory exists
 mkdir -p "$REPO_ROOT/.issues"
 
-# Load GH_TOKEN if not already set
-if [[ -z "${GH_TOKEN:-}" ]]; then
-  if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck source=/dev/null
-    source "$ENV_FILE"
-  else
-    echo "ERROR: GH_TOKEN not set and $ENV_FILE not found" >&2
-    exit 1
-  fi
-fi
+# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
+_ENV_FILE="$REPO_ROOT/.env"
+[[ -f "$_ENV_FILE" ]] && source "$_ENV_FILE"
 
-# Validate arguments
-if [[ -z "$COMPONENT_DIR" || -z "$REMOTE" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then
-  echo "Usage: $0 COMPONENT_DIR REMOTE TITLE LABEL BODYFILE" >&2
+# Source provider dispatcher
+# shellcheck source=git-provider.sh
+source "$SCRIPT_DIR/git-provider.sh"
+
+# Source shared overlay/merge functions for ecosystem config
+source "$SCRIPT_DIR/ws-overlay.sh"
+
+# Validate arguments (REMOTE may be empty for auto-detection)
+if [[ -z "$COMPONENT_DIR" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then
+  echo "Usage: $0 COMPONENT_DIR [REMOTE] TITLE LABEL BODYFILE" >&2
   exit 1
 fi
 
@@ -58,7 +55,6 @@ if [[ ! -f "$BODYFILE" ]]; then
 fi
 
 # Resolve identity from merged ecosystem config
-source "$SCRIPT_DIR/ws-overlay.sh"
 ECO=$(ws_resolve_ecosystem)
 HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$ECO" 2>/dev/null)
 
@@ -80,32 +76,54 @@ RESOLVED_BODY=$(mktemp)
 trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 sed "s/@HUMAN_ACCOUNT/@${HUMAN_ACCOUNT}/g" "$BODYFILE" > "$RESOLVED_BODY"
 
-# Resolve org/repo from the remote URL (case-insensitive remote lookup)
-REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1)
-if [[ -z "$REMOTE_NAME" ]]; then
-  echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
-  echo "  Available remotes: $(cd "$COMPONENT_DIR" && git remote | tr '\n' ' ')" >&2
+# Resolve remote:
+#   1 remote  → use it (any name)
+#   N remotes + REMOTE hint → case-insensitive match
+#   N remotes, no match → fail with clear error
+mapfile -t _REMOTES < <(cd "$COMPONENT_DIR" && git remote)
+
+REMOTE_NAME=""
+if [[ ${#_REMOTES[@]} -eq 0 ]]; then
+  echo "ERROR: No remotes configured in $COMPONENT_DIR." >&2
+  exit 1
+elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
+  REMOTE_NAME="${_REMOTES[0]}"
+elif [[ -n "$REMOTE" ]]; then
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1 || true)
+  if [[ -z "$REMOTE_NAME" ]]; then
+    echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
+    echo "  Available remotes: ${_REMOTES[*]}" >&2
+    exit 1
+  fi
+else
+  echo "ERROR: Multiple remotes in $COMPONENT_DIR — specify which one." >&2
+  echo "  Available remotes: ${_REMOTES[*]}" >&2
+  echo "  Usage: ws issue <comp> <remote> <title> <label> <bodyfile>" >&2
   exit 1
 fi
 REMOTE_URL=$(cd "$COMPONENT_DIR" && git remote get-url "$REMOTE_NAME")
-# Extract org/repo from HTTPS or SSH URL
-TARGET_REPO=$(echo "$REMOTE_URL" | sed 's|.*github.com[:/]||; s|\.git$||')
 
-if [[ -z "$TARGET_REPO" || "$TARGET_REPO" != */* ]]; then
+# Detect and load provider
+gp_detect_and_load "$REMOTE_URL" "$ECO"
+gp_check_cli
+
+TARGET_SLUG=$(gp_extract_slug "$REMOTE_URL")
+
+if [[ -z "$TARGET_SLUG" || "$TARGET_SLUG" != */* ]]; then
   echo "ERROR: Could not resolve org/repo from remote URL: $REMOTE_URL" >&2
   exit 1
 fi
 
 # Show a summary before filing
-echo "Filing issue to $TARGET_REPO (via remote '$REMOTE_NAME'):"
+echo "Filing issue to $TARGET_SLUG (via remote '$REMOTE_NAME'):"
 echo "  Title : $TITLE"
 echo "  Label : $LABEL"
 echo "  Author: @$HUMAN_ACCOUNT (via agent)"
 echo "  Body  : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
 echo ""
 
-gh issue create \
-  --repo "$TARGET_REPO" \
+gp_create_issue \
+  --repo "$TARGET_SLUG" \
   --title "$TITLE" \
   --label "$LABEL" \
   --body-file "$RESOLVED_BODY"

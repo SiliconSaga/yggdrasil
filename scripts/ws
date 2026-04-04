@@ -12,9 +12,9 @@
 #   pull [comp]       Pull all or one component
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
-#   push [comp] [branch] [--force] Push via HTTPS (sources .env)
-#   pr <comp> [--upstream] <title> <bodyfile> Open a PR (--upstream for cross-fork)
-#   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote=siliconsaga)
+#   push [comp] [branch] [--force] Push branch (remote from identity.forkOrg)
+#   pr <comp> [--upstream] <title> <bodyfile> Open a PR/MR (--upstream for cross-fork)
+#   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <comp> <pr#|threads> [options]  PR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
@@ -101,6 +101,21 @@ ws_help() {
     sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \?//'
 }
 
+# Resolve identity.forkOrg from merged ecosystem config.
+# Returns the forkOrg value (e.g. "SiliconSaga") or empty string.
+_ws_fork_org="" # cached
+ws_resolve_fork_org() {
+    if [[ -n "$_ws_fork_org" ]]; then
+        echo "$_ws_fork_org"
+        return
+    fi
+    local eco
+    eco="$(ws_resolve_ecosystem 2>/dev/null)" || return 0
+    _ws_fork_org=$(yq '.identity.forkOrg // ""' "$eco" 2>/dev/null)
+    [[ "$_ws_fork_org" == "null" ]] && _ws_fork_org=""
+    echo "$_ws_fork_org"
+}
+
 ws_exec() {
     if [[ $# -lt 2 ]]; then
         echo "Usage: ws exec <component> <command...>" >&2
@@ -134,6 +149,12 @@ ws_push() {
         esac
     done
     ws_validate_component "$comp"
+    # Pass forkOrg as push remote hint (only if set and not already overridden)
+    local fork_org
+    fork_org=$(ws_resolve_fork_org)
+    if [[ -n "$fork_org" && -z "${GIT_PUSH_REMOTE:-}" ]]; then
+        export GIT_PUSH_REMOTE="$fork_org"
+    fi
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
 
@@ -145,7 +166,13 @@ ws_pr() {
     local comp="$1"
     shift
     ws_validate_component "$comp"
-    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "$@"
+    # Resolve bodyfile path before cd (last arg is always the bodyfile)
+    local args=("$@")
+    local last_idx=$(( ${#args[@]} - 1 ))
+    if [[ "${args[$last_idx]}" != /* ]]; then
+        args[$last_idx]="$ROOT_DIR/${args[$last_idx]}"
+    fi
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "${args[@]}"
 }
 
 ws_test() {
@@ -554,18 +581,22 @@ ws_clean() {
 ws_issue() {
     if [[ $# -lt 4 || $# -gt 5 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
-        echo "  remote defaults to siliconsaga. Use a remote name to target upstream." >&2
+        echo "  remote auto-detects if single remote, uses forkOrg if multiple." >&2
         exit 1
     fi
     local comp="$1"
     shift
     ws_validate_component "$comp"
-    local remote="siliconsaga"
+    local remote=""
     if [[ $# -eq 4 ]]; then
         remote="$1"
         shift
+    else
+        # Let git-issue.sh auto-detect; pass forkOrg as hint for multi-remote
+        remote=$(ws_resolve_fork_org)
+        # remote may be empty — git-issue.sh handles auto-detect for single remote
     fi
-    bash "$SCRIPT_DIR/gh-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
+    bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
 COMMAND="${1:-help}"

@@ -172,23 +172,27 @@ cp .agent/pr-template.md .prs/<description>.md
 bash scripts/ws pr <component> "type: description" .prs/<description>.md
 ```
 
-**Why `ws push` and not plain `git push`:** The push script handles
-authentication workarounds automatically (see [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
-for details). Always use `ws push` for pushing.
+**Why `ws push` and not plain `git push`:** The push script auto-detects
+the correct remote (by org name, not `origin`) and includes safety checks
+(e.g., refusing to force-push `main`). See [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
+for auth setup details. Always use `ws push` for pushing.
 
 ---
 
 ## Auth Setup
 
-- `GH_TOKEN` in `.env` (gitignored). See `.env.example`.
-- Full setup guide: [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
-- If `.env` is missing or `GH_TOKEN` is not set, point the user to the setup
-  guide rather than explaining auth inline.
-- `gh` CLI uses `GH_TOKEN` automatically — no browser login needed.
-- Day-to-day agent PAT scopes: Contents write, Issues write, Pull requests write.
+- Token(s) in `.env` (gitignored). See `.env.example`.
+- Full setup guide: [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
+- If `.env` is missing or the provider token is not set, point the user to the
+  setup guide rather than explaining auth inline.
+- GitHub: `gh` CLI uses `GH_TOKEN` automatically — no browser login needed.
+  Classic PAT with `repo` scope recommended (fine-grained PATs have cross-org limitations).
+- GitLab: `glab` CLI uses `GITLAB_TOKEN` automatically — no browser login needed.
+  Personal access token with `api` scope.
+- Day-to-day agent PAT scopes: repo-level read/write for contents, issues, PRs/MRs.
   Administration scope is NOT included; use a separate admin token for `setup-branch-protection.sh`.
 
-Full setup guide: [`docs/github-cli-setup.md`](docs/github-cli-setup.md)
+Full setup guide: [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
 
 ---
 

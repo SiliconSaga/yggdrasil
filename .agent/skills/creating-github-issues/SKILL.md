@@ -7,24 +7,20 @@ description: Use when deciding to file a GitHub issue, filing a deferred task, o
 
 ## Overview
 
-Pattern for filing well-structured, agent-actionable GitHub issues in the SiliconSaga multi-repo workspace using the `gh` CLI.
+Pattern for filing well-structured, agent-actionable issues in the SiliconSaga multi-repo workspace using the `ws issue` command (provider-agnostic via `git-issue.sh`).
 
 ## Pre-flight Checks
 
 ```bash
-# 1. Verify gh is installed
-gh --version
-# If missing: brew install gh
+# 1. Verify CLI authentication
+#    Ensure your provider CLI is installed and token is configured.
+#    See docs/git-provider-setup.md for setup instructions.
+#    Load .env if needed: source ../yggdrasil/.env (or source .env from yggdrasil)
 
-# 2. Verify GH_TOKEN is set (no browser login needed)
-# Load if needed (from any sibling repo): source ../yggdrasil/.env
-# Or from within yggdrasil itself:        source .env
-gh auth status
-
-# 3. Identify the target repo (run in the repo directory)
+# 2. Identify the target repo (run in the repo directory)
 git remote -v
 # Remotes are named after their org/service (e.g. 'siliconsaga', 'local-gitea')
-# Extract owner/repo from the github.com URL of the appropriate remote
+# The provider is auto-detected from the remote URL.
 ```
 
 ## Should This Be an Issue?
@@ -89,14 +85,11 @@ ls ../yggdrasil/.issues/
 
 Read each file before proceeding to confirm content.
 
-**Step 4 — submit via the helper script** (fixed invocation — one approval covers all future issues):
+**Step 4 — submit via the workspace CLI** (fixed invocation — one approval covers all future issues):
 
 ```bash
-# From a sibling repo:
-../yggdrasil/scripts/gh-issue.sh REPO "verb: description" LABEL \
-  ../yggdrasil/.issues/<filename>.md
-# From within yggdrasil itself:
-./scripts/gh-issue.sh REPO "verb: description" LABEL .issues/<filename>.md
+# Use ws issue (from yggdrasil root)
+bash scripts/ws issue <comp> <remote> "verb: description" <label> .issues/<filename>.md
 ```
 
 Labels: `bug`, `enhancement`, `documentation`
@@ -114,5 +107,5 @@ If the issue blocks current or near-future work, note the URL and number in MEMO
 - **Requires reading this conversation to understand**: not agent-actionable — write a memory note instead
 - **Vague acceptance criteria**: a fresh agent won't know when it's done
 - **Wrong repo**: always verify with `git remote -v` before filing
-- **`gh` not authenticated**: set `GH_TOKEN` env var (`source yggdrasil/.env`); see `yggdrasil/docs/github-cli-setup.md`
+- **CLI not authenticated**: set provider token env var (`source ../yggdrasil/.env` from a sibling repo, or `source .env` from the workspace root); see docs/git-provider-setup.md
 - **Spans multiple repos**: file a design doc instead, not an issue

@@ -18,7 +18,7 @@ This should evolve further soon.
    cd yggdrasil
    ```
 
-2. _Optionally_ **Set up auth** — follow the [GitHub CLI Setup](../github-cli-setup.md) guide to configure your `GH_TOKEN` in `.env`. This enables the `ws` CLI to push, file issues, and manage PRs. Without auth you can still do local commits and play with the system, but you won't be able to push changes or create PRs and issues.
+2. _Optionally_ **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env`. This enables the `ws` CLI to push, file issues, and manage PRs/MRs. Without auth you can still do local commits and play with the system, but you won't be able to push changes or create PRs and issues.
 
 3. **Clone a component to work on:**
 
