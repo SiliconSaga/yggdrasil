@@ -96,3 +96,151 @@ gp_create_issue() {
         --label "$label" \
         --description "$(cat "$body_file")"
 }
+
+# --- Review functions ---
+
+# Helper: URL-encode a slug for GitLab API paths.
+_gl_encode() { echo "$1" | sed 's|/|%2F|g'; }
+
+# Print MR summary.
+# Usage: gp_review_summary SLUG MR_NUM
+gp_review_summary() {
+    local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api "projects/$encoded/merge_requests/$mr_num" 2>/dev/null | jq -r '
+        "Title: \(.title)\nState: \(.state)\nAuthor: \(.author.username)\nBranch: \(.source_branch) → \(.target_branch)\nURL: \(.web_url)"
+    ' 2>/dev/null
+}
+
+# Print formatted reviews/approvals.
+# GitLab doesn't have separate "reviews" — approvals are the closest equivalent.
+# Usage: gp_review_list_reviews SLUG MR_NUM [JQ_FILTER]
+gp_review_list_reviews() {
+    local slug="$1" mr_num="$2" filter="${3:-.}"
+    local encoded; encoded=$(_gl_encode "$slug")
+    # Show approvals
+    local approvals
+    approvals=$(glab api "projects/$encoded/merge_requests/$mr_num/approvals" 2>/dev/null | jq -r '
+        .approved_by[]? | "[\(.user.username)] APPROVED\n"
+    ' 2>/dev/null)
+    if [[ -n "$approvals" ]]; then
+        echo "$approvals"
+    fi
+}
+
+# Print formatted inline comments (discussion notes on diff).
+# Usage: gp_review_list_comments SLUG MR_NUM [JQ_FILTER]
+gp_review_list_comments() {
+    local slug="$1" mr_num="$2" filter="${3:-.}"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null | jq -r '
+        .[]
+        | select(.notes[0].type == "DiffNote")
+        | .notes[0]
+        | '"$filter"'
+        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // "?"):\(.position.new_line // .position.old_line // "?")\n\(.body[0:500])\n"
+    ' 2>/dev/null
+}
+
+# Get MR source branch name (for --since).
+# Usage: gp_review_head_branch SLUG MR_NUM
+gp_review_head_branch() {
+    local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api "projects/$encoded/merge_requests/$mr_num" 2>/dev/null | jq -r '.source_branch' 2>/dev/null
+}
+
+# Get push event timestamp for a branch.
+# GitLab events API differs — use MR updated_at as approximation.
+# Usage: gp_review_push_timestamp SLUG BRANCH INDEX
+gp_review_push_timestamp() {
+    echo "" # Not directly supported — return empty to trigger fallback
+}
+
+# List unresolved discussion threads.
+# Usage: gp_review_threads_list SLUG MR_NUM
+gp_review_threads_list() {
+    local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+
+    local discussions
+    discussions=$(glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null) || return 1
+
+    echo "$discussions" | jq -r '
+        .[]
+        | select(.notes | length > 0)
+        | select(.notes[0].resolvable == true)
+        | select(.notes[0].resolved == false)
+        | "---\n[\(.notes[0].author.username)] \(.notes[0].position.new_path // .notes[0].position.old_path // "(general)"):\(.notes[0].position.new_line // .notes[0].position.old_line // "?") (\(.id))\n\(.notes[0].body)\n"
+    '
+}
+
+# Print thread status counts.
+# Usage: gp_review_threads_status SLUG MR_NUM
+gp_review_threads_status() {
+    local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+
+    local discussions
+    discussions=$(glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null) || return 1
+
+    echo "$discussions" | jq -r --arg mr "$mr_num" --arg slug "$slug" '
+        [.[] | select(.notes[0].resolvable == true)]
+        | {
+            resolved: [.[] | select(.notes[0].resolved == true)] | length,
+            unresolved: [.[] | select(.notes[0].resolved == false)] | length,
+            total: length
+          }
+        | "MR #\($mr) (\($slug)): \(.unresolved) unresolved, \(.resolved) resolved (\(.total) total)"
+    '
+}
+
+# Resolve a single discussion thread.
+# Usage: gp_review_thread_resolve SLUG MR_NUM DISCUSSION_ID
+gp_review_thread_resolve() {
+    local slug="$1" mr_num="$2" discussion_id="$3"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api --method PUT "projects/$encoded/merge_requests/$mr_num/discussions/$discussion_id" \
+        -f resolved=true >/dev/null 2>&1
+}
+
+# Resolve all unresolved threads. Prints progress.
+# Usage: gp_review_threads_resolve_all SLUG MR_NUM
+gp_review_threads_resolve_all() {
+    local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+
+    local discussions
+    discussions=$(glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null) || return 1
+
+    local ids
+    ids=$(echo "$discussions" | jq -r '
+        .[]
+        | select(.notes[0].resolvable == true)
+        | select(.notes[0].resolved == false)
+        | .id
+    ')
+
+    if [[ -z "$ids" ]]; then
+        echo "No unresolved threads on MR #$mr_num ($slug)."
+        return 0
+    fi
+
+    local total=0 resolved=0 failed=0
+    while IFS= read -r disc_id; do
+        total=$((total + 1))
+        if gp_review_thread_resolve "$slug" "$mr_num" "$disc_id"; then
+            resolved=$((resolved + 1))
+        else
+            failed=$((failed + 1))
+            echo "WARNING: Failed to resolve discussion $disc_id" >&2
+        fi
+    done <<< "$ids"
+
+    if [[ "$failed" -eq 0 ]]; then
+        echo "Resolved $resolved threads on MR #$mr_num ($slug)."
+    else
+        echo "Resolved $resolved of $total threads on MR #$mr_num ($slug). $failed failed." >&2
+        return 1
+    fi
+}
