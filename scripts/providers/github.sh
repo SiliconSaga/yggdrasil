@@ -243,6 +243,12 @@ gp_review_threads_resolve_all() {
           }
         }' -f owner="$owner" -f repo="$repo" -F pr="$pr_num" 2>/dev/null) || return 1
 
+    local thread_count
+    thread_count=$(echo "$response" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
+    if [[ "$thread_count" -ge 100 ]]; then
+        echo "WARNING: PR #$pr_num has $thread_count+ threads (max 100 per page). Resolution may be incomplete." >&2
+    fi
+
     local ids
     ids=$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id')
 

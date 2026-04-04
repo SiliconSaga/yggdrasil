@@ -120,9 +120,9 @@ gp_review_list_reviews() {
     local encoded; encoded=$(_gl_encode "$slug")
     # Show approvals
     local approvals
-    approvals=$(glab api "projects/$encoded/merge_requests/$mr_num/approvals" 2>/dev/null | jq -r '
-        .approved_by[]? | "[\(.user.username)] APPROVED\n"
-    ' 2>/dev/null)
+    approvals=$(glab api "projects/$encoded/merge_requests/$mr_num/approvals" 2>/dev/null | jq -r "
+        .approved_by[]? | $filter | \"[\(.user.username)] APPROVED\n\"
+    " 2>/dev/null)
     if [[ -n "$approvals" ]]; then
         echo "$approvals"
     fi
@@ -136,9 +136,10 @@ gp_review_list_comments() {
     glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null | jq -r '
         .[]
         | select(.notes[0].type == "DiffNote")
-        | .notes[0]
+        | . as $disc
+        | .notes[]
         | '"$filter"'
-        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // "?"):\(.position.new_line // .position.old_line // "?")\n\(.body[0:500])\n"
+        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?")\n\(.body[0:500])\n"
     ' 2>/dev/null
 }
 
