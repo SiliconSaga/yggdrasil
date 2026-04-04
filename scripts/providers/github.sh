@@ -26,12 +26,13 @@ gp_check_cli() {
     fi
 }
 
-# Extract org/repo slug from a GitHub remote URL.
-# Handles both HTTPS and SSH formats.
+# Extract org/repo slug from a remote URL.
+# Handles both HTTPS and SSH formats for any domain.
 # Usage: gp_extract_slug URL
 gp_extract_slug() {
     local url="$1"
-    echo "$url" | sed 's|.*github.com[:/]||; s|\.git$||'
+    # Handle HTTPS (https://host/org/repo) and SSH (git@host:org/repo)
+    echo "$url" | sed 's|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitHub repo.

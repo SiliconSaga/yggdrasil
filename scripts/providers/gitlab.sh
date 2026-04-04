@@ -26,13 +26,13 @@ gp_check_cli() {
     fi
 }
 
-# Extract group/repo slug from a GitLab remote URL.
-# Handles both HTTPS and SSH formats, including subgroups.
+# Extract group/repo slug from a remote URL.
+# Handles both HTTPS and SSH formats for any domain, including subgroups.
 # Usage: gp_extract_slug URL
 gp_extract_slug() {
     local url="$1"
-    # Remove protocol + domain prefix and trailing .git
-    echo "$url" | sed 's|.*gitlab\.com[:/]||; s|.*://[^/]*/||; s|\.git$||'
+    # Handle HTTPS (https://host/group/repo) and SSH (git@host:group/repo)
+    echo "$url" | sed 's|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitLab repo.
