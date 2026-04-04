@@ -323,23 +323,30 @@ if [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
 elif [[ -n "$_PEEK_PR" ]]; then
-    # Try each slug until the PR/MR is found
+    # Try each slug — collect all matches (PR numbers aren't unique across repos)
+    _MATCH_SLUGS=()
+    _MATCH_PROVIDERS=()
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
         _prov="${_CANDIDATE_PROVIDERS[$i]}"
         gp_load "$_prov" 2>/dev/null || continue
-        # Probe: try to fetch PR/MR summary
         if gp_review_summary "$_slug" "$_PEEK_PR" &>/dev/null; then
-            REPO_SLUG="$_slug"
-            _SELECTED_PROVIDER="$_prov"
-            break
+            _MATCH_SLUGS+=("$_slug")
+            _MATCH_PROVIDERS+=("$_prov")
         fi
     done
-    if [[ -z "$REPO_SLUG" ]]; then
+    if [[ ${#_MATCH_SLUGS[@]} -eq 0 ]]; then
         echo "ERROR: PR/MR #$_PEEK_PR not found on any remote for '$COMP'." >&2
         echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
         exit 1
+    elif [[ ${#_MATCH_SLUGS[@]} -gt 1 ]]; then
+        echo "ERROR: PR/MR #$_PEEK_PR found on multiple remotes for '$COMP'." >&2
+        echo "  Matches: ${_MATCH_SLUGS[*]}" >&2
+        echo "  Remove extra remotes or specify which repo to review." >&2
+        exit 1
     fi
+    REPO_SLUG="${_MATCH_SLUGS[0]}"
+    _SELECTED_PROVIDER="${_MATCH_PROVIDERS[0]}"
 else
     # Can't probe without a PR number — use first slug
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"

@@ -7,7 +7,7 @@
 #   TITLE     — PR/MR title
 #   BODYFILE  — path to markdown file containing the body
 #
-# Without --upstream, targets the fork remote with --base main.
+# Without --upstream, targets the fork remote using its default branch (via gp_default_branch).
 # With --upstream, auto-detects the upstream remote and targets its default branch.
 #
 # Draft files live in .prs/ (gitignored, auto-created).
