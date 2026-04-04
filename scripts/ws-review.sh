@@ -140,10 +140,10 @@ review_comments() {
     }
     echo ""
 
-    # Fetch reviews
+    # Fetch reviews (|| true prevents set -e abort on API failure)
     echo "=== Reviews ==="
     local reviews
-    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter")
+    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter" || true)
     if [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
@@ -151,10 +151,10 @@ review_comments() {
     fi
     echo ""
 
-    # Fetch inline comments
+    # Fetch inline comments (|| true prevents set -e abort on API failure)
     echo "=== Inline Comments ==="
     local comments
-    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter")
+    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter" || true)
     if [[ -n "$comments" ]]; then
         echo "$comments"
     else
