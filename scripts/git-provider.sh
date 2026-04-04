@@ -83,7 +83,11 @@ gp_load() {
     if [[ ! -f "$provider_file" ]]; then
         echo "ERROR: No provider implementation for '$provider'." >&2
         echo "  Expected: $provider_file" >&2
-        echo "  Available providers: $(ls "$_GP_SCRIPT_DIR/providers/"*.sh 2>/dev/null | xargs -I{} basename {} .sh | tr '\n' ' ')" >&2
+        local _providers=""
+        for _f in "$_GP_SCRIPT_DIR/providers/"*.sh; do
+            [[ -f "$_f" ]] && _providers+="$(basename "$_f" .sh) "
+        done
+        echo "  Available providers: ${_providers:-none}" >&2
         return 1
     fi
 
