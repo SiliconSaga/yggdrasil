@@ -12,7 +12,7 @@
 
 ---
 
-### Task 1: Create the provider dispatcher (`git-provider.sh`)
+## Task 1: Create the provider dispatcher (`git-provider.sh`)
 
 **Files:**
 - Create: `scripts/git-provider.sh`
@@ -151,7 +151,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/git-provider-dispatcher.md`
 
 ---
 
-### Task 2: Create the GitHub provider (`providers/github.sh`)
+## Task 2: Create the GitHub provider (`providers/github.sh`)
 
 **Files:**
 - Create: `scripts/providers/github.sh`
@@ -282,7 +282,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/github-provider.md`
 
 ---
 
-### Task 3: Create the GitLab provider (`providers/gitlab.sh`)
+## Task 3: Create the GitLab provider (`providers/gitlab.sh`)
 
 **Files:**
 - Create: `scripts/providers/gitlab.sh`
@@ -422,7 +422,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/gitlab-provider.md`
 
 ---
 
-### Task 4: Simplify `git-push.sh`
+## Task 4: Simplify `git-push.sh`
 
 **Files:**
 - Modify: `scripts/git-push.sh`
@@ -538,7 +538,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/simplify-push.md`
 
 ---
 
-### Task 5: Refactor `git-pr.sh` to use provider
+## Task 5: Refactor `git-pr.sh` to use provider
 
 **Files:**
 - Modify: `scripts/git-pr.sh`
@@ -712,7 +712,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/refactor-pr.md`
 
 ---
 
-### Task 6: Rename and refactor `gh-issue.sh` → `git-issue.sh`
+## Task 6: Rename and refactor `gh-issue.sh` → `git-issue.sh`
 
 **Files:**
 - Delete: `scripts/gh-issue.sh` (via git mv)
@@ -721,7 +721,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/refactor-pr.md`
 
 - [ ] **Step 1: Rename the file**
 
-Run: `git -C /d/Dev/GitWS/yggdrasil mv scripts/gh-issue.sh scripts/git-issue.sh`
+Run: `git mv scripts/gh-issue.sh scripts/git-issue.sh`
 
 - [ ] **Step 2: Rewrite `scripts/git-issue.sh`**
 
@@ -880,7 +880,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/refactor-issue.md`
 
 ---
 
-### Task 7: Update `.env.example`
+## Task 7: Update `.env.example`
 
 **Files:**
 - Modify: `.env.example`
@@ -940,7 +940,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/env-example-gitlab.md`
 
 ---
 
-### Task 8: Update `ecosystem.local.yaml.example`
+## Task 8: Update `ecosystem.local.yaml.example`
 
 **Files:**
 - Modify: `ecosystem.local.yaml.example`
@@ -984,7 +984,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/eco-example-provider.md`
 
 ---
 
-### Task 9: Replace `docs/github-cli-setup.md` with `docs/git-provider-setup.md`
+## Task 9: Replace `docs/github-cli-setup.md` with `docs/git-provider-setup.md`
 
 **Files:**
 - Delete: `docs/github-cli-setup.md` (via git mv)
@@ -992,7 +992,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/eco-example-provider.md`
 
 - [ ] **Step 1: Rename the file**
 
-Run: `git -C /d/Dev/GitWS/yggdrasil mv docs/github-cli-setup.md docs/git-provider-setup.md`
+Run: `git mv docs/github-cli-setup.md docs/git-provider-setup.md`
 
 - [ ] **Step 2: Rewrite `docs/git-provider-setup.md`**
 
@@ -1227,7 +1227,7 @@ Search for `github-cli-setup` in the codebase and update. Known reference:
 In `docs/github-cli-setup.md` itself (now renamed). Check AGENTS.md and
 skills for references.
 
-Run: `grep -r "github-cli-setup" /d/Dev/GitWS/yggdrasil/ --include="*.md" --include="*.sh" -l`
+Run: `grep -r "github-cli-setup"  --include="*.md" --include="*.sh" -l`
 
 Update any files found to reference `git-provider-setup.md` instead.
 
@@ -1251,7 +1251,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/provider-setup-docs.md`
 
 ---
 
-### Task 10: Integration smoke test
+## Task 10: Integration smoke test
 
 **Files:** None (verification only)
 
