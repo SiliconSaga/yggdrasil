@@ -1,6 +1,6 @@
 # Yggdrasil
 
-*The World Tree - The Mega-Workspace*
+*The World Tree — The Meta-Workspace*
 
 > "An immense mythical tree that connects the nine worlds in Norse cosmology."
 

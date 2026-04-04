@@ -184,6 +184,33 @@ export PATH="$HOME/bin:$PATH"
 
 Verify: `yq --version` should report v4.x.
 
+### jq (JSON processor)
+
+The GitLab provider uses [jq](https://jqlang.github.io/jq/) to parse API
+responses. GitHub uses `gh --jq` natively, so jq is only required for GitLab.
+
+**macOS:**
+```bash
+brew install jq
+```
+
+**Windows:**
+```bash
+# Option 1: winget
+winget install jqlang.jq
+
+# Option 2: chocolatey
+choco install jq
+```
+
+After installing via chocolatey on Windows, jq may not be on PATH in Git Bash.
+Add it to `~/.bashrc`:
+```bash
+export PATH="/c/ProgramData/chocolatey/bin:$PATH"
+```
+
+Verify: `jq --version` should report 1.6+.
+
 ### Running Shell Scripts on Windows
 
 All workspace scripts are Bash scripts. Windows needs Git Bash (installed

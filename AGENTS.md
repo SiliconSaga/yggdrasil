@@ -57,7 +57,7 @@ aligned on what the session is about. Don't front-load everything at once.
 | `terasology` | 3 | Voxel game (fork) | `components/terasology` |
 | `destinationsol` | 3 | Space shooter game (fork) | `components/destinationsol` |
 
-GitHub org: Avoid using a generic `origin` and use explicit remote names like `siliconsaga`
+Git remotes: Avoid using a generic `origin` — use explicit remote names like `siliconsaga` or your GitLab group name
 
 ---
 
@@ -176,6 +176,21 @@ bash scripts/ws pr <component> "type: description" .prs/<description>.md
 the correct remote (by org name, not `origin`) and includes safety checks
 (e.g., refusing to force-push `main`). See [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
 for auth setup details. Always use `ws push` for pushing.
+
+---
+
+## Code Style
+
+**Comments and docs describe current state, not history.** Code comments,
+test names, and Javadoc should be grounded in what the code does now — not
+what it used to do or what bug it fixed. Historical context belongs in commit
+messages and PR descriptions, which are the record of change.
+
+Good: `// CoreRegistry is set in initialize() after rootContext is created`
+Bad: `// The previous call here passed null`
+
+Good: `@DisplayName("should resolve parent beans")`
+Bad: `@DisplayName("before the fix, this was broken")`
 
 ---
 
