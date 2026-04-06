@@ -292,9 +292,11 @@ provided by Nidavellir) as the identity backbone:
 
 **Performance:** The router needs fast subscription lookups on every message
 fan-out. Hitting the Keycloak admin API per message would be too slow. The router
-maintains a local subscription cache that syncs from Keycloak on a schedule or via
-event hooks. Keycloak's event listener SPI can push user/group changes to a Kafka
-topic (`knarr.identity.changes`) for near-real-time cache invalidation.
+uses a Valkey cache (provisioned via Mimir's Crossplane composition) for
+subscription lookups — a hash per room mapping to subscriber entries. Keycloak's
+event listener SPI pushes user/group changes to a Kafka topic
+(`knarr.identity.changes`); a small sync service consumes those events and
+invalidates the Valkey cache for near-real-time updates.
 
 **Frictionless principle:** The self-service SMS/email flow creates a Keycloak user
 behind the scenes. A parent texting "JOIN PANTHERS" should never encounter a login
