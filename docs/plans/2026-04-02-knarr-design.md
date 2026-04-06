@@ -61,9 +61,16 @@ load, reshape goods for each market, and negotiate deals.
 ### Other Boundaries
 
 - **Mimir (Tier 2):** Provides Kafka via Strimzi and PostgreSQL via Percona Crossplane compositions. Knarr declares what it needs; Mimir provisions.
-- **Nidavellir (Tier 2):** Provides Keycloak for admin auth if needed.
+- **Nidavellir (Tier 2):** Provides Keycloak as the ecosystem identity provider.
+  Knarr uses Keycloak as the identity backbone for the subscription model (see
+  Identity and Subscription Model section below).
 - **Nordri (Tier 1):** Provides k3s cluster, Longhorn storage, Traefik ingress.
-- **GDD Git interface:** Future integration point. Autoboros chatbots could surface GDD-style Git commands for human preview/approval in Matrix rooms. Knarr provides transport; command formatting and approval UX is an Autoboros concern.
+- **Nornir:** Governs permissions and approvals. Composes naturally with Keycloak
+  identity — "is this person authorized to post announcements?" is a Nornir
+  question answered using Keycloak identity.
+- **GDD Git interface:** Future integration point. Autoboros chatbots could surface
+  GDD-style Git commands for human preview/approval in Matrix rooms. Knarr provides
+  transport; command formatting and approval UX is an Autoboros concern.
 
 ---
 
@@ -266,8 +273,33 @@ user:
       mode: digest                 # daily digest instead of per-message
 ```
 
-Storage: a simple table in the Synapse PostgreSQL instance (or a separate small DB).
-The router reads subscriptions when deciding where to fan out a message.
+### Keycloak as Identity Backbone
+
+Rather than building a standalone user database, Knarr uses Keycloak (already
+provided by Nidavellir) as the identity backbone:
+
+- **Each Knarr user is a Keycloak user** — created automatically when someone
+  opts in via SMS/email, or manually by a power user. Non-technical users never
+  see Keycloak or a login page.
+- **Platform accounts as user attributes** — WhatsApp number, Discord ID, email,
+  Matrix ID stored as Keycloak custom attributes on the user profile.
+- **Keycloak groups as teams** — "Panthers parents" is a Keycloak group.
+  Membership drives which rooms/subscriptions are available.
+- **SSO for future web UI** — any Knarr admin interface is just an OIDC client
+  against Keycloak. No separate auth system.
+- **Nornir integration** — Nornir can answer authorization questions ("can this
+  person post league-wide announcements?") using the same Keycloak identity.
+
+**Performance:** The router needs fast subscription lookups on every message
+fan-out. Hitting the Keycloak admin API per message would be too slow. The router
+maintains a local subscription cache that syncs from Keycloak on a schedule or via
+event hooks. Keycloak's event listener SPI can push user/group changes to a Kafka
+topic (`knarr.identity.changes`) for near-real-time cache invalidation.
+
+**Frictionless principle:** The self-service SMS/email flow creates a Keycloak user
+behind the scenes. A parent texting "JOIN PANTHERS" should never encounter a login
+page, password prompt, or any hint that Keycloak exists. Power users and admins get
+the full Keycloak experience (SSO, user management, group assignment).
 
 ### How Routing Changes
 
