@@ -230,6 +230,187 @@ For approval workflows, `routing.status` cycles: `pending` → `approved`/`rejec
 
 ---
 
+## Identity and Subscription Model
+
+The routing layer (Layer 2) currently thinks in terms of rooms and platforms: "messages
+in this room go to that WhatsApp group." The identity model adds a user dimension:
+"this person wants notifications from this room via SMS."
+
+This is critical for the sports league and PTA use cases where each parent has a
+preferred channel and non-technical users need a frictionless way to opt in.
+
+### User Identity
+
+A Knarr identity ties together a person's accounts across platforms:
+
+```yaml
+user:
+  display_name: "Coach Mike"
+  community: sports-league
+  accounts:
+    - platform: matrix
+      id: "@mike:knarr.local"      # only if power user
+    - platform: whatsapp
+      id: "+15550123"
+    - platform: sms
+      id: "+15550123"              # can overlap with whatsapp number
+    - platform: email
+      id: "mike@example.com"
+  subscriptions:
+    - room: "#panthers/announcements"
+      channel: sms
+    - room: "#panthers/coaches"
+      channel: whatsapp
+    - room: "#league/schedule"
+      channel: email
+      mode: digest                 # daily digest instead of per-message
+```
+
+Storage: a simple table in the Synapse PostgreSQL instance (or a separate small DB).
+The router reads subscriptions when deciding where to fan out a message.
+
+### How Routing Changes
+
+Current model (room-level):
+
+```
+#panthers/announcements → WhatsApp group (all members see everything)
+```
+
+Extended model (room + user subscriptions):
+
+```
+#panthers/announcements →
+  WhatsApp group (for whatsapp subscribers — transparent bridge)
+  SMS to +1-555-0123 (Coach Mike, subscribed via SMS)
+  SMS to +1-555-0456 (Parent Jane, subscribed via SMS)
+  email to pat@example.com (Parent Pat, subscribed via email)
+```
+
+The WhatsApp group bridge is still a transparent mautrix bridge. The SMS and email
+deliveries are individual fan-outs handled by the router based on subscription data.
+
+### Self-Service Opt-In/Opt-Out
+
+Non-technical users never need to know Matrix exists. They interact with Knarr
+through the channel they already use:
+
+**SMS (via spare phone / mautrix-gmessages):**
+```
+→ Text "JOIN PANTHERS" to the Knarr number
+← "You're subscribed to Panthers announcements via SMS. Text STOP to unsubscribe."
+
+→ Text "STOP"
+← "You've been unsubscribed from all notifications."
+
+→ Text "HELP"
+← "Available teams: PANTHERS, EAGLES, TIGERS. Text JOIN <team> to subscribe."
+```
+
+**Email:**
+```
+→ Send any email to panthers+join@knarr.example.com
+← Auto-reply: "You're subscribed to Panthers announcements via email."
+
+→ Send to panthers+stop@knarr.example.com
+← Auto-reply: "You've been unsubscribed."
+```
+
+Email opt-in/out requires a mail receiver — either a simple SMTP listener in the
+cluster or an inbound webhook from a service like Mailgun/Sendgrid.
+
+**WhatsApp:**
+Users who join the bridged WhatsApp group are implicitly subscribed. No extra
+opt-in needed — the bridge handles it. They can leave the group to unsubscribe.
+
+### Power User Admin
+
+Power users can manage subscriptions on behalf of others via Matrix bot commands
+in an admin room:
+
+```
+!knarr subscribe +15550123 #panthers/announcements sms
+!knarr subscribe mike@example.com #league/schedule email-digest
+!knarr list-subscribers #panthers/announcements
+!knarr unsubscribe +15550123 all
+```
+
+Or eventually a small web UI. The bot command gets there first.
+
+### Subscription Flow
+
+```mermaid
+sequenceDiagram
+    participant P as Parent (SMS)
+    participant Phone as Spare Phone
+    participant Bridge as mautrix-gmessages
+    participant Synapse as Synapse
+    participant Router as Router
+    participant DB as Subscription DB
+
+    P->>Phone: Text "JOIN PANTHERS"
+    Phone->>Bridge: SMS received
+    Bridge->>Synapse: Matrix message
+    Synapse->>Router: message event
+    Router->>DB: create subscription (sms, +1555..., #panthers)
+    Router->>Synapse: reply "You're subscribed"
+    Synapse->>Bridge: Matrix reply
+    Bridge->>Phone: SMS reply
+    Phone->>P: "You're subscribed to Panthers via SMS"
+
+    Note over Router,DB: Later, when announcement is posted...
+
+    Router->>DB: lookup subscribers for #panthers/announcements
+    Router->>Bridge: send SMS to +1555...
+    Bridge->>Phone: SMS
+    Phone->>P: "Game cancelled due to rain"
+```
+
+---
+
+## Bridge Limitations
+
+Bridges between rich and thin platforms involve inherent trade-offs. The design
+principle: accept graceful degradation rather than building complex translation
+layers.
+
+### Emoji Reactions
+
+| Bridge | Support | Notes |
+|--------|---------|-------|
+| Matrix ↔ Discord | Good | mautrix-discord supports bidirectional reactions. Custom emoji may not translate. |
+| Matrix ↔ WhatsApp | Basic | mautrix-whatsapp supports standard emoji reactions. |
+| Matrix ↔ SMS | None | Reactions appear as text: "(Mike reacted with 👍)" |
+| Matrix ↔ Email | None | Same text degradation as SMS. |
+
+Rich-to-rich bridging (Discord ↔ Matrix ↔ WhatsApp) works well. Thin channels
+(SMS, email) get text descriptions. Don't try to build a universal reaction system.
+
+### Threads
+
+| Bridge | Support | Notes |
+|--------|---------|-------|
+| Matrix ↔ Discord | Reasonable | Discord threads map to Matrix threads (MSC3440). Workable but not perfect. |
+| Matrix ↔ WhatsApp | Reply-to only | WhatsApp has reply-to-message but not threads. Threads collapse to replies. |
+| Matrix ↔ SMS/Email | None | Threads collapse into the flat message stream. |
+
+Discord forum channels are a special case — they're "a room full of threads." The
+bridge maps each forum post to a Matrix thread, which is usable but lossy. For
+communities using forum channels heavily, a dedicated Matrix room per forum post
+may work better than bridging the entire forum channel.
+
+### Design Guidance
+
+- **Don't normalize up.** Don't try to give SMS users a thread experience. They
+  signed up for a simpler channel and that's fine.
+- **Preserve richness where it exists.** Discord ↔ Matrix reactions and threads
+  work — let them work. Don't strip features to match the lowest common denominator.
+- **Inform users of limitations.** A power user configuring a bridge should know
+  that SMS subscribers won't see threads or reactions. Surface this in the admin
+  tooling.
+
+---
+
 ## Tech Stack
 
 | Component | Technology | Rationale |
