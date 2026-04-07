@@ -92,23 +92,104 @@ Synapse homeserver with mautrix bridges, deployed via Helm into k3s.
 
 **Room hierarchy:**
 
+Matrix Spaces can nest, allowing a Feeds sub-space per community for automated
+platform monitoring, separate from human conversation rooms.
+
 ```
-#terasology/               (public space)
+#terasology/                       (public space)
   #general
   #dev
-  #social-watch            (Reddit, Twitter, Steam mentions — Layer 2)
-  #engine-room             (private — content drafting, invite-only)
+  #engine-room                     (private — content drafting, invite-only)
+  #highlights                      (AI-curated important items — see below)
+  #feeds/                          (sub-space — automated platform monitoring)
+    #feed-reddit
+    #feed-github
+    #feed-steam
+    #feed-twitter
+    #feed-youtube
+    #feed-discord                  (activity from non-bridged Discord channels)
 
-#pta/                      (private space, invite-only)
+#gdd/                              (space — workspace/tooling)
+  #general
+  #highlights
+  #feeds/
+    #feed-github                   (separate from Terasology's — different repos)
+
+#pta/                              (private space, invite-only)
   #announcements
   #volunteers
   #events
 
-#sports-league/            (private space, invite-only)
-  #announcements           (bridged to WhatsApp group + SMS)
+#sports-league/                    (private space, invite-only)
+  #announcements                   (bridged to WhatsApp group + SMS)
   #coaches
-  #schedule                (game times, cancellations)
+  #schedule                        (game times, cancellations)
 ```
+
+### Cross-Room Linking
+
+A single event may be relevant to multiple communities — e.g. a Bifrost PR that
+touches both Terasology game code and GDD infrastructure patterns. Matrix doesn't
+have native cross-room message linking, but the router can handle this:
+
+**Link, don't mirror.** The router posts the full alert (with thread replies for
+reactions/approval) in the primary room based on repo or first keyword match. In
+secondary rooms, it posts a lightweight cross-reference with a Matrix permalink:
+
+```
+#terasology/feeds/feed-github:
+  📋 [PR] Bifrost module linking (#42)
+    ├─ full details, thread replies, reacji workflows
+
+#gdd/feeds/feed-github:
+  🔗 Cross-ref from #terasology: Bifrost PR touches GDD patterns → [matrix.to link]
+```
+
+This preserves **single-point-of-action** (react/approve in one place) while
+maintaining **cross-community awareness**. The cross-ref is informational — it
+doesn't duplicate approval workflows or create processing ambiguity.
+
+**Keyword routing rules** drive the matching:
+
+```yaml
+routing_rules:
+  watchers:
+    github:
+      "MovingBlocks/*":
+        primary: "#terasology/feeds/feed-github"
+        keywords:
+          gdd: "#gdd/feeds/feed-github"        # cross-ref if GDD mentioned
+          bifrost: "#terasology/feeds/feed-github"  # stays primary
+      "SiliconSaga/*":
+        primary: "#gdd/feeds/feed-github"
+        keywords:
+          terasology: "#terasology/feeds/feed-github"
+```
+
+### AI Highlights Channel (Future)
+
+When feed volume justifies it, an AI assessor consumes `knarr.watch.alerts` and
+scores events for importance. Only significant items get promoted to a
+`#highlights` room. This is another Kafka consumer — no new infrastructure.
+
+```mermaid
+flowchart LR
+    kafka["knarr.watch.alerts"] --> assessor["AI Assessor"]
+    assessor -->|"important"| highlights_topic["knarr.highlights"]
+    assessor -->|"routine"| discard["(not promoted)"]
+    highlights_topic --> router["Router"]
+    router --> highlights_room["#highlights"]
+```
+
+**What the assessor looks for:**
+- New contributor struggling (first-time PR with CI failures, confused issue report)
+- Influencer or notable account mentioning the project
+- Unusual activity spike (sudden burst of stars, downloads, or forum posts)
+- Breakage signals (multiple issues filed about the same topic in short succession)
+- Cross-project events (Bifrost PR linking Terasology and Destination Sol)
+
+**Deferred** until feed volume makes manual monitoring impractical. The
+architecture supports it whenever it becomes worthwhile — just add a consumer.
 
 **User visibility model:** Power users (owner + a few volunteers) use Matrix directly
 via Element. Everyone else stays on their native platform and never needs to know
