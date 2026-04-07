@@ -735,6 +735,92 @@ Kafka, and Knarr handles all platform I/O.
 
 ---
 
+## Federation and Multi-Instance Growth
+
+Knarr is designed as a Demicracy community component. A single instance serves
+one community (or several small ones under one admin), but over time neighboring
+communities may want their own instances — with their own admins, data, and
+policies — while still sharing some rooms.
+
+### Growth Stages
+
+**Stage 1 — Single instance.** One Knarr/Synapse deployment hosts everything.
+Users from other communities join as guests or registered users on the same
+homeserver. Simple, no federation needed.
+
+**Stage 2 — Second instance.** Another community deploys their own Knarr (same
+Helm chart, their own infrastructure). Federation is enabled between the two
+Synapse homeservers. Users on either server can join rooms on the other.
+
+```
+knarr.town-a.org                     knarr.town-b.org
+├─ #town-a-pta/                      ├─ #town-b-pta/
+│   (local rooms)                    │   (local rooms)
+└─ #regional-league/  ←─federation─→ └─ #regional-league/
+    (shared, replicated)                 (shared, replicated)
+```
+
+**Stage 3 — Shared spaces, separate admin.** A cross-community space (e.g. a
+sports league spanning two towns) is federated. Each server holds a replica of
+the shared rooms. Each admin controls their own users and local rooms. If one
+server goes down, the other continues operating — messages queue and sync on
+reconnect.
+
+**Stage 4 — Community kit.** The full Knarr deployment — Helm chart, bridge
+configs, routing rules, subscription model — becomes a Demicracy "community kit"
+template. A new neighborhood deploys it, customizes their rooms and bridges, and
+federates with neighbors as desired.
+
+### What Federates and What Stays Local
+
+Matrix federation handles chat replication between homeservers natively. The
+question is what happens to the Knarr-specific layers (Kafka, routing,
+subscriptions, watchers) when multiple instances exist.
+
+Several options exist, and the right choice depends on how the communities
+actually grow:
+
+**Option A — Federation at Matrix only, everything else local.** Each Knarr
+instance runs its own Kafka, watchers, router, Keycloak, and Valkey. Instances
+connect only through Matrix federation for shared rooms. Each town's router
+handles their own subscribers (local parents get SMS/email from their local
+Knarr). Simplest, most robust, each deployment is self-contained.
+
+**Option B — Shared watchers, separate routing.** For a federated sports league,
+the social media watcher runs on one instance and posts to the federated room.
+Both towns' routers see the Matrix message and handle their own local subscribers.
+No cross-instance Kafka needed — federation delivers the message to both
+homeservers.
+
+**Option C — Cross-instance event bus.** Kafka topics are mirrored between
+instances (via MirrorMaker or similar). Both routers see all events. More
+complex, potentially useful if cross-community workflows (like shared approval
+chains) are needed.
+
+**Option D — Hub-and-spoke.** One instance acts as the "league hub" for shared
+watchers and routing. Spoke instances handle local rooms and subscribers only.
+The hub federates with all spokes via Matrix. Simpler than full mesh, but
+introduces a central point.
+
+These options are not mutually exclusive — a deployment could start with Option A
+and adopt elements of B or D as the federation grows. The design intentionally
+leaves this open; the right answer depends on real usage patterns that don't exist
+yet.
+
+### Identity Across Instances
+
+Keycloak supports cross-realm trust and identity brokering. A user registered on
+Town A's Keycloak could authenticate to Town B's Knarr web UI via OIDC federation,
+without creating a separate account. This parallels how Matrix federation handles
+user identity — `@coach:town-a.org` is recognized on `town-b.org` without
+re-registration.
+
+The subscription model works per-instance: Coach Mike's SMS subscription is
+managed by his local Knarr instance, even if the room he's subscribed to is
+federated from another server.
+
+---
+
 ## Future Explorations
 
 ### Web-Searchable Chat Archive ("Scribe")
