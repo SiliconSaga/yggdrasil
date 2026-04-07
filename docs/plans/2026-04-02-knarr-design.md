@@ -165,6 +165,57 @@ flowchart LR
 - New Reddit mention of "Terasology" → post alert to `#terasology/social-watch`, await human decision
 - Blog post draft approved in `#terasology/engine-room` → Autoboros adapts per platform → publish via `knarr.messages.outbound`
 
+### Alert Batching and Threaded Digests
+
+High-volume sources like GitHub can generate dozens of notifications in a short
+window. Kafka stores every event individually (full granularity, replayable), but
+the router controls how they're *displayed* in Matrix.
+
+**Three display modes, configurable per room:**
+
+| Mode | When to use | How it works |
+|------|------------|--------------|
+| Individual | Low-volume, each item may need action | One message per alert, reacji workflows work directly |
+| Threaded digest | High-volume monitoring | Batch summary as top-level message; each item posted as a thread reply for per-item reactions |
+| Flat digest | Thin channels (SMS, email) | Plain text summary, no threading |
+
+**Threaded digest example** (in Matrix or bridged Discord):
+
+```
+📋 GitHub — MovingBlocks/Terasology (last 30 min)
+  4 new notifications
+  ├─ [Issue] Fix rendering on ARM Macs (#5678)
+  ├─ [PR] Update Gradle wrapper (#5679)
+  ├─ [Issue] Crash on world gen (#5680)
+  └─ [PR] Module loading refactor (#5681) — merged
+```
+
+The summary is the top-level message. Each item is a thread reply that power
+users can expand and react to individually (approve forward, dismiss, etc.).
+Casual readers just see the compact summary.
+
+**Platform capabilities:**
+- **Matrix + Discord:** Both support threads, both bridge threads via
+  mautrix-discord. These two get the full threaded digest experience.
+- **WhatsApp:** Has reply-to but not threads. Falls back to flat digest.
+- **SMS/Email:** Flat digest only — a plain text summary of the batch.
+
+**Routing rule integration:** The display mode is a per-room routing attribute:
+
+```yaml
+routing_rules:
+  "#terasology/social-watch":
+    display: threaded-digest
+    batch_window_minutes: 30
+  "#terasology/dev":
+    display: individual
+  "#sports-league/announcements":
+    display: individual
+```
+
+The Kafka side is unaffected — watchers always publish individual events. Batching
+is purely a router display concern, applied at the point of posting to Matrix.
+
 ### Layer 3: Agent Layer (Watchers + Integration Points)
 
 **Platform watchers** — services that poll or subscribe to external platforms and
