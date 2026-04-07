@@ -13,7 +13,7 @@ Over time as more common patterns are detected they can result in new convenienc
 
 `scripts/ws` is a bash dispatcher. Each subcommand either:
 - **Delegates** to an existing `scripts/*.sh` script (e.g. `ws list` → `ws-list.sh`)
-- **Wraps** a script with component-directory resolution (e.g. `ws push ymir` → `cd components/ymir && git-push.sh`)
+- **Wraps** a script with component-directory resolution (e.g. `ws push mimir` → `cd components/mimir && git-push.sh`)
 
 The dispatcher handles argument parsing, component validation, and help text.
 Existing scripts remain standalone and unchanged.
@@ -167,13 +167,8 @@ Side-effect commands (`push`, `pr`, `issue`, `commit`) prompt for approval by de
 For bulk operations (filing multiple issues, pushing several components),
 you can auto-approve them in your local settings.
 
-**Setup:** Copy the template and add bulk patterns:
-
-```bash
-cp .claude/settings.local.example.json .claude/settings.local.json
-```
-
-Then add the patterns you want to auto-approve. In Claude Code permission
+**Setup:** Create `.claude/settings.local.json` (gitignored) and add the
+patterns you want to auto-approve. In Claude Code permission
 rules, each `*` matches **one argument** (not multiple). So multi-argument
 commands need one `*` per argument:
 
@@ -193,12 +188,12 @@ commands need one `*` per argument:
 
 | Pattern | Matches | Example |
 |---|---|---|
-| `Bash(bash scripts/ws push *)` | Push with component only | `ws push ymir` |
-| `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push ymir feat/foo` |
-| `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr ymir "feat: add X" .prs/x.md` |
-| `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue ymir "fix: Y" bug .issues/y.md` |
-| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit ymir "fix: race"` |
-| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit ymir "feat: X" .commits/x.md` |
+| `Bash(bash scripts/ws push *)` | Push with component only | `ws push mimir` |
+| `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push mimir feat/foo` |
+| `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr mimir "feat: add X" .prs/x.md` |
+| `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
+| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit mimir "fix: race"` |
+| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit mimir "feat: X" .commits/x.md` |
 
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.

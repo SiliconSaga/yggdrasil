@@ -37,7 +37,7 @@ review_help() {
     echo "  ws review yggdrasil threads 8 --status     # Thread counts"
     echo "  ws review yggdrasil threads 8 --resolve-all"
     echo "  ws review yggdrasil 8                      # All review comments"
-    echo "  ws review ymir 5 --reviewer coderabbitai"
+    echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     exit 0
 }

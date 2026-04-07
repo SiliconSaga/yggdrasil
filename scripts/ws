@@ -64,7 +64,7 @@ ws_validate_component() {
 
     # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
-    # newline-injected names like "ymir\nevil" (CVE-style bypass).
+    # newline-injected names like "mimir\nevil" (CVE-style bypass).
     if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Invalid component name '$name'. Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
         exit 1
@@ -185,8 +185,8 @@ ws_test() {
         echo "  pyproject.toml              → uv run pytest" >&2
         echo "" >&2
         echo "Extra args are passed to the test runner:" >&2
-        echo "  ws test ymir -run TestFoo -v" >&2
-        echo "  ws test ymir ./internal/store/ -run TestFoo -v" >&2
+        echo "  ws test mimir -run TestFoo -v" >&2
+        echo "  ws test mimir ./internal/store/ -run TestFoo -v" >&2
         exit 1
     fi
     if [[ $# -gt 7 ]]; then
@@ -200,7 +200,7 @@ ws_test() {
     cd "$COMPONENT_DIR"
 
     # No extra args: prefer Makefile with 'test' target — it knows the
-    # project layout (e.g. ymir's Makefile cd's into orchestrator/ for go test)
+    # project layout (e.g. a Makefile may cd into a subdir for go test)
     if [[ $# -eq 0 ]] && [[ -f Makefile ]] && grep -q '^test:' Makefile; then
         make test
         return
@@ -278,7 +278,7 @@ ws_commit() {
         echo ""
         echo "Examples:"
         echo "  ws commit yggdrasil .commits/fix-store-race.md"
-        echo "  ws commit ymir 'fix: resolve store race condition'"
+        echo "  ws commit mimir 'fix: resolve store race condition'"
         echo "  ws commit yggdrasil 'feat(ws): add feature' .commits/details.md"
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             exit 0
@@ -479,8 +479,8 @@ ws_log() {
         echo "Examples:" >&2
         echo "  ws log                # yggdrasil branch vs main" >&2
         echo "  ws log --oneline      # compact format" >&2
-        echo "  ws log ymir           # ymir branch vs main" >&2
-        echo "  ws log ymir --oneline # ymir compact" >&2
+        echo "  ws log mimir           # mimir branch vs main" >&2
+        echo "  ws log mimir --oneline # mimir compact" >&2
         exit 1
     fi
 

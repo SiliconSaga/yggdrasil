@@ -46,24 +46,21 @@ aligned on what the session is about. Don't front-load everything at once.
 | Repo | Tier | Role | Path |
 |------|------|------|------|
 | `yggdrasil` | — | Docs, skills, scripts, workspace root | `.` (this repo) |
-| `nordri` | 1 | Cluster substrate (Traefik, Crossplane, Velero, ArgoCD) | `components/nordri` |
-| `nidavellir` | 2 | Platform app-of-apps (Vegvísir, Mimir, Keycloak, …) | `components/nidavellir` |
-| `mimir` | 2 component | Data services via Crossplane + operators | `components/mimir` |
-| `vordu` | 2 component | BDD roadmap visualization | `components/vordu` |
-| `heimdall` | 2 component | Observability stack | `components/heimdall` |
-| `tafl` | 2 | Board game engine service | `components/tafl` |
-| `bifrost` | 2 | Bridge/gateway service | `components/bifrost` |
-| `ymir` | 3 | End-user platform | `components/ymir` |
-| `terasology` | 3 | Voxel game (fork) | `components/terasology` |
-| `destinationsol` | 3 | Space shooter game (fork) | `components/destinationsol` |
 
-Git remotes: Avoid using a generic `origin` — use explicit remote names like `siliconsaga` or your GitLab group name
+Community overlays declare their own component catalogs. If an overlay is
+active, check its `AGENTS.md` for the full Repo Roles table
+(e.g. `overlays/overlay-yggdrasil-live/AGENTS.md`).
+
+Git remotes: Avoid using a generic `origin` — use explicit remote names
+matching your Git org (e.g. your GitHub org or GitLab group name)
 
 ---
 
 ## Skills
 
-Skills live in `.agent/skills/<name>/SKILL.md`.
+Workspace-level skills live in `.agent/skills/<name>/SKILL.md`.
+Community overlays may provide additional component-specific skills in
+`overlays/<name>/.agent/skills/` — these are discovered during GDD orientation.
 
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
@@ -76,14 +73,11 @@ Skills live in `.agent/skills/<name>/SKILL.md`.
 | **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
 | **GDD Flow Mode** | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
 | **GDD Autonomous Mode** | Permission-bounded independent work with reviewable increments | [SKILL.md](./.agent/skills/gdd-autonomous/SKILL.md) |
-| **ArgoCD Bootstrap on K3d** | Bootstrapping ArgoCD app-of-apps on k3d, CRD chicken-and-egg fixes, portable shell scripts | [SKILL.md](./.agent/skills/argocd-bootstrap-on-k3d/SKILL.md) |
 | **BDD** | Gherkin scenarios, feature authoring, planning features, runner integration, and BDD conventions | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
 | **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/bdd-pytest/SKILL.md) |
-| **Crossplane on K3d** | Guide for configuring Crossplane in local K3d clusters | [SKILL.md](./.agent/skills/crossplane-on-k3d/SKILL.md) |
 | **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/creating-github-issues/SKILL.md) |
 | **KUTTL Testing** | Guidelines for writing and running KUTTL tests | [SKILL.md](./.agent/skills/kuttl-testing/SKILL.md) |
 | **Multi-Repo Orchestration** | Session start/end discipline when a session touches more than one repo, TODO triage | [SKILL.md](./.agent/skills/multi-repo-orchestration/SKILL.md) |
-| **Nordri Bootstrap Guide** | Bootstrapping Nordri (refr-k8s) on k3d, Mimir integration, ArgoCD sync troubleshooting | [SKILL.md](./.agent/skills/nordri-bootstrap-guide/SKILL.md) |
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
 | **Writing Yggdrasil Docs** | Conventions for documentation, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/writing-yggdrasil-docs/SKILL.md) |
