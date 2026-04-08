@@ -90,19 +90,30 @@ After install, open a fresh Git Bash session so the updated `PATH` is picked up.
 
 **Linux:** See https://gitlab.com/gitlab-org/cli#installation
 
-### Create a Personal Access Token
+### Create a Token
 
-Go to **GitLab → User Settings → Access Tokens** (or for self-hosted:
-`https://<your-host>/-/user_settings/personal_access_tokens`).
+GitLab offers three token types with increasing scope. Use the narrowest one
+that covers your use case:
 
-Settings:
-- **Token name**: descriptive, e.g. `yggdrasil-workspace`
-- **Expiration**: set a reasonable expiry
-- **Scopes**:
+| Token type | Scope | How to create |
+|------------|-------|---------------|
+| **Project Access Token** | Single project | Project → Settings → Access Tokens |
+| **Group Access Token** | All repos in a group | Group → Settings → Access Tokens |
+| **Personal Access Token** | Entire account | User Settings → Access Tokens |
+
+**Recommended:** use a **Project Access Token** for a single test repo, or a
+**Group Access Token** if your workspace components all live under one group.
+Personal Access Tokens with `api` scope work but give broader access than needed.
+
+For Project and Group tokens, set the role to **Developer** (can push branches,
+create MRs and issues). For self-hosted instances, token URLs follow the same
+pattern: `https://<your-host>/<group>/<project>/-/settings/access_tokens`.
+
+Regardless of token type, set the scope to:
 
 | Scope | Why |
 |-------|-----|
-| `api` | Full API access — MRs, issues, repo reads |
+| `api` | Required for MRs, issues, and repo writes via `glab` |
 
 ### Store the token
 
@@ -111,25 +122,44 @@ Add to `.env` in the yggdrasil root:
 ```bash
 export GITLAB_TOKEN=glpat-xxxxxxxxxxxx
 export GITLAB_USER=your-gitlab-username
-```
 
-For self-hosted instances, also set the host:
-```bash
+# Self-hosted instances only:
 export GITLAB_HOST=git.mycompany.com
 ```
 
 ### Load and verify
 
+For self-hosted instances, register the hostname with `glab` once after
+setting `GITLAB_HOST`:
+
 ```bash
 source .env
+glab auth login --hostname "$GITLAB_HOST" --token "$GITLAB_TOKEN"
+```
+
+For `gitlab.com`, `glab` reads `GITLAB_TOKEN` automatically and no `auth login`
+step is needed. For self-hosted, the one-time login registers the host;
+subsequent calls use the stored credentials.
+
+Verify with:
+
+```bash
 glab auth status
 ```
 
-`glab` reads `GITLAB_TOKEN` automatically — no `glab auth login` step is needed.
+> **Note:** `glab auth status` exits non-zero if *any* configured GitLab host
+> fails authentication — including `gitlab.com` if you have no token for it.
+> Check that your self-hosted instance shows `✓ Logged in to <your-host>`.
+> The `gitlab.com` failure is harmless if you only use the self-hosted instance.
 
 ### Test
 
 ```bash
+# gitlab.com
+glab issue list --repo <your-group>/<your-repo>
+
+# Self-hosted (GITLAB_HOST must be set in environment)
+source .env
 glab issue list --repo <your-group>/<your-repo>
 ```
 
