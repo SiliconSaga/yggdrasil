@@ -26,11 +26,11 @@ All scripts live in `yggdrasil/scripts/` and auto-source `.env`. Run them from a
 | Script | Purpose |
 |--------|---------|
 | `git-push.sh [branch]` | Push current (or named) branch to siliconsaga |
-| `git-pr.sh TITLE BODYFILE` | Open PR from current branch to main |
+| `git-pr.sh TITLE BODYFILE` | Open PR/MR from current branch to main |
 | `gh-issue.sh REPO TITLE LABEL BODYFILE` | File a GitHub issue |
 
-PR body drafts follow the same pattern as issue drafts:
-- Template: `yggdrasil/.agent/pr-template.md`
+PR/MR body drafts follow the same pattern as issue drafts:
+- Template: `yggdrasil/.agent/change-template.md`
 - Clearinghouse: `<repo-root>/.prs/<descriptive-name>.md` (gitignored, auto-created)
 
 ## Full Workflow
@@ -52,17 +52,17 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 # 4. Push (from a sibling repo; use ./scripts/git-push.sh if already in yggdrasil)
 ../yggdrasil/scripts/git-push.sh
 
-# 5. Draft PR body
-cp ../yggdrasil/.agent/pr-template.md .prs/<description>.md
+# 5. Draft PR/MR body
+cp ../yggdrasil/.agent/change-template.md .prs/<description>.md
 # ... fill in Summary, Test plan, Related ...
 
-# 6. Open PR
+# 6. Open PR/MR
 ../yggdrasil/scripts/git-pr.sh "type: description" .prs/<description>.md
 ```
 
 ## Rebasing onto Updated Main
 
-When main moves ahead during code review (e.g., another PR merges), rebase
+When main moves ahead during code review (e.g., another PR/MR merges), rebase
 to keep a clean linear history before merging.
 
 ### Pre-rebase checklist
@@ -110,7 +110,7 @@ bash scripts/ws push <component> --force
 
 ### When to rebase
 
-- **Before merge** — when main has moved ahead and the PR has conflicts
+- **Before merge** — when main has moved ahead and the PR/MR has conflicts
 - **After code review fixes** — to pick up main changes before final push
 - **Not during active review** — avoid force-pushing while reviewers are
   mid-review (they lose their place). Coordinate with the human.
@@ -129,9 +129,9 @@ comments between your pushes. Addressing them before pushing avoids
 a leapfrog cycle where each push triggers new review that you only
 see after the next push.
 
-This does not apply to pre-PR pushes — there's no PR to check against.
+This does not apply to pre-PR/MR pushes — there's no PR/MR to check against.
 
-## After the PR is Merged
+## After the PR/MR is Merged
 
 ```bash
 git checkout main
@@ -146,12 +146,12 @@ git branch -d <type>/<description>
   which fails in agent scripts without GitKraken's ssh-agent. The script bypasses this
   by pushing to an explicit `https://x-access-token:$GH_TOKEN@...` URL. GitKraken
   continues to push via SSH unaffected.
-- `GH_TOKEN` must be set (via `.env` or environment) for both push and PR scripts.
-- PR title follows the same `type:` convention as commit messages and issue titles.
-- **Always `cp` the template file — never write PR bodies from memory.** The template
+- A provider token must be set in `.env` for both push and PR/MR scripts.
+- PR/MR title follows the same `type:` convention as commit messages and issue titles.
+- **Always `cp` the template file — never write PR/MR bodies from memory.** The template
   evolves; using a remembered or hardcoded heredoc will produce a stale body. The `cp`
-  step is not optional even when batching multiple PRs.
+  step is not optional even when batching multiple PRs/MRs.
 
 ## When Direct Push to Main Is Acceptable
 
-Only when the user explicitly requests it, AND branch protection has not yet been configured on the repo. Once protection is active, all pushes to main require a PR regardless.
+Only when the user explicitly requests it, AND branch protection has not yet been configured on the repo. Once protection is active, all pushes to main require a PR/MR regardless.
