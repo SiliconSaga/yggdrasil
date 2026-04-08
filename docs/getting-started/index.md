@@ -26,11 +26,18 @@ Note that this currently assumes a variety of prerequisites:
 
 3. **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env` and install the CLI tools (`gh` for GitHub, `glab` for GitLab). This enables the `ws` CLI to push, file issues, and manage PRs/MRs.
 
-4. **Add `ws` to your PATH** _(recommended)_ — so you can run `ws` from anywhere:
+4. **Add `ws` to your PATH** — all workspace operations go through the `ws` CLI.
+   Adding `scripts/` to your PATH lets you run `ws <command>` directly instead
+   of the longer `bash scripts/ws <command>` form. It also means `ws` always
+   resolves paths relative to the workspace root, so it works correctly no matter
+   which directory you (or an AI agent) run it from:
    ```bash
-   # Add to your ~/.bashrc or shell profile:
-   export PATH="<path-to-yggdrasil>/scripts:$PATH"
+   echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.zshrc   # zsh (macOS default)
+   # or:
+   echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.bashrc  # bash
    ```
+   Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal.
+   Run `ws help` to verify.
 
 5. **Clone a component to work on:**
 
