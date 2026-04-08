@@ -25,6 +25,7 @@
 #   overlay <url>     Clone a community overlay
 #   overlay use <name> Set active overlay
 #   overlay list      Show available overlays
+#   gitlab-auth       Store GitLab credentials (osxkeychain + glab) from .env tokens
 #   actions <comp>    List adapter commands for a component
 #   help              Show this help message
 #
@@ -39,6 +40,10 @@ ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
 OVERLAYS_DIR="$ROOT_DIR/overlays"
 COMPONENTS_DIR="$ROOT_DIR/components"
 COMPONENT_DIR=""  # Set by ws_validate_component
+
+# Auto-source .env if present — makes tokens available to all sub-commands
+# without requiring `source .env` before every ws invocation.
+[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 # Source shared overlay/merge functions
 # shellcheck source=ws-overlay.sh
@@ -599,6 +604,117 @@ ws_issue() {
     bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
+ws_gitlab_auth() {
+    local eco
+    eco=$(ws_resolve_ecosystem)
+
+    local host="${GITLAB_HOST:-}"
+    if [[ -z "$host" ]]; then
+        echo "ERROR: GITLAB_HOST is not set." >&2
+        echo "  Add 'export GITLAB_HOST=your-gitlab-host' to .env" >&2
+        exit 1
+    fi
+
+    # Find forkOrg to identify the write (Developer) token
+    local fork_org
+    fork_org=$(yq '.identity.forkOrg // ""' "$eco")
+    [[ "$fork_org" == "null" ]] && fork_org=""
+    if [[ -z "$fork_org" ]]; then
+        echo "ERROR: identity.forkOrg is not set in ecosystem config." >&2
+        exit 1
+    fi
+
+    # Find gitTokens entry whose key is host/<...>/forkOrg (exact leaf match)
+    local write_token_var="" write_key=""
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local leaf="${key##*/}"
+        if [[ "$leaf" == "$fork_org" ]]; then
+            if [[ ${#key} -gt ${#write_key} ]]; then
+                write_key="$key"
+                write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+            fi
+        fi
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+
+    if [[ -z "$write_token_var" || "$write_token_var" == "null" ]]; then
+        echo "ERROR: No gitTokens entry found for host '$host' and forkOrg '$fork_org'." >&2
+        echo "  Expected a key like: $host/<group-path>/$fork_org" >&2
+        echo "  Add it to defaults.gitTokens in ecosystem.local.yaml." >&2
+        exit 1
+    fi
+
+    local write_token="${!write_token_var:-}"
+    if [[ -z "$write_token" ]]; then
+        echo "ERROR: Token env var '$write_token_var' is not set in environment." >&2
+        echo "  Add it to .env (see docs/git-provider-setup.md)." >&2
+        exit 1
+    fi
+
+    echo "[ ws gitlab-auth: $host ]"
+    echo ""
+
+    # 1. Register write token with glab
+    echo "1. Registering write token ($write_token_var) with glab..."
+    if glab auth login --hostname "$host" --token "$write_token" 2>/dev/null; then
+        echo "   ✓ glab authenticated"
+    else
+        echo "   ✗ glab auth login failed" >&2
+        exit 1
+    fi
+
+    # 2. Store write token in git credential helper for HTTPS clone/push
+    echo "2. Storing write token in git credential helper..."
+    git credential approve <<EOF
+protocol=https
+host=$host
+username=oauth2
+password=$write_token
+EOF
+    echo "   ✓ Stored in $(git config --global credential.helper || echo 'credential store') for $host"
+
+    # 3. Verify with git ls-remote on a declared component URL
+    echo "3. Verifying git access..."
+    local test_url=""
+    while IFS= read -r comp_url; do
+        [[ -z "$comp_url" || "$comp_url" == "null" ]] && continue
+        [[ "$comp_url" == "https://$host/"* ]] && test_url="$comp_url" && break
+    done < <(yq '.components[].repo // ""' "$eco" 2>/dev/null)
+
+    if [[ -n "$test_url" ]]; then
+        if git ls-remote "$test_url" HEAD &>/dev/null; then
+            echo "   ✓ git access verified ($test_url)"
+        else
+            echo "   ✗ git ls-remote failed: $test_url" >&2
+            echo "   Token may lack read access to this repo." >&2
+            exit 1
+        fi
+    else
+        echo "   (skipped — no component URLs in ecosystem config to test against)"
+    fi
+
+    # 4. Report other configured tokens
+    local other_count=0
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" || "$key" == "$write_key" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local other_var
+        other_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        [[ -z "$other_var" || "$other_var" == "null" ]] && continue
+        local other_val="${!other_var:-}"
+        if [[ -n "$other_val" ]]; then
+            echo "   ✓ Additional token $other_var available for $key"
+        else
+            echo "   ✗ Additional token $other_var (for $key) is not set in environment" >&2
+        fi
+        other_count=$((other_count + 1))
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+
+    echo ""
+    echo "Done. Run 'ws clone <component>' to continue."
+}
+
 COMMAND="${1:-help}"
 shift 2>/dev/null || true
 
@@ -653,6 +769,9 @@ case "$COMMAND" in
         ;;
     overlay)
         bash "$SCRIPT_DIR/ws-overlay.sh" "$@"
+        ;;
+    gitlab-auth)
+        ws_gitlab_auth "$@"
         ;;
     actions)
         bash "$SCRIPT_DIR/ws-overlay.sh" actions "$@"

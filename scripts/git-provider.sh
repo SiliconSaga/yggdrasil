@@ -107,3 +107,45 @@ gp_detect_and_load() {
     provider=$(gp_detect "$@") || return 1
     gp_load "$provider"
 }
+
+# Select and export the appropriate authentication token for a URL.
+# Reads defaults.gitTokens from ecosystem config using longest-prefix match.
+# For GitLab: exports GITLAB_TOKEN. No-op for GitHub (uses GH_TOKEN directly).
+# Usage: gp_set_token_for_url URL [ECO]
+gp_set_token_for_url() {
+    local url="$1"
+    local eco="${2:-}"
+
+    [[ -z "$eco" ]] && return 0
+
+    local map_count
+    map_count=$(yq '.defaults.gitTokens | length' "$eco" 2>/dev/null || echo 0)
+    [[ "$map_count" -eq 0 ]] && return 0
+
+    # Normalize URL: strip protocol, embedded credentials, .git suffix
+    # Use explicit http/https patterns — \? is GNU sed only, not macOS BSD sed
+    local normalized
+    normalized=$(echo "$url" \
+        | sed 's|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
+
+    # Find the longest matching key (most-specific group path wins)
+    local best_var="" best_len=0
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        local key_len=${#key}
+        if [[ ( "$normalized" == "${key}/"* || "$normalized" == "$key" ) && $key_len -gt $best_len ]]; then
+            best_len=$key_len
+            best_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco" 2>/dev/null)
+        fi
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+
+    if [[ -n "$best_var" && "$best_var" != "null" ]]; then
+        local token_value="${!best_var:-}"
+        if [[ -n "$token_value" ]]; then
+            export GITLAB_TOKEN="$token_value"
+        else
+            echo "WARNING: gitTokens maps '$normalized' to env var '$best_var', but it is not set." >&2
+            echo "  Add it to .env (see docs/git-provider-setup.md)." >&2
+        fi
+    fi
+}

@@ -11,7 +11,7 @@
 # With --upstream, auto-detects the upstream remote and targets its default branch.
 #
 # Draft files live in .prs/ (gitignored, auto-created).
-# Copy .agent/pr-template.md to .prs/<descriptive-name>.md to start a draft.
+# Copy .agent/change-template.md to .prs/<descriptive-name>.md to start a draft.
 #
 # Uses git-provider.sh for provider-agnostic PR/MR creation.
 # Run from the repo the branch belongs to.
@@ -20,9 +20,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
-_ENV_FILE="$SCRIPT_DIR/../.env"
-[[ -f "$_ENV_FILE" ]] && source "$_ENV_FILE"
 
 # Source provider dispatcher
 # shellcheck source=git-provider.sh
@@ -61,6 +58,27 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
+# Resolve @HUMAN_ACCOUNT and enforce AI attribution line
+_HUMAN_ACCOUNT=""
+if [[ -n "$_ECO" ]]; then
+  _HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$_ECO" 2>/dev/null)
+  [[ "$_HUMAN_ACCOUNT" == "null" ]] && _HUMAN_ACCOUNT=""
+fi
+if [[ -z "$_HUMAN_ACCOUNT" ]]; then
+  echo "ERROR: identity.human_account not set in ecosystem config." >&2
+  echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
+  exit 1
+fi
+if ! grep -q 'AI-assisted' "$BODYFILE"; then
+  echo "ERROR: body file is missing the AI attribution line." >&2
+  echo "  First line must contain: > **AI-assisted change proposal.**" >&2
+  exit 1
+fi
+_RESOLVED_BODY=$(mktemp)
+trap 'rm -f "$_RESOLVED_BODY" 2>/dev/null' EXIT
+sed "s/@HUMAN_ACCOUNT/@${_HUMAN_ACCOUNT}/g" "$BODYFILE" > "$_RESOLVED_BODY"
+BODYFILE="$_RESOLVED_BODY"
+
 if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
   echo "ERROR: current branch is '$BRANCH' — check out a topic branch first" >&2
   exit 1
@@ -97,14 +115,15 @@ if [[ -z "$FORK_REMOTE" ]]; then
 fi
 FORK_URL=$(git remote get-url "$FORK_REMOTE" 2>/dev/null)
 
-# Detect provider and load implementation
+# Detect provider and load implementation; set token before auth check
 gp_detect_and_load "$FORK_URL" "$_ECO"
+gp_set_token_for_url "$FORK_URL" "$_ECO"
 gp_check_cli
 
 FORK_SLUG=$(gp_extract_slug "$FORK_URL")
 
 if [[ -n "$UPSTREAM" ]]; then
-  # Cross-fork PR: find the upstream (non-fork) remote
+  # Cross-fork PR/MR: find the upstream (non-fork) remote
   UPSTREAM_REMOTES=()
   for remote in "${_ALL_REMOTES[@]}"; do
     if [[ "$remote" != "$FORK_REMOTE" ]]; then
@@ -137,6 +156,9 @@ if [[ -n "$UPSTREAM" ]]; then
 
   UPSTREAM_SLUG=$(gp_extract_slug "$UPSTREAM_URL")
 
+  # Use the token appropriate for the upstream target (e.g. Reporter token)
+  gp_set_token_for_url "$UPSTREAM_URL" "$_ECO"
+
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
 
   echo "Opening cross-fork PR/MR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
@@ -152,6 +174,9 @@ if [[ -n "$UPSTREAM" ]]; then
     --title "$TITLE" \
     --body-file "$BODYFILE"
 else
+  # Use the token appropriate for the fork target
+  gp_set_token_for_url "$FORK_URL" "$_ECO"
+
   DEFAULT_BRANCH=$(gp_default_branch "$FORK_SLUG")
 
   echo "Opening PR/MR for $FORK_SLUG/$BRANCH → $DEFAULT_BRANCH"

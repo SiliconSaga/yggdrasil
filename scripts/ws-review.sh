@@ -245,12 +245,6 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     review_help
 fi
 
-# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
-env_file="$ROOT_DIR/.env"
-if [[ -f "$env_file" ]]; then
-    # shellcheck source=/dev/null
-    source "$env_file"
-fi
 
 # Source provider dispatcher for slug extraction
 # shellcheck source=git-provider.sh

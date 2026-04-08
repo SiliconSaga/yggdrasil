@@ -32,9 +32,6 @@ REPO_ROOT="$SCRIPT_DIR/.."
 # Ensure clearinghouse directory exists
 mkdir -p "$REPO_ROOT/.issues"
 
-# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
-_ENV_FILE="$REPO_ROOT/.env"
-[[ -f "$_ENV_FILE" ]] && source "$_ENV_FILE"
 
 # Source provider dispatcher
 # shellcheck source=git-provider.sh
