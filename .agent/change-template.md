@@ -1,4 +1,4 @@
-> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](https://gitlab-master.nvidia.com/gni-cis/gdd).
+> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).
 
 ## Summary
 

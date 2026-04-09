@@ -58,11 +58,14 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
-# Resolve @HUMAN_ACCOUNT and enforce AI attribution line
+# Resolve @HUMAN_ACCOUNT, @GDD_HOME and enforce AI attribution line
 _HUMAN_ACCOUNT=""
+_GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
 if [[ -n "$_ECO" ]]; then
   _HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$_ECO" 2>/dev/null)
   [[ "$_HUMAN_ACCOUNT" == "null" ]] && _HUMAN_ACCOUNT=""
+  _GDD_HOME_RAW=$(yq '.defaults.gddHome // ""' "$_ECO" 2>/dev/null)
+  [[ -n "$_GDD_HOME_RAW" && "$_GDD_HOME_RAW" != "null" ]] && _GDD_HOME="$_GDD_HOME_RAW"
 fi
 if [[ -z "$_HUMAN_ACCOUNT" ]]; then
   echo "ERROR: identity.human_account not set in ecosystem config." >&2
@@ -76,7 +79,9 @@ if ! grep -q 'AI-assisted' "$BODYFILE"; then
 fi
 _RESOLVED_BODY=$(mktemp)
 trap 'rm -f "$_RESOLVED_BODY" 2>/dev/null' EXIT
-sed "s/@HUMAN_ACCOUNT/@${_HUMAN_ACCOUNT}/g" "$BODYFILE" > "$_RESOLVED_BODY"
+sed -e "s|@HUMAN_ACCOUNT|@${_HUMAN_ACCOUNT}|g" \
+    -e "s|@GDD_HOME|${_GDD_HOME}|g" \
+    "$BODYFILE" > "$_RESOLVED_BODY"
 BODYFILE="$_RESOLVED_BODY"
 
 if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then

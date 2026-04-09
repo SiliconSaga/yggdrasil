@@ -1,4 +1,4 @@
-> **AI-assisted issue.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](https://siliconsaga.github.io/yggdrasil/gdd/).
+> **AI-assisted issue.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).
 
 ## Context
 
