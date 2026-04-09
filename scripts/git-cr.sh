@@ -172,15 +172,17 @@ if [[ -n "$UPSTREAM" ]]; then
 
   UPSTREAM_SLUG=$(gp_extract_slug "$UPSTREAM_URL")
 
-  # Use the token appropriate for the upstream target (e.g. Reporter token)
+  # Reporter token needed to read upstream default branch
   gp_set_token_for_url "$UPSTREAM_URL" "$_ECO"
-
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
 
   echo "Opening cross-fork CR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
   echo "  Title: $TITLE"
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
   echo ""
+
+  # glab ≥1.65 with --head POSTs to the fork project — switch to fork write token
+  gp_set_token_for_url "$FORK_URL" "$_ECO"
 
   gp_create_pr \
     --repo "$UPSTREAM_SLUG" \
