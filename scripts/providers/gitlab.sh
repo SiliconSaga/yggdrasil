@@ -77,9 +77,9 @@ gp_create_pr() {
         return 1
     fi
 
-    # glab mr create uses --source-branch and --target-branch
-    # For cross-project MRs from a fork, glab uses --repo for the target
-    # and --source-project for the source (fork) project
+    # glab mr create uses --source-branch and --target-branch.
+    # For cross-project MRs from a fork, use --head for the source project
+    # (glab ≥1.65; older versions used --source-project which was removed).
     local cmd=(glab mr create
         --repo "$repo"
         --target-branch "$base"
@@ -89,7 +89,7 @@ gp_create_pr() {
     )
 
     if [[ -n "$fork_slug" ]]; then
-        cmd+=(--source-project "$fork_slug")
+        cmd+=(--head "$fork_slug")
     fi
 
     "${cmd[@]}"
