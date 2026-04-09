@@ -746,9 +746,6 @@ case "$COMMAND" in
     cr)
         ws_cr "$@"
         ;;
-    pr)
-        ws_cr "$@"  # legacy alias for 'cr'
-        ;;
     issue)
         ws_issue "$@"
         ;;
