@@ -1,7 +1,7 @@
 # Environment and drafts
 .env
 .issues/
-.prs/
+.crs/
 .commits/
 .DS_Store
 

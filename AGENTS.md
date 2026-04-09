@@ -67,7 +67,7 @@ Community overlays may provide additional component-specific skills in
 | **GDD (Orchestrator)** | Guardian Driven Development — detects roles/modes, delegates to practice and mode skills | [SKILL.md](./.agent/skills/gdd/SKILL.md) |
 | **GDD Orientation** | Session startup — reads Thalamus.md, trust verification of component instructions, mode/role setup | [SKILL.md](./.agent/skills/gdd-orientation/SKILL.md) |
 | **GDD Housekeeping** | Audit Thalamus.md — review, promote, prune observations and concerns with the human | [SKILL.md](./.agent/skills/gdd-housekeeping/SKILL.md) |
-| **GDD Review Triage** | Multi-reviewer PR/MR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
+| **GDD Review Triage** | Multi-reviewer CR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
 | **GDD Mentoring Mode** | AI explains decisions and teaches practices in context — request for any unfamiliar area | [SKILL.md](./.agent/skills/gdd-mentoring/SKILL.md) |
 | **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
 | **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
@@ -96,15 +96,15 @@ The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 | `ws clone [name\|--all]` | Clone ecosystem component(s) into `components/` |
 | `ws pull [name]` | Pull latest for cloned components |
 | `ws push [comp] [branch]` | Push to `siliconsaga` via HTTPS (auto-sources `.env`) |
-| `ws pr <comp> <title> <bodyfile>` | Open PR/MR from current branch to main |
+| `ws cr <comp> <title> <bodyfile>` | Open CR (change request/PR/MR) from current branch to main |
 | `ws issue <repo> <title> <label> <bodyfile>` | File an issue with attribution check |
 | `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
 | `ws vscode` | Generate VS Code workspace file from cloned components |
 | `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
-| `ws review <comp> <pr#\|threads> [options]` | PR/MR review comments and thread management (see `ws review --help`) |
+| `ws review <comp> <cr#\|threads> [options]` | CR review comments and thread management (see `ws review --help`) |
 | `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer (bodyfile mode preferred) |
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
-| `ws clean` | Remove draft files from `.issues/`, `.prs/`, `.commits/` |
+| `ws clean` | Remove draft files from `.issues/`, `.crs/`, `.commits/` |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws overlay init` | Clone template overlay for tutorials |
 | `ws overlay <url>` | Clone a community overlay |
@@ -159,11 +159,11 @@ bash scripts/ws push <component>
 # Only use --force immediately after a rebase (which rewrites history).
 # Normal commits on a topic branch use regular push.
 
-# 5. Draft PR/MR body → .prs/<description>.md (gitignored)
-cp .agent/change-template.md .prs/<description>.md
+# 5. Draft CR body → .crs/<description>.md (gitignored)
+cp .agent/change-template.md .crs/<description>.md
 
-# 6. Open PR/MR
-bash scripts/ws pr <component> "type: description" .prs/<description>.md
+# 6. Open CR
+bash scripts/ws cr <component> "type: description" .crs/<description>.md
 ```
 
 **Why `ws push` and not plain `git push`:** The push script auto-detects
@@ -178,7 +178,7 @@ for auth setup details. Always use `ws push` for pushing.
 **Comments and docs describe current state, not history.** Code comments,
 test names, and Javadoc should be grounded in what the code does now — not
 what it used to do or what bug it fixed. Historical context belongs in commit
-messages and PR/MR descriptions, which are the record of change.
+messages and CR descriptions, which are the record of change.
 
 Good: `// CoreRegistry is set in initialize() after rootContext is created`
 Bad: `// The previous call here passed null`
@@ -198,7 +198,7 @@ Bad: `@DisplayName("before the fix, this was broken")`
   Classic PAT with `repo` scope recommended (fine-grained PATs have cross-org limitations).
 - GitLab: `glab` CLI uses `GITLAB_TOKEN` automatically — no browser login needed.
   Personal access token with `api` scope.
-- Day-to-day agent PAT scopes: repo-level read/write for contents, issues, PRs/MRs.
+- Day-to-day agent PAT scopes: repo-level read/write for contents, issues, CRs.
   Administration scope is NOT included; use a separate admin token for `setup-branch-protection.sh`.
 
 Full setup guide: [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
@@ -240,14 +240,14 @@ per set of cloned components.
 
 ---
 
-## Issue / PR/MR Drafts
+## Issue / CR Drafts
 
 | Path | Purpose |
 |------|---------|
 | `.agent/issue-template.md` | Committed template for issues |
-| `.agent/change-template.md` | Committed template for PR/MR bodies |
+| `.agent/change-template.md` | Committed template for CR bodies |
 | `.issues/<repo>-<name>.md` | Gitignored draft clearinghouse for issues |
-| `.prs/<description>.md` | Gitignored draft clearinghouse for PRs/MRs |
+| `.crs/<description>.md` | Gitignored draft clearinghouse for CRs |
 
 All agent-filed issues must start with the AI attribution blockquote from the template.
 

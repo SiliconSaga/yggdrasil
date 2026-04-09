@@ -13,13 +13,13 @@
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch] [--force] Push branch (remote from identity.forkOrg)
-#   pr <comp> [--upstream] <title> <bodyfile> Open a PR/MR (--upstream for cross-fork)
+#   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
-#   review <comp> <pr#|threads> [options]  PR review comments and threads (see ws review --help)
+#   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
 #   log [comp] [--oneline] Show commits on current branch vs main
-#   clean             Remove draft files from .issues/, .prs/, .commits/
+#   clean             Remove draft files from .issues/, .crs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   overlay init      Clone template overlay for tutorials
 #   overlay <url>     Clone a community overlay
@@ -163,9 +163,9 @@ ws_push() {
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
 
-ws_pr() {
+ws_cr() {
     if [[ $# -lt 3 || $# -gt 4 ]]; then
-        echo "Usage: ws pr <component> [--upstream] <title> <bodyfile>" >&2
+        echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
@@ -177,7 +177,7 @@ ws_pr() {
     if [[ "${args[$last_idx]}" != /* ]]; then
         args[$last_idx]="$ROOT_DIR/${args[$last_idx]}"
     fi
-    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "${args[@]}"
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr.sh" "${args[@]}"
 }
 
 ws_test() {
@@ -558,12 +558,12 @@ ws_clean() {
     if [[ $# -gt 0 ]]; then
         echo "Usage: ws clean" >&2
         echo "" >&2
-        echo "Remove draft files from .issues/, .prs/, and .commits/ directories." >&2
+        echo "Remove draft files from .issues/, .crs/, and .commits/ directories." >&2
         exit 1
     fi
 
     local total=0
-    for dir in .issues .prs .commits; do
+    for dir in .issues .crs .commits; do
         local dirpath="$ROOT_DIR/$dir"
         if [[ -d "$dirpath" ]]; then
             local count
@@ -743,8 +743,11 @@ case "$COMMAND" in
     push)
         ws_push "$@"
         ;;
+    cr)
+        ws_cr "$@"
+        ;;
     pr)
-        ws_pr "$@"
+        ws_cr "$@"  # legacy alias for 'cr'
         ;;
     issue)
         ws_issue "$@"

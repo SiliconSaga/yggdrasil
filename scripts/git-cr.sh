@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# git-pr.sh — open a pull/merge request from the current branch
+# git-cr.sh — open a change request (PR/MR) from the current branch
 #
-# Usage: git-pr.sh [--upstream] TITLE BODYFILE
+# Usage: git-cr.sh [--upstream] TITLE BODYFILE
 #   --upstream — target the upstream (non-fork) remote instead of the fork.
-#                Creates a cross-fork PR/MR: fork:branch → upstream:base.
-#   TITLE     — PR/MR title
+#                Creates a cross-fork CR: fork:branch → upstream:base.
+#   TITLE     — CR title
 #   BODYFILE  — path to markdown file containing the body
 #
 # Without --upstream, targets the fork remote using its default branch (via gp_default_branch).
 # With --upstream, auto-detects the upstream remote and targets its default branch.
 #
-# Draft files live in .prs/ (gitignored, auto-created).
-# Copy .agent/change-template.md to .prs/<descriptive-name>.md to start a draft.
+# Draft files live in .crs/ (gitignored, auto-created).
+# Copy .agent/change-template.md to .crs/<descriptive-name>.md to start a draft.
 #
-# Uses git-provider.sh for provider-agnostic PR/MR creation.
+# Uses git-provider.sh for provider-agnostic CR creation.
 # Run from the repo the branch belongs to.
 
 set -euo pipefail
@@ -45,8 +45,8 @@ BODYFILE="${2:-}"
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# Ensure .prs/ clearinghouse exists
-mkdir -p "$REPO_ROOT/.prs"
+# Ensure .crs/ clearinghouse exists
+mkdir -p "$REPO_ROOT/.crs"
 
 if [[ -z "$TITLE" || -z "$BODYFILE" ]]; then
   echo "Usage: $0 [--upstream] TITLE BODYFILE" >&2
@@ -128,7 +128,7 @@ gp_check_cli
 FORK_SLUG=$(gp_extract_slug "$FORK_URL")
 
 if [[ -n "$UPSTREAM" ]]; then
-  # Cross-fork PR/MR: find the upstream (non-fork) remote
+  # Cross-fork CR: find the upstream (non-fork) remote
   UPSTREAM_REMOTES=()
   for remote in "${_ALL_REMOTES[@]}"; do
     if [[ "$remote" != "$FORK_REMOTE" ]]; then
@@ -164,7 +164,7 @@ if [[ -n "$UPSTREAM" ]]; then
   }
   FORK_PROVIDER=$(gp_detect "$FORK_URL" "$_ECO" 2>/dev/null) || FORK_PROVIDER=""
   if [[ "$UPSTREAM_PROVIDER" != "$FORK_PROVIDER" ]]; then
-    echo "ERROR: Cross-provider PR/MR creation is not supported." >&2
+    echo "ERROR: Cross-provider CR creation is not supported." >&2
     echo "  Fork ($FORK_REMOTE): $FORK_PROVIDER" >&2
     echo "  Upstream ($UPSTREAM_REMOTE): $UPSTREAM_PROVIDER" >&2
     exit 1
@@ -177,7 +177,7 @@ if [[ -n "$UPSTREAM" ]]; then
 
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
 
-  echo "Opening cross-fork PR/MR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
+  echo "Opening cross-fork CR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
   echo "  Title: $TITLE"
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
   echo ""
@@ -195,7 +195,7 @@ else
 
   DEFAULT_BRANCH=$(gp_default_branch "$FORK_SLUG")
 
-  echo "Opening PR/MR for $FORK_SLUG/$BRANCH → $DEFAULT_BRANCH"
+  echo "Opening CR for $FORK_SLUG/$BRANCH → $DEFAULT_BRANCH"
   echo "  Title: $TITLE"
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
   echo ""

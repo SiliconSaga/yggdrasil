@@ -55,7 +55,7 @@ Zen mode protects focus:
 - **Zen + Mentoring:** Deep work with thorough teaching. Full explanations,
   full ceremony, but only for the focus topic.
 - **Zen + Autonomous:** AI works independently with full diligence. Detailed
-  logging, comprehensive tests, thorough PR descriptions.
+  logging, comprehensive tests, thorough CR descriptions.
 
 ## What This Mode Does NOT Do
 

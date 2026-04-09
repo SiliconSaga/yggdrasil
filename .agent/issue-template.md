@@ -19,4 +19,4 @@
 
 ## Related
 
-[Links to other issues, design docs, PRs if any. Can be "None".]
+[Links to other issues, design docs, change requests if any. Can be "None".]
