@@ -139,9 +139,20 @@ if [[ -n "$UPSTREAM" ]]; then
     echo "ERROR: No upstream remote found (only '$FORK_REMOTE' exists)." >&2
     exit 1
   elif [[ ${#UPSTREAM_REMOTES[@]} -gt 1 ]]; then
-    echo "ERROR: Multiple upstream remotes found: ${UPSTREAM_REMOTES[*]}" >&2
-    echo "  Cannot determine which to target. Remove extra remotes or specify explicitly." >&2
-    exit 1
+    # Multiple candidates — use defaults.upstreamRemote from ecosystem config as tiebreaker
+    _DEFAULT_UPSTREAM=""
+    if [[ -n "$_ECO" ]]; then
+      _DEFAULT_UPSTREAM=$(yq '.defaults.upstreamRemote // ""' "$_ECO" 2>/dev/null)
+      [[ "$_DEFAULT_UPSTREAM" == "null" ]] && _DEFAULT_UPSTREAM=""
+    fi
+    if [[ -n "$_DEFAULT_UPSTREAM" ]] && printf '%s\n' "${UPSTREAM_REMOTES[@]}" | grep -qx "$_DEFAULT_UPSTREAM"; then
+      UPSTREAM_REMOTES=("$_DEFAULT_UPSTREAM")
+    else
+      echo "ERROR: Multiple upstream remotes found: ${UPSTREAM_REMOTES[*]}" >&2
+      echo "  Set defaults.upstreamRemote in your overlay or ecosystem.local.yaml." >&2
+      [[ -n "$_DEFAULT_UPSTREAM" ]] && echo "  (configured value '$_DEFAULT_UPSTREAM' not found in remotes)" >&2
+      exit 1
+    fi
   fi
   UPSTREAM_REMOTE="${UPSTREAM_REMOTES[0]}"
   UPSTREAM_URL=$(git remote get-url "$UPSTREAM_REMOTE" 2>/dev/null)
