@@ -96,7 +96,7 @@ The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 | `ws clone [name\|--all]` | Clone ecosystem component(s) into `components/` |
 | `ws pull [name]` | Pull latest for cloned components |
 | `ws push [comp] [branch]` | Push to `siliconsaga` via HTTPS (auto-sources `.env`) |
-| `ws cr <comp> <title> <bodyfile>` | Open CR (change request/PR/MR) from current branch to main |
+| `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR (change request/PR/MR) from current branch |
 | `ws issue <repo> <title> <label> <bodyfile>` | File an issue with attribution check |
 | `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
 | `ws vscode` | Generate VS Code workspace file from cloned components |

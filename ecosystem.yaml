@@ -18,7 +18,7 @@ defaults:
   # Override in your overlay or ecosystem.local.yaml to point at an internal instance.
   gddHome: https://siliconsaga.github.io/yggdrasil/gdd/
 
-  # Default upstream remote name for `ws pr --upstream` when a repo has multiple
+  # Default upstream remote name for `ws cr --upstream` when a repo has multiple
   # non-fork remotes. Set in your overlay (e.g. "nvidia", "siliconsaga") and override
   # in ecosystem.local.yaml to temporarily redirect to a different remote.
   # upstreamRemote: ""

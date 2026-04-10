@@ -24,7 +24,7 @@ keyed by URL prefix. The longest matching prefix wins, so a fork-group token
 
 ## GitHub: Cross-Fork PR Flow
 
-```
+```text
 ws cr <component> --upstream
   └─ gh pr create
        --repo  upstream-org/repo         ← upstream (target)
@@ -51,7 +51,7 @@ happens to map onto GitHub fine-grained tokens naturally.
 
 ## GitLab: Cross-Fork MR Flow
 
-```
+```text
 ws cr <component> --upstream
   └─ glab mr create
        --repo   gni-cis/gdd/upstream-repo    ← upstream (target)
@@ -80,7 +80,7 @@ argument implies at first glance.
 
 **Consequence for token selection in git-cr.sh:**
 
-```
+```text
 1. gp_set_token_for_url "$UPSTREAM_URL"   ← reporter token
    gp_default_branch "$UPSTREAM_SLUG"     ← reads upstream (needs reporter)
 
@@ -176,4 +176,5 @@ radius than the Group Access Token approach.
 
 - `docs/git-provider-setup.md` — token setup and ecosystem config
 - `scripts/git-cr.sh` — cross-fork path implementation
-- `scripts/providers/gitlab.sh` — `gp_create_pr`, `gp_set_token_for_url`
+- `scripts/providers/gitlab.sh` — `gp_create_pr`
+- `scripts/git-provider.sh` — `gp_set_token_for_url`

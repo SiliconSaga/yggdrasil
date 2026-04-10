@@ -49,7 +49,7 @@ remote_name_from_url() {
     # Strip leading slash, credentials, and .git suffix; split on /
     path="${path#/}"
     path="${path%.git}"
-    path="${path%%@*}"   # strip any embedded user:token@ remnant
+    path="${path%%@*}"   # defensive: truncate if @ appears in path portion
     IFS='/' read -ra parts <<< "$path"
 
     # Use the second-to-last segment (the immediate group/org before the repo name).
