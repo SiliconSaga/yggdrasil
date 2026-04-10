@@ -54,8 +54,8 @@ happens to map onto GitHub fine-grained tokens naturally.
 ```text
 ws cr <component> --upstream
   └─ glab mr create
-       --repo   gni-cis/gdd/upstream-repo    ← upstream (target)
-       --head   rpraestholm/fork-repo         ← fork project slug
+       --repo   myorg/upstream-repo            ← upstream (target)
+       --head   myfork/fork-repo              ← fork project slug
        --source-branch  fix/my-feature
        --target-branch  main
 ```
@@ -143,7 +143,7 @@ group where you have Owner access.
 
 The GitLab-native solution is **Group Access Tokens** and **Project Access Tokens**,
 which are created with an explicit role independent of any user. This is what
-yggdrasil uses (`GITLAB_GDD_GROUP_REPORTER_TOKEN`, `GITLAB_RPRAESTHOLM_WRITE_TOKEN`).
+yggdrasil uses (e.g. `GITLAB_UPSTREAM_REPORTER_TOKEN`, `GITLAB_FORK_WRITE_TOKEN`).
 
 **Machine users on corporate GitLab** are often not an option either — user
 accounts may be managed by IT/SSO, so you can't create a dedicated bot account
@@ -157,11 +157,11 @@ The result: on GitLab, CRs submitted by the agent appear as opened by a bot user
 Since the GitLab UI shows the bot as the MR author, yggdrasil uses two layers of
 attribution to tie the CR back to the human who initiated it:
 
-1. **Fork namespace path** — the MR source is `rpraestholm/yggdrasil`, making the
+1. **Fork namespace path** — the MR source is `youruser/project`, making the
    human's name visible in the MR header even if the opener is a bot.
 
 2. **`@HUMAN_ACCOUNT` in the MR body** — the CR template substitutes the
-   `identity.human_account` value (e.g. `@rpraestholm`) into the body at creation
+   `identity.human_account` value (e.g. `@youruser`) into the body at creation
    time, so the human is explicitly named in the description.
 
 This is an accepted trade-off for now. It provides adequate attribution for
