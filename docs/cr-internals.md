@@ -143,7 +143,10 @@ group where you have Owner access.
 
 The GitLab-native solution is **Group Access Tokens** and **Project Access Tokens**,
 which are created with an explicit role independent of any user. This is what
-yggdrasil uses (e.g. `GITLAB_UPSTREAM_REPORTER_TOKEN`, `GITLAB_FORK_WRITE_TOKEN`).
+yggdrasil uses on self-hosted/paid tiers (e.g. `GITLAB_UPSTREAM_REPORTER_TOKEN`,
+`GITLAB_FORK_WRITE_TOKEN`). On gitlab.com free tier, these token types are not
+available — use a Personal Access Token instead, and point both env vars at the
+same PAT to maintain the routing pattern.
 
 **Machine users on corporate GitLab** are often not an option either — user
 accounts may be managed by IT/SSO, so you can't create a dedicated bot account

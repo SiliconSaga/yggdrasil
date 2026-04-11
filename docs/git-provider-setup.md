@@ -105,6 +105,12 @@ that covers your use case:
 **Group Access Token** if your workspace components all live under one group.
 Personal Access Tokens with `api` scope work but give broader access than needed.
 
+> **gitlab.com free tier:** Group and Project Access Tokens require a paid
+> subscription (Premium+). Use a **Personal Access Token** with `api` scope
+> instead. For the multi-token setup (fork → upstream), you can point multiple
+> env vars at the same PAT — the token routing logic still works, you just
+> don't get the access-level separation that scoped tokens provide.
+
 For Project and Group tokens, set the role to **Developer** (can push branches,
 create MRs and issues). For self-hosted instances, token URLs follow the same
 pattern: `https://<your-host>/<group>/<project>/-/settings/access_tokens`.
