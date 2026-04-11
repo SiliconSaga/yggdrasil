@@ -108,8 +108,9 @@ Personal Access Tokens with `api` scope work but give broader access than needed
 > **gitlab.com free tier:** Group and Project Access Tokens require a paid
 > subscription (Premium+). Use a **Personal Access Token** with `api` scope
 > instead. For the multi-token setup (fork → upstream), you can point multiple
-> env vars at the same PAT — the token routing logic still works, you just
-> don't get the access-level separation that scoped tokens provide.
+> env vars at the same PAT (see `.env.example` for variable names) — the token
+> routing logic still works, you just don't get the access-level separation
+> that scoped tokens provide.
 
 Choose the narrowest role that matches the token's job:
 - **Developer** for fork/write tokens that must push branches or create MRs.
@@ -143,6 +144,7 @@ setting `GITLAB_HOST`:
 
 ```bash
 source .env
+# Uses the multi-token write var if set (see .env.example), else GITLAB_TOKEN
 glab auth login --hostname "$GITLAB_HOST" --token "${GITLAB_GDD_GROUP_WRITE_TOKEN:-$GITLAB_TOKEN}"
 ```
 

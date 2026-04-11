@@ -247,14 +247,15 @@ review_threads() {
 }
 
 review_reply() {
-    if [[ $# -lt 3 ]]; then
+    if [[ $# -lt 3 || $# -gt 4 ]]; then
         echo "Usage: ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
         exit 1
     fi
 
     local cr_num="$1" thread_id="$2" message="$3"
     local resolve=false
-    if [[ "${4:-}" == "--resolve" ]]; then
+    if [[ $# -eq 4 ]]; then
+        [[ "$4" == "--resolve" ]] || { echo "ERROR: Unknown option '$4'" >&2; exit 1; }
         resolve=true
     fi
 
@@ -370,11 +371,16 @@ if [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
 elif [[ -n "$_PEEK_CR" ]]; then
     # Try each slug — collect all matches (CR numbers aren't unique across repos)
+    # Deduplicate: skip slug/provider pairs we've already probed
     _MATCH_SLUGS=()
     _MATCH_PROVIDERS=()
+    local _seen=""
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
         _prov="${_CANDIDATE_PROVIDERS[$i]}"
+        local _key="${_prov}:${_slug}"
+        [[ "$_seen" == *"|${_key}|"* ]] && continue
+        _seen+="|${_key}|"
         gp_load "$_prov" 2>/dev/null || continue
         if gp_review_summary "$_slug" "$_PEEK_CR" &>/dev/null; then
             _MATCH_SLUGS+=("$_slug")
