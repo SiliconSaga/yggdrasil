@@ -374,11 +374,11 @@ elif [[ -n "$_PEEK_CR" ]]; then
     # Deduplicate: skip slug/provider pairs we've already probed
     _MATCH_SLUGS=()
     _MATCH_PROVIDERS=()
-    local _seen=""
+    _seen=""
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
         _prov="${_CANDIDATE_PROVIDERS[$i]}"
-        local _key="${_prov}:${_slug}"
+        _key="${_prov}:${_slug}"
         [[ "$_seen" == *"|${_key}|"* ]] && continue
         _seen+="|${_key}|"
         gp_load "$_prov" 2>/dev/null || continue
