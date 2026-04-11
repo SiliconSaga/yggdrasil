@@ -143,7 +143,7 @@ setting `GITLAB_HOST`:
 
 ```bash
 source .env
-glab auth login --hostname "$GITLAB_HOST" --token "$GITLAB_TOKEN"
+glab auth login --hostname "$GITLAB_HOST" --token "${GITLAB_GDD_GROUP_WRITE_TOKEN:-$GITLAB_TOKEN}"
 ```
 
 For `gitlab.com`, `glab` reads `GITLAB_TOKEN` automatically and no `auth login`

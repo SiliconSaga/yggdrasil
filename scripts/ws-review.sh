@@ -3,6 +3,7 @@
 #
 # Usage:
 #   ws-review.sh <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]
+#   ws-review.sh <comp> reply <cr#> <thread-id> <message> [--resolve]
 #   ws-review.sh <comp> <cr#> [--reviewer <name>] [--since <time>]
 #
 # Supports GitHub (gh) and GitLab (glab). Component name is always required.
@@ -304,6 +305,7 @@ fi
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
     echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
+    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
     echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]" >&2
     echo "" >&2
     echo "Run 'ws review --help' for details." >&2
