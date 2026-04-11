@@ -355,6 +355,8 @@ fi
 _PEEK_CR=""
 if [[ "${1:-}" == "threads" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
+elif [[ "${1:-}" == "reply" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_CR="$2"
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$1"
 fi

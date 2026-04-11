@@ -60,19 +60,9 @@ ws cr <component> --upstream
        --target-branch  main
 ```
 
-On **GitLab**, the behavior depends on the glab version:
-
-### glab < 1.65 (--source-project, now removed)
-
-Older glab used `--source-project SLUG` to identify the fork. In this mode,
-glab called the **upstream project's API** — mirroring the GitHub behaviour.
-The upstream reporter token was sufficient.
-
-### glab ≥ 1.65 (--head, current)
-
-`--source-project` was removed and replaced with `--head OWNER/REPO`.
-With this flag, glab calls the **fork project's API** to create the MR —
-not the upstream's API. GitLab's MR creation endpoint lives on the source
+On **GitLab**, `glab mr create` uses the `--head OWNER/REPO` flag to identify
+the fork. With this flag, glab calls the **fork project's API** to create the
+MR — not the upstream's API. GitLab's MR creation endpoint lives on the source
 (fork) project.
 
 This is the opposite of how GitHub works, and opposite of what the `--repo`
@@ -143,8 +133,8 @@ group where you have Owner access.
 
 The GitLab-native solution is **Group Access Tokens** and **Project Access Tokens**,
 which are created with an explicit role independent of any user. This is what
-yggdrasil uses on self-hosted/paid tiers (e.g. `GITLAB_UPSTREAM_REPORTER_TOKEN`,
-`GITLAB_FORK_WRITE_TOKEN`). On gitlab.com free tier, these token types are not
+yggdrasil uses on self-hosted/paid tiers (e.g. `GITLAB_GDD_GROUP_REPORTER_TOKEN`,
+`GITLAB_GDD_GROUP_WRITE_TOKEN`). On gitlab.com free tier, these token types are not
 available — use a Personal Access Token instead, and point both env vars at the
 same PAT to maintain the routing pattern.
 

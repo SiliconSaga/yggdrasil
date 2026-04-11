@@ -31,11 +31,13 @@ Note that this currently assumes a variety of prerequisites:
    of the longer `bash scripts/ws <command>` form. It also means `ws` always
    resolves paths relative to the workspace root, so it works correctly no matter
    which directory you (or an AI agent) run it from:
+
    ```bash
    echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.zshrc   # zsh (macOS default)
    # or:
    echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.bashrc  # bash
    ```
+
    Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal.
    Run `ws help` to verify.
 

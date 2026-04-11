@@ -111,9 +111,12 @@ Personal Access Tokens with `api` scope work but give broader access than needed
 > env vars at the same PAT — the token routing logic still works, you just
 > don't get the access-level separation that scoped tokens provide.
 
-For Project and Group tokens, set the role to **Developer** (can push branches,
-create MRs and issues). For self-hosted instances, token URLs follow the same
-pattern: `https://<your-host>/<group>/<project>/-/settings/access_tokens`.
+Choose the narrowest role that matches the token's job:
+- **Developer** for fork/write tokens that must push branches or create MRs.
+- **Reporter** for upstream read/review/issue tokens in the split-token setup.
+
+For self-hosted instances, token URLs follow the same pattern:
+`https://<your-host>/<group>/<project>/-/settings/access_tokens`.
 
 Regardless of token type, set the scope to:
 

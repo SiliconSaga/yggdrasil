@@ -41,7 +41,7 @@ ws <command> [args...]
 | `ws pull [comp]` | Pull latest for all or one component |
 | `ws push [comp] [branch]` | Push via HTTPS (auto-sources .env) |
 | `ws cr <comp> <title> <bodyfile>` | Open a CR (change request/PR/MR) to main |
-| `ws issue <repo> <title> <label> <bodyfile>` | File an issue |
+| `ws issue <comp> [remote] <title> <label> <bodyfile>` | File an issue |
 | `ws resolve` | Generate ArgoCD Application manifests |
 | `ws vscode` | Generate VS Code workspace file |
 | `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |

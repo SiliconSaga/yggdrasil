@@ -19,15 +19,17 @@ Types: `feat`, `fix`, `docs`, `chore`, `test`, `refactor`
 
 Examples: `feat/gh-issue-helper`, `fix/nordri-velero-assert`, `docs/kuttl-gotchas`
 
-## Utility Scripts
+## Workspace CLI Commands
 
-All scripts live in `yggdrasil/scripts/` and auto-source `.env`. Run them from any workspace repo directory.
+Always use `ws` commands instead of raw git operations — they handle staging,
+attribution trailers, auth, and remote selection automatically.
 
-| Script | Purpose |
-|--------|---------|
-| `git-push.sh [branch]` | Push current (or named) branch to siliconsaga |
-| `git-cr.sh TITLE BODYFILE` | Open CR from current branch to main |
-| `gh-issue.sh REPO TITLE LABEL BODYFILE` | File a GitHub issue |
+| Command | Purpose |
+|---------|---------|
+| `ws push <comp> [branch]` | Push current (or named) branch |
+| `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR from current branch |
+| `ws issue <comp> <title> <label> <bodyfile>` | File an issue |
+| `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer |
 
 CR body drafts follow the same pattern as issue drafts:
 - Template: `yggdrasil/.agent/change-template.md`
@@ -37,27 +39,23 @@ CR body drafts follow the same pattern as issue drafts:
 
 ```bash
 # 1. Start from an up-to-date main
-git checkout main
-git pull siliconsaga main
+git checkout main && git pull siliconsaga main
 
 # 2. Create topic branch
 git checkout -b <type>/<description>
 
-# 3. Do the work — commit as normal
-git add <files>
-git commit -m "type: description
+# 3. Commit (use ws commit — handles staging and attribution)
+bash scripts/ws commit <component> .commits/my-change.md
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-
-# 4. Push (from a sibling repo; use ./scripts/git-push.sh if already in yggdrasil)
-../yggdrasil/scripts/git-push.sh
+# 4. Push
+bash scripts/ws push <component>
 
 # 5. Draft CR body
-cp ../yggdrasil/.agent/change-template.md .crs/<description>.md
+cp .agent/change-template.md .crs/<description>.md
 # ... fill in Summary, Test plan, Related ...
 
 # 6. Open CR
-../yggdrasil/scripts/git-cr.sh "type: description" .crs/<description>.md
+bash scripts/ws cr <component> "type: description" .crs/<description>.md
 ```
 
 ## Rebasing onto Updated Main
@@ -141,12 +139,9 @@ git branch -d <type>/<description>
 
 ## Key Notes
 
-- Always use `git-push.sh` rather than plain `git push` — GitKraken installs a global
-  `url.insteadOf` rule that rewrites `https://github.com/` to `git@github.com:` (SSH),
-  which fails in agent scripts without GitKraken's ssh-agent. The script bypasses this
-  by pushing to an explicit `https://x-access-token:$GH_TOKEN@...` URL. GitKraken
-  continues to push via SSH unaffected.
-- A provider token must be set in `.env` for both push and CR scripts.
+- Always use `ws push` rather than plain `git push` — it handles remote
+  selection, auth, and GitKraken `url.insteadOf` workarounds automatically.
+- A provider token must be set in `.env` for push and CR scripts.
 - CR title follows the same `type:` convention as commit messages and issue titles.
 - **Always `cp` the template file — never write CR bodies from memory.** The template
   evolves; using a remembered or hardcoded heredoc will produce a stale body. The `cp`
