@@ -215,6 +215,15 @@ gp_review_threads_status() {
     '
 }
 
+# Reply to a discussion thread.
+# Usage: gp_review_thread_reply SLUG MR_NUM DISCUSSION_ID MESSAGE
+gp_review_thread_reply() {
+    local slug="$1" mr_num="$2" discussion_id="$3" message="$4"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api --method POST "projects/$encoded/merge_requests/$mr_num/discussions/$discussion_id/notes" \
+        -f body="$message" >/dev/null 2>&1
+}
+
 # Resolve a single discussion thread.
 # Usage: gp_review_thread_resolve SLUG MR_NUM DISCUSSION_ID
 gp_review_thread_resolve() {

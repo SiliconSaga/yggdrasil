@@ -213,6 +213,18 @@ gp_review_threads_status() {
     '
 }
 
+# Reply to a review thread.
+# Usage: gp_review_thread_reply SLUG PR_NUM THREAD_ID MESSAGE
+gp_review_thread_reply() {
+    local slug="$1" pr_num="$2" thread_id="$3" message="$4"
+    gh api graphql -f query='
+        mutation($threadId: ID!, $body: String!) {
+          addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
+            comment { id }
+          }
+        }' -f threadId="$thread_id" -f body="$message" >/dev/null 2>&1
+}
+
 # Resolve a single thread.
 # Usage: gp_review_thread_resolve SLUG PR_NUM THREAD_ID
 gp_review_thread_resolve() {

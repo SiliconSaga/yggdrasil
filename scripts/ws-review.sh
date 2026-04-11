@@ -17,6 +17,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 review_help() {
     echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
+    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
     echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]"
     echo ""
     echo "CR review comments and thread management."
@@ -27,6 +28,10 @@ review_help() {
     echo "    --resolve <thread-id>    Resolve a single thread"
     echo "    --resolve-all            Resolve all unresolved threads"
     echo ""
+    echo "  reply <cr#> <thread-id> <message> [--resolve]"
+    echo "                             Reply to a review thread"
+    echo "    --resolve                Also resolve the thread after replying"
+    echo ""
     echo "  <cr#>                      List review comments (default)"
     echo "    --reviewer <name>        Filter by reviewer login"
     echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
@@ -36,6 +41,8 @@ review_help() {
     echo "  ws review yggdrasil threads 8              # List unresolved threads"
     echo "  ws review yggdrasil threads 8 --status     # Thread counts"
     echo "  ws review yggdrasil threads 8 --resolve-all"
+    echo "  ws review yggdrasil reply 8 THREAD_ID 'Addressed in abc123'"
+    echo "  ws review yggdrasil reply 8 THREAD_ID 'Fixed' --resolve"
     echo "  ws review yggdrasil 8                      # All review comments"
     echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
@@ -238,6 +245,43 @@ review_threads() {
     esac
 }
 
+review_reply() {
+    if [[ $# -lt 3 ]]; then
+        echo "Usage: ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
+        exit 1
+    fi
+
+    local cr_num="$1" thread_id="$2" message="$3"
+    local resolve=false
+    if [[ "${4:-}" == "--resolve" ]]; then
+        resolve=true
+    fi
+
+    if [[ ! "$cr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CR number must be numeric, got '$cr_num'" >&2
+        exit 1
+    fi
+
+    if [[ -z "$thread_id" ]]; then
+        echo "ERROR: Thread ID is required." >&2
+        exit 1
+    fi
+
+    gp_review_thread_reply "$REPO_SLUG" "$cr_num" "$thread_id" "$message" || {
+        echo "ERROR: Failed to reply to thread $thread_id on CR #$cr_num." >&2
+        exit 1
+    }
+    echo "Replied to thread on CR #$cr_num ($REPO_SLUG)."
+
+    if [[ "$resolve" == true ]]; then
+        gp_review_thread_resolve "$REPO_SLUG" "$cr_num" "$thread_id" || {
+            echo "WARNING: Reply posted but failed to resolve thread $thread_id." >&2
+            exit 1
+        }
+        echo "Thread resolved."
+    fi
+}
+
 # --- Shared setup ---
 
 # Handle --help before requiring auth — help should always work
@@ -364,6 +408,9 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 elif [[ "${1:-}" == "threads" ]]; then
     shift
     review_threads "$@"
+elif [[ "${1:-}" == "reply" ]]; then
+    shift
+    review_reply "$@"
 else
     review_comments "$@"
 fi
