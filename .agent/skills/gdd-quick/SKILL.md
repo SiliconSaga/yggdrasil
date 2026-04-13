@@ -34,10 +34,10 @@ recovery, appropriately-sized task suggestions.
 
 Suggest tasks appropriate to the time window:
 
-- **15 min:** Write one BDD scenario, review one PR comment, fix one small bug
+- **15 min:** Write one BDD scenario, review one CR comment, fix one small bug
 - **30 min:** Implement step definitions for an existing scenario, triage
   review findings, write a skill stub
-- **45 min:** End-to-end small feature, full PR with review
+- **45 min:** End-to-end small feature, full CR with review
 
 ## Composition
 

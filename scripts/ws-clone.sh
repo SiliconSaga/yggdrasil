@@ -22,8 +22,6 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 # shellcheck source=ws-overlay.sh
 source "$SCRIPT_DIR/ws-overlay.sh"
 
-# Source .env if present (for GH_TOKEN)
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
@@ -31,15 +29,37 @@ if ! command -v yq &>/dev/null; then
 fi
 
 # Extract org name from a Git URL for use as the remote name.
-# e.g., https://github.com/MovingBlocks/repo.git -> MovingBlocks
-#       git@github.com:SiliconSaga/repo.git -> SiliconSaga
-#       https://gitlab.com/MyOrg/repo.git -> MyOrg
+# e.g., https://github.com/MovingBlocks/repo.git        -> MovingBlocks
+#       git@github.com:SiliconSaga/repo.git              -> SiliconSaga
+#       https://gitlab.com/MyOrg/repo.git                -> MyOrg
+#       https://gitlab.example.com/group/subgroup/repo   -> subgroup
 remote_name_from_url() {
     local url="$1"
-    if [[ "$url" =~ ^https?://[^/]+/([^/]+)/ ]]; then
-        echo "${BASH_REMATCH[1]}"
-    elif [[ "$url" =~ ^git@[^:]+:([^/]+)/ ]]; then
-        echo "${BASH_REMATCH[1]}"
+    local path=""
+
+    if [[ "$url" =~ ^https?://[^/]+(/.+)$ ]]; then
+        path="${BASH_REMATCH[1]}"
+    elif [[ "$url" =~ ^git@[^:]+:(.+)$ ]]; then
+        path="/${BASH_REMATCH[1]}"
+    else
+        echo "origin"
+        return
+    fi
+
+    # Strip leading slash, credentials, and .git suffix; split on /
+    path="${path#/}"
+    path="${path%.git}"
+    path="${path%%@*}"   # defensive: truncate if @ appears in path portion
+    IFS='/' read -ra parts <<< "$path"
+
+    # Use the second-to-last segment (the immediate group/org before the repo name).
+    # For flat orgs (github.com/Org/repo) this is the org.
+    # For nested groups (gitlab.com/group/subgroup/repo) this is the subgroup.
+    local n=${#parts[@]}
+    if [[ $n -ge 2 ]]; then
+        echo "${parts[$((n-2))]}"
+    elif [[ $n -eq 1 ]]; then
+        echo "${parts[0]}"
     else
         echo "origin"
     fi

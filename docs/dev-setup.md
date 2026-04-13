@@ -40,15 +40,15 @@ ws <command> [args...]
 | `ws clone <comp>\|--all` | Clone one or all components |
 | `ws pull [comp]` | Pull latest for all or one component |
 | `ws push [comp] [branch]` | Push via HTTPS (auto-sources .env) |
-| `ws pr <comp> <title> <bodyfile>` | Open a pull request to main |
-| `ws issue <repo> <title> <label> <bodyfile>` | File a GitHub issue |
+| `ws cr <comp> <title> <bodyfile>` | Open a CR (change request/PR/MR) to main |
+| `ws issue <comp> [remote] <title> <label> <bodyfile>` | File an issue |
 | `ws resolve` | Generate ArgoCD Application manifests |
 | `ws vscode` | Generate VS Code workspace file |
 | `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |
-| `ws review <comp> <pr#\|threads> [options]` | PR review comments and thread management |
+| `ws review <comp> <cr#\|threads> [options]` | CR review comments and thread management |
 | `ws commit <comp> <message> [bodyfile]` | Commit with Co-Authored-By trailer |
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
-| `ws clean` | Remove draft files from `.issues/`, `.prs/`, `.commits/` |
+| `ws clean` | Remove draft files from `.issues/`, `.crs/`, `.commits/` |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |
 | `ws help` | Show help |
 

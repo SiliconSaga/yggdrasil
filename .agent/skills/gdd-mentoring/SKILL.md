@@ -18,7 +18,7 @@ it for any topic.
 - First time touching a part of the codebase
 - Learning a new tool, language, or practice (BDD, Crossplane, etc.)
 - The user explicitly asks for explanations ("teach me", "explain as you go")
-- A newer contributor is working through their first PR
+- A newer contributor is working through their first CR
 
 ## Behavior Modifications
 
@@ -41,7 +41,7 @@ Mentoring composes with other modes:
 - **Mentoring + Zen:** Deep work with thorough teaching. Full explanations
   at every step.
 - **Mentoring + Autonomous:** AI logs its reasoning in detail for later human
-  review. Explanations go into commit messages and PR descriptions.
+  review. Explanations go into commit messages and CR descriptions.
 
 ## What This Mode Does NOT Do
 

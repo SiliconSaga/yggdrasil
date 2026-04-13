@@ -18,10 +18,23 @@ gp_check_cli() {
         return 1
     fi
 
-    if ! glab auth status &>/dev/null; then
-        echo "ERROR: glab CLI is not authenticated." >&2
-        echo "  Set GITLAB_TOKEN in .env or run 'glab auth login'." >&2
-        echo "  See docs/git-provider-setup.md for details." >&2
+    # GITLAB_TOKEN set in env is sufficient — glab uses it directly.
+    # Avoid bare `glab auth status` which exits non-zero if any configured
+    # host (e.g. gitlab.com) lacks credentials, even if ours works.
+    if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+        return 0
+    fi
+    # No token in env — fall back to checking per-host if host is known
+    local host="${GITLAB_HOST:-}"
+    if [[ -n "$host" ]]; then
+        if ! glab auth status 2>&1 | grep -q "Logged in to $host"; then
+            echo "ERROR: glab is not authenticated for $host." >&2
+            echo "  Run 'ws gitlab-auth' to set up credentials." >&2
+            return 1
+        fi
+    else
+        echo "ERROR: GITLAB_TOKEN is not set and GITLAB_HOST is unknown." >&2
+        echo "  Set GITLAB_TOKEN in .env or run 'ws gitlab-auth'." >&2
         return 1
     fi
 }
@@ -32,7 +45,7 @@ gp_check_cli() {
 gp_extract_slug() {
     local url="$1"
     # Handle SSH (ssh://git@host:port/group/repo), HTTPS (https://host/group/repo), and git@ (git@host:group/repo)
-    echo "$url" | sed 's|^ssh://[^/]*/||; s|^https\?://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
+    echo "$url" | sed 's|^ssh://[^/]*/||; s|^https://[^/]*/||; s|^http://[^/]*/||; s|^git@[^:]*:||; s|\.git$||'
 }
 
 # Query the default branch of a GitLab repo.
@@ -64,9 +77,9 @@ gp_create_pr() {
         return 1
     fi
 
-    # glab mr create uses --source-branch and --target-branch
-    # For cross-project MRs from a fork, glab uses --repo for the target
-    # and --source-project for the source (fork) project
+    # glab mr create uses --source-branch and --target-branch.
+    # For cross-project MRs from a fork, use --head for the source project
+    # (glab ≥1.65; older versions used --source-project which was removed).
     local cmd=(glab mr create
         --repo "$repo"
         --target-branch "$base"
@@ -76,7 +89,7 @@ gp_create_pr() {
     )
 
     if [[ -n "$fork_slug" ]]; then
-        cmd+=(--source-project "$fork_slug")
+        cmd+=(--head "$fork_slug")
     fi
 
     "${cmd[@]}"
@@ -200,6 +213,15 @@ gp_review_threads_status() {
           }
         | "MR #\($mr) (\($slug)): \(.unresolved) unresolved, \(.resolved) resolved (\(.total) total)"
     '
+}
+
+# Reply to a discussion thread.
+# Usage: gp_review_thread_reply SLUG MR_NUM DISCUSSION_ID MESSAGE
+gp_review_thread_reply() {
+    local slug="$1" mr_num="$2" discussion_id="$3" message="$4"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api --method POST "projects/$encoded/merge_requests/$mr_num/discussions/$discussion_id/notes" \
+        -f body="$message" >/dev/null 2>&1
 }
 
 # Resolve a single discussion thread.

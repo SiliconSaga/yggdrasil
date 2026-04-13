@@ -48,13 +48,13 @@ Structure work so the human can review it efficiently:
 
 - Small, focused commits with descriptive messages
 - Each commit should make sense independently
-- PR descriptions explain the reasoning, not just the changes
+- CR descriptions explain the reasoning, not just the changes
 - Flag decisions that need human validation
 
 ## Composition
 
 - **Autonomous + Mentoring:** Log reasoning in extra detail for human learning.
-  Commit messages and PR descriptions serve as teaching material.
+  Commit messages and CR descriptions serve as teaching material.
 - **Autonomous + Zen:** Full diligence — comprehensive tests, detailed docs,
   thorough error handling. The most thorough autonomous mode.
 - **Autonomous + Quick:** Not typical. If combined, produce the smallest

@@ -62,7 +62,7 @@ Flow is the natural mode for a human overseeing parallel work:
 
 - Two agent sessions on different machines working on related features
 - Checking in on one session while another runs autonomously
-- Cross-referencing work between sessions (like resolving PR comments from
+- Cross-referencing work between sessions (like resolving CR comments from
   one workspace using tools built in another)
 
 The Thalamus serves as the coordination surface — each workspace has its
