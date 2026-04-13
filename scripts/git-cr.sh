@@ -72,7 +72,7 @@ if [[ -z "$_HUMAN_ACCOUNT" ]]; then
   echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
   exit 1
 fi
-if ! grep -q 'AI-assisted' "$BODYFILE"; then
+if ! head -n 1 "$BODYFILE" | grep -q '^> \*\*AI-assisted'; then
   echo "ERROR: body file is missing the AI attribution line." >&2
   echo "  First line must contain: > **AI-assisted change proposal.**" >&2
   exit 1

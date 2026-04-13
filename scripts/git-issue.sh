@@ -64,7 +64,7 @@ if [[ -z "$HUMAN_ACCOUNT" ]]; then
 fi
 
 # Enforce AI attribution line referencing the driving human
-if ! grep -q 'AI-assisted issue' "$BODYFILE"; then
+if ! head -n 1 "$BODYFILE" | grep -q '^> \*\*AI-assisted'; then
   echo "ERROR: body file is missing the AI attribution line." >&2
   echo "  First line must contain: > **AI-assisted issue.**" >&2
   exit 1
