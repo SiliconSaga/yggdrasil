@@ -55,7 +55,7 @@ fi
 ECO=$(ws_resolve_ecosystem)
 HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$ECO" 2>/dev/null)
 GDD_HOME=$(yq '.defaults.gddHome // "https://siliconsaga.github.io/yggdrasil/gdd/"' "$ECO" 2>/dev/null)
-[[ "$GDD_HOME" == "null" ]] && GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
+[[ "$GDD_HOME" == "null" || -z "$GDD_HOME" ]] && GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
 
 if [[ -z "$HUMAN_ACCOUNT" ]]; then
   echo "ERROR: identity.human_account not set in ecosystem config." >&2
@@ -73,8 +73,10 @@ fi
 # Substitute @HUMAN_ACCOUNT and @GDD_HOME placeholders in a temp copy of the body file
 RESOLVED_BODY=$(mktemp)
 trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
-sed -e "s|@HUMAN_ACCOUNT|@${HUMAN_ACCOUNT}|g" \
-    -e "s|@GDD_HOME|${GDD_HOME}|g" \
+_ESC_HUMAN=$(printf '%s' "$HUMAN_ACCOUNT" | sed 's/[&|\\]/\\&/g')
+_ESC_GDD_HOME=$(printf '%s' "$GDD_HOME" | sed 's/[&|\\]/\\&/g')
+sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
+    -e "s|@GDD_HOME|${_ESC_GDD_HOME}|g" \
     "$BODYFILE" > "$RESOLVED_BODY"
 
 # Resolve remote:

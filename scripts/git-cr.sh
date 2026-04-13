@@ -79,8 +79,10 @@ if ! grep -q 'AI-assisted' "$BODYFILE"; then
 fi
 _RESOLVED_BODY=$(mktemp)
 trap 'rm -f "$_RESOLVED_BODY" 2>/dev/null' EXIT
-sed -e "s|@HUMAN_ACCOUNT|@${_HUMAN_ACCOUNT}|g" \
-    -e "s|@GDD_HOME|${_GDD_HOME}|g" \
+_ESC_HUMAN=$(printf '%s' "$_HUMAN_ACCOUNT" | sed 's/[&|\\]/\\&/g')
+_ESC_GDD_HOME=$(printf '%s' "$_GDD_HOME" | sed 's/[&|\\]/\\&/g')
+sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
+    -e "s|@GDD_HOME|${_ESC_GDD_HOME}|g" \
     "$BODYFILE" > "$_RESOLVED_BODY"
 BODYFILE="$_RESOLVED_BODY"
 

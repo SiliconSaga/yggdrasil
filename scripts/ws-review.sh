@@ -316,6 +316,12 @@ fi
 COMP="$1"
 shift
 
+# Reserve 'help' before component validation so 'ws review help' works
+if [[ "$COMP" == "help" ]]; then
+    review_help
+    exit 0
+fi
+
 # Validate component name (same regex as ws_validate_component)
 if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
     echo "ERROR: Invalid component name '$COMP'. Must be lowercase alphanumeric with hyphens/dots." >&2
@@ -338,6 +344,7 @@ fi
 # Build list of candidate slugs from all remotes, grouped by provider
 _CANDIDATE_SLUGS=()
 _CANDIDATE_PROVIDERS=()
+_CANDIDATE_URLS=()
 for _r in $(cd "$COMP_DIR" && git remote); do
     _url=$(cd "$COMP_DIR" && git remote get-url "$_r" 2>/dev/null) || continue
     _prov=$(gp_detect "$_url" "$_ECO" 2>/dev/null) || continue
@@ -346,6 +353,7 @@ for _r in $(cd "$COMP_DIR" && git remote); do
     if [[ -n "$_slug" && "$_slug" == */* ]]; then
         _CANDIDATE_SLUGS+=("$_slug")
         _CANDIDATE_PROVIDERS+=("$_prov")
+        _CANDIDATE_URLS+=("$_url")
     fi
 done
 
@@ -407,6 +415,15 @@ fi
 
 # Ensure the selected provider is loaded
 gp_load "$_SELECTED_PROVIDER"
+
+# Pre-populate the provider token from ecosystem config so gp_check_cli
+# doesn't fall through to glab auth status when only split tokens are set.
+for _i in "${!_CANDIDATE_SLUGS[@]}"; do
+    if [[ "${_CANDIDATE_SLUGS[$_i]}" == "$REPO_SLUG" ]]; then
+        gp_set_token_for_url "${_CANDIDATE_URLS[$_i]}" "$_ECO"
+        break
+    fi
+done
 
 # Provider-specific auth check
 gp_check_cli || exit 1

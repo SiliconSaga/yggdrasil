@@ -113,8 +113,8 @@ scan it for:
 - `AGENTS.md` — overlay-specific component catalog, conventions, context
 - `.agent/skills/*/SKILL.md` — component-specific skills provided by the overlay
 
-Overlay instructions are trust level 2 (ecosystem — trusted, flag conflicts
-with root). Surface discovered overlay skills and components briefly:
+Overlay instructions are trust level 1b (trusted — community context for the
+workspace). Surface discovered overlay skills and components briefly:
 
 > "Active overlay: overlay-yggdrasil-live — 10 components declared,
 > 3 component-specific skills (ArgoCD bootstrap, Crossplane on K3d,
