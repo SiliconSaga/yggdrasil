@@ -116,6 +116,24 @@ Choose the narrowest role that matches the token's job:
 - **Developer** for fork/write tokens that must push branches or create MRs.
 - **Reporter** for upstream read/review/issue tokens in the split-token setup.
 
+#### Token naming
+
+The name you give a Group or Project Access Token becomes the **display name of
+the bot user** that GitLab shows as the MR/issue author. A descriptive name
+provides attribution when automation opens MRs on your behalf.
+
+Suggested pattern: `<project>-<owner>-<role>`
+
+| Token's job | Example name | Why |
+|---|---|---|
+| Fork group write (Developer) | `yggdrasil-rpraestholm-fork-dev` | Identifies the fork owner and that it can write |
+| Upstream group read (Reporter) | `yggdrasil-gdd-group-reporter` | Identifies the upstream group and read-only role |
+
+With a well-named fork token, an MR opened by the agent shows as authored by
+e.g. `yggdrasil-rpraestholm-fork-dev` — making the human connection clear even
+though it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this
+is the primary attribution mechanism on GitLab (see `docs/cr-internals.md`).
+
 For self-hosted instances, token URLs follow the same pattern:
 `https://<your-host>/<group>/<project>/-/settings/access_tokens`.
 
