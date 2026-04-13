@@ -33,7 +33,13 @@ Understanding each reviewer's quirks is essential for effective triage.
 
 **CodeRabbit:**
 - Re-triggers on each push, refining its review incrementally
+- **May self-resolve threads** after validating a fix — if the pushed code
+  addresses a finding, CodeRabbit ideally updates its comment and resolves the
+  thread itself. Prefer waiting for this rather than pre-emptively resolving;
+  but verify after each push — it may not always self-resolve.
 - Can over-engineer suggestions (e.g., 20+ permission patterns when one suffices)
+- Deduplicates across re-reviews — may note when a new finding duplicates an
+  existing open thread rather than filing it again
 
 **Copilot:**
 - Does NOT re-trigger on push. Use the "Re-request review" button in GitHub's
@@ -62,7 +68,14 @@ bash scripts/ws review <comp> threads <cr#> --resolve <id> # resolve one
 ```
 
 Thread resolution is a Side-effect operation (prompts for approval).
-Use `--resolve-all` after addressing stale Copilot re-filed findings.
+
+**When to resolve manually vs. let the reviewer resolve:**
+
+| Reviewer | Resolution approach |
+|---|---|
+| **CodeRabbit** | Push the fix and wait — CodeRabbit may validate and self-resolve. Check status after each push and only manually resolve if it hasn't, or if disagreeing with the finding (reply with justification first). |
+| **Copilot** | Manually resolve with `--resolve-all` after each re-review — Copilot re-files stale findings and does not self-resolve. |
+| **Human reviewer** | Never resolve via automation. Only the author or the reviewer should resolve human threads. |
 
 ## Triage Process
 
@@ -107,11 +120,13 @@ When processing findings, apply the `receiving-code-review` discipline
 
 ## After Triage
 
-- Address actionable findings (fix the code, update tests)
-- Resolve noise threads: `ws review <comp> threads <cr#> --resolve-all`
-  or `--resolve <id>` for individual threads
-- Flag conflicts for human decision
-- Push and re-check (CodeRabbit will re-trigger; Copilot needs manual
-  re-request)
-- After rebase or new push, use `ws review <comp> threads <cr#> --status`
-  to check if new threads appeared
+1. Address actionable findings (fix the code, update tests)
+2. Push — CodeRabbit re-triggers automatically; Copilot needs manual re-request
+3. Wait for CodeRabbit to re-review, then check status:
+   `ws review <comp> threads <cr#> --status`
+4. For any threads that remain:
+   - Copilot stale re-files → `ws review <comp> threads <cr#> --resolve-all`
+   - Findings you're intentionally not addressing → reply with justification,
+     then resolve: `ws review <comp> reply <cr#> <id> "Won't fix: ..." --resolve`
+   - Human reviewer threads → do not resolve via automation; address the
+     concern and let the reviewer resolve
