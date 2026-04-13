@@ -13,7 +13,7 @@ Over time as more common patterns are detected they can result in new convenienc
 
 `scripts/ws` is a bash dispatcher. Each subcommand either:
 - **Delegates** to an existing `scripts/*.sh` script (e.g. `ws list` → `ws-list.sh`)
-- **Wraps** a script with component-directory resolution (e.g. `ws push ymir` → `cd components/ymir && git-push.sh`)
+- **Wraps** a script with component-directory resolution (e.g. `ws push mimir` → `cd components/mimir && git-push.sh`)
 
 The dispatcher handles argument parsing, component validation, and help text.
 Existing scripts remain standalone and unchanged.
@@ -152,28 +152,36 @@ The workspace name `yggdrasil` appears as a special case in `ws_validate_compone
 
 1. Change the `"yggdrasil"` check in `scripts/ws` → `ws_validate_component()`
 2. Search docs for `yggdrasil` and update narrative references
-3. Update the `siliconsaga` remote name and `SiliconSaga/` org prefix in
-   `scripts/git-push.sh`, `scripts/git-pr.sh`, and `scripts/gh-issue.sh`
-4. Update the domain in `ecosystem.yaml` (currently `cmdbee.org` via Nordri)
+3. Update remote names and org prefixes in `scripts/git-push.sh` and
+   `scripts/git-cr.sh` to match your fork's remote naming
+4. Update the domain in `ecosystem.yaml`
 5. Update `.mcp.json` if you change component names that host MCP servers
 
 The name is intentionally not stored in a variable — it's a single check in a
 security-sensitive function, and indirection would add complexity for a one-time
 operation.
 
+#### Reserved component names
+
+The following names are reserved and cannot be used as component names:
+
+| Name | Reserved in | Reason |
+|---|---|---|
+| `yggdrasil` | `ws_validate_component`, `ws-review.sh` | Refers to the workspace root itself |
+| `help` | `ws-review.sh` | Subcommand keyword — `ws review help` shows usage |
+
+If you add new subcommand keywords to any `ws-*.sh` script, guard them before
+the component name validation block (see the `help` check in `ws-review.sh` as
+a pattern).
+
 ## Local Permission Overrides for Bulk Operations
 
-Side-effect commands (`push`, `pr`, `issue`, `commit`) prompt for approval by default.
+Side-effect commands (`push`, `cr`, `issue`, `commit`) prompt for approval by default.
 For bulk operations (filing multiple issues, pushing several components),
 you can auto-approve them in your local settings.
 
-**Setup:** Copy the template and add bulk patterns:
-
-```bash
-cp .claude/settings.local.example.json .claude/settings.local.json
-```
-
-Then add the patterns you want to auto-approve. In Claude Code permission
+**Setup:** Create `.claude/settings.local.json` (gitignored) and add the
+patterns you want to auto-approve. In Claude Code permission
 rules, each `*` matches **one argument** (not multiple). So multi-argument
 commands need one `*` per argument:
 
@@ -182,7 +190,7 @@ commands need one `*` per argument:
   "permissions": {
     "allow": [
       "Bash(bash scripts/ws push * *)",
-      "Bash(bash scripts/ws pr * * *)",
+      "Bash(bash scripts/ws cr * * *)",
       "Bash(bash scripts/ws issue * * * *)",
       "Bash(bash scripts/ws commit * *)",
       "Bash(bash scripts/ws commit * * *)"
@@ -193,12 +201,12 @@ commands need one `*` per argument:
 
 | Pattern | Matches | Example |
 |---|---|---|
-| `Bash(bash scripts/ws push *)` | Push with component only | `ws push ymir` |
-| `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push ymir feat/foo` |
-| `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr ymir "feat: add X" .prs/x.md` |
-| `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue ymir "fix: Y" bug .issues/y.md` |
-| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit ymir "fix: race"` |
-| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit ymir "feat: X" .commits/x.md` |
+| `Bash(bash scripts/ws push *)` | Push with component only | `ws push mimir` |
+| `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push mimir feat/foo` |
+| `Bash(bash scripts/ws cr * * *)` | CR with component + title + bodyfile | `ws cr mimir "feat: add X" .crs/x.md` |
+| `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
+| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit mimir "fix: race"` |
+| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit mimir "feat: X" .commits/x.md` |
 
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.

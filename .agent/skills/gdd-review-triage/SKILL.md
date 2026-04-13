@@ -1,10 +1,10 @@
 ---
 name: gdd-review-triage
 description: >
-  Multi-reviewer PR coordination. Fetches review comments from CodeRabbit,
+  Multi-reviewer CR coordination. Fetches review comments from CodeRabbit,
   Copilot, and other reviewers, deduplicates findings, triages by severity,
   and presents a consolidated action list. Use after pushing, when review
-  comments arrive, or when asked to triage PR feedback.
+  comments arrive, or when asked to triage CR feedback.
 ---
 
 # GDD Review Triage
@@ -16,8 +16,8 @@ who can triage across all of them.
 
 ## When to Use
 
-- After pushing to a PR (check for new comments)
-- When the user asks to review PR feedback
+- After pushing to a CR (check for new comments)
+- When the user asks to review CR feedback
 - When multiple reviewers have posted and findings need consolidation
 - As part of a Zen-mode deep review session
 
@@ -33,12 +33,18 @@ Understanding each reviewer's quirks is essential for effective triage.
 
 **CodeRabbit:**
 - Re-triggers on each push, refining its review incrementally
+- **May self-resolve threads** after validating a fix — if the pushed code
+  addresses a finding, CodeRabbit ideally updates its comment and resolves the
+  thread itself. Prefer waiting for this rather than pre-emptively resolving;
+  but verify after each push — it may not always self-resolve.
 - Can over-engineer suggestions (e.g., 20+ permission patterns when one suffices)
+- Deduplicates across re-reviews — may note when a new finding duplicates an
+  existing open thread rather than filing it again
 
 **Copilot:**
 - Does NOT re-trigger on push. Use the "Re-request review" button in GitHub's
   reviewer pane to trigger a re-review
-- Asking via PR comment causes Copilot to file a separate fix PR instead of
+- Asking via CR comment causes Copilot to file a separate fix CR instead of
   reviewing — avoid this
 - Does NOT track resolved threads across re-reviews. It re-files the same
   findings even after they've been addressed. Expect to bulk-resolve stale
@@ -50,19 +56,26 @@ Use `ws review` for all review operations:
 
 ```bash
 # Review comments
-bash scripts/ws review <comp> <pr#>
-bash scripts/ws review <comp> <pr#> --since prev-push
-bash scripts/ws review <comp> <pr#> --reviewer coderabbitai
+bash scripts/ws review <comp> <cr#>
+bash scripts/ws review <comp> <cr#> --since prev-push
+bash scripts/ws review <comp> <cr#> --reviewer coderabbitai
 
 # Review threads (unresolved items, status, resolution)
-bash scripts/ws review <comp> threads <pr#>              # list unresolved
-bash scripts/ws review <comp> threads <pr#> --status     # counts
-bash scripts/ws review <comp> threads <pr#> --resolve-all  # bulk resolve
-bash scripts/ws review <comp> threads <pr#> --resolve <id> # resolve one
+bash scripts/ws review <comp> threads <cr#>              # list unresolved
+bash scripts/ws review <comp> threads <cr#> --status     # counts
+bash scripts/ws review <comp> threads <cr#> --resolve-all  # bulk resolve
+bash scripts/ws review <comp> threads <cr#> --resolve <id> # resolve one
 ```
 
 Thread resolution is a Side-effect operation (prompts for approval).
-Use `--resolve-all` after addressing stale Copilot re-filed findings.
+
+**When to resolve manually vs. let the reviewer resolve:**
+
+| Reviewer | Resolution approach |
+|---|---|
+| **CodeRabbit** | Push the fix and wait — CodeRabbit may validate and self-resolve. Check status after each push and only manually resolve if it hasn't, or if disagreeing with the finding (reply with justification first). |
+| **Copilot** | Manually resolve with `--resolve-all` after each re-review — Copilot re-files stale findings and does not self-resolve. |
+| **Human reviewer** | Never resolve via automation. Only the author or the reviewer should resolve human threads. |
 
 ## Triage Process
 
@@ -89,7 +102,7 @@ commenting on. Check whether:
 
 Group by severity and present to the human:
 
-> **PR #42 Review Triage:**
+> **CR #42 Review Triage:**
 > - 2 actionable findings (1 bug, 1 consistency issue)
 > - 3 noise items resolved (Copilot re-filed stale findings)
 > - 1 conflict: CodeRabbit suggests X, Copilot suggests Y
@@ -107,11 +120,13 @@ When processing findings, apply the `receiving-code-review` discipline
 
 ## After Triage
 
-- Address actionable findings (fix the code, update tests)
-- Resolve noise threads: `ws review <comp> threads <pr#> --resolve-all`
-  or `--resolve <id>` for individual threads
-- Flag conflicts for human decision
-- Push and re-check (CodeRabbit will re-trigger; Copilot needs manual
-  re-request)
-- After rebase or new push, use `ws review <comp> threads <pr#> --status`
-  to check if new threads appeared
+1. Address actionable findings (fix the code, update tests)
+2. Push — CodeRabbit re-triggers automatically; Copilot needs manual re-request
+3. Wait for CodeRabbit to re-review, then check status:
+   `ws review <comp> threads <cr#> --status`
+4. For any threads that remain:
+   - Copilot stale re-files → `ws review <comp> threads <cr#> --resolve-all`
+   - Findings you're intentionally not addressing → reply with justification,
+     then resolve: `ws review <comp> reply <cr#> <id> "Won't fix: ..." --resolve`
+   - Human reviewer threads → do not resolve via automation; address the
+     concern and let the reviewer resolve

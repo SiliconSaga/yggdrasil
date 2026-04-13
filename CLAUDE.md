@@ -2,7 +2,7 @@
 
 **Read [`AGENTS.md`](AGENTS.md) first** — it contains shared workspace instructions
 including **session startup** (GDD orientation), repo roles, skills, git workflow,
-utility scripts, auth setup, and issue/PR conventions.
+utility scripts, auth setup, and issue/CR conventions.
 
 This file covers only Claude-specific overrides.
 
@@ -18,7 +18,7 @@ This file covers only Claude-specific overrides.
   Use `bash scripts/ws exec <component> <cmd>` to run commands in component
   directories — never manually `cd` to components.
   Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`,
-  `ws pr`, `ws issue`, `ws test`, `ws review`, `ws commit`, `ws log`, `ws clean`,
+  `ws cr`, `ws issue`, `ws test`, `ws review`, `ws commit`, `ws log`, `ws clean`,
   `ws resolve`, `ws vscode`, `ws exec`, `ws overlay`, `ws actions`, `ws help`.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
   Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.

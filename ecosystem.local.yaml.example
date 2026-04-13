@@ -26,6 +26,10 @@ identity:
 #   gitProvider: github            # workspace-wide default
 #   gitProviders:                  # domain → provider mapping
 #     git.mycompany.com: gitlab
+#
+# Default upstream remote for `ws cr --upstream` when a repo has multiple remotes.
+# Usually set in your overlay; override here to temporarily target a different remote.
+#   upstreamRemote: myorg
 
 # Overlay selector — uncomment to override auto-detection.
 # overlay: overlay-yggdrasil-live

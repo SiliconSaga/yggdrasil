@@ -13,18 +13,19 @@
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch] [--force] Push branch (remote from identity.forkOrg)
-#   pr <comp> [--upstream] <title> <bodyfile> Open a PR/MR (--upstream for cross-fork)
+#   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
-#   review <comp> <pr#|threads> [options]  PR review comments and threads (see ws review --help)
+#   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
 #   log [comp] [--oneline] Show commits on current branch vs main
-#   clean             Remove draft files from .issues/, .prs/, .commits/
+#   clean             Remove draft files from .issues/, .crs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   overlay init      Clone template overlay for tutorials
 #   overlay <url>     Clone a community overlay
 #   overlay use <name> Set active overlay
 #   overlay list      Show available overlays
+#   gitlab-auth       Store GitLab credentials (osxkeychain + glab) from .env tokens
 #   actions <comp>    List adapter commands for a component
 #   help              Show this help message
 #
@@ -39,6 +40,10 @@ ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
 OVERLAYS_DIR="$ROOT_DIR/overlays"
 COMPONENTS_DIR="$ROOT_DIR/components"
 COMPONENT_DIR=""  # Set by ws_validate_component
+
+# Auto-source .env if present — makes tokens available to all sub-commands
+# without requiring `source .env` before every ws invocation.
+[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 # Source shared overlay/merge functions
 # shellcheck source=ws-overlay.sh
@@ -64,7 +69,7 @@ ws_validate_component() {
 
     # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
-    # newline-injected names like "ymir\nevil" (CVE-style bypass).
+    # newline-injected names like "mimir\nevil" (CVE-style bypass).
     if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Invalid component name '$name'. Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
         exit 1
@@ -158,9 +163,9 @@ ws_push() {
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
 
-ws_pr() {
+ws_cr() {
     if [[ $# -lt 3 || $# -gt 4 ]]; then
-        echo "Usage: ws pr <component> [--upstream] <title> <bodyfile>" >&2
+        echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
@@ -172,7 +177,7 @@ ws_pr() {
     if [[ "${args[$last_idx]}" != /* ]]; then
         args[$last_idx]="$ROOT_DIR/${args[$last_idx]}"
     fi
-    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-pr.sh" "${args[@]}"
+    cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr.sh" "${args[@]}"
 }
 
 ws_test() {
@@ -185,8 +190,8 @@ ws_test() {
         echo "  pyproject.toml              → uv run pytest" >&2
         echo "" >&2
         echo "Extra args are passed to the test runner:" >&2
-        echo "  ws test ymir -run TestFoo -v" >&2
-        echo "  ws test ymir ./internal/store/ -run TestFoo -v" >&2
+        echo "  ws test mimir -run TestFoo -v" >&2
+        echo "  ws test mimir ./internal/store/ -run TestFoo -v" >&2
         exit 1
     fi
     if [[ $# -gt 7 ]]; then
@@ -200,7 +205,7 @@ ws_test() {
     cd "$COMPONENT_DIR"
 
     # No extra args: prefer Makefile with 'test' target — it knows the
-    # project layout (e.g. ymir's Makefile cd's into orchestrator/ for go test)
+    # project layout (e.g. a Makefile may cd into a subdir for go test)
     if [[ $# -eq 0 ]] && [[ -f Makefile ]] && grep -q '^test:' Makefile; then
         make test
         return
@@ -278,7 +283,7 @@ ws_commit() {
         echo ""
         echo "Examples:"
         echo "  ws commit yggdrasil .commits/fix-store-race.md"
-        echo "  ws commit ymir 'fix: resolve store race condition'"
+        echo "  ws commit mimir 'fix: resolve store race condition'"
         echo "  ws commit yggdrasil 'feat(ws): add feature' .commits/details.md"
         if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
             exit 0
@@ -479,8 +484,8 @@ ws_log() {
         echo "Examples:" >&2
         echo "  ws log                # yggdrasil branch vs main" >&2
         echo "  ws log --oneline      # compact format" >&2
-        echo "  ws log ymir           # ymir branch vs main" >&2
-        echo "  ws log ymir --oneline # ymir compact" >&2
+        echo "  ws log mimir           # mimir branch vs main" >&2
+        echo "  ws log mimir --oneline # mimir compact" >&2
         exit 1
     fi
 
@@ -553,12 +558,12 @@ ws_clean() {
     if [[ $# -gt 0 ]]; then
         echo "Usage: ws clean" >&2
         echo "" >&2
-        echo "Remove draft files from .issues/, .prs/, and .commits/ directories." >&2
+        echo "Remove draft files from .issues/, .crs/, and .commits/ directories." >&2
         exit 1
     fi
 
     local total=0
-    for dir in .issues .prs .commits; do
+    for dir in .issues .crs .commits; do
         local dirpath="$ROOT_DIR/$dir"
         if [[ -d "$dirpath" ]]; then
             local count
@@ -599,6 +604,117 @@ ws_issue() {
     bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
+ws_gitlab_auth() {
+    local eco
+    eco=$(ws_resolve_ecosystem)
+
+    local host="${GITLAB_HOST:-}"
+    if [[ -z "$host" ]]; then
+        echo "ERROR: GITLAB_HOST is not set." >&2
+        echo "  Add 'export GITLAB_HOST=your-gitlab-host' to .env" >&2
+        exit 1
+    fi
+
+    # Find forkOrg to identify the write (Developer) token
+    local fork_org
+    fork_org=$(yq '.identity.forkOrg // ""' "$eco")
+    [[ "$fork_org" == "null" ]] && fork_org=""
+    if [[ -z "$fork_org" ]]; then
+        echo "ERROR: identity.forkOrg is not set in ecosystem config." >&2
+        exit 1
+    fi
+
+    # Find gitTokens entry whose key is host/<...>/forkOrg (exact leaf match)
+    local write_token_var="" write_key=""
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local leaf="${key##*/}"
+        if [[ "$leaf" == "$fork_org" ]]; then
+            if [[ ${#key} -gt ${#write_key} ]]; then
+                write_key="$key"
+                write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+            fi
+        fi
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+
+    if [[ -z "$write_token_var" || "$write_token_var" == "null" ]]; then
+        echo "ERROR: No gitTokens entry found for host '$host' and forkOrg '$fork_org'." >&2
+        echo "  Expected a key like: $host/<group-path>/$fork_org" >&2
+        echo "  Add it to defaults.gitTokens in ecosystem.local.yaml." >&2
+        exit 1
+    fi
+
+    local write_token="${!write_token_var:-}"
+    if [[ -z "$write_token" ]]; then
+        echo "ERROR: Token env var '$write_token_var' is not set in environment." >&2
+        echo "  Add it to .env (see docs/git-provider-setup.md)." >&2
+        exit 1
+    fi
+
+    echo "[ ws gitlab-auth: $host ]"
+    echo ""
+
+    # 1. Register write token with glab
+    echo "1. Registering write token ($write_token_var) with glab..."
+    if glab auth login --hostname "$host" --token "$write_token" 2>/dev/null; then
+        echo "   ✓ glab authenticated"
+    else
+        echo "   ✗ glab auth login failed" >&2
+        exit 1
+    fi
+
+    # 2. Store write token in git credential helper for HTTPS clone/push
+    echo "2. Storing write token in git credential helper..."
+    git credential approve <<EOF
+protocol=https
+host=$host
+username=oauth2
+password=$write_token
+EOF
+    echo "   ✓ Stored in $(git config --global credential.helper || echo 'credential store') for $host"
+
+    # 3. Verify with git ls-remote on a declared component URL
+    echo "3. Verifying git access..."
+    local test_url=""
+    while IFS= read -r comp_url; do
+        [[ -z "$comp_url" || "$comp_url" == "null" ]] && continue
+        [[ "$comp_url" == "https://$host/"* ]] && test_url="$comp_url" && break
+    done < <(yq '.components[].repo // ""' "$eco" 2>/dev/null)
+
+    if [[ -n "$test_url" ]]; then
+        if git ls-remote "$test_url" HEAD &>/dev/null; then
+            echo "   ✓ git access verified ($test_url)"
+        else
+            echo "   ✗ git ls-remote failed: $test_url" >&2
+            echo "   Token may lack read access to this repo." >&2
+            exit 1
+        fi
+    else
+        echo "   (skipped — no component URLs in ecosystem config to test against)"
+    fi
+
+    # 4. Report other configured tokens
+    local other_count=0
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" || "$key" == "$write_key" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local other_var
+        other_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        [[ -z "$other_var" || "$other_var" == "null" ]] && continue
+        local other_val="${!other_var:-}"
+        if [[ -n "$other_val" ]]; then
+            echo "   ✓ Additional token $other_var available for $key"
+        else
+            echo "   ✗ Additional token $other_var (for $key) is not set in environment" >&2
+        fi
+        other_count=$((other_count + 1))
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+
+    echo ""
+    echo "Done. Run 'ws clone <component>' to continue."
+}
+
 COMMAND="${1:-help}"
 shift 2>/dev/null || true
 
@@ -627,8 +743,8 @@ case "$COMMAND" in
     push)
         ws_push "$@"
         ;;
-    pr)
-        ws_pr "$@"
+    cr)
+        ws_cr "$@"
         ;;
     issue)
         ws_issue "$@"
@@ -653,6 +769,9 @@ case "$COMMAND" in
         ;;
     overlay)
         bash "$SCRIPT_DIR/ws-overlay.sh" "$@"
+        ;;
+    gitlab-auth)
+        ws_gitlab_auth "$@"
         ;;
     actions)
         bash "$SCRIPT_DIR/ws-overlay.sh" actions "$@"

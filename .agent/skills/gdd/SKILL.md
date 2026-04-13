@@ -38,7 +38,7 @@ in the Developer role.
 
 | Role | Focus | Typical Activities |
 |------|-------|--------------------|
-| **Developer** | Writing and shipping code | Implementation, tests, PRs, code review |
+| **Developer** | Writing and shipping code | Implementation, tests, CRs, code review |
 | **Designer** | Defining behavior | Writing feature files, scenarios, specs |
 | **Reviewer** | Quality and safety | Code review, scenario review, testing |
 | **AI Agent** | Autonomous or guided work | Any of the above, bounded by permissions |
@@ -102,7 +102,7 @@ The orchestrator selects skills based on what the user is doing:
 |-------|--------|-------------|
 | Orientation (@gdd-orientation) | Exists | Session startup, Thalamus, trust verification |
 | Housekeeping (@gdd-housekeeping) | Exists | Audit, prune, promote Thalamus content |
-| Review Triage (@gdd-review-triage) | Exists | Multi-reviewer PR coordination |
+| Review Triage (@gdd-review-triage) | Exists | Multi-reviewer CR coordination |
 
 ## Design Principles
 

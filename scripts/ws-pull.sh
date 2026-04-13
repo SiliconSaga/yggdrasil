@@ -14,8 +14,6 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 # shellcheck source=ws-overlay.sh
 source "$SCRIPT_DIR/ws-overlay.sh"
 
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
-
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1

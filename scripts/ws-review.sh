@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# ws-review.sh — PR/MR review comments and thread management
+# ws-review.sh — CR review comments and thread management
 #
 # Usage:
-#   ws-review.sh <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]
-#   ws-review.sh <comp> <pr#> [--reviewer <name>] [--since <time>]
+#   ws-review.sh <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]
+#   ws-review.sh <comp> reply <cr#> <thread-id> <message> [--resolve]
+#   ws-review.sh <comp> <cr#> [--reviewer <name>] [--since <time>]
 #
 # Supports GitHub (gh) and GitLab (glab). Component name is always required.
 # Provider is auto-detected from the component's remote URL.
@@ -16,18 +17,23 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]"
-    echo "       ws review <comp> <pr#> [--reviewer <name>] [--since <time>]"
+    echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
+    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
+    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]"
     echo ""
-    echo "PR/MR review comments and thread management."
+    echo "CR review comments and thread management."
     echo ""
     echo "Subcommands:"
-    echo "  threads <pr#>              List unresolved review threads"
+    echo "  threads <cr#>              List unresolved review threads"
     echo "    --status                 Show resolved/unresolved counts"
     echo "    --resolve <thread-id>    Resolve a single thread"
     echo "    --resolve-all            Resolve all unresolved threads"
     echo ""
-    echo "  <pr#>                      List review comments (default)"
+    echo "  reply <cr#> <thread-id> <message> [--resolve]"
+    echo "                             Reply to a review thread"
+    echo "    --resolve                Also resolve the thread after replying"
+    echo ""
+    echo "  <cr#>                      List review comments (default)"
     echo "    --reviewer <name>        Filter by reviewer login"
     echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
     echo "                             (--since push events: GitHub only)"
@@ -36,15 +42,17 @@ review_help() {
     echo "  ws review yggdrasil threads 8              # List unresolved threads"
     echo "  ws review yggdrasil threads 8 --status     # Thread counts"
     echo "  ws review yggdrasil threads 8 --resolve-all"
+    echo "  ws review yggdrasil reply 8 THREAD_ID 'Addressed in abc123'"
+    echo "  ws review yggdrasil reply 8 THREAD_ID 'Fixed' --resolve"
     echo "  ws review yggdrasil 8                      # All review comments"
-    echo "  ws review ymir 5 --reviewer coderabbitai"
+    echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     exit 0
 }
 
 review_comments() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> <pr#> [--reviewer <name>] [--since <time>]" >&2
+        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>]" >&2
         exit 1
     fi
 
@@ -65,9 +73,9 @@ review_comments() {
         esac
     done
 
-    # Validate PR number is numeric
+    # Validate CR number is numeric
     if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
-        echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
+        echo "ERROR: CR number must be numeric, got '$pr_num'" >&2
         exit 1
     fi
 
@@ -131,11 +139,11 @@ review_comments() {
         review_filter="$review_filter | select((.submitted_at // .created_at) > \"$since_ts\")"
     fi
 
-    # Fetch PR/MR summary
-    echo "=== PR #$pr_num ($REPO_SLUG) ==="
+    # Fetch CR summary
+    echo "=== CR #$pr_num ($REPO_SLUG) ==="
     gp_review_summary "$REPO_SLUG" "$pr_num" || {
-        echo "ERROR: Could not fetch PR #$pr_num from $REPO_SLUG." >&2
-        echo "  Check the PR number and repo name." >&2
+        echo "ERROR: Could not fetch CR #$pr_num from $REPO_SLUG." >&2
+        echo "  Check the CR number and repo name." >&2
         exit 1
     }
     echo ""
@@ -168,7 +176,7 @@ review_comments() {
 
 review_threads() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]" >&2
+        echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
         exit 1
     fi
 
@@ -176,7 +184,7 @@ review_threads() {
     shift
 
     if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
-        echo "ERROR: PR number must be numeric, got '$pr_num'" >&2
+        echo "ERROR: CR number must be numeric, got '$pr_num'" >&2
         exit 1
     fi
 
@@ -209,33 +217,71 @@ review_threads() {
         list)
             local threads
             threads=$(gp_review_threads_list "$REPO_SLUG" "$pr_num") || {
-                echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+                echo "ERROR: Could not fetch threads for CR #$pr_num from $REPO_SLUG." >&2
                 exit 1
             }
             if [[ -z "$threads" ]]; then
-                echo "No unresolved threads on PR #$pr_num ($REPO_SLUG)."
+                echo "No unresolved threads on CR #$pr_num ($REPO_SLUG)."
             else
-                echo "=== Unresolved threads: PR #$pr_num ($REPO_SLUG) ==="
+                echo "=== Unresolved threads: CR #$pr_num ($REPO_SLUG) ==="
                 printf '%s\n' "$threads"
             fi
             ;;
         status)
             gp_review_threads_status "$REPO_SLUG" "$pr_num" || {
-                echo "ERROR: Could not fetch threads for PR #$pr_num from $REPO_SLUG." >&2
+                echo "ERROR: Could not fetch threads for CR #$pr_num from $REPO_SLUG." >&2
                 exit 1
             }
             ;;
         resolve)
             gp_review_thread_resolve "$REPO_SLUG" "$pr_num" "$resolve_id" || {
-                echo "ERROR: Failed to resolve thread $resolve_id on PR #$pr_num." >&2
+                echo "ERROR: Failed to resolve thread $resolve_id on CR #$pr_num." >&2
                 exit 1
             }
-            echo "Resolved thread $resolve_id on PR #$pr_num."
+            echo "Resolved thread $resolve_id on CR #$pr_num."
             ;;
         resolve-all)
             gp_review_threads_resolve_all "$REPO_SLUG" "$pr_num"
             ;;
     esac
+}
+
+review_reply() {
+    if [[ $# -lt 3 || $# -gt 4 ]]; then
+        echo "Usage: ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
+        exit 1
+    fi
+
+    local cr_num="$1" thread_id="$2" message="$3"
+    local resolve=false
+    if [[ $# -eq 4 ]]; then
+        [[ "$4" == "--resolve" ]] || { echo "ERROR: Unknown option '$4'" >&2; exit 1; }
+        resolve=true
+    fi
+
+    if [[ ! "$cr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CR number must be numeric, got '$cr_num'" >&2
+        exit 1
+    fi
+
+    if [[ -z "$thread_id" ]]; then
+        echo "ERROR: Thread ID is required." >&2
+        exit 1
+    fi
+
+    gp_review_thread_reply "$REPO_SLUG" "$cr_num" "$thread_id" "$message" || {
+        echo "ERROR: Failed to reply to thread $thread_id on CR #$cr_num." >&2
+        exit 1
+    }
+    echo "Replied to thread on CR #$cr_num ($REPO_SLUG)."
+
+    if [[ "$resolve" == true ]]; then
+        gp_review_thread_resolve "$REPO_SLUG" "$cr_num" "$thread_id" || {
+            echo "WARNING: Reply posted but failed to resolve thread $thread_id." >&2
+            exit 1
+        }
+        echo "Thread resolved."
+    fi
 }
 
 # --- Shared setup ---
@@ -245,12 +291,6 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     review_help
 fi
 
-# Source .env for provider tokens (GH_TOKEN, GITLAB_TOKEN, etc.)
-env_file="$ROOT_DIR/.env"
-if [[ -f "$env_file" ]]; then
-    # shellcheck source=/dev/null
-    source "$env_file"
-fi
 
 # Source provider dispatcher for slug extraction
 # shellcheck source=git-provider.sh
@@ -265,8 +305,9 @@ fi
 
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
-    echo "Usage: ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]" >&2
-    echo "       ws review <comp> <pr#> [--reviewer <name>] [--since <time>]" >&2
+    echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
+    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
+    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]" >&2
     echo "" >&2
     echo "Run 'ws review --help' for details." >&2
     exit 1
@@ -275,6 +316,12 @@ fi
 COMP="$1"
 shift
 
+# Reserve 'help' before component validation so 'ws review help' works
+if [[ "$COMP" == "help" ]]; then
+    review_help
+    exit 0
+fi
+
 # Validate component name (same regex as ws_validate_component)
 if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
     echo "ERROR: Invalid component name '$COMP'. Must be lowercase alphanumeric with hyphens/dots." >&2
@@ -282,9 +329,9 @@ if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]
 fi
 
 # Resolve repo slug from component's remotes.
-# Unlike push/issue (which target YOUR fork), review reads PRs that may live
-# on any remote (typically upstream). Strategy: extract the PR number from args,
-# try each remote's slug until the PR is found.
+# Unlike push/issue (which target YOUR fork), review reads CRs that may live
+# on any remote (typically upstream). Strategy: extract the CR number from args,
+# try each remote's slug until the CR is found.
 COMP_DIR="$ROOT_DIR/components/$COMP"
 [[ "$COMP" == "yggdrasil" ]] && COMP_DIR="$ROOT_DIR"
 
@@ -297,6 +344,7 @@ fi
 # Build list of candidate slugs from all remotes, grouped by provider
 _CANDIDATE_SLUGS=()
 _CANDIDATE_PROVIDERS=()
+_CANDIDATE_URLS=()
 for _r in $(cd "$COMP_DIR" && git remote); do
     _url=$(cd "$COMP_DIR" && git remote get-url "$_r" 2>/dev/null) || continue
     _prov=$(gp_detect "$_url" "$_ECO" 2>/dev/null) || continue
@@ -305,6 +353,7 @@ for _r in $(cd "$COMP_DIR" && git remote); do
     if [[ -n "$_slug" && "$_slug" == */* ]]; then
         _CANDIDATE_SLUGS+=("$_slug")
         _CANDIDATE_PROVIDERS+=("$_prov")
+        _CANDIDATE_URLS+=("$_url")
     fi
 done
 
@@ -313,12 +362,14 @@ if [[ ${#_CANDIDATE_SLUGS[@]} -eq 0 ]]; then
     exit 1
 fi
 
-# Peek at the PR number from remaining args to probe which slug has it
-_PEEK_PR=""
+# Peek at the CR number from remaining args to probe which slug has it
+_PEEK_CR=""
 if [[ "${1:-}" == "threads" && "${2:-}" =~ ^[0-9]+$ ]]; then
-    _PEEK_PR="$2"
+    _PEEK_CR="$2"
+elif [[ "${1:-}" == "reply" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_CR="$2"
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
-    _PEEK_PR="$1"
+    _PEEK_CR="$1"
 fi
 
 REPO_SLUG=""
@@ -326,25 +377,30 @@ _SELECTED_PROVIDER=""
 if [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
-elif [[ -n "$_PEEK_PR" ]]; then
-    # Try each slug — collect all matches (PR numbers aren't unique across repos)
+elif [[ -n "$_PEEK_CR" ]]; then
+    # Try each slug — collect all matches (CR numbers aren't unique across repos)
+    # Deduplicate: skip slug/provider pairs we've already probed
     _MATCH_SLUGS=()
     _MATCH_PROVIDERS=()
+    _seen=""
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
         _prov="${_CANDIDATE_PROVIDERS[$i]}"
+        _key="${_prov}:${_slug}"
+        [[ "$_seen" == *"|${_key}|"* ]] && continue
+        _seen+="|${_key}|"
         gp_load "$_prov" 2>/dev/null || continue
-        if gp_review_summary "$_slug" "$_PEEK_PR" &>/dev/null; then
+        if gp_review_summary "$_slug" "$_PEEK_CR" &>/dev/null; then
             _MATCH_SLUGS+=("$_slug")
             _MATCH_PROVIDERS+=("$_prov")
         fi
     done
     if [[ ${#_MATCH_SLUGS[@]} -eq 0 ]]; then
-        echo "ERROR: PR/MR #$_PEEK_PR not found on any remote for '$COMP'." >&2
+        echo "ERROR: CR #$_PEEK_CR not found on any remote for '$COMP'." >&2
         echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
         exit 1
     elif [[ ${#_MATCH_SLUGS[@]} -gt 1 ]]; then
-        echo "ERROR: PR/MR #$_PEEK_PR found on multiple remotes for '$COMP'." >&2
+        echo "ERROR: CR #$_PEEK_CR found on multiple remotes for '$COMP'." >&2
         echo "  Matches: ${_MATCH_SLUGS[*]}" >&2
         echo "  Remove extra remotes or specify which repo to review." >&2
         exit 1
@@ -352,13 +408,22 @@ elif [[ -n "$_PEEK_PR" ]]; then
     REPO_SLUG="${_MATCH_SLUGS[0]}"
     _SELECTED_PROVIDER="${_MATCH_PROVIDERS[0]}"
 else
-    # Can't probe without a PR number — use first slug
+    # Can't probe without a CR number — use first slug
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
 fi
 
 # Ensure the selected provider is loaded
 gp_load "$_SELECTED_PROVIDER"
+
+# Pre-populate the provider token from ecosystem config so gp_check_cli
+# doesn't fall through to glab auth status when only split tokens are set.
+for _i in "${!_CANDIDATE_SLUGS[@]}"; do
+    if [[ "${_CANDIDATE_SLUGS[$_i]}" == "$REPO_SLUG" ]]; then
+        gp_set_token_for_url "${_CANDIDATE_URLS[$_i]}" "$_ECO"
+        break
+    fi
+done
 
 # Provider-specific auth check
 gp_check_cli || exit 1
@@ -370,6 +435,9 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 elif [[ "${1:-}" == "threads" ]]; then
     shift
     review_threads "$@"
+elif [[ "${1:-}" == "reply" ]]; then
+    shift
+    review_reply "$@"
 else
     review_comments "$@"
 fi
