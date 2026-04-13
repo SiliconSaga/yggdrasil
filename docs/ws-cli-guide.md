@@ -190,7 +190,7 @@ commands need one `*` per argument:
   "permissions": {
     "allow": [
       "Bash(bash scripts/ws push * *)",
-      "Bash(bash scripts/ws pr * * *)",
+      "Bash(bash scripts/ws cr * * *)",
       "Bash(bash scripts/ws issue * * * *)",
       "Bash(bash scripts/ws commit * *)",
       "Bash(bash scripts/ws commit * * *)"
@@ -203,7 +203,7 @@ commands need one `*` per argument:
 |---|---|---|
 | `Bash(bash scripts/ws push *)` | Push with component only | `ws push mimir` |
 | `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push mimir feat/foo` |
-| `Bash(bash scripts/ws pr * * *)` | PR with component + title + bodyfile | `ws pr mimir "feat: add X" .prs/x.md` |
+| `Bash(bash scripts/ws cr * * *)` | CR with component + title + bodyfile | `ws cr mimir "feat: add X" .crs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
 | `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit mimir "fix: race"` |
 | `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit mimir "feat: X" .commits/x.md` |
