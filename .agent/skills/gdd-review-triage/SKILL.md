@@ -52,22 +52,43 @@ Understanding each reviewer's quirks is essential for effective triage.
 
 ## Fetching Comments and Threads
 
-Use `ws review` for all review operations:
+### Context budget warning
 
+`ws review <comp> <cr#>` fetches everything (inline comments, full bodies, and
+top-level notes) without truncation. On active CRs this can be thousands of
+tokens — bot walkthrough notes, analysis chains, internal state blobs, resolved
+threads. **If your agent supports sub-agents, delegate the initial fetch to one
+to keep the main context clean.**
+
+**Initial triage** — if sub-agents are available, delegate:
+```
+Spawn a sub-agent with this prompt:
+  "Run 'bash scripts/ws review <comp> <cr#>' and return only actionable
+   findings: file, line, issue description, and suggested fix. Ignore
+   resolved threads, walkthrough summaries, and internal state blobs.
+   Return a numbered list."
+```
+If sub-agents are not available, run the command directly and skim past
+resolved/walkthrough content — focus on ⚠️ Potential issue and 🧹 Nitpick
+markers.
+
+**Targeted follow-up** — run directly in main context (small output):
 ```bash
-# Review comments
-bash scripts/ws review <comp> <cr#>
-bash scripts/ws review <comp> <cr#> --since prev-push
-bash scripts/ws review <comp> <cr#> --reviewer coderabbitai
-
-# Review threads (unresolved items, status, resolution)
-bash scripts/ws review <comp> threads <cr#>              # list unresolved
-bash scripts/ws review <comp> threads <cr#> --status     # counts
-bash scripts/ws review <comp> threads <cr#> --resolve-all  # bulk resolve
-bash scripts/ws review <comp> threads <cr#> --resolve <id> # resolve one
+bash scripts/ws review <comp> <cr#> --since prev-push   # since last push
+bash scripts/ws review <comp> notes <cr#>               # bot summaries only
+bash scripts/ws review <comp> threads <cr#> --status    # resolved/unresolved counts
+bash scripts/ws review <comp> threads <cr#>             # unresolved thread list
+bash scripts/ws review <comp> threads <cr#> --resolve-all
+bash scripts/ws review <comp> threads <cr#> --resolve <id>
+bash scripts/ws review <comp> reply <cr#> <id> "message" --resolve
 ```
 
 Thread resolution is a Side-effect operation (prompts for approval).
+
+**Note:** Bot summaries and nitpicks (CodeRabbit walkthrough, Copilot summary)
+appear as top-level notes, not inline comments. The default `ws review <comp>
+<cr#>` command fetches both. For targeted access to summaries only, use
+`ws review <comp> notes <cr#>`.
 
 **When to resolve manually vs. let the reviewer resolve:**
 

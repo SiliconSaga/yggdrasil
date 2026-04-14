@@ -17,36 +17,43 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
+    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>]"
+    echo "       ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
+    echo "       ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
-    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]"
     echo ""
     echo "CR review comments and thread management."
     echo ""
     echo "Subcommands:"
-    echo "  threads <cr#>              List unresolved review threads"
+    echo "  <cr#>                      Full review: inline comments + top-level notes"
+    echo "                             (use this first; gets everything in one call)"
+    echo "    --reviewer <name>        Filter by reviewer login"
+    echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
+    echo "                             (--since push events: GitHub only)"
+    echo ""
+    echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
     echo "    --resolve <thread-id>    Resolve a single thread"
     echo "    --resolve-all            Resolve all unresolved threads"
+    echo ""
+    echo "  notes <cr#>                Top-level MR/PR notes only (bot summaries, etc.)"
+    echo "    --reviewer <name>        Filter by reviewer login"
+    echo "    --since <time>           Filter by time"
     echo ""
     echo "  reply <cr#> <thread-id> <message> [--resolve]"
     echo "                             Reply to a review thread"
     echo "    --resolve                Also resolve the thread after replying"
     echo ""
-    echo "  <cr#>                      List review comments (default)"
-    echo "    --reviewer <name>        Filter by reviewer login"
-    echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
-    echo "                             (--since push events: GitHub only)"
-    echo ""
     echo "Examples:"
-    echo "  ws review yggdrasil threads 8              # List unresolved threads"
+    echo "  ws review yggdrasil 8                      # All review output (start here)"
+    echo "  ws review mimir 5 --reviewer coderabbitai"
+    echo "  ws review yggdrasil 8 --since last-push"
+    echo "  ws review yggdrasil notes 8                # Top-level notes only"
+    echo "  ws review yggdrasil threads 8              # Unresolved diff threads only"
     echo "  ws review yggdrasil threads 8 --status     # Thread counts"
     echo "  ws review yggdrasil threads 8 --resolve-all"
     echo "  ws review yggdrasil reply 8 THREAD_ID 'Addressed in abc123'"
     echo "  ws review yggdrasil reply 8 THREAD_ID 'Fixed' --resolve"
-    echo "  ws review yggdrasil 8                      # All review comments"
-    echo "  ws review mimir 5 --reviewer coderabbitai"
-    echo "  ws review yggdrasil 8 --since last-push"
     exit 0
 }
 
@@ -171,6 +178,81 @@ review_comments() {
         echo "$comments"
     else
         echo "(no inline comments${reviewer:+ from $reviewer})"
+    fi
+    echo ""
+
+    # Fetch top-level notes (bot summaries, general comments) — warn on failure
+    echo "=== Notes ==="
+    local notes="" _rc=0
+    notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "(failed to fetch notes — check auth and connectivity)" >&2
+    elif [[ -n "$notes" ]]; then
+        echo "$notes"
+    else
+        echo "(no notes${reviewer:+ from $reviewer})"
+    fi
+}
+
+review_notes() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]" >&2
+        exit 1
+    fi
+
+    local pr_num="$1"
+    shift
+    local reviewer="" since=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --reviewer)
+                [[ $# -ge 2 ]] || { echo "ERROR: --reviewer requires a value" >&2; exit 1; }
+                reviewer="$2"; shift 2 ;;
+            --since)
+                [[ $# -ge 2 ]] || { echo "ERROR: --since requires a value" >&2; exit 1; }
+                since="$2"; shift 2 ;;
+            *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
+        esac
+    done
+
+    if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CR number must be numeric, got '$pr_num'" >&2
+        exit 1
+    fi
+
+    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo "ERROR: Invalid reviewer name '$reviewer'." >&2
+        exit 1
+    fi
+
+    local comment_filter="."
+    if [[ -n "$reviewer" ]]; then
+        comment_filter="select(.user.login // .author.username | test(\"$reviewer\"; \"i\"))"
+    fi
+    if [[ -n "$since" ]]; then
+        # Reuse simple relative-time parsing; skip push-event lookup (notes only)
+        local since_ts=""
+        if [[ "$since" =~ ^[0-9]+[hm]$ ]]; then
+            local unit="${since: -1}" amount="${since%?}" seconds=0
+            [[ "$unit" == "h" ]] && seconds=$((amount * 3600)) || seconds=$((amount * 60))
+            since_ts=$(date -u -d "$seconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                || date -u -v-"${seconds}S" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                || { echo "ERROR: Cannot compute relative time." >&2; exit 1; })
+        else
+            since_ts="$since"
+        fi
+        comment_filter="$comment_filter | select((.created_at // .updated_at) > \"$since_ts\")"
+    fi
+
+    echo "=== Notes: CR #$pr_num ($REPO_SLUG) ==="
+    local notes="" _rc=0
+    notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "(failed to fetch notes — check auth and connectivity)" >&2
+    elif [[ -n "$notes" ]]; then
+        echo "$notes"
+    else
+        echo "(no notes${reviewer:+ from $reviewer})"
     fi
 }
 
@@ -366,6 +448,8 @@ fi
 _PEEK_CR=""
 if [[ "${1:-}" == "threads" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
+elif [[ "${1:-}" == "notes" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_CR="$2"
 elif [[ "${1:-}" == "reply" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
@@ -435,6 +519,9 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 elif [[ "${1:-}" == "threads" ]]; then
     shift
     review_threads "$@"
+elif [[ "${1:-}" == "notes" ]]; then
+    shift
+    review_notes "$@"
 elif [[ "${1:-}" == "reply" ]]; then
     shift
     review_reply "$@"
