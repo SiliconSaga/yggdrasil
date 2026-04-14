@@ -30,6 +30,7 @@ attribution trailers, auth, and remote selection automatically.
 | `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR from current branch |
 | `ws issue <comp> <title> <label> <bodyfile>` | File an issue |
 | `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer |
+| `ws diagnose <comp>` | Show remotes, provider, and token coverage — run before first push to a component |
 
 CR body drafts follow the same pattern as issue drafts:
 - Template: `yggdrasil/.agent/change-template.md`
@@ -46,6 +47,13 @@ git checkout -b <type>/<description>
 
 # 3. Commit (use ws commit — handles staging and attribution)
 bash scripts/ws commit <component> .commits/my-change.md
+
+# 3b. First push to this component? Verify token coverage first.
+#     (Skip if you've pushed this component before in a working session.)
+bash scripts/ws diagnose <component>
+#     Look for "✓ <TOKEN_VAR> is set" on the push/cr remote row.
+#     If it shows "NOT SET", add the token to .env and re-source it,
+#     then re-run: bash scripts/ws gitlab-auth
 
 # 4. Push
 bash scripts/ws push <component>
