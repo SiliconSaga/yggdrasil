@@ -61,7 +61,7 @@ threads. **If your agent supports sub-agents, delegate the initial fetch to one
 to keep the main context clean.**
 
 **Initial triage** — if sub-agents are available, delegate:
-```
+```text
 Spawn a sub-agent with this prompt:
   "Run 'bash scripts/ws review <comp> <cr#>' and return only actionable
    findings: file, line, issue description, and suggested fix. Ignore

@@ -239,6 +239,11 @@ review_notes() {
                 || date -u -v-"${seconds}S" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
                 || { echo "ERROR: Cannot compute relative time." >&2; exit 1; })
         else
+            if [[ ! "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$ ]]; then
+                echo "ERROR: Invalid --since value '$since'." >&2
+                echo "  Expected: Nh, Nm, or ISO 8601 (e.g. 2026-03-13T15:00:00Z)" >&2
+                exit 1
+            fi
             since_ts="$since"
         fi
         comment_filter="$comment_filter | select((.created_at // .updated_at) > \"$since_ts\")"
