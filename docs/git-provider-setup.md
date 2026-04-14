@@ -121,7 +121,8 @@ Choose the narrowest role that matches the token's job:
 **GitLab display name** (what appears as the MR/issue author bot):
 
 Pattern: `<scope>-<owner>-<role>` where scope is the group or project slug,
-owner is your username, and role is the GitLab role level.
+owner is your username, and role is the GitLab role level. For personal
+namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
 
 | Token's job | GitLab display name | Why |
 |---|---|---|
@@ -137,9 +138,12 @@ the primary attribution mechanism on GitLab (see `docs/cr-internals.md`).
 
 **Env var name** (used in `.env` and referenced in `gitTokens`):
 
-Pattern: `GITLAB_<SCOPE>_<ROLE>` — no redundant `_TOKEN` suffix since all
-entries are tokens; `_PAT` is reserved for Personal Access Tokens (full account
-scope) to distinguish them from narrower group/project tokens.
+Patterns (no redundant `_TOKEN` suffix; all entries are tokens):
+
+- `GITLAB_<SCOPE>_<ROLE>` — shared scope, single owner implied (e.g. `GITLAB_GDD_REPORTER`)
+- `GITLAB_<SCOPE>_<OWNER>_<ROLE>` — personal variant within a shared scope (e.g. `GITLAB_GDD_RPRAESTHOLM_DEVELOPER`)
+- `GITLAB_<OWNER>_<ROLE>` — personal-namespace token, no group scope (e.g. `GITLAB_RPRAESTHOLM_DEVELOPER`)
+- `GITLAB_<OWNER>_PAT` — full-account token; `_PAT` signals broad scope
 
 | Token's job | Env var | Notes |
 |---|---|---|
@@ -166,19 +170,6 @@ Regardless of token type, set the scope to:
 | Scope | Why |
 |-------|-----|
 | `api` | Required for MRs, issues, and repo writes via `glab` |
-
-#### Verifying token coverage
-
-Before pushing or opening a CR, run:
-
-```bash
-ws gitlab-auth --status   # shows all configured token slots and set/unset status
-ws diagnose <comp>        # shows which token covers each remote for a specific component
-```
-
-`ws diagnose` is the fastest way to confirm auth is wired up correctly for a
-new component — it shows the ecosystem entry, clone status, remotes, provider
-detection, and whether the covering token env var is set or missing.
 
 ### Store the token
 
@@ -228,6 +219,19 @@ glab issue list --repo <your-group>/<your-repo>
 source .env
 glab issue list --repo <your-group>/<your-repo>
 ```
+
+#### Verifying token coverage
+
+Before pushing or opening a CR, confirm token routing is wired up correctly:
+
+```bash
+ws gitlab-auth --status   # shows all configured token slots and set/unset status
+ws diagnose <comp>        # shows which token covers each remote for a specific component
+```
+
+`ws diagnose` is the fastest way to confirm auth is wired up correctly for a
+new component — it shows the ecosystem entry, clone status, remotes, provider
+detection, and whether the covering token env var is set or missing.
 
 ---
 

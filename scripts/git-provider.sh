@@ -129,7 +129,7 @@ gp_set_token_for_url() {
     # https://host/path        → host/path
     local normalized
     normalized=$(echo "$url" \
-        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
+        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||')
 
     # Find the longest matching key (most-specific group path wins)
     local best_var="" best_len=0
