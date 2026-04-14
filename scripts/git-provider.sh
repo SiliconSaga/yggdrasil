@@ -124,9 +124,12 @@ gp_set_token_for_url() {
 
     # Normalize URL: strip protocol, embedded credentials, .git suffix
     # Use explicit http/https patterns — \? is GNU sed only, not macOS BSD sed
+    # ssh://user@host:port/path → host/path  (BRE: capture host, discard port)
+    # git@host:path            → host/path
+    # https://host/path        → host/path
     local normalized
     normalized=$(echo "$url" \
-        | sed 's|^ssh://[^/]*/||; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
+        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
 
     # Find the longest matching key (most-specific group path wins)
     local best_var="" best_len=0
