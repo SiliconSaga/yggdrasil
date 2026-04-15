@@ -158,7 +158,23 @@ gp_review_list_comments() {
         | . as $disc
         | .notes[]
         | '"$filter"'
-        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?")\n\(.body[0:500])\n"
+        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?")\n\(.body)\n"
+    ' 2>/dev/null
+}
+
+# Print formatted top-level MR notes (non-diff general comments).
+# Excludes inline diff notes and GitLab system notes (merge events, etc.).
+# Usage: gp_review_list_notes SLUG MR_NUM [JQ_FILTER]
+gp_review_list_notes() {
+    local slug="$1" mr_num="$2" filter="${3:-.}"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null | jq -r '
+        .[]
+        | select(.notes[0].type != "DiffNote")
+        | select(.notes[0].system == false)
+        | .notes[]
+        | '"$filter"'
+        | "---\n[\(.author.username)] (note)\n\(.body)\n"
     ' 2>/dev/null
 }
 

@@ -118,23 +118,51 @@ Choose the narrowest role that matches the token's job:
 
 #### Token naming
 
-The name you give a Group or Project Access Token becomes the **display name of
-the bot user** that GitLab shows as the MR/issue author. A descriptive name
-provides attribution when automation opens MRs on your behalf.
+**GitLab display name** (what appears as the MR/issue author bot):
 
-Suggested pattern: `<project>-<owner>-<role>`
+Pattern: `<scope>-<owner>-<role>` where scope is the group or project slug,
+owner is your username, and role is the GitLab role level. For personal
+namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
 
-| Token's job | Example name | Why |
+| Token's job | GitLab display name | Why |
 |---|---|---|
-| Fork group write (Developer) | `yggdrasil-rpraestholm-fork-dev` | Identifies the fork owner and that it can write |
-| Upstream group read (Reporter) | `yggdrasil-gdd-group-reporter` | Identifies the upstream group and read-only role |
+| Fork group write | `gdd-rpraestholm-developer` | Group slug + owner + GitLab role |
+| Upstream group read | `gdd-reporter` | Group slug + role (shared, no owner) |
+| Personal namespace write | `rpraestholm-developer` | Namespace + role |
+| Single-project write | `aws-ops-wheel-rpraestholm-developer` | Project + owner + role |
 
-With a well-named fork token, an MR opened by the agent shows as authored by
-e.g. `yggdrasil-rpraestholm-fork-dev` — making the human connection clear even
-though it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this
-is the primary attribution mechanism on GitLab (see `docs/cr-internals.md`).
+With a well-named token, an MR opened by the agent shows as authored by
+e.g. `gdd-rpraestholm-developer` — the human connection is clear even though
+it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this is
+the primary attribution mechanism on GitLab (see `docs/cr-internals.md`).
 
-For self-hosted instances, token URLs follow the same pattern:
+**Env var name** (used in `.env` and referenced in `gitTokens`):
+
+Patterns (no redundant `_TOKEN` suffix; all entries are tokens):
+
+- `GITLAB_<SCOPE>_<ROLE>` — shared scope, single owner implied (e.g. `GITLAB_GDD_REPORTER`)
+- `GITLAB_<SCOPE>_<OWNER>_<ROLE>` — personal variant within a shared scope (e.g. `GITLAB_GDD_RPRAESTHOLM_DEVELOPER`)
+- `GITLAB_<OWNER>_<ROLE>` — personal-namespace token, no group scope (e.g. `GITLAB_RPRAESTHOLM_DEVELOPER`)
+- `GITLAB_<OWNER>_PAT` — full-account token; `_PAT` signals broad scope
+
+| Token's job | Env var | Notes |
+|---|---|---|
+| GDD upstream group read | `GITLAB_GDD_REPORTER` | Group path slug, reporter role |
+| GDD fork group write | `GITLAB_GDD_RPRAESTHOLM_DEVELOPER` | Full fork-group path + owner |
+| Personal namespace write | `GITLAB_RPRAESTHOLM_DEVELOPER` | Namespace + role |
+| Personal access token | `GITLAB_RPRAESTHOLM_PAT` | Full-account token; `_PAT` signals broad scope |
+
+This naming makes `gitTokens` entries readable at a glance:
+
+```yaml
+defaults:
+  gitTokens:
+    gitlab-master.nvidia.com/gni-cis/gdd: GITLAB_GDD_REPORTER
+    gitlab-master.nvidia.com/gni-cis/gdd/rpraestholm: GITLAB_GDD_RPRAESTHOLM_DEVELOPER
+    gitlab-master.nvidia.com/rpraestholm: GITLAB_RPRAESTHOLM_PAT
+```
+
+For self-hosted instances, token URLs follow the pattern:
 `https://<your-host>/<group>/<project>/-/settings/access_tokens`.
 
 Regardless of token type, set the scope to:
@@ -191,6 +219,19 @@ glab issue list --repo <your-group>/<your-repo>
 source .env
 glab issue list --repo <your-group>/<your-repo>
 ```
+
+#### Verifying token coverage
+
+Before pushing or opening a CR, confirm token routing is wired up correctly:
+
+```bash
+ws gitlab-auth --status   # shows all configured token slots and set/unset status
+ws diagnose <comp>        # shows which token covers each remote for a specific component
+```
+
+`ws diagnose` is the fastest way to confirm auth is wired up correctly for a
+new component — it shows the ecosystem entry, clone status, remotes, provider
+detection, and whether the covering token env var is set or missing.
 
 ---
 

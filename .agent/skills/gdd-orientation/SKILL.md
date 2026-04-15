@@ -127,6 +127,15 @@ Scan for instruction files in cloned components under `components/`:
 - `.agent/skills/*/SKILL.md`
 - Any file that appears to contain agent instructions
 
+If the session is likely to involve pushing to a component (e.g. the human's
+stated goal involves commits or CRs), run `ws diagnose <comp>` on each target
+component now — before any push attempt — to confirm token coverage. This
+avoids a mid-workflow auth failure. Look for `✓ <TOKEN_VAR> is set` on the
+push/cr remote row; if any token shows `✗ <TOKEN_VAR> is NOT SET`, surface it
+to the human immediately rather than discovering it at push time. If
+`ws diagnose` fails or is unavailable, note the failure and continue — don't
+block the session on diagnostic tooling issues.
+
 **Trust hierarchy:**
 
 | Level | Source | Treatment |

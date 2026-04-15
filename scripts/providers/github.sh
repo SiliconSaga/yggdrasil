@@ -117,7 +117,16 @@ gp_review_list_reviews() {
 gp_review_list_comments() {
     local slug="$1" pr_num="$2" filter="${3:-.}"
     gh api "repos/$slug/pulls/$pr_num/comments" \
-        --jq ".[] | $filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body[0:500])\n\"" 2>/dev/null
+        --jq ".[] | $filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body)\n\"" 2>/dev/null
+}
+
+# Print formatted top-level PR notes (issue comments — not inline review comments).
+# GitHub treats PRs as issues; top-level comments live on the issues endpoint.
+# Usage: gp_review_list_notes SLUG PR_NUM [JQ_FILTER]
+gp_review_list_notes() {
+    local slug="$1" pr_num="$2" filter="${3:-.}"
+    gh api "repos/$slug/issues/$pr_num/comments" \
+        --jq ".[] | $filter | \"---\n[\(.user.login)] (note)\n\(.body)\n\"" 2>/dev/null
 }
 
 # Get PR head branch name (for --since push event lookup).

@@ -89,29 +89,14 @@ Community overlays may provide additional component-specific skills in
 The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
 (or just `ws <cmd>` if `scripts/` is on your PATH).
 
-| Command | Description |
-|---------|-------------|
-| `ws list` | List all components with tier, chart version, local status |
-| `ws status [--verbose]` | Git status across all cloned components |
-| `ws clone [name\|--all]` | Clone ecosystem component(s) into `components/` |
-| `ws pull [name]` | Pull latest for cloned components |
-| `ws push [comp] [branch]` | Push to `siliconsaga` via HTTPS (auto-sources `.env`) |
-| `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR (change request/PR/MR) from current branch |
-| `ws issue <comp> [remote] <title> <label> <bodyfile>` | File an issue with attribution check |
-| `ws resolve [--dry-run]` | Generate ArgoCD Application manifests (dual-mode) |
-| `ws vscode` | Generate VS Code workspace file from cloned components |
-| `ws test <comp> [args...]` | Run tests (auto-detects Makefile, Go, Python) |
-| `ws review <comp> <cr#\|threads> [options]` | CR review comments and thread management (see `ws review --help`) |
-| `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer (bodyfile mode preferred) |
-| `ws log [comp] [--oneline]` | Show commits on current branch vs main |
-| `ws clean` | Remove draft files from `.issues/`, `.crs/`, `.commits/` |
-| `ws exec <comp> <cmd...>` | Run a command in a component directory |
-| `ws overlay init` | Clone template overlay for tutorials |
-| `ws overlay <url>` | Clone a community overlay |
-| `ws overlay use <name>` | Set active overlay in ecosystem.local.yaml |
-| `ws overlay list` | Show available overlays and which is active |
-| `ws actions <comp>` | List adapter commands for a component |
-| `ws help` | Show available commands |
+Run `bash scripts/ws help` for the full command list, including auth and
+overlay commands. Pay particular attention to:
+
+- `ws gitlab-auth [--status]` — register credentials from `.env`; `--status`
+  shows which token env vars are set or missing without making changes
+- `ws diagnose <comp>` — show remote URLs, provider detection, and token
+  coverage for a component; run this when onboarding a new component or when
+  push/cr fails with auth errors
 
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
 for how to add commands and classify their permission tier.
@@ -134,42 +119,13 @@ frontmatter.
 
 Always use a topic branch. Main is protected.
 
-```bash
-# 1. Start from up-to-date main
-git checkout main && git pull siliconsaga main   # pull may need HTTPS workaround — see below
+**Before pushing to a component for the first time in a session**, run
+`ws diagnose <comp>` to confirm token coverage. If a token shows as
+`NOT SET`, add it to `.env`, re-source it, and re-run `ws gitlab-auth`.
 
-# 2. Create topic branch
-git checkout -b <type>/<description>             # feat, fix, docs, chore, test, refactor
-
-# 3. Commit (use ws commit — stages files listed in add: and appends Co-Authored-By trailer)
-#    Write a bodyfile to .commits/ with frontmatter:
-#      ---
-#      message: "type: description"
-#      add:                              # paths relative to component root
-#        - path/to/file1.md
-#        - path/to/file2.md
-#      remove:                           # deleted files to stage for removal
-#        - path/to/old-file.md
-#      ---
-#      Extended commit body here.
-bash scripts/ws commit <component> .commits/my-change.md
-
-# 4. Push (use ws push — handles auth and workarounds automatically)
-bash scripts/ws push <component>
-# Only use --force immediately after a rebase (which rewrites history).
-# Normal commits on a topic branch use regular push.
-
-# 5. Draft CR body → .crs/<description>.md (gitignored)
-cp .agent/change-template.md .crs/<description>.md
-
-# 6. Open CR
-bash scripts/ws cr <component> "type: description" .crs/<description>.md
-```
-
-**Why `ws push` and not plain `git push`:** The push script auto-detects
-the correct remote (by org name, not `origin`) and includes safety checks
-(e.g., refusing to force-push `main`). See [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
-for auth setup details. Always use `ws push` for pushing.
+For the full step-by-step workflow (branch naming, bodyfile format, CR
+draft, rebase), read the **Topic Branch Workflow** skill at
+`.agent/skills/topic-branch-workflow/SKILL.md`.
 
 ---
 

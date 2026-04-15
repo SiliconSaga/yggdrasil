@@ -6,7 +6,7 @@
 #   ws help
 #
 # Commands:
-#   list              List ecosystem components
+#   list              List ecosystem components (tier, repo, clone status)
 #   status [--verbose] Git status across workspace
 #   clone [comp|--all|--url <url> [--name N] [--add-eco]] Clone components
 #   pull [comp]       Pull all or one component
@@ -17,7 +17,7 @@
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
-#   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer
+#   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer (bodyfile preferred)
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .crs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
@@ -25,9 +25,22 @@
 #   overlay <url>     Clone a community overlay
 #   overlay use <name> Set active overlay
 #   overlay list      Show available overlays
-#   gitlab-auth       Store GitLab credentials (osxkeychain + glab) from .env tokens
 #   actions <comp>    List adapter commands for a component
 #   help              Show this help message
+#
+# Auth commands (run these before ws push / ws cr):
+#   gitlab-auth [--status]  Configure glab + git credentials from .env tokens.
+#                           --status: show which token env vars are set/unset (no changes made).
+#   diagnose <comp>         Show ecosystem entry, clone status, remotes, provider detection,
+#                           and which gitToken env var covers each remote (set or missing).
+#                           Run this when push/cr fails with auth or remote errors.
+#
+# First-time setup:
+#   1. Add tokens to .env  (see docs/git-provider-setup.md for token scopes)
+#   2. source .env
+#   3. ws gitlab-auth       (registers glab + git credential helper)
+#   4. ws clone <comp>
+#   5. ws diagnose <comp>   (verify token coverage before pushing)
 #
 # For shorthand access, add to your shell profile:
 #   export PATH="<yggdrasil>/scripts:$PATH"
@@ -604,6 +617,116 @@ ws_issue() {
     bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
+ws_diagnose() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: ws diagnose <component|yggdrasil>" >&2
+        echo "  Shows ecosystem config, clone status, remotes, provider, and token coverage." >&2
+        echo "  Run this when 'ws push' or 'ws cr' fails with auth or remote errors." >&2
+        exit 1
+    fi
+    local comp="$1"
+    local eco
+    eco=$(ws_resolve_ecosystem)
+
+    echo "[ ws diagnose: $comp ]"
+    echo ""
+
+    # Special case: yggdrasil is the workspace root, not a declared component
+    local comp_dir
+    if [[ "$comp" == "yggdrasil" ]]; then
+        comp_dir="$ROOT_DIR"
+        echo "  Workspace root (not a declared ecosystem component)"
+    else
+        # Ecosystem entry
+        local repo tier
+        repo=$(COMP="$comp" yq '.components[strenv(COMP)].repo // ""' "$eco" 2>/dev/null)
+        [[ "$repo" == "null" ]] && repo=""
+        tier=$(COMP="$comp" yq '.components[strenv(COMP)].tier // ""' "$eco" 2>/dev/null)
+        [[ "$tier" == "null" ]] && tier=""
+
+        if [[ -z "$repo" ]]; then
+            echo "  ✗ Not declared in ecosystem config."
+            echo "    Add it to ecosystem.local.yaml under 'components:'."
+            echo "    Run 'ws list' to see declared components."
+            return 1
+        fi
+        echo "  Ecosystem repo : $repo"
+        [[ -n "$tier" ]] && echo "  Tier           : $tier"
+        comp_dir="$COMPONENTS_DIR/$comp"
+    fi
+    if [[ -d "$comp_dir/.git" ]]; then
+        local branch
+        branch=$(git -C "$comp_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(unknown)")
+        echo "  Clone          : ✓ present (branch: $branch)"
+    else
+        echo "  Clone          : ✗ not cloned — run: ws clone $comp"
+        echo ""
+        return 0
+    fi
+
+    # Remotes
+    echo ""
+    echo "  Remotes:"
+    local fork_org
+    fork_org=$(ws_resolve_fork_org)
+    while IFS= read -r remote; do
+        local url
+        url=$(git -C "$comp_dir" remote get-url "$remote" 2>/dev/null || echo "(no url)")
+        local push_marker=""
+        [[ -n "$fork_org" && "${remote,,}" == "${fork_org,,}" ]] && push_marker=" ← push/cr remote (identity.forkOrg)"
+        echo "    $remote → $url$push_marker"
+    done < <(git -C "$comp_dir" remote)
+
+    # Token coverage per remote
+    source "$SCRIPT_DIR/git-provider.sh"
+    local map_count=0
+    [[ -f "$eco" ]] && map_count=$(yq '.defaults.gitTokens | length' "$eco" 2>/dev/null || echo 0)
+
+    echo ""
+    echo "  Token coverage:"
+    while IFS= read -r remote; do
+        local url
+        url=$(git -C "$comp_dir" remote get-url "$remote" 2>/dev/null || continue)
+
+        local provider
+        provider=$(gp_detect "$url" "$eco" 2>/dev/null) || provider="unknown"
+
+        # Normalize URL the same way gp_set_token_for_url does
+        local normalized
+        normalized=$(echo "$url" \
+            | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
+
+        local best_var="" best_len=0
+        if [[ "$map_count" -gt 0 ]]; then
+            while IFS= read -r key; do
+                [[ -z "$key" || "$key" == "null" ]] && continue
+                local key_len=${#key}
+                if [[ ( "$normalized" == "${key}/"* || "$normalized" == "$key" ) && $key_len -gt $best_len ]]; then
+                    best_len=$key_len
+                    best_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco" 2>/dev/null)
+                fi
+            done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+        fi
+
+        local token_status
+        if [[ -n "$best_var" && "$best_var" != "null" ]]; then
+            local token_val="${!best_var:-}"
+            if [[ -n "$token_val" ]]; then
+                token_status="✓ $best_var is set"
+            else
+                token_status="✗ $best_var is NOT SET — add 'export $best_var=<token>' to .env"
+            fi
+        else
+            token_status="✗ no gitTokens entry matches normalized path: $normalized"
+            token_status+=$'\n'"      → Add an entry to defaults.gitTokens in ecosystem.local.yaml"
+        fi
+
+        echo "    $remote ($provider): $token_status"
+    done < <(git -C "$comp_dir" remote)
+
+    echo ""
+}
+
 ws_gitlab_auth() {
     local eco
     eco=$(ws_resolve_ecosystem)
@@ -613,6 +736,35 @@ ws_gitlab_auth() {
         echo "ERROR: GITLAB_HOST is not set." >&2
         echo "  Add 'export GITLAB_HOST=your-gitlab-host' to .env" >&2
         exit 1
+    fi
+
+    # --status: show token coverage without making any changes
+    if [[ "${1:-}" == "--status" ]]; then
+        echo "[ ws gitlab-auth --status: $host ]"
+        echo ""
+        echo "Configured token slots (from defaults.gitTokens in ecosystem config):"
+        local found=0
+        while IFS= read -r key; do
+            [[ -z "$key" || "$key" == "null" ]] && continue
+            [[ "$key" != "$host/"* ]] && continue
+            local var
+            var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+            [[ -z "$var" || "$var" == "null" ]] && continue
+            local val="${!var:-}"
+            found=1
+            if [[ -n "$val" ]]; then
+                echo "  ✓ $var (set) — covers $key"
+            else
+                echo "  ✗ $var (NOT SET) — covers $key"
+                echo "    → Add 'export $var=<token>' to .env, then re-run: ws gitlab-auth"
+            fi
+        done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+        if [[ "$found" -eq 0 ]]; then
+            echo "  (none — add entries to defaults.gitTokens in ecosystem.local.yaml)"
+        fi
+        echo ""
+        echo "Tip: run 'ws diagnose <comp>' to see which token covers a specific component."
+        return 0
     fi
 
     # Find forkOrg to identify the write (Developer) token
@@ -772,6 +924,9 @@ case "$COMMAND" in
         ;;
     gitlab-auth)
         ws_gitlab_auth "$@"
+        ;;
+    diagnose)
+        ws_diagnose "$@"
         ;;
     actions)
         bash "$SCRIPT_DIR/ws-overlay.sh" actions "$@"
