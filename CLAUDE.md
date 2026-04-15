@@ -58,10 +58,6 @@ Config is three-layer merged: `ecosystem.yaml` → overlay → `ecosystem.local.
 Use `bash scripts/ws list` to see what's declared and what's checked out locally.
 
 
-## Loading Skills
-
-Use the `Skill` tool to load skills from `.agent/skills/<name>/SKILL.md`.
-
 ## Committing
 
 **Always use `ws commit`** — never raw `git add` / `git commit`. The `ws commit`
