@@ -2,7 +2,7 @@
 
 **Comments and docs describe current state, not history.** Code comments,
 test names, and Javadoc should be grounded in what the code does now — not
-what it used to do or what bug it fixed. Historicle context belongs in commit
+what it used to do or what bug it fixed. Historical context belongs in commit
 messages and CR descriptions, which are the record of change.
 
 ## Examples
