@@ -10,7 +10,7 @@ currently cloned components. Re-run after cloning more components.
 
 ## JetBrains
 
-Open the `yggdrasil/` directory, then attatch component directories as modules
+Open the `yggdrasil/` directory, then attach component directories as modules
 via File > Project Structure.
 
 ## Terminal / Neovim / other editors
