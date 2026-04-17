@@ -191,15 +191,8 @@ checked out locally (and any `forceChart` overrides).
 
 ## IDE Setup
 
-IDE workspace files are NOT tracked in Git — they vary per developer and
-per set of cloned components.
-
-- **VS Code**: Run `bash scripts/ws vscode` to generate `yggdrasil.code-workspace`
-  from your currently cloned components. Re-run after cloning more.
-- **JetBrains**: Open the `yggdrasil/` directory, then attach component
-  directories as modules via File > Project Structure.
-- **Terminal / Neovim / etc.**: Just `cd` into `yggdrasil/` or any component
-  under `components/`. The scripts work from anywhere.
+See [`docs/ide-setup.md`](docs/ide-setup.md) for VS Code, JetBrains, and
+terminal editor setup.
 
 ---
 
