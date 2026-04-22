@@ -196,16 +196,19 @@ per set of cloned components.
 
 ---
 
-## Issue / CR Drafts
+## Issue / CR / Commit Drafts
 
 | Path | Purpose |
 |------|---------|
 | `.agent/issue-template.md` | Committed template for issues |
 | `.agent/change-template.md` | Committed template for CR bodies |
+| `.agent/commit-template.md` | Committed template for `ws commit` bodyfiles (frontmatter format) |
 | `.issues/<repo>-<name>.md` | Gitignored draft clearinghouse for issues |
 | `.crs/<description>.md` | Gitignored draft clearinghouse for CRs |
+| `.commits/<description>.md` | Gitignored draft clearinghouse for commit bodyfiles |
 
 All agent-filed issues must start with the AI attribution blockquote from the template.
+Commit bodyfiles use YAML frontmatter to declare the message and files to stage — see the template.
 
 ---
 
