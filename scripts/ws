@@ -213,6 +213,11 @@ _ws_gradle_find_test() {
     fi
 
     local subproject="${matches[0]#./}"
+    # Root-project test: path starts with src/test/ after stripping ./
+    if [[ "$subproject" == src/test/* ]]; then
+        echo ":test"
+        return
+    fi
     subproject="${subproject%%/src/test/*}"
     if [[ "$subproject" == "." || -z "$subproject" ]]; then
         echo ":test"
@@ -302,13 +307,26 @@ ws_test() {
         exit 1
     fi
 
-    # Separate test filter(s) from runner flags.
-    # Anything not starting with - is a test name/pattern.
+    # Separate test filter from runner flags.
+    # Flags (args starting with -) and their values pass through; the first
+    # non-flag positional arg is treated as the test name filter.
+    # Known value-expecting flags keep the next arg as part of the flag pair.
     local test_filter=""
     local -a runner_args=()
+    local expect_value=false
     for arg in "$@"; do
+        if [[ "$expect_value" == true ]]; then
+            runner_args+=("$arg")
+            expect_value=false
+            continue
+        fi
         if [[ "$arg" == -* ]]; then
             runner_args+=("$arg")
+            # Flags that consume the next arg as a value
+            case "$arg" in
+                -run|--tests|-k|-p|--parallel|-timeout|-coverprofile|-cpuprofile|-memprofile)
+                    expect_value=true ;;
+            esac
         elif [[ -z "$test_filter" ]]; then
             test_filter="$arg"
         else
@@ -316,9 +334,21 @@ ws_test() {
         fi
     done
 
+    # Parse adapter command into an array for safe exec (no shell injection via test_filter).
+    local -a adapter_argv=()
+    if [[ -n "$adapter_cmd" ]]; then
+        # shellcheck disable=SC2206
+        read -r -a adapter_argv <<< "$adapter_cmd"
+    fi
+
     case "$runner" in
         adapter|gradle)
-            local gradle_base="${adapter_cmd:-./gradlew test}"
+            local -a gradle_argv=()
+            if [[ ${#adapter_argv[@]} -gt 0 ]]; then
+                gradle_argv=("${adapter_argv[@]}")
+            else
+                gradle_argv=(./gradlew test)
+            fi
             if [[ -n "$test_filter" ]]; then
                 # Find which Gradle subproject contains this test class
                 local gradle_task="" clean_task=""
@@ -327,12 +357,10 @@ ws_test() {
                     clean_task="${gradle_task//:test/:cleanTest}"
                     ./gradlew "$clean_task" "$gradle_task" --tests "*.$test_filter" "${runner_args[@]}"
                 else
-                    bash -c "$gradle_base --tests '*.$test_filter' ${runner_args[*]}"
+                    "${gradle_argv[@]}" --tests "*.$test_filter" "${runner_args[@]}"
                 fi
-            elif [[ ${#runner_args[@]} -gt 0 ]]; then
-                bash -c "$gradle_base ${runner_args[*]}"
             else
-                bash -c "$gradle_base"
+                "${gradle_argv[@]}" "${runner_args[@]}"
             fi
             ;;
         make)
@@ -347,7 +375,7 @@ ws_test() {
             if [[ -n "$test_filter" ]]; then
                 go test ./... -count=1 -run "$test_filter" "${runner_args[@]}"
             elif [[ ${#runner_args[@]} -gt 0 ]]; then
-                go test "${runner_args[@]}"
+                go test ./... -count=1 "${runner_args[@]}"
             else
                 go test ./... -count=1
             fi
