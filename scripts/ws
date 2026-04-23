@@ -322,9 +322,13 @@ ws_test() {
         fi
         if [[ "$arg" == -* ]]; then
             runner_args+=("$arg")
-            # Flags that consume the next arg as a value
+            # Flags that consume the next arg as a value.
+            # Boolean flags like --parallel, --info, --debug are NOT listed.
             case "$arg" in
-                -run|--tests|-k|-p|--parallel|-timeout|-coverprofile|-cpuprofile|-memprofile)
+                # Shared / Go / Gradle / pytest
+                -run|--tests|-k|-p|-timeout|-count|-bench|-benchtime|-cpu|-shuffle|\
+                -coverprofile|-cpuprofile|-memprofile|-blockprofile|-mutexprofile|\
+                -I|--init-script|--build-file|--project-dir)
                     expect_value=true ;;
             esac
         elif [[ -z "$test_filter" ]]; then
@@ -345,7 +349,14 @@ ws_test() {
         adapter|gradle)
             local -a gradle_argv=()
             if [[ ${#adapter_argv[@]} -gt 0 ]]; then
-                gradle_argv=("${adapter_argv[@]}")
+                # Adapter may be non-Gradle — only take the Gradle path if it looks like one
+                if [[ "${adapter_argv[0]}" == *gradlew* ]]; then
+                    gradle_argv=("${adapter_argv[@]}")
+                else
+                    # Non-Gradle adapter: just run it with runner_args, no task substitution
+                    "${adapter_argv[@]}" "${runner_args[@]}"
+                    return
+                fi
             else
                 gradle_argv=(./gradlew test)
             fi
@@ -354,8 +365,11 @@ ws_test() {
                 local gradle_task="" clean_task=""
                 gradle_task=$(_ws_gradle_find_test "$test_filter")
                 if [[ -n "$gradle_task" ]]; then
-                    clean_task="${gradle_task//:test/:cleanTest}"
-                    ./gradlew "$clean_task" "$gradle_task" --tests "*.$test_filter" "${runner_args[@]}"
+                    clean_task="${gradle_task%:test}:cleanTest"
+                    # Reuse adapter's base args (everything except the trailing task)
+                    # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
+                    local -a gradle_base=("${gradle_argv[@]:0:${#gradle_argv[@]}-1}")
+                    "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "*.$test_filter" "${runner_args[@]}"
                 else
                     "${gradle_argv[@]}" --tests "*.$test_filter" "${runner_args[@]}"
                 fi
