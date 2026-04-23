@@ -240,6 +240,7 @@ flowchart LR
 | `knarr.routing.decisions` | Approval/rejection events from power users |
 | `knarr.watch.alerts` | Platform monitoring alerts (new mention, new thread) |
 | `knarr.content.draft` | Content being shaped by Autoboros before publishing |
+| `knarr.identity.changes` | Keycloak user/group change events for Valkey cache invalidation |
 
 **Routing rule examples:**
 - Messages in `#sports-league/announcements` → auto-forward to WhatsApp group + SMS list
@@ -337,7 +338,33 @@ logged and others can see it's handled. Kafka replay supports tooling for catch-
 
 ## Event Schema
 
-Common envelope for all Kafka events:
+### Phase 0/1 envelope (implemented)
+
+The current producers/consumers use a reduced payload:
+
+```json
+{
+  "event_id": "uuid",
+  "timestamp": "2026-04-02T10:30:00Z",
+  "source": {
+    "platform": "reddit",
+    "channel": "r/Terasology",
+    "community": "terasology"
+  },
+  "content": {
+    "type": "new_post",
+    "body": "**Post title** by u/author",
+    "url": "https://reddit.com/r/Terasology/..."
+  }
+}
+```
+
+This matches the `WatchAlert` dataclass in `src/watchers/schemas.py`.
+
+### Target envelope (future)
+
+When the routing layer and subscription model are implemented, the envelope
+expands with `author` and `routing` fields:
 
 ```json
 {
@@ -366,6 +393,9 @@ Common envelope for all Kafka events:
 
 For approval workflows, `routing.status` cycles: `pending` → `approved`/`rejected`
 → `published`, with each transition as a separate event on `knarr.routing.decisions`.
+
+All services should include a `schema_version` field when the target envelope
+is introduced, to support backward-compatible rollout.
 
 ---
 
@@ -514,21 +544,24 @@ sequenceDiagram
     participant Bridge as mautrix-gmessages
     participant Synapse as Synapse
     participant Router as Router
-    participant DB as Subscription DB
+    participant KC as Keycloak
+    participant VK as Valkey Cache
 
     P->>Phone: Text "JOIN PANTHERS"
     Phone->>Bridge: SMS received
     Bridge->>Synapse: Matrix message
     Synapse->>Router: message event
-    Router->>DB: create subscription (sms, +1555..., #panthers)
+    Router->>KC: create/update user, add to Panthers group
+    Router->>VK: update subscription cache
     Router->>Synapse: reply "You're subscribed"
     Synapse->>Bridge: Matrix reply
     Bridge->>Phone: SMS reply
     Phone->>P: "You're subscribed to Panthers via SMS"
 
-    Note over Router,DB: Later, when announcement is posted...
+    Note over Router,VK: Later, when announcement is posted...
 
-    Router->>DB: lookup subscribers for #panthers/announcements
+    Router->>VK: lookup subscribers for #panthers/announcements
+    VK-->>Router: [{sms, +1555...}, {email, pat@...}]
     Router->>Bridge: send SMS to +1555...
     Bridge->>Phone: SMS
     Phone->>P: "Game cancelled due to rain"
