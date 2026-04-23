@@ -95,7 +95,7 @@ Synapse homeserver with mautrix bridges, deployed via Helm into k3s.
 Matrix Spaces can nest, allowing a Feeds sub-space per community for automated
 platform monitoring, separate from human conversation rooms.
 
-```
+```text
 #terasology/                       (public space)
   #general
   #dev
@@ -136,7 +136,7 @@ have native cross-room message linking, but the router can handle this:
 reactions/approval) in the primary room based on repo or first keyword match. In
 secondary rooms, it posts a lightweight cross-reference with a Matrix permalink:
 
-```
+```text
 #terasology/feeds/feed-github:
   📋 [PR] Bifrost module linking (#42)
     ├─ full details, thread replies, reacji workflows
@@ -262,7 +262,7 @@ the router controls how they're *displayed* in Matrix.
 
 **Threaded digest example** (in Matrix or bridged Discord):
 
-```
+```text
 📋 GitHub — MovingBlocks/Terasology (last 30 min)
   4 new notifications
   ├─ [Issue] Fix rendering on ARM Macs (#5678)
@@ -439,13 +439,13 @@ the full Keycloak experience (SSO, user management, group assignment).
 
 Current model (room-level):
 
-```
+```text
 #panthers/announcements → WhatsApp group (all members see everything)
 ```
 
 Extended model (room + user subscriptions):
 
-```
+```text
 #panthers/announcements →
   WhatsApp group (for whatsapp subscribers — transparent bridge)
   SMS to +1-555-0123 (Coach Mike, subscribed via SMS)
@@ -462,7 +462,8 @@ Non-technical users never need to know Matrix exists. They interact with Knarr
 through the channel they already use:
 
 **SMS (via spare phone / mautrix-gmessages):**
-```
+
+```text
 → Text "JOIN PANTHERS" to the Knarr number
 ← "You're subscribed to Panthers announcements via SMS. Text STOP to unsubscribe."
 
@@ -474,7 +475,8 @@ through the channel they already use:
 ```
 
 **Email:**
-```
+
+```text
 → Send any email to panthers+join@knarr.example.com
 ← Auto-reply: "You're subscribed to Panthers announcements via email."
 
@@ -494,7 +496,7 @@ opt-in needed — the bridge handles it. They can leave the group to unsubscribe
 Power users can manage subscriptions on behalf of others via Matrix bot commands
 in an admin room:
 
-```
+```text
 !knarr subscribe +15550123 #panthers/announcements sms
 !knarr subscribe mike@example.com #league/schedule email-digest
 !knarr list-subscribers #panthers/announcements
@@ -626,7 +628,7 @@ flowchart TB
 
 ### Helm Chart Structure
 
-```
+```text
 knarr/
   Chart.yaml
   values.yaml               # Defaults
@@ -752,7 +754,7 @@ homeserver. Simple, no federation needed.
 Helm chart, their own infrastructure). Federation is enabled between the two
 Synapse homeservers. Users on either server can join rooms on the other.
 
-```
+```text
 knarr.town-a.org                     knarr.town-b.org
 ├─ #town-a-pta/                      ├─ #town-b-pta/
 │   (local rooms)                    │   (local rooms)
