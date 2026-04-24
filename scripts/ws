@@ -15,7 +15,7 @@
 #   push [comp] [branch] [--force] Push branch (remote from identity.forkOrg)
 #   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
-#   test <comp> [TestName|args...] Run tests (adapter > Makefile > Gradle > Go > Python)
+#   test <comp> [TestName|args...] Run tests (adapter > Gradle > Makefile > Go > Python)
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer (bodyfile preferred)
 #   log [comp] [--oneline] Show commits on current branch vs main
@@ -410,6 +410,11 @@ ws_test() {
                     clean_task="${gradle_task%:test}:cleanTest"
                     # Reuse adapter's base args (everything except the trailing task)
                     # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
+                    if [[ ${#gradle_argv[@]} -lt 2 ]]; then
+                        echo "ERROR: Adapter command '${gradle_argv[*]}' is missing a task argument." >&2
+                        echo "  Expected format: './gradlew [flags...] <task>' (e.g. './gradlew test')." >&2
+                        exit 1
+                    fi
                     local -a gradle_base=("${gradle_argv[@]:0:${#gradle_argv[@]}-1}")
                     "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "$gradle_pattern" "${runner_args[@]}"
                 else
