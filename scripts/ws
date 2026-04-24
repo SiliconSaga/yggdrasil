@@ -194,14 +194,24 @@ ws_cr() {
 }
 
 # Find the Gradle subproject test task for a given test class name.
-# Searches for a matching .java file and derives the :subproject:test task.
-# Prints the task name (e.g. ":engine-tests:test") or empty if not found.
+# Searches for matching Java/Kotlin/Groovy/Scala test sources and derives the
+# :subproject:test task. Prints the task (e.g. ":engine-tests:test") or empty.
 _ws_gradle_find_test() {
     local class_name="$1"
     local -a matches=()
-    while IFS= read -r m; do
-        [[ -n "$m" ]] && matches+=("$m")
-    done < <(find . -path "*/src/test/java/*/${class_name}.java" -type f 2>/dev/null)
+    local lang
+    for lang in java kotlin groovy scala; do
+        local ext
+        case "$lang" in
+            java) ext="java" ;;
+            kotlin) ext="kt" ;;
+            groovy) ext="groovy" ;;
+            scala) ext="scala" ;;
+        esac
+        while IFS= read -r m; do
+            [[ -n "$m" ]] && matches+=("$m")
+        done < <(find . -path "*/src/test/${lang}/*/${class_name}.${ext}" -type f 2>/dev/null)
+    done
 
     if [[ ${#matches[@]} -eq 0 ]]; then
         return
@@ -339,6 +349,9 @@ ws_test() {
     done
 
     # Parse adapter command into an array for safe exec (no shell injection via test_filter).
+    # Contract: adapter commands are whitespace-separated tokens only. Args with
+    # embedded whitespace or quotes are not supported — use a shell wrapper script
+    # and point the adapter at that if you need complex quoting.
     local -a adapter_argv=()
     if [[ -n "$adapter_cmd" ]]; then
         # shellcheck disable=SC2206
@@ -353,7 +366,13 @@ ws_test() {
                 if [[ "${adapter_argv[0]}" == *gradlew* ]]; then
                     gradle_argv=("${adapter_argv[@]}")
                 else
-                    # Non-Gradle adapter: just run it with runner_args, no task substitution
+                    # Non-Gradle adapter: we don't know how to translate a test filter
+                    if [[ -n "$test_filter" ]]; then
+                        echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle." >&2
+                        echo "  Test name filters are only supported for Gradle/Go/Python runners." >&2
+                        echo "  Use 'ws exec $comp <runner> <args>' to run '$test_filter' directly." >&2
+                        exit 1
+                    fi
                     "${adapter_argv[@]}" "${runner_args[@]}"
                     return
                 fi
