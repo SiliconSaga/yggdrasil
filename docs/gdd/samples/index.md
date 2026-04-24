@@ -4,6 +4,8 @@ GDD in action — real session transcripts and artifacts showing how the methodo
 
 Note that these are raw (if condensed) transcripts and early Thalamus files verbatim from points in time of the first two GDD sessions ever. Their content and methods will go out of date in no time and entirely vary between users of the system.
 
+A newer example is highlighted [in this GDD PR comment](https://github.com/SiliconSaga/yggdrasil/pull/38#issuecomment-4313480965)
+
 Honestly though: the transcripts do not do the process justice when condensed, and cannot convey the sense of flow experienced. And who would have time to read an entire session log from Claude spanning hours of work? Maybe if you fed it to a different agent and told it what sort of magic you'd be interested in hearing about :-)
 
 Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started/index.md)** — clone the workspace, ask for Mentoring mode, and see what happens.
