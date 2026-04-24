@@ -21,10 +21,66 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
 
 _RESOLVED_ECOSYSTEM=""
+COMPONENT_DIR=""  # Set by ws_validate_component
 
 # ---------------------------------------------------------------------------
 # Shared functions (used by ws-clone.sh, ws-list.sh, ws, etc.)
 # ---------------------------------------------------------------------------
+
+# Validate a component name against ecosystem.yaml.
+# Usage: ws_validate_component <name>
+# Sets: COMPONENT_DIR to the resolved path.
+# Accepts "yggdrasil" (workspace root), overlay directory names, and
+# components declared in the merged ecosystem config.
+ws_validate_component() {
+    local name="$1"
+
+    # "yggdrasil" refers to the workspace root, not a component
+    if [[ "$name" == "yggdrasil" ]]; then
+        COMPONENT_DIR="$ROOT_DIR"
+        return 0
+    fi
+
+    # Check if name is an overlay directory (uses broader name pattern)
+    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$OVERLAYS_DIR/$name/.git" ]]; then
+        COMPONENT_DIR="$OVERLAYS_DIR/$name"
+        return 0
+    fi
+
+    # Reject component names that don't match safe pattern.
+    # Use bash regex directly — grep matches per-line and would pass
+    # newline-injected names like "mimir\nevil" (CVE-style bypass).
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+        echo "ERROR: Invalid component name '$name'. Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
+        exit 1
+    fi
+
+    # Check yq is available
+    if ! command -v yq &>/dev/null; then
+        echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+        exit 1
+    fi
+
+    # Check component exists in merged ecosystem config
+    local eco
+    eco="$(ws_resolve_ecosystem)"
+    local exists
+    exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
+    if [[ "$exists" == "missing" ]]; then
+        echo "ERROR: '$name' is not declared in ecosystem config." >&2
+        echo "  Run 'ws list' to see available components." >&2
+        exit 1
+    fi
+
+    COMPONENT_DIR="$COMPONENTS_DIR/$name"
+
+    # Check if cloned locally
+    if [[ ! -d "$COMPONENT_DIR" ]]; then
+        echo "ERROR: '$name' is not cloned locally." >&2
+        echo "  Run 'ws clone $name' to clone it." >&2
+        exit 1
+    fi
+}
 
 # Detect the active overlay directory name.
 # Returns the overlay directory name (not the full path) or empty string.
