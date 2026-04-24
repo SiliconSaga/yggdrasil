@@ -112,7 +112,7 @@ fi
 # --- Build Co-Authored-By trailer from identity config ---
 
 eco="$(ws_resolve_ecosystem)"
-co_authored_by=$(yq '.identity.co_authored_by // ""' "$eco" 2>/dev/null)
+co_authored_by=$(yq -r '.identity.co_authored_by // ""' "$eco" 2>/dev/null)
 if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
     # No custom identity configured — fall back to Claude, with CLAUDE_MODEL
     # selecting the model name. CLAUDE_MODEL does not override a configured
@@ -226,9 +226,16 @@ if git diff --cached --quiet 2>/dev/null; then
     exit 1
 fi
 
-# Trim leading/trailing blank lines from body (portable awk)
+# Trim leading and trailing blank lines from the body (portable awk).
+# Logic: buffer only once we've seen a non-blank line (skips leading blanks);
+# track the index of the last non-blank line so trailing blanks are dropped;
+# blank lines between content (NR after first non-blank, before last) are kept.
 if [[ -n "$body_content" ]]; then
-    body_content="$(echo "$body_content" | awk 'NF{found=1} found' | awk '{lines[NR]=$0} END{for(i=NR;i>=1;i--)if(lines[i]~/[^ \t]/){last=i;break} for(i=1;i<=last;i++)print lines[i]}')"
+    body_content="$(echo "$body_content" | awk '
+        NF    { buf[++n] = $0; last = n; next }
+        n > 0 { buf[++n] = $0 }
+        END   { for (i = 1; i <= last; i++) print buf[i] }
+    ')"
 fi
 
 # Build and execute the commit
