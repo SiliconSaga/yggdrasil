@@ -2,8 +2,8 @@
 # ws-status.sh — Show Git status for all cloned components
 #
 # Usage:
-#   ws-status.sh             Short status (branch + dirty flag)
-#   ws-status.sh --verbose   Full git status per component
+#   ws-status.sh             Short status (branch, dirty flag, up to 10 changed files)
+#   ws-status.sh --verbose   Full git status per component (all changed files)
 
 set -euo pipefail
 
@@ -15,6 +15,7 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 source "$SCRIPT_DIR/ws-overlay.sh"
 
 VERBOSE="${1:-}"
+DEFAULT_LIMIT=10
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
@@ -23,14 +24,43 @@ fi
 
 ECO="$(ws_resolve_ecosystem)"
 
+# Print status for a repo at the given path.
+# Outputs: branch line + (if dirty) up to $DEFAULT_LIMIT file lines (or all with --verbose).
+print_repo_status() {
+    local path="$1"
+    local branch
+    branch=$(git -C "$path" branch --show-current 2>/dev/null || echo "detached")
+
+    local status_lines
+    status_lines=$(git -C "$path" status --porcelain 2>/dev/null || true)
+    local dirty_count=0
+    if [[ -n "$status_lines" ]]; then
+        dirty_count=$(printf '%s\n' "$status_lines" | wc -l)
+    fi
+
+    if [[ "$dirty_count" -gt 0 ]]; then
+        echo "  branch: $branch  (dirty — $dirty_count file(s))"
+    else
+        echo "  branch: $branch"
+    fi
+
+    if [[ "$dirty_count" -eq 0 ]]; then
+        return
+    fi
+
+    if [[ "$VERBOSE" == "--verbose" ]]; then
+        printf '%s\n' "$status_lines" | sed 's/^/  /'
+    else
+        printf '%s\n' "$status_lines" | head -n "$DEFAULT_LIMIT" | sed 's/^/  /'
+        if [[ "$dirty_count" -gt "$DEFAULT_LIMIT" ]]; then
+            echo "  ... and $((dirty_count - DEFAULT_LIMIT)) more (run with --verbose to see all)"
+        fi
+    fi
+}
+
 # Status of yggdrasil itself
 echo "=== yggdrasil ==="
-branch=$(git -C "$ROOT_DIR" branch --show-current 2>/dev/null || echo "detached")
-dirty=$(git -C "$ROOT_DIR" status --porcelain 2>/dev/null | head -1)
-echo "  branch: $branch${dirty:+  (dirty)}"
-if [[ "$VERBOSE" == "--verbose" ]]; then
-    git -C "$ROOT_DIR" status --short 2>/dev/null | sed 's/^/  /'
-fi
+print_repo_status "$ROOT_DIR"
 echo ""
 
 # Status of each component
@@ -43,12 +73,6 @@ for name in $(yq '.components | keys | .[]' "$ECO"); do
     fi
 
     echo "=== $name ==="
-    branch=$(git -C "$target" branch --show-current 2>/dev/null || echo "detached")
-    dirty=$(git -C "$target" status --porcelain 2>/dev/null | head -1)
-    echo "  branch: $branch${dirty:+  (dirty)}"
-
-    if [[ "$VERBOSE" == "--verbose" ]]; then
-        git -C "$target" status --short 2>/dev/null | sed 's/^/  /'
-    fi
+    print_repo_status "$target"
     echo ""
 done
