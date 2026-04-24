@@ -15,7 +15,7 @@
 #   push [comp] [branch] [--force] Push branch (remote from identity.forkOrg)
 #   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
-#   test <comp> [args...] Run tests (auto-detects runner; max 6 extra args)
+#   test <comp> [TestName|args...] Run tests (adapter > Gradle > Makefile > Go > Python)
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer (bodyfile preferred)
 #   log [comp] [--oneline] Show commits on current branch vs main
@@ -193,23 +193,86 @@ ws_cr() {
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr.sh" "${args[@]}"
 }
 
+# Find the Gradle subproject test task for a given test class name.
+# Searches for matching Java/Kotlin/Groovy/Scala test sources and derives the
+# :subproject:test task. Prints the task (e.g. ":engine-tests:test") or empty.
+_ws_gradle_find_test() {
+    local class_name="$1"
+    local -a matches=()
+    local lang
+    for lang in java kotlin groovy scala; do
+        local ext
+        case "$lang" in
+            java) ext="java" ;;
+            kotlin) ext="kt" ;;
+            groovy) ext="groovy" ;;
+            scala) ext="scala" ;;
+        esac
+        while IFS= read -r m; do
+            [[ -n "$m" ]] && matches+=("$m")
+        done < <(find . -path "*/src/test/${lang}/*/${class_name}.${ext}" -type f 2>/dev/null)
+    done
+
+    if [[ ${#matches[@]} -eq 0 ]]; then
+        return
+    fi
+    if [[ ${#matches[@]} -gt 1 ]]; then
+        echo "WARNING: '$class_name' found in multiple subprojects:" >&2
+        printf "  %s\n" "${matches[@]}" >&2
+        echo "  Using first match. Pass --tests with a fully qualified name to disambiguate." >&2
+    fi
+
+    local subproject="${matches[0]#./}"
+    # Root-project test: path starts with src/test/ after stripping ./
+    if [[ "$subproject" == src/test/* ]]; then
+        echo ":test"
+        return
+    fi
+    subproject="${subproject%%/src/test/*}"
+    if [[ "$subproject" == "." || -z "$subproject" ]]; then
+        echo ":test"
+    else
+        echo ":${subproject//\//:}:test"
+    fi
+}
+
 ws_test() {
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: ws test <component> [args...]" >&2
-        echo "" >&2
-        echo "Auto-detects test runner:" >&2
-        echo "  Makefile with 'test' target → make test" >&2
-        echo "  go.mod                      → go test ./... -count=1" >&2
-        echo "  pyproject.toml              → uv run pytest" >&2
-        echo "" >&2
-        echo "Extra args are passed to the test runner:" >&2
-        echo "  ws test mimir -run TestFoo -v" >&2
-        echo "  ws test mimir ./internal/store/ -run TestFoo -v" >&2
-        exit 1
+    local is_help=false
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        is_help=true
+    fi
+    if [[ $# -lt 1 || "$is_help" == true ]]; then
+        # Explicit --help/-h → stdout + exit 0. Missing args → stderr + exit 1.
+        local stream=1
+        local code=1
+        if [[ "$is_help" == true ]]; then
+            stream=1
+            code=0
+        else
+            stream=2
+        fi
+        {
+            echo "Usage: ws test <component> [test-name | args...]"
+            echo ""
+            echo "Run tests for a component. The test runner is detected automatically"
+            echo "(run 'ws actions <comp>' to see what's configured)."
+            echo ""
+            echo "With no extra args, runs the full test suite. With a test name"
+            echo "(any arg not starting with -), translates it into the runner's"
+            echo "filter syntax automatically:"
+            echo "  ws test terasology ClientNetworkStateTest"
+            echo "  ws test mimir TestFoo"
+            echo "  ws test myapp 'test_login*'"
+            echo ""
+            echo "Runner-specific flags are passed through as-is:"
+            echo "  ws test mimir -run TestFoo -v"
+            echo "  ws test terasology --tests '*.SomeTest'"
+        } >&"$stream"
+        exit "$code"
     fi
     if [[ $# -gt 7 ]]; then
         echo "ERROR: Too many arguments (max 7: component + 6 test args)." >&2
-        echo "  Use a Makefile target for complex test invocations." >&2
+        echo "  Use 'ws exec <comp> <cmd>' for complex test invocations." >&2
         exit 1
     fi
     local comp="$1"
@@ -217,52 +280,177 @@ ws_test() {
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR"
 
-    # No extra args: prefer Makefile with 'test' target — it knows the
-    # project layout (e.g. a Makefile may cd into a subdir for go test)
-    if [[ $# -eq 0 ]] && [[ -f Makefile ]] && grep -q '^test:' Makefile; then
-        make test
-        return
-    fi
+    # Detect test runner. Precedence matches ws-overlay.sh ws_actions:
+    # adapter command > Gradle > Makefile > Go > Python
+    local runner=""
+    local adapter_cmd=""
 
-    # Auto-detect test runner from project files
-    # If go.mod isn't at root, check one level down (e.g. components with a
-    # single Go module in a subdirectory)
-    local go_root=""
-    if [[ -f go.mod ]]; then
-        go_root="."
-    else
-        local candidates=()
-        for d in */go.mod; do
-            [[ -f "$d" ]] && candidates+=("${d%/go.mod}")
-        done
-        if [[ ${#candidates[@]} -eq 1 ]]; then
-            go_root="${candidates[0]}"
-        elif [[ ${#candidates[@]} -gt 1 ]]; then
-            echo "ERROR: Multiple Go modules found in $COMPONENT_DIR:" >&2
-            printf "  %s/\n" "${candidates[@]}" >&2
-            echo "  Use 'ws exec $comp go test <args>' to target a specific module." >&2
-            exit 1
+    # 1. Check overlay adapter for a test command
+    local active_overlay
+    active_overlay="$(ws_detect_overlay)" || true
+    if [[ -n "$active_overlay" ]]; then
+        local adapter_file="$OVERLAYS_DIR/$active_overlay/adapters/$comp.yaml"
+        if [[ -f "$adapter_file" ]]; then
+            adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null)
+            [[ "$adapter_cmd" == "null" ]] && adapter_cmd=""
+            if [[ -n "$adapter_cmd" ]]; then
+                runner="adapter"
+            fi
         fi
     fi
 
-    if [[ -n "$go_root" ]]; then
-        cd "$go_root"
-        if [[ $# -eq 0 ]]; then
-            go test ./... -count=1
+    # 2. Auto-detect from project files
+    if [[ -z "$runner" ]]; then
+        if [[ -f gradlew ]]; then
+            runner="gradle"
+        elif [[ -f Makefile ]] && grep -q '^test:' Makefile; then
+            runner="make"
+        elif [[ -f go.mod ]]; then
+            runner="go"
+        elif [[ -f pyproject.toml ]]; then
+            runner="python"
         else
-            go test "$@"
+            # Fallback: check one level down for a single nested Go module
+            local go_candidates=()
+            for d in */go.mod; do
+                [[ -f "$d" ]] && go_candidates+=("${d%/go.mod}")
+            done
+            if [[ ${#go_candidates[@]} -eq 1 ]]; then
+                runner="go"
+                cd "${go_candidates[0]}"
+            elif [[ ${#go_candidates[@]} -gt 1 ]]; then
+                echo "ERROR: Multiple Go modules found in $COMPONENT_DIR:" >&2
+                printf "  %s/\n" "${go_candidates[@]}" >&2
+                echo "  Use 'ws exec $comp go test <args>' to target a specific module." >&2
+                exit 1
+            fi
         fi
-    elif [[ -f pyproject.toml ]]; then
-        if [[ $# -eq 0 ]]; then
-            uv run pytest
-        else
-            uv run pytest "$@"
-        fi
-    else
+    fi
+
+    if [[ -z "$runner" ]]; then
         echo "ERROR: Cannot detect test runner in $COMPONENT_DIR." >&2
-        echo "  Expected: Makefile with 'test' target, go.mod, or pyproject.toml" >&2
+        echo "  Run 'ws actions $comp' to see available commands." >&2
         exit 1
     fi
+
+    # Separate test filter from runner flags.
+    # Flags (args starting with -) and their values pass through; the first
+    # non-flag positional arg is treated as the test name filter.
+    # Known value-expecting flags keep the next arg as part of the flag pair.
+    local test_filter=""
+    local -a runner_args=()
+    local expect_value=false
+    for arg in "$@"; do
+        if [[ "$expect_value" == true ]]; then
+            runner_args+=("$arg")
+            expect_value=false
+            continue
+        fi
+        if [[ "$arg" == -* ]]; then
+            runner_args+=("$arg")
+            # Flags that consume the next arg as a value.
+            # Boolean flags like --parallel, --info, --debug are NOT listed.
+            case "$arg" in
+                # Shared / Go / Gradle / pytest
+                -run|--tests|-k|-m|-p|-r|-o|--maxfail|--tb|-timeout|\
+                -count|-bench|-benchtime|-cpu|-shuffle|\
+                -coverprofile|-cpuprofile|-memprofile|-blockprofile|-mutexprofile|\
+                -I|--init-script|--build-file|--project-dir)
+                    expect_value=true ;;
+            esac
+        elif [[ -z "$test_filter" ]]; then
+            test_filter="$arg"
+        else
+            runner_args+=("$arg")
+        fi
+    done
+
+    # Parse adapter command into an array for safe exec (no shell injection via test_filter).
+    # Contract: adapter commands are whitespace-separated tokens only. Args with
+    # embedded whitespace or quotes are not supported — use a shell wrapper script
+    # and point the adapter at that if you need complex quoting.
+    local -a adapter_argv=()
+    if [[ -n "$adapter_cmd" ]]; then
+        # shellcheck disable=SC2206
+        read -r -a adapter_argv <<< "$adapter_cmd"
+    fi
+
+    case "$runner" in
+        adapter|gradle)
+            local -a gradle_argv=()
+            if [[ ${#adapter_argv[@]} -gt 0 ]]; then
+                # Adapter may be non-Gradle — only take the Gradle path if it looks like one
+                if [[ "${adapter_argv[0]}" == *gradlew* ]]; then
+                    gradle_argv=("${adapter_argv[@]}")
+                else
+                    # Non-Gradle adapter: we don't know how to translate a test filter
+                    if [[ -n "$test_filter" ]]; then
+                        echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle." >&2
+                        echo "  Test name filters are only supported for Gradle/Go/Python runners." >&2
+                        echo "  Use 'ws exec $comp <runner> <args>' to run '$test_filter' directly." >&2
+                        exit 1
+                    fi
+                    "${adapter_argv[@]}" "${runner_args[@]}"
+                    return
+                fi
+            else
+                gradle_argv=(./gradlew test)
+            fi
+            if [[ -n "$test_filter" ]]; then
+                # Build --tests pattern: pass through FQNs and wildcards as-is,
+                # prefix bare class names with *. so they match any package.
+                local gradle_pattern="$test_filter"
+                if [[ "$test_filter" != *.* && "$test_filter" != *\** ]]; then
+                    gradle_pattern="*.$test_filter"
+                fi
+                # Find which Gradle subproject contains this test class
+                local gradle_task="" clean_task=""
+                gradle_task=$(_ws_gradle_find_test "$test_filter")
+                if [[ -n "$gradle_task" ]]; then
+                    clean_task="${gradle_task%:test}:cleanTest"
+                    # Reuse adapter's base args (everything except the trailing task)
+                    # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
+                    if [[ ${#gradle_argv[@]} -lt 2 ]]; then
+                        echo "ERROR: Adapter command '${gradle_argv[*]}' is missing a task argument." >&2
+                        echo "  Expected format: './gradlew [flags...] <task>' (e.g. './gradlew test')." >&2
+                        exit 1
+                    fi
+                    local -a gradle_base=("${gradle_argv[@]:0:${#gradle_argv[@]}-1}")
+                    "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "$gradle_pattern" "${runner_args[@]}"
+                else
+                    "${gradle_argv[@]}" --tests "$gradle_pattern" "${runner_args[@]}"
+                fi
+            else
+                "${gradle_argv[@]}" "${runner_args[@]}"
+            fi
+            ;;
+        make)
+            if [[ -n "$test_filter" || ${#runner_args[@]} -gt 0 ]]; then
+                echo "ERROR: Makefile test target does not support extra args." >&2
+                echo "  Use 'ws exec $comp <runner> <args>' for targeted tests." >&2
+                exit 1
+            fi
+            make test
+            ;;
+        go)
+            if [[ -n "$test_filter" ]]; then
+                go test ./... -count=1 -run "$test_filter" "${runner_args[@]}"
+            elif [[ ${#runner_args[@]} -gt 0 ]]; then
+                go test ./... -count=1 "${runner_args[@]}"
+            else
+                go test ./... -count=1
+            fi
+            ;;
+        python)
+            if [[ -n "$test_filter" ]]; then
+                uv run pytest -k "$test_filter" "${runner_args[@]}"
+            elif [[ ${#runner_args[@]} -gt 0 ]]; then
+                uv run pytest "${runner_args[@]}"
+            else
+                uv run pytest
+            fi
+            ;;
+    esac
 }
 
 ws_commit() {
