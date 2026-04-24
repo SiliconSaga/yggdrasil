@@ -237,23 +237,38 @@ _ws_gradle_find_test() {
 }
 
 ws_test() {
-    if [[ $# -lt 1 || "$1" == "--help" || "$1" == "-h" ]]; then
-        echo "Usage: ws test <component> [test-name | args...]" >&2
-        echo "" >&2
-        echo "Run tests for a component. The test runner is detected automatically" >&2
-        echo "(run 'ws actions <comp>' to see what's configured)." >&2
-        echo "" >&2
-        echo "With no extra args, runs the full test suite. With a test name" >&2
-        echo "(any arg not starting with -), translates it into the runner's" >&2
-        echo "filter syntax automatically:" >&2
-        echo "  ws test terasology ClientNetworkStateTest" >&2
-        echo "  ws test mimir TestFoo" >&2
-        echo "  ws test myapp 'test_login*'" >&2
-        echo "" >&2
-        echo "Runner-specific flags are passed through as-is:" >&2
-        echo "  ws test mimir -run TestFoo -v" >&2
-        echo "  ws test terasology --tests '*.SomeTest'" >&2
-        exit 1
+    local is_help=false
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        is_help=true
+    fi
+    if [[ $# -lt 1 || "$is_help" == true ]]; then
+        # Explicit --help/-h → stdout + exit 0. Missing args → stderr + exit 1.
+        local stream=1
+        local code=1
+        if [[ "$is_help" == true ]]; then
+            stream=1
+            code=0
+        else
+            stream=2
+        fi
+        {
+            echo "Usage: ws test <component> [test-name | args...]"
+            echo ""
+            echo "Run tests for a component. The test runner is detected automatically"
+            echo "(run 'ws actions <comp>' to see what's configured)."
+            echo ""
+            echo "With no extra args, runs the full test suite. With a test name"
+            echo "(any arg not starting with -), translates it into the runner's"
+            echo "filter syntax automatically:"
+            echo "  ws test terasology ClientNetworkStateTest"
+            echo "  ws test mimir TestFoo"
+            echo "  ws test myapp 'test_login*'"
+            echo ""
+            echo "Runner-specific flags are passed through as-is:"
+            echo "  ws test mimir -run TestFoo -v"
+            echo "  ws test terasology --tests '*.SomeTest'"
+        } >&"$stream"
+        exit "$code"
     fi
     if [[ $# -gt 7 ]]; then
         echo "ERROR: Too many arguments (max 7: component + 6 test args)." >&2
@@ -265,13 +280,14 @@ ws_test() {
     ws_validate_component "$comp"
     cd "$COMPONENT_DIR"
 
-    # Detect test runner: adapter command > Makefile > Gradle > Go > Python
+    # Detect test runner. Precedence matches ws-overlay.sh ws_actions:
+    # adapter command > Gradle > Makefile > Go > Python
     local runner=""
     local adapter_cmd=""
 
     # 1. Check overlay adapter for a test command
     local active_overlay
-    active_overlay="$(ws_detect_overlay 2>/dev/null)" || true
+    active_overlay="$(ws_detect_overlay)" || true
     if [[ -n "$active_overlay" ]]; then
         local adapter_file="$OVERLAYS_DIR/$active_overlay/adapters/$comp.yaml"
         if [[ -f "$adapter_file" ]]; then
@@ -285,14 +301,16 @@ ws_test() {
 
     # 2. Auto-detect from project files
     if [[ -z "$runner" ]]; then
-        if [[ -f Makefile ]] && grep -q '^test:' Makefile; then
-            runner="make"
-        elif [[ -f gradlew ]]; then
+        if [[ -f gradlew ]]; then
             runner="gradle"
+        elif [[ -f Makefile ]] && grep -q '^test:' Makefile; then
+            runner="make"
         elif [[ -f go.mod ]]; then
             runner="go"
+        elif [[ -f pyproject.toml ]]; then
+            runner="python"
         else
-            # Go: check one level down for single-module projects
+            # Fallback: check one level down for a single nested Go module
             local go_candidates=()
             for d in */go.mod; do
                 [[ -f "$d" ]] && go_candidates+=("${d%/go.mod}")
@@ -305,8 +323,6 @@ ws_test() {
                 printf "  %s/\n" "${go_candidates[@]}" >&2
                 echo "  Use 'ws exec $comp go test <args>' to target a specific module." >&2
                 exit 1
-            elif [[ -f pyproject.toml ]]; then
-                runner="python"
             fi
         fi
     fi
@@ -336,7 +352,8 @@ ws_test() {
             # Boolean flags like --parallel, --info, --debug are NOT listed.
             case "$arg" in
                 # Shared / Go / Gradle / pytest
-                -run|--tests|-k|-p|-timeout|-count|-bench|-benchtime|-cpu|-shuffle|\
+                -run|--tests|-k|-m|-p|-r|-o|--maxfail|--tb|-timeout|\
+                -count|-bench|-benchtime|-cpu|-shuffle|\
                 -coverprofile|-cpuprofile|-memprofile|-blockprofile|-mutexprofile|\
                 -I|--init-script|--build-file|--project-dir)
                     expect_value=true ;;
@@ -380,6 +397,12 @@ ws_test() {
                 gradle_argv=(./gradlew test)
             fi
             if [[ -n "$test_filter" ]]; then
+                # Build --tests pattern: pass through FQNs and wildcards as-is,
+                # prefix bare class names with *. so they match any package.
+                local gradle_pattern="$test_filter"
+                if [[ "$test_filter" != *.* && "$test_filter" != *\** ]]; then
+                    gradle_pattern="*.$test_filter"
+                fi
                 # Find which Gradle subproject contains this test class
                 local gradle_task="" clean_task=""
                 gradle_task=$(_ws_gradle_find_test "$test_filter")
@@ -388,9 +411,9 @@ ws_test() {
                     # Reuse adapter's base args (everything except the trailing task)
                     # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
                     local -a gradle_base=("${gradle_argv[@]:0:${#gradle_argv[@]}-1}")
-                    "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "*.$test_filter" "${runner_args[@]}"
+                    "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "$gradle_pattern" "${runner_args[@]}"
                 else
-                    "${gradle_argv[@]}" --tests "*.$test_filter" "${runner_args[@]}"
+                    "${gradle_argv[@]}" --tests "$gradle_pattern" "${runner_args[@]}"
                 fi
             else
                 "${gradle_argv[@]}" "${runner_args[@]}"
