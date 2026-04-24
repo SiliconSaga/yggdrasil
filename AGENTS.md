@@ -86,8 +86,11 @@ Community overlays may provide additional component-specific skills in
 
 ## Workspace CLI (`ws`)
 
-The shared interface for both humans and AI agents. Prefer using `ws <cmd>`
-or `bash scripts/ws <cmd>` if `ws` is not on PATH (suggest for user to add)
+The shared interface for both humans and AI agents. Prefer the bare
+`ws <cmd>` form; fall back to `bash scripts/ws <cmd>` if `ws` is not on
+PATH (and suggest adding `<yggdrasil>/scripts` to PATH so bare `ws`
+works — scoped permission patterns like `ws push *` are much tighter
+than `bash *`).
 
 Run `bash scripts/ws help` for the full command list, including auth and
 overlay commands. Pay particular attention to:

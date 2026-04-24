@@ -77,8 +77,11 @@ if [[ $# -gt 3 ]]; then
     exit 1
 fi
 
-# Detect mode: if second arg is a path to an existing .md file, it's bodyfile mode.
-# This avoids misclassifying messages like 'docs: update README.md' as bodyfiles.
+# Detect mode: if second arg ends in .md, treat it as a bodyfile path.
+# This requires the file to exist — we fail loudly if not, rather than
+# silently treating a message like 'docs: update README.md' as a commit
+# subject (which would skip the bodyfile logic entirely and ship the
+# message literally). The error points the user at the collision.
 comp="$1"
 message=""
 bodyfile=""
@@ -111,11 +114,10 @@ fi
 eco="$(ws_resolve_ecosystem)"
 co_authored_by=$(yq '.identity.co_authored_by // ""' "$eco" 2>/dev/null)
 if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
+    # No custom identity configured — fall back to Claude, with CLAUDE_MODEL
+    # selecting the model name. CLAUDE_MODEL does not override a configured
+    # identity (e.g. "Human Dev" or a non-Claude AI should pass through).
     co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.6}"
-fi
-# Environment variable overrides config
-if [[ -n "${CLAUDE_MODEL:-}" ]]; then
-    co_authored_by="Claude $CLAUDE_MODEL"
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"

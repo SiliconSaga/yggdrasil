@@ -77,12 +77,12 @@ Set `last_audit` to today's date in the YAML frontmatter.
 
 ### Step 6: Workspace Tidy
 
-Run `bash scripts/ws status` to see dirty state across all repos — there
-may be uncommitted drafts or stale edits worth addressing while you're in
+Run `ws status` to see dirty state across all repos — there may be
+uncommitted drafts or stale edits worth addressing while you're in
 tidy-up mode.
 
-Also suggest `bash scripts/ws clean` if `.commits/`, `.issues/`, or `.crs/`
-have accumulated many draft files. This is especially worth it when those
+Also suggest `ws clean` if `.commits/`, `.issues/`, or `.crs/` have
+accumulated many draft files. This is especially worth it when those
 directories have grown past a few dozen entries — old drafts obscure
 current work and bloat grep results.
 

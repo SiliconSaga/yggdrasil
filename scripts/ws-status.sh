@@ -35,7 +35,9 @@ print_repo_status() {
     status_lines=$(git -C "$path" status --porcelain 2>/dev/null || true)
     local dirty_count=0
     if [[ -n "$status_lines" ]]; then
-        dirty_count=$(printf '%s\n' "$status_lines" | wc -l)
+        # BSD `wc` (macOS) pads output with leading spaces — trim to avoid
+        # " (dirty —        5 file(s))" on some platforms.
+        dirty_count=$(printf '%s\n' "$status_lines" | wc -l | tr -d '[:space:]')
     fi
 
     if [[ "$dirty_count" -gt 0 ]]; then
