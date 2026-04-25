@@ -22,7 +22,7 @@ if ! command -v yq &>/dev/null; then
 fi
 # Disambiguate Mike Farah's Go yq (required) from python-yq (kislyuk/yq).
 # Both install as `yq`; python-yq fails on every Mike Farah-specific call.
-if ! yq --version 2>&1 | grep -qE 'mikefarah|version v[4-9]\.'; then
+if ! yq --version 2>&1 | grep -qE 'mikefarah|version v([4-9]|[1-9][0-9]+)\.'; then
     echo "ERROR: yq v4+ from Mike Farah is required (found: $(yq --version 2>&1))." >&2
     echo "  Install from: https://github.com/mikefarah/yq" >&2
     exit 1
@@ -99,8 +99,8 @@ echo "  2. Run /mcp inside Claude Code to authenticate each server"
 echo "     (Claude Code handles the browser OAuth flow — do not paste auth URLs manually)"
 echo ""
 echo "Cursor users: MaaS servers must be added to ~/.cursor/mcp.json manually."
-mcp_doc="$(yq '.mcp.doc // ""' "$ECO")"
-active_overlay="$(ws_detect_overlay)"
+mcp_doc="$(yq '.mcp.doc // ""' "$ECO" 2>/dev/null || echo "")"
+active_overlay="$(ws_detect_overlay 2>/dev/null || true)"
 if [[ -n "$mcp_doc" && "$mcp_doc" != "null" && -n "$active_overlay" ]]; then
     echo "  See: overlays/$active_overlay/$mcp_doc for the server list and URLs."
 fi

@@ -207,10 +207,13 @@ Commit bodyfiles use YAML frontmatter to declare the message and files to stage 
 
 ## MCP
 
-Read `.agent/skills/mcp-usage/SKILL.md` when either condition is true:
+Read `.agent/skills/mcp-usage/SKILL.md` when any condition is true:
 
-- **Proactive** — `.mcp.json` exists in the workspace root, and no `mcp-usage: skip`
-  preference is set in Thalamus. Load at session start.
+- **Proactive (in use)** — `.mcp.json` exists in the workspace root, and no
+  `mcp-usage: skip` preference is set in Thalamus. Load at session start.
+- **Proactive (setup offer)** — `.mcp.json` is absent, the active overlay
+  declares `mcp.servers`, and no `mcp-setup: declined` preference is set in
+  Thalamus. Load at session start to drive the one-time setup prompt.
 - **On-demand** — the user asks about MCP, MCP servers, or a specific configured
   server. Load regardless of any skip preference.
 

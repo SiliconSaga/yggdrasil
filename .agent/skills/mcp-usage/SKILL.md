@@ -3,7 +3,8 @@ name: mcp-usage
 description: >
   Agent behaviour around MCP servers — setup offer, auth, tool calling conventions,
   and how to load overlay-specific server details. Loaded at session start when
-  .mcp.json exists, or on-demand when the user asks about MCP.
+  .mcp.json exists or the active overlay declares mcp.servers (setup offer case),
+  and on-demand when the user asks about MCP.
 ---
 
 # MCP Usage
