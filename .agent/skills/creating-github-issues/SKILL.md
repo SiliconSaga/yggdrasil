@@ -109,3 +109,8 @@ If the issue blocks current or near-future work, note the URL and number in MEMO
 - **Wrong repo**: always verify with `git remote -v` before filing
 - **CLI not authenticated**: set provider token env var (`source ../yggdrasil/.env` from a sibling repo, or `source .env` from the workspace root); see docs/git-provider-setup.md
 - **Spans multiple repos**: file a design doc instead, not an issue
+- **Auto-close keywords in CRs referencing the issue**: when writing a CR body
+  that references an issue filed here, use `relates to #N` or `see #N`.
+  GitHub auto-closes on `fixes #N` / `closes #N` / `resolves #N` even with
+  "partially" qualifiers — the keyword wins. Only use those forms when the
+  CR genuinely closes the issue.

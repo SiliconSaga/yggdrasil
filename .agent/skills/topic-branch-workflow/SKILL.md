@@ -103,6 +103,18 @@ grep -rn "^<<<<<<<" <files-that-conflicted>
 bash scripts/ws push <component> --force
 ```
 
+### Force-push discipline
+
+**Only use `--force` immediately after a rebase.** Subsequent pushes to
+the same branch are fast-forwards — a normal `ws push` is sufficient.
+Casually force-pushing is dangerous: it rewrites remote history when
+unnecessary, obscures the commit timeline for reviewers, and can lose
+work if anyone else has pulled the branch.
+
+If a normal push is rejected with "non-fast-forward" and you didn't just
+rebase, investigate why before adding `--force` — someone else may have
+pushed, or you may have stale local state.
+
 ### Conflict resolution principles
 
 - **Read both sides** before resolving — understand what each change intended
@@ -154,6 +166,11 @@ git branch -d <type>/<description>
 - **Always `cp` the template file — never write CR bodies from memory.** The template
   evolves; using a remembered or hardcoded heredoc will produce a stale body. The `cp`
   step is not optional even when batching multiple CRs.
+- **Avoid "fixes #N" / "closes #N" / "resolves #N" in CR bodies unless the CR fully
+  resolves the issue.** GitHub auto-closes the referenced issue on merge when it sees
+  any of those keywords — even with qualifiers like "partially fixes" (the keyword
+  still wins). For partial fixes or related work, use `relates to #N` or `see #N`
+  which don't trigger auto-close. This applies to every CR body you write.
 
 ## When Direct Push to Main Is Acceptable
 

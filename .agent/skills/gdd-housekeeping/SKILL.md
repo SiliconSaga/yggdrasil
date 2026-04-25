@@ -75,7 +75,18 @@ Append an entry to the Audit Log section:
 
 Set `last_audit` to today's date in the YAML frontmatter.
 
-### Step 6: Reflect on the Process
+### Step 6: Workspace Tidy
+
+Run `ws status` to see dirty state across all repos — there may be
+uncommitted drafts or stale edits worth addressing while you're in
+tidy-up mode.
+
+Also suggest `ws clean` if `.commits/`, `.issues/`, or `.crs/` have
+accumulated many draft files. This is especially worth it when those
+directories have grown past a few dozen entries — old drafts obscure
+current work and bloat grep results.
+
+### Step 7: Reflect on the Process
 
 Ask the human:
 

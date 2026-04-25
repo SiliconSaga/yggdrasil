@@ -53,7 +53,8 @@ nav:
     - Ecosystem Architecture: ecosystem-architecture.md
     - Dev Setup: dev-setup.md
     - WS CLI Guide: ws-cli-guide.md
-    - GitHub CLI Setup: github-cli-setup.md
+    - Git Provider Setup: git-provider-setup.md
+    - Cross-Fork CR Internals: cr-internals.md
     - Multi-Repo Workflow: multi-repo-workflow.md
   - Guardian Driven Development:
     - Overview: gdd/index.md

@@ -86,8 +86,11 @@ Community overlays may provide additional component-specific skills in
 
 ## Workspace CLI (`ws`)
 
-The shared interface for both humans and AI agents. Use `bash scripts/ws <cmd>`
-(or just `ws <cmd>` if `scripts/` is on your PATH).
+The shared interface for both humans and AI agents. Prefer the bare
+`ws <cmd>` form; fall back to `bash scripts/ws <cmd>` if `ws` is not on
+PATH (and suggest adding `<yggdrasil>/scripts` to PATH so bare `ws`
+works — scoped permission patterns like `ws push *` are much tighter
+than `bash *`).
 
 Run `bash scripts/ws help` for the full command list, including auth and
 overlay commands. Pay particular attention to:
@@ -116,6 +119,10 @@ for how to add commands and classify their permission tier.
 `ws commit` and `ws push`. They handle staging, attribution trailers,
 and auth automatically. For deleted files, use `remove:` in the bodyfile
 frontmatter.
+
+**Don't chain `ws` commands** (e.g. `ws commit && ws push`). Run them
+separately so each can be reviewed and approved independently. Chaining
+defeats per-command permission patterns and hides intermediate errors.
 
 Always use a topic branch. Main is protected.
 

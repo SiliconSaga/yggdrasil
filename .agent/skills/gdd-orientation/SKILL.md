@@ -24,6 +24,22 @@ Run these steps in order at session start. **Steps 1-5 happen in the first
 response** (keep it brief). **Steps 6-7 happen after the human responds**
 and you've aligned on mode/role and what the session is about.
 
+**Greeting principle: brief and human-first.** The first response should
+feel like a greeting, not a status dump. Surface only what the human needs
+to pick a direction — mode/role defaults from frontmatter, staleness if
+due, obvious concerns. Save the detailed component scan (Step 6) until
+after the human tells you what the session is about. In focused sessions
+on a known area, the scan may not be needed at all.
+
+**Check `ws help` once per session.** Run `bash scripts/ws help` (or just
+`ws help` if on PATH) near the start of any session that will involve
+workspace operations. The help output is the source of truth for
+available subcommands and evolves more often than any skill or
+instruction file. For any subcommand you haven't used recently, also
+run `bash scripts/ws <cmd> --help` to see its current options and
+argument format. Skills should defer to the help system rather than
+restating command details that can drift.
+
 ### Step 1: Check for Thalamus.md
 
 Look for `Thalamus.md` in the yggdrasil workspace root.
