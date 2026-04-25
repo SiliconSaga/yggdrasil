@@ -14,6 +14,10 @@
 /realms/*
 !/realms/.gitkeep
 
+# Hoard repos — personal containers cloned by ws hoard, ignored by yggdrasil's Git.
+/hoards/*
+!/hoards/.gitkeep
+
 # Local ecosystem overrides (per-developer, never committed)
 ecosystem.local.yaml
 

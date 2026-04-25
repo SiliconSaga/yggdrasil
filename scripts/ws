@@ -25,6 +25,9 @@
 #   realm <url>       Clone a community realm
 #   realm use <name>  Set active realm
 #   realm list        Show available realms
+#   hoard init [template]      Scaffold a new hoard (default: thalami)
+#   hoard <url>                Clone an existing hoard
+#   hoard list                 Show hoards and which thalami hoard is active
 #   actions <comp>    List adapter commands for a component
 #   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
@@ -578,6 +581,9 @@ case "$COMMAND" in
         ;;
     realm)
         bash "$SCRIPT_DIR/ws-realm.sh" "$@"
+        ;;
+    hoard)
+        bash "$SCRIPT_DIR/ws-hoard.sh" "$@"
         ;;
     gitlab-auth)
         ws_gitlab_auth "$@"

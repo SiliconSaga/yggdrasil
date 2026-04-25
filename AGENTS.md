@@ -101,6 +101,9 @@ realm commands. Pay particular attention to:
 - `ws diagnose <comp>` — show remote URLs, provider detection, and token
   coverage for a component; run this when onboarding a new component or when
   push/cr fails with auth errors
+- `ws hoard init [template]` / `ws hoard <url>` / `ws hoard list` —
+  manage personal hoards (per-user containers). Canonical type is
+  `thalami` for per-machine Thalamus sync.
 
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
 for how to add commands and classify their permission tier.
@@ -111,6 +114,24 @@ for how to add commands and classify their permission tier.
 |--------|-------|
 | `setup-branch-protection.sh` | One-time admin op — requires admin-scoped `GH_TOKEN` |
 | `validate-agent-setup.sh` | Verify GH_TOKEN, auth, repo access, branch protection |
+
+---
+
+## Hoards (personal containers)
+
+Hoards are personal git repos under `hoards/`, named `<type>-<username>`.
+The canonical v1 type is `thalami` (per-machine Thalamus files for
+preference/observation sync across machines). Other personal stuff (an
+Obsidian vault, sample projects, etc.) can live in `hoards/` but isn't
+orientation-visible — those are the user's own business.
+
+Active thalami hoard discovery: auto-detects `hoards/thalami-*` (single
+match expected); set `hoards.thalami: <name>` in `ecosystem.local.yaml`
+to override. Per-machine file is `<machine>-thalamus.md` where `<machine>`
+defaults to `hostname -s`.
+
+See [Realms and Hoards Design](docs/plans/2026-04-24-realms-and-hoards-design.md)
+for the full picture.
 
 ---
 

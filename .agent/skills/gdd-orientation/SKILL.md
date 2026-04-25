@@ -40,6 +40,42 @@ run `bash scripts/ws <cmd> --help` to see its current options and
 argument format. Skills should defer to the help system rather than
 restating command details that can drift.
 
+### Step 1a: Resolve the active thalamus file
+
+Determine which Thalamus file to read by inspecting the workspace directly:
+
+1. Look in `hoards/` for a directory matching `thalami-*`. If one exists,
+   it's the active thalami hoard. (If multiple exist, look for the
+   `hoards.thalami:` selector in `ecosystem.local.yaml`.)
+2. If a thalami hoard is active:
+   - **Primary:** `hoards/thalami-<user>/<machine>-thalamus.md` where
+     `<machine>` is from `hostname -s` (or the `machine:` override in
+     `ecosystem.local.yaml`).
+   - **Scratch:** root `Thalamus.md` if it exists. Read this too on
+     orientation, but writes default to the primary.
+3. If no thalami hoard is active:
+   - Use root `Thalamus.md` as today (existing behavior).
+
+Scripts that need a deterministic answer can source `scripts/ws-hoard.sh`
+and call the `ws_resolve_thalamus_path` helper.
+
+Briefly note the resolution to the human:
+
+> "Reading hoard thalamus (`win10-desktop-thalamus.md`) — 5 observations,
+> 1 concern. No scratch file."
+
+If both exist:
+
+> "Hoard thalamus (5 obs, 1 concern) + scratch (1 item). Writes default
+> to the hoard."
+
+#### Machine name
+
+The per-machine filename uses `hostname -s` (short hostname) by default.
+If your hostname is awkward or unstable across boots, set
+`machine: <name>` in `ecosystem.local.yaml` to pin a stable name. The
+override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
+
 ### Step 1: Check for Thalamus.md
 
 Look for `Thalamus.md` in the yggdrasil workspace root.
@@ -201,6 +237,10 @@ Based on mode, role, and any active concerns, briefly orient the human:
 ## During-Session Writes
 
 The orientation skill also governs when to write to Thalamus during work:
+
+**File precedence for writes:** if a thalami hoard is active, writes go to
+the per-machine hoard file. Writes to the scratch root `Thalamus.md` happen
+only on explicit user request ("write that to scratch").
 
 | Category | When to write | Ask first? |
 |----------|--------------|------------|
