@@ -171,7 +171,10 @@ is expected to be the steady state for a long time.
 
 ### Machine name
 
-- Default: `hostname -s` (short hostname).
+- Default: short hostname via the bash builtin `$HOSTNAME` with any
+  domain suffix stripped (`${HOSTNAME%%.*}`). Portable across Linux,
+  macOS, and Windows Git Bash; `hostname -s` is avoided because Windows
+  Git Bash doesn't accept the `-s` flag.
 - Override: `machine: <name>` in `ecosystem.local.yaml` for machines with
   awkward or unstable hostnames.
 

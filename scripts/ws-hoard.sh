@@ -38,8 +38,12 @@ ws_resolve_human_account() {
     echo "$who"
 }
 
-# Resolve the machine name. Defaults to `hostname -s`; override via
+# Resolve the machine name. Defaults to the short hostname; override via
 # `machine: <name>` in ecosystem.local.yaml.
+#
+# Portability: `hostname -s` works on Linux/macOS but not on Windows Git
+# Bash, where `hostname` accepts no flags. Strip any domain suffix from
+# the bash builtin $HOSTNAME instead — works on all platforms.
 ws_resolve_machine_name() {
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
@@ -50,7 +54,10 @@ ws_resolve_machine_name() {
             return
         fi
     fi
-    hostname -s
+    # ${HOSTNAME%%.*} keeps everything before the first dot.
+    # If $HOSTNAME isn't set (rare), fall back to plain `hostname`.
+    local h="${HOSTNAME:-$(hostname)}"
+    echo "${h%%.*}"
 }
 
 # Detect the active thalami hoard.

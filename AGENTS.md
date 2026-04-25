@@ -128,7 +128,9 @@ orientation-visible — those are the user's own business.
 Active thalami hoard discovery: auto-detects `hoards/thalami-*` (single
 match expected); set `hoards.thalami: <name>` in `ecosystem.local.yaml`
 to override. Per-machine file is `<machine>-thalamus.md` where `<machine>`
-defaults to `hostname -s`.
+defaults to the short hostname (`${HOSTNAME%%.*}` — portable on Linux,
+macOS, and Windows Git Bash). Pin a stable name with `machine: <value>`
+in `ecosystem.local.yaml` if needed.
 
 See [Realms and Hoards Design](docs/plans/2026-04-24-realms-and-hoards-design.md)
 for the full picture.

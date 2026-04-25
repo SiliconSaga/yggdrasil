@@ -49,7 +49,7 @@ Determine which Thalamus file to read by inspecting the workspace directly:
    `hoards.thalami:` selector in `ecosystem.local.yaml`.)
 2. If a thalami hoard is active:
    - **Primary:** `hoards/thalami-<user>/<machine>-thalamus.md` where
-     `<machine>` is from `hostname -s` (or the `machine:` override in
+     `<machine>` is the short hostname (or the `machine:` override in
      `ecosystem.local.yaml`).
    - **Scratch:** root `Thalamus.md` if it exists. Read this too on
      orientation, but writes default to the primary.
@@ -71,8 +71,9 @@ If both exist:
 
 #### Machine name
 
-The per-machine filename uses `hostname -s` (short hostname) by default.
-If your hostname is awkward or unstable across boots, set
+The per-machine filename uses the short hostname (bash `$HOSTNAME` with
+any domain suffix stripped — portable across Linux, macOS, and Windows
+Git Bash). If your hostname is awkward or unstable across boots, set
 `machine: <name>` in `ecosystem.local.yaml` to pin a stable name. The
 override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
 
