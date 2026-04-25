@@ -31,10 +31,20 @@ fi
 DRY_RUN=false
 STATUS_ONLY=false
 
+usage() {
+    sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+}
+
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=true ;;
         --status)  STATUS_ONLY=true ;;
+        -h|--help) usage; exit 0 ;;
+        *)
+            echo "ERROR: unknown argument '$arg'." >&2
+            usage >&2
+            exit 2
+            ;;
     esac
 done
 
@@ -57,9 +67,10 @@ fi
 
 ECO="$(ws_resolve_ecosystem)"
 
-# Check if any mcp.servers are declared
-server_count="$(yq '.mcp.servers | length' "$ECO" 2>/dev/null || echo 0)"
-if [[ "$server_count" -eq 0 || "$server_count" == "null" ]]; then
+# Check if any mcp.servers are declared. // {} coerces missing/null to an
+# empty map so length always returns a non-negative integer.
+server_count="$(yq '.mcp.servers // {} | length' "$ECO" 2>/dev/null || echo 0)"
+if [[ ! "$server_count" =~ ^[0-9]+$ || "$server_count" -eq 0 ]]; then
     echo "No mcp.servers declared in the active ecosystem config."
     echo "  Add an mcp.servers section to your overlay's ecosystem.yaml to use this command."
     exit 0
@@ -83,15 +94,18 @@ if [[ "$DRY_RUN" == "true" ]]; then
     exit 0
 fi
 
-echo "$mcp_json" > "$OUTPUT_FILE"
+# Atomic write: stage to a temp file in the same directory, then mv into
+# place. Avoids leaving a truncated .mcp.json if the script is interrupted.
+tmp_file="$(mktemp "${OUTPUT_FILE}.XXXXXX")"
+echo "$mcp_json" > "$tmp_file"
+mv -f "$tmp_file" "$OUTPUT_FILE"
 
 echo "Written: $OUTPUT_FILE"
 echo ""
 echo "Servers configured for Claude Code:"
-for name in $(yq '.mcp.servers | keys | .[]' "$ECO"); do
-    url="$(yq ".mcp.servers[\"$name\"].url" "$ECO")"
-    echo "  $name  →  $url"
-done
+# Single yq call avoids shell word-splitting and quote-injection that
+# could occur if a server name ever contained spaces or quote characters.
+yq -r '.mcp.servers | to_entries | .[] | "  " + .key + "  →  " + .value.url' "$ECO"
 echo ""
 echo "Next steps:"
 echo "  1. Restart Claude Code to load .mcp.json"

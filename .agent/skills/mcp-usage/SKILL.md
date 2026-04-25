@@ -67,17 +67,22 @@ Check the merged ecosystem config for `mcp.doc`. If set, read that file for
 overlay-specific server notes, access restrictions, and service caveats:
 
 ```bash
-bash scripts/ws overlay list   # shows all overlays with a marker on the active one
+bash scripts/ws overlay list   # active overlay is prefixed with "* " and labelled "(active)"
 ```
+
+Scripts can also call the `ws_detect_overlay` shell function (sourced from
+`scripts/ws-overlay.sh`) for a deterministic single-line answer.
 
 The doc file lives at `overlays/<active-overlay>/<mcp.doc value>` relative to
 the workspace root. Read it with your Read tool.
 
-## Session Logs
+## Session Logs (Claude Code)
 
-Raw conversation JSONL logs are stored at `.claude/projects/{workspace-path}/`.
-These are platform-level logs, separate from Thalamus (curated shared thinking)
-and the AI memory system (cross-session recall). Do not confuse them.
+Claude Code stores raw conversation JSONL logs at
+`.claude/projects/{workspace-path}/`. Other MCP-capable agents (Gemini CLI,
+Copilot CLI, etc.) use their own paths — consult their docs. These platform
+logs are separate from Thalamus (curated shared thinking) and the AI memory
+system (cross-session recall). Do not confuse them.
 
 ## Opting Out
 
