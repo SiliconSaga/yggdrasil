@@ -21,9 +21,10 @@ introduced via a config-level path-template override.
 
 ## Machine name
 
-Defaults to `hostname -s` (short hostname). Override via
-`machine: <name>` in `ecosystem.local.yaml` if your hostname is awkward
-or unstable across boots.
+Defaults to the short hostname (the bash builtin `$HOSTNAME` with any
+domain suffix stripped — portable across Linux, macOS, and Windows Git
+Bash). Override via `machine: <name>` in `ecosystem.local.yaml` if your
+hostname is awkward or unstable across boots.
 
 ## Privacy posture
 
