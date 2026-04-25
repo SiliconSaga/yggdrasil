@@ -23,6 +23,10 @@ ecosystem.local.yaml
 # Claude Code local settings — per-user overrides, never committed
 .claude/settings.local.json
 
+# Claude Code MCP server config — generated per-user by ws mcp-setup, never committed
+# (content is overlay-specific; regenerate with: bash scripts/ws mcp-setup)
+/.mcp.json
+
 # IDE workspace files — generated per-user via ws-vscode.sh, not shared
 *.code-workspace
 

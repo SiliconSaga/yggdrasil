@@ -81,6 +81,7 @@ Community overlays may provide additional component-specific skills in
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
 | **Writing Yggdrasil Docs** | Conventions for documentation, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/writing-yggdrasil-docs/SKILL.md) |
+| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, overlay deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
 
 ---
 
@@ -138,16 +139,8 @@ draft, rebase), read the **Topic Branch Workflow** skill at
 
 ## Code Style
 
-**Comments and docs describe current state, not history.** Code comments,
-test names, and Javadoc should be grounded in what the code does now — not
-what it used to do or what bug it fixed. Historical context belongs in commit
-messages and CR descriptions, which are the record of change.
-
-Good: `// CoreRegistry is set in initialize() after rootContext is created`
-Bad: `// The previous call here passed null`
-
-Good: `@DisplayName("should resolve parent beans")`
-Bad: `@DisplayName("before the fix, this was broken")`
+See [`docs/code-style.md`](docs/code-style.md) for commenting and documentation
+conventions.
 
 ---
 
@@ -191,15 +184,8 @@ checked out locally (and any `forceChart` overrides).
 
 ## IDE Setup
 
-IDE workspace files are NOT tracked in Git — they vary per developer and
-per set of cloned components.
-
-- **VS Code**: Run `bash scripts/ws vscode` to generate `yggdrasil.code-workspace`
-  from your currently cloned components. Re-run after cloning more.
-- **JetBrains**: Open the `yggdrasil/` directory, then attach component
-  directories as modules via File > Project Structure.
-- **Terminal / Neovim / etc.**: Just `cd` into `yggdrasil/` or any component
-  under `components/`. The scripts work from anywhere.
+See [`docs/ide-setup.md`](docs/ide-setup.md) for VS Code, JetBrains, and
+terminal editor setup.
 
 ---
 
@@ -216,6 +202,23 @@ per set of cloned components.
 
 All agent-filed issues must start with the AI attribution blockquote from the template.
 Commit bodyfiles use YAML frontmatter to declare the message and files to stage — see the template.
+
+---
+
+## MCP
+
+Read `.agent/skills/mcp-usage/SKILL.md` when any condition is true:
+
+- **Proactive (in use)** — `.mcp.json` exists in the workspace root, and no
+  `mcp-usage: skip` preference is set in Thalamus. Load at session start.
+- **Proactive (setup offer)** — `.mcp.json` is absent, the active overlay
+  declares `mcp.servers`, and no `mcp-setup: declined` preference is set in
+  Thalamus. Load at session start to drive the one-time setup prompt.
+- **On-demand** — the user asks about MCP, MCP servers, or a specific configured
+  server. Load regardless of any skip preference.
+
+The skill covers agent behaviour when MCP servers are in use; the active overlay's
+`AGENTS.md` covers which servers are declared and their setup prompt.
 
 ---
 

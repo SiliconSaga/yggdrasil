@@ -26,6 +26,8 @@
 #   overlay use <name> Set active overlay
 #   overlay list      Show available overlays
 #   actions <comp>    List adapter commands for a component
+#   mcp-setup [--dry-run]  Generate .mcp.json from overlay mcp.servers declarations
+#   mcp-status        Show currently configured MCP servers
 #   help              Show this help message
 #
 # Auth commands (run these before ws push / ws cr):
@@ -585,6 +587,12 @@ case "$COMMAND" in
         ;;
     actions)
         bash "$SCRIPT_DIR/ws-overlay.sh" actions "$@"
+        ;;
+    mcp-setup)
+        bash "$SCRIPT_DIR/ws-mcp-setup.sh" "$@"
+        ;;
+    mcp-status)
+        bash "$SCRIPT_DIR/ws-mcp-setup.sh" --status
         ;;
     *)
         echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2
