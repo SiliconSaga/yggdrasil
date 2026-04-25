@@ -10,7 +10,7 @@ staleness_days: 14  # suggest housekeeping after this many days without audit
 # Thalamus
 
 Shared thinking space between one human and one local AI agent (at a time).
-Created from `.agent/thalamus-template.md`. This file is gitignored —
+Created from `templates/thalamus.md`. This file is gitignored —
 it is local to this workspace instance.
 
 ## Preferences

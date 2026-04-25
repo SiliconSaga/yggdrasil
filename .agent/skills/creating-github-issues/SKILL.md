@@ -65,9 +65,9 @@ Title starts with a verb: `fix:`, `feat:`, `refactor:`, `docs:`, `test:`
 
 ```bash
 # From a sibling repo:
-cp ../yggdrasil/.agent/issue-template.md ../yggdrasil/.issues/<repo>-<short-description>.md
+cp ../yggdrasil/templates/issue.md ../yggdrasil/.issues/<repo>-<short-description>.md
 # From within yggdrasil itself:
-cp .agent/issue-template.md .issues/<repo>-<short-description>.md
+cp templates/issue.md .issues/<repo>-<short-description>.md
 ```
 
 The `.issues/` directory is gitignored. Multiple drafts can be staged there

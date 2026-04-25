@@ -49,7 +49,7 @@ commit_help() {
         echo "  remove:       List of deleted files to stage for removal"
         echo "  Frontmatter is stripped from the commit body automatically."
         echo ""
-        echo "See .agent/commit-template.md for a ready-to-copy bodyfile template."
+        echo "See templates/commit.md for a ready-to-copy bodyfile template."
         echo ""
         echo "Examples:"
         echo "  ws commit yggdrasil .commits/fix-store-race.md"

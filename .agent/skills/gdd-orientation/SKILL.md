@@ -54,7 +54,7 @@ Look for `Thalamus.md` in the yggdrasil workspace root.
   If the user agrees, first verify that `.gitignore` contains an entry for
   `Thalamus.md` — if it doesn't, warn the human and add it before creating
   the file to prevent accidental commits. Then copy
-  `.agent/thalamus-template.md` to `Thalamus.md` in the workspace root.
+  `templates/thalamus.md` to `Thalamus.md` in the workspace root.
   If declined, proceed without it — do not block the session.
 
   **If writing to `Thalamus.md` fails** (e.g. tooling refuses writes to

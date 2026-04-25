@@ -11,7 +11,7 @@
 # With --upstream, auto-detects the upstream remote and targets its default branch.
 #
 # Draft files live in .crs/ (gitignored, auto-created).
-# Copy .agent/change-template.md to .crs/<descriptive-name>.md to start a draft.
+# Copy templates/change.md to .crs/<descriptive-name>.md to start a draft.
 #
 # Uses git-provider.sh for provider-agnostic CR creation.
 # Run from the repo the branch belongs to.

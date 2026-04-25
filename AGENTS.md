@@ -193,9 +193,9 @@ terminal editor setup.
 
 | Path | Purpose |
 |------|---------|
-| `.agent/issue-template.md` | Committed template for issues |
-| `.agent/change-template.md` | Committed template for CR bodies |
-| `.agent/commit-template.md` | Committed template for `ws commit` bodyfiles (frontmatter format) |
+| `templates/issue.md` | Committed template for issues |
+| `templates/change.md` | Committed template for CR bodies |
+| `templates/commit.md` | Committed template for `ws commit` bodyfiles (frontmatter format) |
 | `.issues/<repo>-<name>.md` | Gitignored draft clearinghouse for issues |
 | `.crs/<description>.md` | Gitignored draft clearinghouse for CRs |
 | `.commits/<description>.md` | Gitignored draft clearinghouse for commit bodyfiles |

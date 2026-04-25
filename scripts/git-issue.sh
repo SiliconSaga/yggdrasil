@@ -14,7 +14,7 @@
 # and validates that the attribution references it.
 #
 # Draft files live in .issues/ (gitignored, created on first use).
-# Copy .agent/issue-template.md to .issues/<descriptive-name>.md to start a draft.
+# Copy templates/issue.md to .issues/<descriptive-name>.md to start a draft.
 #
 # Uses git-provider.sh for provider-agnostic issue creation.
 

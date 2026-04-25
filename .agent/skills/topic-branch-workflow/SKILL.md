@@ -33,7 +33,7 @@ attribution trailers, auth, and remote selection automatically.
 | `ws diagnose <comp>` | Show remotes, provider, and token coverage — run before first push to a component |
 
 CR body drafts follow the same pattern as issue drafts:
-- Template: `yggdrasil/.agent/change-template.md`
+- Template: `yggdrasil/templates/change.md`
 - Clearinghouse: `<repo-root>/.crs/<descriptive-name>.md` (gitignored, auto-created)
 
 ## Full Workflow
@@ -59,7 +59,7 @@ bash scripts/ws diagnose <component>
 bash scripts/ws push <component>
 
 # 5. Draft CR body
-cp .agent/change-template.md .crs/<description>.md
+cp templates/change.md .crs/<description>.md
 # ... fill in Summary, Test plan, Related ...
 
 # 6. Open CR

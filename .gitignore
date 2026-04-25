@@ -20,6 +20,11 @@ ecosystem.local.yaml
 # Generated ArgoCD manifests from ws-resolve.sh
 /.generated/
 
+# External / fetched templates (future marketplace) — gitignored payloads,
+# only the .gitkeep is tracked.
+/templates/external/*
+!/templates/external/.gitkeep
+
 # Claude Code local settings — per-user overrides, never committed
 .claude/settings.local.json
 
