@@ -194,6 +194,18 @@ ws_hoard_init() {
         fi
     fi
 
+    # Pre-flight check: confirm we have everything needed for the per-template
+    # seeding step BEFORE creating $target. Without this, a missing template
+    # asset would abort the script half-way through with $target left behind.
+    if [[ "$template" == "thalami" && "$from_thalamus" != true ]]; then
+        if [[ ! -f "$TEMPLATES_DIR/thalamus.md" ]]; then
+            echo "ERROR: thalamus template not found at $TEMPLATES_DIR/thalamus.md." >&2
+            echo "  This file ships with the upstream yggdrasil checkout — verify" >&2
+            echo "  the workspace is intact, or restore it from upstream." >&2
+            exit 1
+        fi
+    fi
+
     # Copy template directory
     mkdir -p "$HOARDS_DIR"
     cp -R "$template_dir" "$target"
@@ -211,12 +223,19 @@ ws_hoard_init() {
         fi
     fi
 
-    # git init + initial commit
+    # git init + initial commit. Honor the user's existing git config for
+    # name/email when set (so the first commit looks like the user's other
+    # work). Fall back to the resolved human_account + a generic email
+    # otherwise — the hoard is a personal repo and the user can rebase /
+    # amend the initial commit later if they prefer their own attribution.
+    local commit_name commit_email
+    commit_name="$(git config --get user.name 2>/dev/null || echo "$who")"
+    commit_email="$(git config --get user.email 2>/dev/null || echo "hoard@local")"
     (
         cd "$target"
         git init -q
         git add .
-        git -c user.email="hoard@local" -c user.name="hoard-init" \
+        git -c user.name="$commit_name" -c user.email="$commit_email" \
             commit -q -m "Initial commit (${template} hoard for ${who})"
     )
 
@@ -241,17 +260,17 @@ ws_hoard_clone_url() {
     fi
 
     # Derive hoard directory name from the URL's repo basename
-    local basename
-    basename="${url##*/}"
-    basename="${basename%.git}"
-    if [[ ! "$basename" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-        echo "ERROR: hoard repo name must be a safe directory name (got: $basename)." >&2
+    local repo_name
+    repo_name="${url##*/}"
+    repo_name="${repo_name%.git}"
+    if [[ ! "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: hoard repo name must be a safe directory name (got: $repo_name)." >&2
         exit 1
     fi
 
-    local target="$HOARDS_DIR/$basename"
+    local target="$HOARDS_DIR/$repo_name"
     if [[ -d "$target" ]]; then
-        echo "ERROR: Hoard '$basename' already exists at $target." >&2
+        echo "ERROR: Hoard '$repo_name' already exists at $target." >&2
         exit 1
     fi
 
