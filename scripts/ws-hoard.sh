@@ -129,8 +129,15 @@ ws_hoard_help() {
 # Per-template args:
 #   thalami --from-thalamus    Move root Thalamus.md into the new hoard
 ws_hoard_init() {
-    local template="${1:-thalami}"
-    shift 2>/dev/null || true
+    # First arg is the template name UNLESS it starts with `-` — that lets
+    # `ws hoard init --from-thalamus` use the default thalami template
+    # instead of being misread as a template name. Same shape works for
+    # any future per-template flag.
+    local template="thalami"
+    if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
+        template="$1"
+        shift
+    fi
 
     local template_dir="$TEMPLATES_DIR/hoards/$template"
     if [[ ! -d "$template_dir" ]]; then
@@ -233,7 +240,9 @@ ws_hoard_init() {
     commit_email="$(git config --get user.email 2>/dev/null || echo "hoard@local")"
     (
         cd "$target"
-        git init -q
+        # Init with explicit `main` so the printed push instructions are
+        # correct regardless of the user's init.defaultBranch setting.
+        git init -q -b main
         git add .
         git -c user.name="$commit_name" -c user.email="$commit_email" \
             commit -q -m "Initial commit (${template} hoard for ${who})"
@@ -245,10 +254,11 @@ ws_hoard_init() {
     echo "Push to your own remote when ready, e.g.:"
     echo "  gh repo create ${who}/${template}-${who} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
     echo ""
-    echo "Or set up the remote manually:"
+    echo "Or set up the remote manually (using ${who} as the remote name —"
+    echo "the workspace convention is to avoid generic 'origin'):"
     echo "  cd $target"
-    echo "  git remote add origin <your-url>"
-    echo "  git push -u origin main"
+    echo "  git remote add ${who} <your-url>"
+    echo "  git push -u ${who} main"
 }
 
 ws_hoard_clone_url() {
