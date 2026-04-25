@@ -134,4 +134,4 @@ When you make it your own, tutorial components are just independent repos in `co
 
 The realm also solves multi-workspace sharing: same realm repo on different machines gives you consistent configuration, while `ecosystem.local.yaml` handles per-machine differences.
 
-**This is an initial design concept, not yet implemented.** The current practical path is still: clone Yggdrasil, clone your project into `components/`, and use the workspace as-is. The realm architecture is the next evolution — see the [GDD design docs](../gdd/index.md) for where things are headed.
+The realm architecture is implemented today; multi-realm inheritance (corporate → department → team chains) and a community marketplace for hoard templates remain forward-looking — see the [GDD design docs](../gdd/index.md) for the broader trajectory.

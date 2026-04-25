@@ -7,7 +7,7 @@ history.
 
 ## Layout
 
-```
+```text
 thalami-<username>/
   README.md
   <machine>-thalamus.md     # one per machine; e.g. win10-desktop-thalamus.md
@@ -41,7 +41,13 @@ The `ws hoard init` flow creates this hoard as a local git repo without
 a remote. To push:
 
 ```bash
-gh repo create <yourname>/thalami-<yourname> --private --source=hoards/thalami-<yourname>
+gh repo create <yourname>/thalami-<yourname> \
+  --private --source=hoards/thalami-<yourname> \
+  --remote=<yourname> --push
 ```
+
+The `--remote=<yourname>` flag honors the workspace convention of
+avoiding generic `origin` remote names. `--push` pushes the initial
+commit so the remote isn't empty.
 
 Or any equivalent on GitLab / Gitea / etc.

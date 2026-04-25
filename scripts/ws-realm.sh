@@ -329,7 +329,7 @@ ws_realm_clone_url() {
 
     local target="$REALMS_DIR/$repo_name"
     if [[ -d "$target" ]]; then
-        echo "ERROR: Realm '$basename' already exists at $target." >&2
+        echo "ERROR: Realm '$repo_name' already exists at $target." >&2
         echo "  Remove it first or use 'ws realm use' to switch." >&2
         exit 1
     fi

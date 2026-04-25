@@ -119,10 +119,11 @@ for how to add commands and classify their permission tier.
 
 ## Hoards (personal containers)
 
-Hoards are personal git repos under `hoards/`, named `<type>-<username>`.
-The canonical v1 type is `thalami` (per-machine Thalamus files for
-preference/observation sync across machines). Other personal stuff (an
-Obsidian vault, sample projects, etc.) can live in `hoards/` but isn't
+Hoards are personal git repos under `hoards/` (gitignored, like
+`components/` and `realms/`), named `<type>-<username>`. The canonical
+v1 type is `thalami` (per-machine Thalamus files for preference /
+observation sync across machines). Other personal stuff (an Obsidian
+vault, sample projects, etc.) can live in `hoards/` but isn't
 orientation-visible — those are the user's own business.
 
 Active thalami hoard discovery: auto-detects `hoards/thalami-*` (single

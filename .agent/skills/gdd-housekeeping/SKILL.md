@@ -128,7 +128,10 @@ duplicates that should be merged.
    - Keep machine-specific: leave it alone.
    - Dedup: pick the best phrasing, drop the others.
 4. Update `last_audit` in each touched machine file.
-5. Note in the audit log entry which machines were reviewed.
+5. Append the same audit-log entry to every reviewed
+   `<machine>-thalamus.md` (not just the file the session started from).
+   Listing the machines in that entry makes it clear at a glance which
+   files were in scope this round.
 
 ### Compare-only — no shared file in v1
 

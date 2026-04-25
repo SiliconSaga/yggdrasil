@@ -11,7 +11,8 @@
 #     ↓ deep merge
 #   ecosystem.local.yaml (per-developer overrides, gitignored)
 #
-# See docs/plans/2026-03-26-overlay-architecture-design.md for details.
+# See docs/plans/2026-04-24-realms-and-hoards-design.md for details
+# (supersedes the original 2026-03-26 overlay-architecture-design).
 
 defaults:
   # Fallback URL for the GDD documentation home.

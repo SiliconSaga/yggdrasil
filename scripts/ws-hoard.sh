@@ -224,7 +224,7 @@ ws_hoard_init() {
     echo "Hoard initialized: $target"
     echo ""
     echo "Push to your own remote when ready, e.g.:"
-    echo "  gh repo create ${who}/${template}-${who} --private --source=${target#$ROOT_DIR/}"
+    echo "  gh repo create ${who}/${template}-${who} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
     echo ""
     echo "Or set up the remote manually:"
     echo "  cd $target"

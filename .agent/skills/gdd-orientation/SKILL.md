@@ -40,7 +40,7 @@ run `bash scripts/ws <cmd> --help` to see its current options and
 argument format. Skills should defer to the help system rather than
 restating command details that can drift.
 
-### Step 1a: Resolve the active thalamus file
+### Step 0: Resolve the active thalamus file
 
 Determine which Thalamus file to read by inspecting the workspace directly:
 
@@ -79,10 +79,16 @@ override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
 
 ### Step 1: Check for Thalamus.md
 
+**Skip this step if Step 0 resolved an active thalami hoard** — the hoard
+provides the primary thalamus and a root `Thalamus.md` is optional
+(scratch). The "offer to create" prompt below should not surface when a
+hoard is active; only when no hoard exists and the workspace has no root
+file.
+
 Look for `Thalamus.md` in the yggdrasil workspace root.
 
 - **If found:** proceed to Step 2
-- **If missing:** offer to create it from the template:
+- **If missing (and no hoard is active):** offer to create it from the template:
 
   > "No Thalamus.md found. Want me to create one from the template?
   > It's a gitignored shared thinking space for capturing observations,

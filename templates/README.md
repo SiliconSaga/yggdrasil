@@ -1,6 +1,6 @@
 # Templates
 
-Workspace scaffolding used by `ws` commands and (future) `ws hoard init`.
+Workspace scaffolding used by `ws` commands and `ws hoard init`.
 
 ## Top-level templates
 
