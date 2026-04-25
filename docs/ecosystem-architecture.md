@@ -209,8 +209,9 @@ ws realm list              # Show available realms
 ws realm use <name>        # Switch active realm
 ```
 
-See [overlay architecture design](plans/2026-03-26-overlay-architecture-design.md)
-for the full specification.
+See the [original overlay architecture design (now realms)](plans/2026-03-26-overlay-architecture-design.md)
+and the [realms and hoards design](plans/2026-04-24-realms-and-hoards-design.md)
+for the full specifications.
 
 ### Dual-Mode Source Resolution
 
