@@ -311,16 +311,23 @@ ws_realm_clone_url() {
     fi
 
     # Derive realm directory name from the URL's repo basename
-    local basename
-    basename="${url##*/}"
-    basename="${basename%.git}"
-    if [[ ! "$basename" =~ ^realm-[A-Za-z0-9._-]+$ ]]; then
-        echo "ERROR: realm repo name must match 'realm-<community>' (got: $basename)." >&2
+    local repo_name
+    repo_name="${url##*/}"
+    repo_name="${repo_name%.git}"
+    if [[ ! "$repo_name" =~ ^realm-[A-Za-z0-9._-]+$ ]]; then
+        echo "ERROR: realm repo name must match 'realm-<community>' (got: $repo_name)." >&2
         echo "  Rename the repo on the host or fork it under a compliant name." >&2
         exit 1
     fi
+    # Reserve realm-template for the upstream tutorial slot (cloned via 'ws realm init').
+    # Block community realms from shadowing it via URL.
+    if [[ "$repo_name" == "realm-template" ]]; then
+        echo "ERROR: 'realm-template' is reserved for the upstream tutorial realm." >&2
+        echo "  Use 'ws realm init' to clone the template, or rename the URL's repo." >&2
+        exit 1
+    fi
 
-    local target="$REALMS_DIR/$basename"
+    local target="$REALMS_DIR/$repo_name"
     if [[ -d "$target" ]]; then
         echo "ERROR: Realm '$basename' already exists at $target." >&2
         echo "  Remove it first or use 'ws realm use' to switch." >&2

@@ -151,7 +151,7 @@ if [[ -n "$UPSTREAM" ]]; then
       UPSTREAM_REMOTES=("$_DEFAULT_UPSTREAM")
     else
       echo "ERROR: Multiple upstream remotes found: ${UPSTREAM_REMOTES[*]}" >&2
-      echo "  Set defaults.upstreamRemote in your overlay or ecosystem.local.yaml." >&2
+      echo "  Set defaults.upstreamRemote in your realm or ecosystem.local.yaml." >&2
       [[ -n "$_DEFAULT_UPSTREAM" ]] && echo "  (configured value '$_DEFAULT_UPSTREAM' not found in remotes)" >&2
       exit 1
     fi
