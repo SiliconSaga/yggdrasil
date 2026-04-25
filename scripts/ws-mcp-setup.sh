@@ -55,10 +55,18 @@ if [[ "$STATUS_ONLY" == "true" ]]; then
         exit 0
     fi
     echo "Configured MCP servers (.mcp.json):"
+    # Default mcpServers to an empty object so a hand-edited file with a
+    # missing or null mcpServers key prints a friendly message instead of
+    # failing under set -e.
     if command -v jq &>/dev/null; then
-        jq -r '.mcpServers | to_entries[] | "  \(.key)  →  \(.value.url)"' "$OUTPUT_FILE"
+        server_lines="$(jq -r '(.mcpServers // {}) | to_entries[] | "  \(.key)  →  \(.value.url)"' "$OUTPUT_FILE")"
     else
-        yq -p=json -r '.mcpServers | to_entries | .[] | "  " + .key + "  →  " + .value.url' "$OUTPUT_FILE"
+        server_lines="$(yq -p=json -r '.mcpServers // {} | to_entries | .[] | "  " + .key + "  →  " + .value.url' "$OUTPUT_FILE")"
+    fi
+    if [[ -z "$server_lines" ]]; then
+        echo "  (none configured)"
+    else
+        echo "$server_lines"
     fi
     echo ""
     echo "Auth: run /mcp inside Claude Code to authenticate each server via browser OAuth."
@@ -74,6 +82,21 @@ if [[ ! "$server_count" =~ ^[0-9]+$ || "$server_count" -eq 0 ]]; then
     echo "No mcp.servers declared in the active ecosystem config."
     echo "  Add an mcp.servers section to your overlay's ecosystem.yaml to use this command."
     exit 0
+fi
+
+# Validate each server has the required url and transport fields before
+# generating .mcp.json. Catches misconfigurations up front instead of
+# letting them produce a .mcp.json with null values that Claude Code rejects.
+missing_fields="$(yq -r '
+  .mcp.servers
+  | to_entries
+  | map(select(.value.url == null or .value.transport == null) | .key)
+  | join(", ")
+' "$ECO")"
+if [[ -n "$missing_fields" && "$missing_fields" != "null" ]]; then
+    echo "ERROR: mcp.servers entries missing required fields (url and/or transport): $missing_fields" >&2
+    echo "  Each server must declare both 'url' and 'transport' (e.g. transport: http)." >&2
+    exit 1
 fi
 
 # Build .mcp.json using yq transformation
