@@ -6,7 +6,7 @@
 #   ws-commit.sh <component> <message> [bodyfile]
 #
 # Two modes: bodyfile (preferred) or inline message. See `ws commit --help`
-# for full documentation. Uses shared functions from ws-overlay.sh.
+# for full documentation. Uses shared functions from ws-realm.sh.
 
 set -euo pipefail
 
@@ -16,8 +16,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Auto-source .env so CLAUDE_MODEL and other env are available
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 commit_help() {
     local stream="${1:-2}"

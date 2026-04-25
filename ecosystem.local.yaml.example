@@ -1,16 +1,16 @@
 # ecosystem.local.yaml — Per-developer overrides (gitignored)
 #
 # Copy this file to ecosystem.local.yaml and fill in your details.
-# This file is deep-merged on top of the overlay and upstream configs.
+# This file is deep-merged on top of the realm and upstream configs.
 #
 # Setup:
 #   cp ecosystem.local.yaml.example ecosystem.local.yaml
 #   # Edit the identity section below
 
-# Template overlay URL — used by `ws overlay init` to clone tutorial content.
-# Your community overlay may override this.
+# Template realm URL — used by `ws realm init` to clone tutorial content.
+# Your community realm may override this.
 defaults:
-  templateOverlay: https://github.com/SiliconSaga/overlay-yggdrasil-template.git
+  templateRealm: https://github.com/SiliconSaga/realm-template.git
 
 # Your identity — used for commit attribution, PR/issue templates, and push.
 # human_account is personal and should NOT be in shared overlay configs.
@@ -19,7 +19,7 @@ defaults:
 identity:
   human_account: your-github-username
   forkOrg: your-org-name               # matches your git remote name
-  # co_authored_by: "Claude Opus 4.6"   # override overlay default
+  # co_authored_by: "Claude Opus 4.6"   # override realm default
 
 # Git provider detection — usually auto-detected from remote URLs.
 # Uncomment under the existing defaults: block above for self-hosted instances.
@@ -28,11 +28,11 @@ identity:
 #     git.mycompany.com: gitlab
 #
 # Default upstream remote for `ws cr --upstream` when a repo has multiple remotes.
-# Usually set in your overlay; override here to temporarily target a different remote.
+# Usually set in your realm; override here to temporarily target a different remote.
 #   upstreamRemote: myorg
 
-# Overlay selector — uncomment to override auto-detection.
-# overlay: overlay-yggdrasil-live
+# Realm selector — uncomment to override auto-detection.
+# realm: realm-siliconsaga
 
 # Component overrides — uncomment and modify as needed.
 # components:

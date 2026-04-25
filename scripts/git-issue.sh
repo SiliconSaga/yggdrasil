@@ -37,8 +37,8 @@ mkdir -p "$REPO_ROOT/.issues"
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
 
-# Source shared overlay/merge functions for ecosystem config
-source "$SCRIPT_DIR/ws-overlay.sh"
+# Source shared realm/merge functions for ecosystem config
+source "$SCRIPT_DIR/ws-realm.sh"
 
 # Validate arguments (REMOTE may be empty for auto-detection)
 if [[ -z "$COMPONENT_DIR" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then

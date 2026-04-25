@@ -385,8 +385,8 @@ source "$SCRIPT_DIR/git-provider.sh"
 
 # Load merged ecosystem config for provider detection (self-hosted mappings)
 _ECO=""
-if [[ -f "$SCRIPT_DIR/ws-overlay.sh" ]]; then
-    source "$SCRIPT_DIR/ws-overlay.sh"
+if [[ -f "$SCRIPT_DIR/ws-realm.sh" ]]; then
+    source "$SCRIPT_DIR/ws-realm.sh"
     _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 fi
 

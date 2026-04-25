@@ -47,9 +47,9 @@ aligned on what the session is about. Don't front-load everything at once.
 |------|------|------|------|
 | `yggdrasil` | — | Docs, skills, scripts, workspace root | `.` (this repo) |
 
-Community overlays declare their own component catalogs. If an overlay is
+Community realms declare their own component catalogs. If a realm is
 active, check its `AGENTS.md` for the full Repo Roles table
-(e.g. `overlays/overlay-yggdrasil-live/AGENTS.md`).
+(e.g. `realms/realm-siliconsaga/AGENTS.md`).
 
 Git remotes: Avoid using a generic `origin` — use explicit remote names
 matching your Git org (e.g. your GitHub org or GitLab group name)
@@ -59,8 +59,8 @@ matching your Git org (e.g. your GitHub org or GitLab group name)
 ## Skills
 
 Workspace-level skills live in `.agent/skills/<name>/SKILL.md`.
-Community overlays may provide additional component-specific skills in
-`overlays/<name>/.agent/skills/` — these are discovered during GDD orientation.
+Community realms may provide additional component-specific skills in
+`realms/<name>/.agent/skills/` — these are discovered during GDD orientation.
 
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
@@ -81,7 +81,7 @@ Community overlays may provide additional component-specific skills in
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
 | **Writing Yggdrasil Docs** | Conventions for documentation, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/writing-yggdrasil-docs/SKILL.md) |
-| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, overlay deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
+| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
 
 ---
 
@@ -94,7 +94,7 @@ works — scoped permission patterns like `ws push *` are much tighter
 than `bash *`).
 
 Run `bash scripts/ws help` for the full command list, including auth and
-overlay commands. Pay particular attention to:
+realm commands. Pay particular attention to:
 
 - `ws gitlab-auth [--status]` — register credentials from `.env`; `--status`
   shows which token env vars are set or missing without making changes
@@ -166,7 +166,7 @@ Full setup guide: [`docs/git-provider-setup.md`](docs/git-provider-setup.md)
 Configuration is assembled from three layers, merged in order:
 
 1. `ecosystem.yaml` — upstream Yggdrasil defaults (generic, no components)
-2. `overlays/<active>/ecosystem.yaml` — community overlay (components, identity)
+2. `realms/<active>/ecosystem.yaml` — community realm (components, identity)
 3. `ecosystem.local.yaml` — per-developer overrides (gitignored)
 
 All `ws` commands read the merged result via `ws_resolve_ecosystem()`.
@@ -176,7 +176,7 @@ All `ws` commands read the merged result via `ws_resolve_ecosystem()`.
 - `forceChart: true` on a component to use its chart even with local source
 - Override `values:` for local environment specifics (hostnames, feature flags)
 - `disabled: false` on echo-test to validate chart-mode resolution
-- `overlay: <name>` to select a specific overlay (auto-detection is default)
+- `realm: <name>` to select a specific realm (auto-detection is default)
 
 The `ws-resolve.sh` script uses the merged config to generate ArgoCD Application
 manifests, choosing Git source or OCI chart per component based on what's
@@ -211,13 +211,13 @@ Read `.agent/skills/mcp-usage/SKILL.md` when any condition is true:
 
 - **Proactive (in use)** — `.mcp.json` exists in the workspace root, and no
   `mcp-usage: skip` preference is set in Thalamus. Load at session start.
-- **Proactive (setup offer)** — `.mcp.json` is absent, the active overlay
+- **Proactive (setup offer)** — `.mcp.json` is absent, the active realm
   declares `mcp.servers`, and no `mcp-setup: declined` preference is set in
   Thalamus. Load at session start to drive the one-time setup prompt.
 - **On-demand** — the user asks about MCP, MCP servers, or a specific configured
   server. Load regardless of any skip preference.
 
-The skill covers agent behaviour when MCP servers are in use; the active overlay's
+The skill covers agent behaviour when MCP servers are in use; the active realm's
 `AGENTS.md` covers which servers are declared and their setup prompt.
 
 ---

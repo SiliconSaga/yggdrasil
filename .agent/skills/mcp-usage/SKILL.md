@@ -2,16 +2,16 @@
 name: mcp-usage
 description: >
   Agent behaviour around MCP servers — setup offer, auth, tool calling conventions,
-  and how to load overlay-specific server details. Loaded at session start when
-  .mcp.json exists or the active overlay declares mcp.servers (setup offer case),
+  and how to load realm-specific server details. Loaded at session start when
+  .mcp.json exists or the active realm declares mcp.servers (setup offer case),
   and on-demand when the user asks about MCP.
 ---
 
 # MCP Usage
 
 Guidelines for AI agent behaviour around MCP servers.
-This skill covers the generic patterns; overlay-specific details (server list, caveats)
-are loaded from the file referenced by `mcp.doc` in the active overlay's ecosystem config.
+This skill covers the generic patterns; realm-specific details (server list, caveats)
+are loaded from the file referenced by `mcp.doc` in the active realm's ecosystem config.
 
 ## Setup (when .mcp.json is absent)
 
@@ -21,7 +21,7 @@ If `.mcp.json` does not exist in the workspace root:
 2. Otherwise, check the merged ecosystem config for declared `mcp.servers`.
    If any are declared, offer once:
 
-   > "This overlay declares MCP servers. Run `bash scripts/ws mcp-setup` to configure
+   > "This realm declares MCP servers. Run `bash scripts/ws mcp-setup` to configure
    > them for Claude Code — you'll then authenticate each via `/mcp` inside Claude Code.
    > Want me to run it now?"
 
@@ -59,21 +59,21 @@ Follow the server's declared workflow hints (usually in the MCP system-reminder)
 
 - `bash scripts/ws mcp-status` — lists servers in the current `.mcp.json`
 - `bash scripts/ws mcp-setup --dry-run` — shows what would be generated from the
-  active overlay's `mcp.servers` declarations without writing anything
+  active realm's `mcp.servers` declarations without writing anything
 
-## Overlay Details
+## Realm Details
 
 Check the merged ecosystem config for `mcp.doc`. If set, read that file for
-overlay-specific server notes, access restrictions, and service caveats:
+realm-specific server notes, access restrictions, and service caveats:
 
 ```bash
-bash scripts/ws overlay list   # active overlay is prefixed with "* " and labelled "(active)"
+bash scripts/ws realm list   # active realm is prefixed with "* " and labelled "(active)"
 ```
 
-Scripts can also call the `ws_detect_overlay` shell function (sourced from
-`scripts/ws-overlay.sh`) for a deterministic single-line answer.
+Scripts can also call the `ws_detect_realm` shell function (sourced from
+`scripts/ws-realm.sh`) for a deterministic single-line answer.
 
-The doc file lives at `overlays/<active-overlay>/<mcp.doc value>` relative to
+The doc file lives at `realms/<active-realm>/<mcp.doc value>` relative to
 the workspace root. Read it with your Read tool.
 
 ## Session Logs (Claude Code)

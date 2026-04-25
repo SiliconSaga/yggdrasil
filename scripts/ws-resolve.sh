@@ -25,15 +25,15 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 OUTPUT_DIR="$ROOT_DIR/.generated/applications"
 DRY_RUN="${1:-}"
 
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1
 fi
 
-# Three-layer merge: upstream + overlay + local
+# Three-layer merge: upstream + realm + local
 EFFECTIVE_FILE="$(ws_resolve_ecosystem)"
 
 if [[ "$DRY_RUN" != "--dry-run" ]]; then

@@ -10,9 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPONENTS_DIR="$ROOT_DIR/components"
 
-# Source shared overlay/merge functions
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# Source shared realm/merge functions
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
@@ -21,10 +21,10 @@ fi
 
 ECO="$(ws_resolve_ecosystem)"
 
-# Show active overlay
-active_overlay="$(ws_detect_overlay)"
-if [[ -n "$active_overlay" ]]; then
-    echo "Overlay: $active_overlay"
+# Show active realm
+active_realm="$(ws_detect_realm)"
+if [[ -n "$active_realm" ]]; then
+    echo "Realm: $active_realm"
     echo ""
 fi
 
@@ -32,7 +32,7 @@ fi
 comp_count=$(yq '.components | length' "$ECO" 2>/dev/null || echo 0)
 if [[ "$comp_count" -eq 0 ]]; then
     echo "No components declared."
-    echo "  Run 'ws overlay init' to get started, or 'ws overlay <url>' for your community."
+    echo "  Run 'ws realm init' to get started, or 'ws realm <url>' for your community."
     exit 0
 fi
 

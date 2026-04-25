@@ -113,25 +113,25 @@ The idea is a three-layer configuration:
 
 1. **Yggdrasil upstream** — fork or clone the generic workspace. Ships with tutorial components and sample configuration. Works out of the box for exploring GDD.
 
-2. **Your overlay** — a small separate repo (named with a `ygg-overlay` convention, e.g. `siliconsaga-ygg-overlay`) containing your community's configuration: which components to work on, agent identity and attribution, domain settings. When this repo is present in `components/`, Yggdrasil detects it automatically and merges its config — no config file edits needed. Convention over configuration.
+2. **Your realm** — a small separate repo (named with a `realm-<community>` convention, e.g. `realm-siliconsaga`) containing your community's configuration: which components to work on, agent identity and attribution, domain settings. When this repo is present in `realms/`, Yggdrasil detects it automatically and merges its config — no config file edits needed. Convention over configuration.
 
-3. **Local overrides** — `ecosystem.local.yaml` (gitignored) for per-developer settings on top of the overlay. Same as today.
+3. **Local overrides** — `ecosystem.local.yaml` (gitignored) for per-developer settings on top of the realm. Same as today.
 
 The bootstrap for a new community member:
 
 ```bash
 git clone https://github.com/SiliconSaga/yggdrasil.git   # or your fork
 cd yggdrasil
-bash scripts/ws clone https://github.com/YourOrg/your-ygg-overlay.git
-bash scripts/ws clone --all    # pulls components declared in the overlay
+bash scripts/ws realm https://github.com/YourOrg/realm-yourorg.git
+bash scripts/ws clone --all    # pulls components declared in the realm
 ```
 
-One person sets up the overlay repo for the community. Everyone else runs two commands. The overlay declares which components to clone, so `ws clone --all` pulls exactly what the community needs.
+One person sets up the realm repo for the community. Everyone else runs two commands. The realm declares which components to clone, so `ws clone --all` pulls exactly what the community needs.
 
-`ws clone` would accept arbitrary git URLs for flexibility — any repo gets cloned into `components/`. But only a repo matching the `ygg-overlay` naming convention gets picked up as configuration automatically.
+`ws clone` accepts arbitrary git URLs for flexibility — any repo gets cloned into `components/`. Realm repos get cloned into `realms/` via `ws realm <url>` and are recognized as configuration when their name matches the `realm-<community>` convention.
 
-When you make it your own, tutorial components are just independent repos in `components/` — don't clone them, or remove them. Nothing in Yggdrasil changes. Your overlay declares your components, your agent identity, your domains.
+When you make it your own, tutorial components are just independent repos in `components/` — don't clone them, or remove them. Nothing in Yggdrasil changes. Your realm declares your components, your agent identity, your domains.
 
-The overlay also solves multi-workspace sharing: same overlay repo on different machines gives you consistent configuration, while `ecosystem.local.yaml` handles per-machine differences.
+The realm also solves multi-workspace sharing: same realm repo on different machines gives you consistent configuration, while `ecosystem.local.yaml` handles per-machine differences.
 
-**This is an initial design concept, not yet implemented.** The current practical path is still: clone Yggdrasil, clone your project into `components/`, and use the workspace as-is. The overlay architecture is the next evolution — see the [GDD design docs](../gdd/index.md) for where things are headed.
+**This is an initial design concept, not yet implemented.** The current practical path is still: clone Yggdrasil, clone your project into `components/`, and use the workspace as-is. The realm architecture is the next evolution — see the [GDD design docs](../gdd/index.md) for where things are headed.

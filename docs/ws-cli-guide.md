@@ -74,7 +74,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `overlay list`, `overlay init`, `actions` |
+| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `actions` |
 | **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*` |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
