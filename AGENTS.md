@@ -81,6 +81,7 @@ Community overlays may provide additional component-specific skills in
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
 | **Writing Yggdrasil Docs** | Conventions for documentation, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/writing-yggdrasil-docs/SKILL.md) |
+| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, overlay deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
 
 ---
 
@@ -201,6 +202,20 @@ terminal editor setup.
 
 All agent-filed issues must start with the AI attribution blockquote from the template.
 Commit bodyfiles use YAML frontmatter to declare the message and files to stage — see the template.
+
+---
+
+## MCP
+
+Read `.agent/skills/mcp-usage/SKILL.md` when either condition is true:
+
+- **Proactive** — `.mcp.json` exists in the workspace root, and no `mcp-usage: skip`
+  preference is set in Thalamus. Load at session start.
+- **On-demand** — the user asks about MCP, MCP servers, or a specific configured
+  server. Load regardless of any skip preference.
+
+The skill covers agent behaviour when MCP servers are in use; the active overlay's
+`AGENTS.md` covers which servers are declared and their setup prompt.
 
 ---
 

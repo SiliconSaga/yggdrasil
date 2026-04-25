@@ -50,7 +50,6 @@
       "Bash(bash scripts/ws log)",
       "Bash(bash scripts/ws log *)",
       "Bash(bash scripts/ws log * *)",
-      "Bash(bash scripts/ws clean)",
       "Bash(ws help)",
       "Bash(ws help *)",
       "Bash(ws list)",
@@ -83,7 +82,14 @@
       "Bash(ws log)",
       "Bash(ws log *)",
       "Bash(ws log * *)",
-      "Bash(ws clean)"
+      "Bash(ws clean)",
+      "Bash(bash scripts/ws clean)",
+      "Bash(bash scripts/ws mcp-setup)",
+      "Bash(bash scripts/ws mcp-setup --dry-run)",
+      "Bash(bash scripts/ws mcp-status)",
+      "Bash(ws mcp-setup)",
+      "Bash(ws mcp-setup --dry-run)",
+      "Bash(ws mcp-status)"
     ]
   }
 }
