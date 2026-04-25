@@ -25,7 +25,7 @@ ecosystem.local.yaml
 
 # Claude Code MCP server config — generated per-user by ws mcp-setup, never committed
 # (content is overlay-specific; regenerate with: bash scripts/ws mcp-setup)
-.mcp.json
+/.mcp.json
 
 # IDE workspace files — generated per-user via ws-vscode.sh, not shared
 *.code-workspace

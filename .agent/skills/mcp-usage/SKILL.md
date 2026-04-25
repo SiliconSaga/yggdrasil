@@ -25,7 +25,8 @@ If `.mcp.json` does not exist in the workspace root:
    > Want me to run it now?"
 
 3. If the user declines, write to Thalamus Preferences immediately:
-   ```
+
+   ```yaml
    - mcp-setup: declined YYYY-MM-DD — do not offer again this session or future sessions
    ```
 
@@ -65,11 +66,11 @@ Check the merged ecosystem config for `mcp.doc`. If set, read that file for
 overlay-specific server notes, access restrictions, and service caveats:
 
 ```bash
-bash scripts/ws overlay   # outputs the active overlay name, e.g. overlay-nvidia-cis
+bash scripts/ws overlay list   # shows all overlays with a marker on the active one
 ```
 
-The doc file lives at `overlays/<overlay-name>/<mcp.doc value>` relative to the
-workspace root. Read it with your Read tool.
+The doc file lives at `overlays/<active-overlay>/<mcp.doc value>` relative to
+the workspace root. Read it with your Read tool.
 
 ## Session Logs
 
