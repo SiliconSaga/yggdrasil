@@ -14,7 +14,7 @@
 # and validates that the attribution references it.
 #
 # Draft files live in .issues/ (gitignored, created on first use).
-# Copy .agent/issue-template.md to .issues/<descriptive-name>.md to start a draft.
+# Copy templates/issue.md to .issues/<descriptive-name>.md to start a draft.
 #
 # Uses git-provider.sh for provider-agnostic issue creation.
 
@@ -37,8 +37,8 @@ mkdir -p "$REPO_ROOT/.issues"
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
 
-# Source shared overlay/merge functions for ecosystem config
-source "$SCRIPT_DIR/ws-overlay.sh"
+# Source shared realm/merge functions for ecosystem config
+source "$SCRIPT_DIR/ws-realm.sh"
 
 # Validate arguments (REMOTE may be empty for auto-detection)
 if [[ -z "$COMPONENT_DIR" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then

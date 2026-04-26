@@ -157,7 +157,7 @@ Two separate numbering schemes exist:
 ## Workspace Structure
 
 Component repos live inside yggdrasil under `components/`. Community-specific
-configuration lives in overlay repos under `overlays/`.
+configuration lives in realm repos under `realms/`.
 
 ```text
 yggdrasil/
@@ -168,11 +168,11 @@ yggdrasil/
     nidavellir/
     mimir/
     ...
-  overlays/
-    overlay-yggdrasil-live/  # Community overlay (gitignored, independent repo)
+  realms/
+    realm-siliconsaga/       # Community realm (gitignored, independent repo)
       ecosystem.yaml         # Components, identity, defaults
       adapters/              # Per-component build/test commands
-    overlay-yggdrasil-template/  # Tutorial overlay
+    realm-template/          # Tutorial realm
   .generated/
     applications/            # ArgoCD manifests from ws-resolve.sh (gitignored)
 ```
@@ -184,28 +184,34 @@ Configuration is assembled from three layers, merged in order:
 ```text
 ecosystem.yaml (upstream Yggdrasil — generic defaults)
     ↓ deep merge
-overlay/ecosystem.yaml (community config — components, identity)
+realm/ecosystem.yaml (community config — components, identity)
     ↓ deep merge
 ecosystem.local.yaml (per-developer overrides)
 ```
 
-All `ws` commands read the merged result. Overlays own the component list;
+All `ws` commands read the merged result. Realms own the component list;
 upstream provides methodology and tooling.
 
-### Overlays
+> **Inheritance future:** the merge generalizes to N layers if multi-realm
+> chains land later (e.g. corp → dept → team). No new identifier needed —
+> the same upstream → realm(s) → local pattern with child-wins semantics.
+> See [Realms and Hoards Design](plans/2026-04-24-realms-and-hoards-design.md#future-directions).
 
-An overlay is a small git repo containing community-specific configuration.
-Use `ws overlay` to manage them:
+### Realms
+
+A realm is a small git repo containing community-specific configuration.
+Use `ws realm` to manage them:
 
 ```bash
-ws overlay init              # Clone the template overlay (tutorials)
-ws overlay <git-url>         # Clone a community overlay
-ws overlay list              # Show available overlays
-ws overlay use <name>        # Switch active overlay
+ws realm init              # Clone the template realm (tutorials)
+ws realm <git-url>         # Clone a community realm
+ws realm list              # Show available realms
+ws realm use <name>        # Switch active realm
 ```
 
-See [overlay architecture design](plans/2026-03-26-overlay-architecture-design.md)
-for the full specification.
+See the [original overlay architecture design (now realms)](plans/2026-03-26-overlay-architecture-design.md)
+and the [realms and hoards design](plans/2026-04-24-realms-and-hoards-design.md)
+for the full specifications.
 
 ### Dual-Mode Source Resolution
 

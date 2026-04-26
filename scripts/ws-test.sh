@@ -17,8 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Auto-source .env so tokens/config are available to test runners
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 # Find the Gradle subproject test task for a given test class name.
 # Searches for matching Java/Kotlin/Groovy/Scala test sources and derives the
@@ -108,16 +108,16 @@ ws_validate_component "$comp"
 cd "$COMPONENT_DIR"
 
 # --- Detect test runner ---
-# Precedence matches ws-overlay.sh ws_actions:
+# Precedence matches ws-realm.sh ws_actions:
 #   adapter command > Gradle > Makefile > Go > Python
 
 runner=""
 adapter_cmd=""
 
-# 1. Check overlay adapter for a test command
-active_overlay="$(ws_detect_overlay)" || true
-if [[ -n "$active_overlay" ]]; then
-    adapter_file="$OVERLAYS_DIR/$active_overlay/adapters/$comp.yaml"
+# 1. Check realm adapter for a test command
+active_realm="$(ws_detect_realm)" || true
+if [[ -n "$active_realm" ]]; then
+    adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     if [[ -f "$adapter_file" ]]; then
         adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null)
         [[ "$adapter_cmd" == "null" ]] && adapter_cmd=""

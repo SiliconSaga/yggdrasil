@@ -1,7 +1,7 @@
 # CR Internals — Cross-Fork Change Requests
 
 This document covers the internal mechanics of cross-fork CR creation in yggdrasil.
-It is aimed at overlay maintainers and contributors debugging token or MR creation
+It is aimed at realm maintainers and contributors debugging token or MR creation
 issues — not regular GDD users.
 
 ## Overview: The Two-Token Model

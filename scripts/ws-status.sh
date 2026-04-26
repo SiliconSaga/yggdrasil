@@ -11,8 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPONENTS_DIR="$ROOT_DIR/components"
 
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 VERBOSE="${1:-}"
 DEFAULT_LIMIT=10

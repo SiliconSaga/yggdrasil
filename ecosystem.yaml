@@ -2,31 +2,32 @@
 #
 # This file provides generic defaults for Yggdrasil workspaces.
 # Community-specific configuration (components, identity, build adapters)
-# lives in an overlay repo under overlays/.
+# lives in a realm repo under realms/.
 #
 # Three-layer config merge:
 #   ecosystem.yaml (this file — upstream defaults)
 #     ↓ deep merge
-#   overlay/ecosystem.yaml (community config)
+#   realm/ecosystem.yaml (community config)
 #     ↓ deep merge
 #   ecosystem.local.yaml (per-developer overrides, gitignored)
 #
-# See docs/plans/2026-03-26-overlay-architecture-design.md for details.
+# See docs/plans/2026-04-24-realms-and-hoards-design.md for details
+# (supersedes the original 2026-03-26 overlay-architecture-design).
 
 defaults:
   # Fallback URL for the GDD documentation home.
-  # Override in your overlay or ecosystem.local.yaml to point at an internal instance.
+  # Override in your realm or ecosystem.local.yaml to point at an internal instance.
   gddHome: https://siliconsaga.github.io/yggdrasil/gdd/
 
   # Default upstream remote name for `ws cr --upstream` when a repo has multiple
-  # non-fork remotes. Set in your overlay (e.g. "myorg", "siliconsaga") and override
+  # non-fork remotes. Set in your realm (e.g. "myorg", "siliconsaga") and override
   # in ecosystem.local.yaml to temporarily redirect to a different remote.
   # upstreamRemote: ""
 
-# Components are declared by overlays, not upstream.
-# If no overlay is active, ws list/clone will show guidance.
+# Components are declared by realms, not upstream.
+# If no realm is active, ws list/clone will show guidance.
 #
-# Component fields (declared in overlay ecosystem.yaml):
+# Component fields (declared in realm ecosystem.yaml):
 #   tier:          Deployment tier (1, 2, 3) or "supporting"
 #   chartVersion:  Helm chart version to use when no local source is present
 #   chartName:     Override chart name if it differs from the component key

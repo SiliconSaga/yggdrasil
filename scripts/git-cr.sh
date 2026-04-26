@@ -11,7 +11,7 @@
 # With --upstream, auto-detects the upstream remote and targets its default branch.
 #
 # Draft files live in .crs/ (gitignored, auto-created).
-# Copy .agent/change-template.md to .crs/<descriptive-name>.md to start a draft.
+# Copy templates/change.md to .crs/<descriptive-name>.md to start a draft.
 #
 # Uses git-provider.sh for provider-agnostic CR creation.
 # Run from the repo the branch belongs to.
@@ -27,8 +27,8 @@ source "$SCRIPT_DIR/git-provider.sh"
 
 # Try to load ecosystem config for provider detection (optional — may not exist)
 _ECO=""
-if [[ -f "$SCRIPT_DIR/ws-overlay.sh" ]]; then
-  source "$SCRIPT_DIR/ws-overlay.sh"
+if [[ -f "$SCRIPT_DIR/ws-realm.sh" ]]; then
+  source "$SCRIPT_DIR/ws-realm.sh"
   _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 fi
 
@@ -151,7 +151,7 @@ if [[ -n "$UPSTREAM" ]]; then
       UPSTREAM_REMOTES=("$_DEFAULT_UPSTREAM")
     else
       echo "ERROR: Multiple upstream remotes found: ${UPSTREAM_REMOTES[*]}" >&2
-      echo "  Set defaults.upstreamRemote in your overlay or ecosystem.local.yaml." >&2
+      echo "  Set defaults.upstreamRemote in your realm or ecosystem.local.yaml." >&2
       [[ -n "$_DEFAULT_UPSTREAM" ]] && echo "  (configured value '$_DEFAULT_UPSTREAM' not found in remotes)" >&2
       exit 1
     fi

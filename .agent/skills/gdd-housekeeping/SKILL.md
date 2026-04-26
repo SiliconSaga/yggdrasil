@@ -98,6 +98,48 @@ This is the self-improving loop — feedback here can result in:
 - Template changes (adding or removing sections)
 - Observations for the next cycle (if the change isn't clear yet)
 
+## Multi-Thalami Review (when a thalami hoard is active)
+
+If `hoards/thalami-<user>/` is the active hoard, housekeeping can audit
+across every `<machine>-thalamus.md` file in the hoard. Use this to catch
+preferences/observations that should be promoted across machines or
+duplicates that should be merged.
+
+### When to use multi-thalami mode
+
+- The human asks to "review across machines" or similar
+- Housekeeping on a single machine surfaces a preference that obviously
+  applies everywhere ("user prefers terse responses") — pivot to
+  multi-thalami to promote it
+- Periodic: once or twice a year, even without a specific trigger
+
+### Process
+
+1. List every `<machine>-thalamus.md` file in the active hoard. Note the
+   machine names.
+2. For Preferences and Observations specifically, identify items that:
+   - Appear on one machine but seem universal — candidates for promotion.
+   - Appear on multiple machines with similar wording — candidates for
+     dedup (consolidate to one canonical entry; keep machine-specific
+     variations only if they're actually distinct).
+3. Walk the candidates with the human, item by item. For each, decide:
+   - Promote everywhere: add to every other machine file (with the
+     human's blessing).
+   - Keep machine-specific: leave it alone.
+   - Dedup: pick the best phrasing, drop the others.
+4. Update `last_audit` in each touched machine file.
+5. Append the same audit-log entry to every reviewed
+   `<machine>-thalamus.md` (not just the file the session started from).
+   Listing the machines in that entry makes it clear at a glance which
+   files were in scope this round.
+
+### Compare-only — no shared file in v1
+
+V1 does not introduce a shared `common-thalamus.md`. If multi-thalami
+review repeatedly promotes the same preference to every machine over many
+audits, that's evidence to add a shared file in v2. Until then, the
+N×duplication is acceptable cost for design simplicity.
+
 ## What Housekeeping Is NOT
 
 - **Not a full retrospective** — it's lighter, more like tidying a desk

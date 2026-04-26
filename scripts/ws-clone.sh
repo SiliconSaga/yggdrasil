@@ -18,9 +18,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPONENTS_DIR="$ROOT_DIR/components"
 
-# Source shared overlay/merge functions
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# Source shared realm/merge functions
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 
 if ! command -v yq &>/dev/null; then
@@ -229,7 +229,7 @@ elif [[ "${1:-}" == "--all" ]]; then
     comp_count=$(yq '.components | length' "$ECO" 2>/dev/null || echo 0)
     if [[ "$comp_count" -eq 0 ]]; then
         echo "No components declared." >&2
-        echo "  Run 'ws overlay init' to get started, or 'ws overlay <url>' for your community." >&2
+        echo "  Run 'ws realm init' to get started, or 'ws realm <url>' for your community." >&2
         exit 1
     fi
     for name in $(yq '.components | keys | .[]' "$ECO"); do

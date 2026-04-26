@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ws-mcp-setup.sh — Generate .mcp.json for Claude Code from overlay mcp.servers declarations
+# ws-mcp-setup.sh — Generate .mcp.json for Claude Code from realm mcp.servers declarations
 #
 # Usage:
 #   ws-mcp-setup.sh [--dry-run] [--status]
@@ -13,8 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_FILE="$ROOT_DIR/.mcp.json"
 
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
@@ -80,7 +80,7 @@ ECO="$(ws_resolve_ecosystem)"
 server_count="$(yq '.mcp.servers // {} | length' "$ECO" 2>/dev/null || echo 0)"
 if [[ ! "$server_count" =~ ^[0-9]+$ || "$server_count" -eq 0 ]]; then
     echo "No mcp.servers declared in the active ecosystem config."
-    echo "  Add an mcp.servers section to your overlay's ecosystem.yaml to use this command."
+    echo "  Add an mcp.servers section to your realm's ecosystem.yaml to use this command."
     exit 0
 fi
 
@@ -137,7 +137,7 @@ echo "     (Claude Code handles the browser OAuth flow — do not paste auth URL
 echo ""
 echo "Cursor users: MaaS servers must be added to ~/.cursor/mcp.json manually."
 mcp_doc="$(yq '.mcp.doc // ""' "$ECO" 2>/dev/null || echo "")"
-active_overlay="$(ws_detect_overlay 2>/dev/null || true)"
-if [[ -n "$mcp_doc" && "$mcp_doc" != "null" && -n "$active_overlay" ]]; then
-    echo "  See: overlays/$active_overlay/$mcp_doc for the server list and URLs."
+active_realm="$(ws_detect_realm 2>/dev/null || true)"
+if [[ -n "$mcp_doc" && "$mcp_doc" != "null" && -n "$active_realm" ]]; then
+    echo "  See: realms/$active_realm/$mcp_doc for the server list and URLs."
 fi

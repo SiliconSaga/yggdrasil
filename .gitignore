@@ -10,9 +10,13 @@
 /components/*
 !/components/.gitkeep
 
-# Overlay repos — cloned by ws overlay, ignored by yggdrasil's Git.
-/overlays/*
-!/overlays/.gitkeep
+# Realm repos — cloned by ws realm, ignored by yggdrasil's Git.
+/realms/*
+!/realms/.gitkeep
+
+# Hoard repos — personal containers cloned by ws hoard, ignored by yggdrasil's Git.
+/hoards/*
+!/hoards/.gitkeep
 
 # Local ecosystem overrides (per-developer, never committed)
 ecosystem.local.yaml
@@ -20,11 +24,16 @@ ecosystem.local.yaml
 # Generated ArgoCD manifests from ws-resolve.sh
 /.generated/
 
+# External / fetched templates (future marketplace) — gitignored payloads,
+# only the .gitkeep is tracked.
+/templates/external/*
+!/templates/external/.gitkeep
+
 # Claude Code local settings — per-user overrides, never committed
 .claude/settings.local.json
 
 # Claude Code MCP server config — generated per-user by ws mcp-setup, never committed
-# (content is overlay-specific; regenerate with: bash scripts/ws mcp-setup)
+# (content is realm-specific; regenerate with: bash scripts/ws mcp-setup)
 /.mcp.json
 
 # IDE workspace files — generated per-user via ws-vscode.sh, not shared

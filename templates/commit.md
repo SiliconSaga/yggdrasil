@@ -1,6 +1,6 @@
 ---
 # Commit subject — required. Use conventional prefix: feat, fix, docs, chore, test, refactor, style
-# Optional scope in parens, e.g. "fix(ws):", "feat(overlay):"
+# Optional scope in parens, e.g. "fix(ws):", "feat(realm):"
 message: "type(scope): short imperative description"
 
 # Files to stage before committing. Paths are relative to the component root,

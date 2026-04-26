@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
-# ws-overlay.sh — Overlay management and shared config merge functions
+# ws-realm.sh — Realm management and shared config merge functions
 #
-# Subcommands (called via ws overlay):
-#   init            Clone template overlay for tutorials
-#   <git-url>       Clone community overlay as overlay-yggdrasil-live
-#   use <name>      Set active overlay in ecosystem.local.yaml
-#   list            Show available overlays and which is active
+# Subcommands (called via ws realm):
+#   init            Clone template realm for tutorials
+#   <git-url>       Clone community realm from a git URL
+#   use <name>      Set active realm in ecosystem.local.yaml
+#   list            Show available realms and which is active
 #   actions <comp>  List adapter commands for a component
 #
 # Also provides shared functions sourced by other ws-* scripts:
-#   ws_detect_overlay     — detect active overlay directory name
-#   ws_resolve_ecosystem  — three-layer config merge (upstream + overlay + local)
+#   ws_detect_realm       — detect active realm directory name
+#   ws_resolve_ecosystem  — three-layer config merge (upstream + realm + local)
+#                           (Inheritance reservation: the merge generalizes to
+#                           N layers if multi-realm chains land later.)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${ECOSYSTEM:="$ROOT_DIR/ecosystem.yaml"}"
-: "${OVERLAYS_DIR:="$ROOT_DIR/overlays"}"
+: "${REALMS_DIR:="$ROOT_DIR/realms"}"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
 
 _RESOLVED_ECOSYSTEM=""
@@ -30,7 +32,7 @@ COMPONENT_DIR=""  # Set by ws_validate_component
 # Validate a component name against ecosystem.yaml.
 # Usage: ws_validate_component <name>
 # Sets: COMPONENT_DIR to the resolved path.
-# Accepts "yggdrasil" (workspace root), overlay directory names, and
+# Accepts "yggdrasil" (workspace root), realm directory names, and
 # components declared in the merged ecosystem config.
 ws_validate_component() {
     local name="$1"
@@ -41,9 +43,9 @@ ws_validate_component() {
         return 0
     fi
 
-    # Check if name is an overlay directory (uses broader name pattern)
-    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$OVERLAYS_DIR/$name/.git" ]]; then
-        COMPONENT_DIR="$OVERLAYS_DIR/$name"
+    # Check if name is a realm directory (uses broader name pattern)
+    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$REALMS_DIR/$name/.git" ]]; then
+        COMPONENT_DIR="$REALMS_DIR/$name"
         return 0
     fi
 
@@ -82,35 +84,64 @@ ws_validate_component() {
     fi
 }
 
-# Detect the active overlay directory name.
-# Returns the overlay directory name (not the full path) or empty string.
-ws_detect_overlay() {
+# Detect the active realm directory name.
+# Returns the realm directory name (not the full path) or empty string.
+#
+# Discovery rule:
+#   1. ecosystem.local.yaml `realm:` selector, if set and dir exists
+#   2. Single non-template realm in realms/ (matches realm-* but not realm-template)
+#   3. realm-template, if present
+#   4. Empty (no realm active)
+#
+# Errors if step 2 finds multiple non-template realms (ambiguous).
+ws_detect_realm() {
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
         local selector
-        if ! selector="$(yq '.overlay // ""' "$local_file")"; then
+        if ! selector="$(yq '.realm // ""' "$local_file")"; then
             echo "ERROR: Failed to parse $local_file. Check YAML syntax." >&2
             exit 1
         fi
         if [[ -n "$selector" && "$selector" != "null" ]]; then
-            if [[ -d "$OVERLAYS_DIR/$selector" ]]; then
+            if [[ -d "$REALMS_DIR/$selector" ]]; then
                 echo "$selector"
                 return
             fi
         fi
     fi
-    if [[ -d "$OVERLAYS_DIR/overlay-yggdrasil-live" ]]; then
-        echo "overlay-yggdrasil-live"
-        return
+
+    # Auto-detect: a single realm-* that is not realm-template
+    local candidates=()
+    if [[ -d "$REALMS_DIR" ]]; then
+        for d in "$REALMS_DIR"/realm-*/; do
+            [[ -d "$d" ]] || continue
+            local dname
+            dname="$(basename "$d")"
+            [[ "$dname" == "realm-template" ]] && continue
+            candidates+=("$dname")
+        done
     fi
-    if [[ -d "$OVERLAYS_DIR/overlay-yggdrasil-template" ]]; then
-        echo "overlay-yggdrasil-template"
-        return
-    fi
-    echo ""
+
+    case "${#candidates[@]}" in
+        0)
+            if [[ -d "$REALMS_DIR/realm-template" ]]; then
+                echo "realm-template"
+                return
+            fi
+            echo ""
+            ;;
+        1)
+            echo "${candidates[0]}"
+            ;;
+        *)
+            echo "ERROR: Multiple non-template realms found in realms/: ${candidates[*]}." >&2
+            echo "  Set 'realm: <name>' in ecosystem.local.yaml to pick one." >&2
+            exit 1
+            ;;
+    esac
 }
 
-# Produce a merged ecosystem config (upstream + overlay + local).
+# Produce a merged ecosystem config (upstream + realm + local).
 # Returns the path to a temp file. Cleanup happens at script exit.
 ws_resolve_ecosystem() {
     if [[ -n "$_RESOLVED_ECOSYSTEM" && -f "$_RESOLVED_ECOSYSTEM" ]]; then
@@ -118,26 +149,30 @@ ws_resolve_ecosystem() {
         return
     fi
 
+    # Inheritance reservation: today the merge is upstream + realm + local
+    # (three layers). When multi-realm inheritance lands, this generalizes
+    # to N layers with child-wins semantics — no new identifier needed.
+
     local base="$ROOT_DIR/ecosystem.yaml"
-    local overlay_file=""
+    local realm_file=""
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
 
-    local active_overlay
-    active_overlay="$(ws_detect_overlay)"
-    if [[ -n "$active_overlay" ]]; then
-        overlay_file="$OVERLAYS_DIR/$active_overlay/ecosystem.yaml"
-        if [[ ! -f "$overlay_file" ]]; then
-            echo "ERROR: Active overlay '$active_overlay' has no ecosystem.yaml." >&2
-            echo "  The overlay may be incomplete or corrupted." >&2
+    local active_realm
+    active_realm="$(ws_detect_realm)"
+    if [[ -n "$active_realm" ]]; then
+        realm_file="$REALMS_DIR/$active_realm/ecosystem.yaml"
+        if [[ ! -f "$realm_file" ]]; then
+            echo "ERROR: Active realm '$active_realm' has no ecosystem.yaml." >&2
+            echo "  The realm may be incomplete or corrupted." >&2
             exit 1
         fi
     fi
 
     local merged
     merged="$(mktemp)"
-    if [[ -n "$overlay_file" ]]; then
+    if [[ -n "$realm_file" ]]; then
         yq eval-all 'select(fileIndex == 0) *d select(fileIndex == 1)' \
-            "$base" "$overlay_file" > "$merged"
+            "$base" "$realm_file" > "$merged"
     else
         cp "$base" "$merged"
     fi
@@ -167,23 +202,23 @@ if ! command -v yq &>/dev/null; then
     exit 1
 fi
 
-ws_overlay_help() {
-    echo "Usage: ws overlay <subcommand>" >&2
+ws_realm_help() {
+    echo "Usage: ws realm <subcommand>" >&2
     echo "" >&2
     echo "Subcommands:" >&2
-    echo "  init            Clone the template overlay for tutorials" >&2
-    echo "  <git-url>       Clone a community overlay as overlay-yggdrasil-live" >&2
-    echo "  use <name>      Set active overlay in ecosystem.local.yaml" >&2
-    echo "  list            Show available overlays and which is active" >&2
+    echo "  init            Clone the template realm for tutorials" >&2
+    echo "  <git-url>       Clone a community realm" >&2
+    echo "  use <name>      Set active realm in ecosystem.local.yaml" >&2
+    echo "  list            Show available realms and which is active" >&2
     echo "" >&2
     echo "Also available via ws:" >&2
     echo "  ws actions <comp>   List adapter commands for a component" >&2
 }
 
-ws_overlay_init() {
+ws_realm_init() {
     # Copy ecosystem.local.yaml.example if no local config exists.
     # Must happen BEFORE ws_resolve_ecosystem — the example file contains
-    # defaults.templateOverlay which the merge needs to find.
+    # defaults.templateRealm which the merge needs to find.
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     local example_file="$ROOT_DIR/ecosystem.local.yaml.example"
     if [[ ! -f "$local_file" && -f "$example_file" ]]; then
@@ -196,59 +231,59 @@ ws_overlay_init() {
     local eco
     eco="$(ws_resolve_ecosystem)"
     local template_url
-    template_url=$(yq '.defaults.templateOverlay // ""' "$eco" 2>/dev/null)
+    template_url=$(yq '.defaults.templateRealm // ""' "$eco" 2>/dev/null)
     if [[ -z "$template_url" || "$template_url" == "null" ]]; then
-        echo "ERROR: No template overlay URL configured." >&2
-        echo "  Set defaults.templateOverlay in ecosystem.local.yaml or your overlay." >&2
+        echo "ERROR: No template realm URL configured." >&2
+        echo "  Set defaults.templateRealm in ecosystem.local.yaml or your realm." >&2
         exit 1
     fi
 
-    local target="$OVERLAYS_DIR/overlay-yggdrasil-template"
+    local target="$REALMS_DIR/realm-template"
     if [[ -d "$target" ]]; then
-        echo "SKIP: Template overlay already exists at $target"
+        echo "SKIP: Template realm already exists at $target"
         return 0
     fi
-    mkdir -p "$OVERLAYS_DIR"
-    echo "CLONE: template overlay -> $target"
+    mkdir -p "$REALMS_DIR"
+    echo "CLONE: template realm -> $target"
     git clone "$template_url" "$target"
     echo ""
-    echo "Template overlay ready. Run 'ws clone --all' to clone tutorial components."
+    echo "Template realm ready. Run 'ws clone --all' to clone tutorial components."
 }
 
-ws_overlay_use() {
+ws_realm_use() {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: ws overlay use <name>" >&2
+        echo "Usage: ws realm use <name>" >&2
         exit 1
     fi
     local name="$1"
-    # Validate overlay name — prevent path traversal
+    # Validate realm name — prevent path traversal
     if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-        echo "ERROR: Invalid overlay name '$name'. Must be alphanumeric with dots, dashes, underscores." >&2
+        echo "ERROR: Invalid realm name '$name'. Must be alphanumeric with dots, dashes, underscores." >&2
         exit 1
     fi
-    if [[ ! -d "$OVERLAYS_DIR/$name" ]]; then
-        echo "ERROR: Overlay '$name' not found in overlays/." >&2
-        echo "  Available overlays:" >&2
-        for d in "$OVERLAYS_DIR"/*/; do
+    if [[ ! -d "$REALMS_DIR/$name" ]]; then
+        echo "ERROR: Realm '$name' not found in realms/." >&2
+        echo "  Available realms:" >&2
+        for d in "$REALMS_DIR"/*/; do
             [[ -d "$d" ]] && echo "    $(basename "$d")"
         done
         exit 1
     fi
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
-        yq -i ".overlay = \"$name\"" "$local_file"
+        yq -i ".realm = \"$name\"" "$local_file"
     else
-        echo "overlay: \"$name\"" > "$local_file"
+        echo "realm: \"$name\"" > "$local_file"
     fi
-    echo "Active overlay set to: $name"
+    echo "Active realm set to: $name"
 }
 
-ws_overlay_list() {
-    echo "=== Overlays ==="
+ws_realm_list() {
+    echo "=== Realms ==="
     local active
-    active="$(ws_detect_overlay)"
+    active="$(ws_detect_realm)"
     local found=0
-    for d in "$OVERLAYS_DIR"/*/; do
+    for d in "$REALMS_DIR"/*/; do
         [[ -d "$d" ]] || continue
         local dname
         dname="$(basename "$d")"
@@ -263,29 +298,46 @@ ws_overlay_list() {
     if [[ "$found" -eq 0 ]]; then
         echo "  (none)"
         echo ""
-        echo "Run 'ws overlay init' for tutorials, or 'ws overlay <url>' for your community."
+        echo "Run 'ws realm init' for tutorials, or 'ws realm <url>' for your community."
     fi
 }
 
-ws_overlay_clone_url() {
+ws_realm_clone_url() {
     local url="$1"
-    # Basic URL validation
     if [[ ! "$url" =~ ^(https?://|git@) ]]; then
         echo "ERROR: Unknown subcommand or invalid URL '$url'." >&2
-        echo "  Run 'ws overlay' for usage." >&2
+        echo "  Run 'ws realm' for usage." >&2
         exit 1
     fi
-    local target="$OVERLAYS_DIR/overlay-yggdrasil-live"
+
+    # Derive realm directory name from the URL's repo basename
+    local repo_name
+    repo_name="${url##*/}"
+    repo_name="${repo_name%.git}"
+    if [[ ! "$repo_name" =~ ^realm-[A-Za-z0-9._-]+$ ]]; then
+        echo "ERROR: realm repo name must match 'realm-<community>' (got: $repo_name)." >&2
+        echo "  Rename the repo on the host or fork it under a compliant name." >&2
+        exit 1
+    fi
+    # Reserve realm-template for the upstream tutorial slot (cloned via 'ws realm init').
+    # Block community realms from shadowing it via URL.
+    if [[ "$repo_name" == "realm-template" ]]; then
+        echo "ERROR: 'realm-template' is reserved for the upstream tutorial realm." >&2
+        echo "  Use 'ws realm init' to clone the template, or rename the URL's repo." >&2
+        exit 1
+    fi
+
+    local target="$REALMS_DIR/$repo_name"
     if [[ -d "$target" ]]; then
-        echo "ERROR: Live overlay already exists at $target." >&2
-        echo "  Remove it first or use 'ws overlay use' to switch." >&2
+        echo "ERROR: Realm '$repo_name' already exists at $target." >&2
+        echo "  Remove it first or use 'ws realm use' to switch." >&2
         exit 1
     fi
-    mkdir -p "$OVERLAYS_DIR"
-    echo "CLONE: community overlay -> $target"
+    mkdir -p "$REALMS_DIR"
+    echo "CLONE: community realm -> $target"
     git clone "$url" "$target"
     echo ""
-    echo "Community overlay ready. Run 'ws clone --all' to clone components."
+    echo "Community realm ready. Run 'ws clone --all' to clone components."
 }
 
 ws_actions() {
@@ -312,17 +364,17 @@ ws_actions() {
 
     echo "=== $comp ==="
 
-    # Check for adapter file in active overlay
-    local active_overlay
-    active_overlay="$(ws_detect_overlay)"
+    # Check for adapter file in active realm
+    local active_realm
+    active_realm="$(ws_detect_realm)"
     local adapter_file=""
-    if [[ -n "$active_overlay" ]]; then
-        adapter_file="$OVERLAYS_DIR/$active_overlay/adapters/$comp.yaml"
+    if [[ -n "$active_realm" ]]; then
+        adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     fi
 
     local has_configured=0
     if [[ -n "$adapter_file" && -f "$adapter_file" ]]; then
-        echo "Configured (from overlay):"
+        echo "Configured (from realm):"
         local commands
         commands=$(yq -r '.commands // {} | to_entries | .[] | "  " + .key + "    " + .value' "$adapter_file" 2>/dev/null)
         if [[ -n "$commands" ]]; then
@@ -356,11 +408,11 @@ ws_actions() {
         fi
         if [[ "$has_auto" -eq 0 ]]; then
             if [[ "$has_configured" -eq 1 ]]; then
-                echo "  (none - overlay commands take precedence)"
+                echo "  (none - realm commands take precedence)"
             else
                 echo "  (none detected)"
                 echo ""
-                echo "Configure an adapter file: overlays/<overlay>/adapters/$comp.yaml"
+                echo "Configure an adapter file: realms/<realm>/adapters/$comp.yaml"
             fi
         fi
     else
@@ -377,21 +429,21 @@ shift 2>/dev/null || true
 
 case "$SUBCMD" in
     ""|--help|-h)
-        ws_overlay_help
+        ws_realm_help
         ;;
     init)
-        ws_overlay_init
+        ws_realm_init
         ;;
     use)
-        ws_overlay_use "$@"
+        ws_realm_use "$@"
         ;;
     list)
-        ws_overlay_list
+        ws_realm_list
         ;;
     actions)
         ws_actions "$@"
         ;;
     *)
-        ws_overlay_clone_url "$SUBCMD"
+        ws_realm_clone_url "$SUBCMD"
         ;;
 esac

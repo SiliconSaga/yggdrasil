@@ -21,12 +21,15 @@
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .crs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
-#   overlay init      Clone template overlay for tutorials
-#   overlay <url>     Clone a community overlay
-#   overlay use <name> Set active overlay
-#   overlay list      Show available overlays
+#   realm init        Clone template realm for tutorials
+#   realm <url>       Clone a community realm
+#   realm use <name>  Set active realm
+#   realm list        Show available realms
+#   hoard init [template]      Scaffold a new hoard (default: thalami)
+#   hoard <url>                Clone an existing hoard
+#   hoard list                 Show hoards and which thalami hoard is active
 #   actions <comp>    List adapter commands for a component
-#   mcp-setup [--dry-run]  Generate .mcp.json from overlay mcp.servers declarations
+#   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
 #   help              Show this help message
 #
@@ -52,16 +55,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
-OVERLAYS_DIR="$ROOT_DIR/overlays"
+REALMS_DIR="$ROOT_DIR/realms"
 COMPONENTS_DIR="$ROOT_DIR/components"
 # Auto-source .env if present — makes tokens available to all sub-commands
 # without requiring `source .env` before every ws invocation.
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
-# Source shared functions (ws_validate_component, ws_detect_overlay,
+# Source shared functions (ws_validate_component, ws_detect_realm,
 # ws_resolve_ecosystem, COMPONENT_DIR, etc.)
-# shellcheck source=ws-overlay.sh
-source "$SCRIPT_DIR/ws-overlay.sh"
+# shellcheck source=ws-realm.sh
+source "$SCRIPT_DIR/ws-realm.sh"
 
 ws_help() {
     sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \?//'
@@ -576,8 +579,11 @@ case "$COMMAND" in
     exec)
         ws_exec "$@"
         ;;
-    overlay)
-        bash "$SCRIPT_DIR/ws-overlay.sh" "$@"
+    realm)
+        bash "$SCRIPT_DIR/ws-realm.sh" "$@"
+        ;;
+    hoard)
+        bash "$SCRIPT_DIR/ws-hoard.sh" "$@"
         ;;
     gitlab-auth)
         ws_gitlab_auth "$@"
@@ -586,7 +592,7 @@ case "$COMMAND" in
         ws_diagnose "$@"
         ;;
     actions)
-        bash "$SCRIPT_DIR/ws-overlay.sh" actions "$@"
+        bash "$SCRIPT_DIR/ws-realm.sh" actions "$@"
         ;;
     mcp-setup)
         bash "$SCRIPT_DIR/ws-mcp-setup.sh" "$@"

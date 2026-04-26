@@ -19,7 +19,8 @@ This file covers only Claude-specific overrides.
   directories — never manually `cd` to components.
   Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`,
   `ws cr`, `ws issue`, `ws test`, `ws review`, `ws commit`, `ws log`, `ws clean`,
-  `ws resolve`, `ws vscode`, `ws exec`, `ws overlay`, `ws actions`, `ws help`.
+  `ws resolve`, `ws vscode`, `ws exec`, `ws realm`, `ws hoard`, `ws actions`,
+  `ws help`.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
   Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
 - On first use of `ws` in a session, briefly note: "Using the workspace CLI
@@ -30,7 +31,7 @@ This file covers only Claude-specific overrides.
 ## Workspace Structure
 
 Yggdrasil is the workspace root. Component repos live in `components/` and
-community overlays in `overlays/` — both gitignored, independent Git repos.
+community realms in `realms/` — both gitignored, independent Git repos.
 
 ```text
 yggdrasil/
@@ -40,12 +41,12 @@ yggdrasil/
     nordri/               # Cloned via ws clone
     mimir/
     ...
-  overlays/
-    overlay-yggdrasil-live/    # Community config (components, identity, adapters)
-    overlay-yggdrasil-template/ # Tutorial overlay
+  realms/
+    realm-siliconsaga/    # Community config (components, identity, adapters)
+    realm-template/       # Tutorial realm
   scripts/
     ws                    # Unified CLI — run `ws help` for subcommands
-    ws-overlay.sh         # Overlay management + shared config merge functions
+    ws-realm.sh           # Realm management + shared config merge functions
     ws-clone.sh           # Clone components from merged ecosystem config
     ws-status.sh          # Git status across workspace
     ws-pull.sh            # Pull all cloned components
@@ -54,7 +55,7 @@ yggdrasil/
     ws-vscode.sh          # Generate VS Code workspace file
 ```
 
-Config is three-layer merged: `ecosystem.yaml` → overlay → `ecosystem.local.yaml`.
+Config is three-layer merged: `ecosystem.yaml` → realm → `ecosystem.local.yaml`.
 Use `bash scripts/ws list` to see what's declared and what's checked out locally.
 
 
