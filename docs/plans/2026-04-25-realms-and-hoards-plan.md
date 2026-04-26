@@ -1100,7 +1100,7 @@ mkdir -p D:/Dev/GitWS/yggdrasil/templates/hoards/thalami
 
 Write `templates/hoards/thalami/README.md`:
 
-```markdown
+````markdown
 # Thalami Hoard
 
 Personal hoard holding per-machine Thalamus files. Each machine you use
@@ -1110,7 +1110,7 @@ history.
 
 ## Layout
 
-```
+```text
 thalami-<username>/
   README.md
   <machine>-thalamus.md     # one per machine; e.g. win10-desktop-thalamus.md
@@ -1147,7 +1147,7 @@ gh repo create <yourname>/thalami-<yourname> --private --source=hoards/thalami-<
 ```
 
 Or any equivalent on GitLab / Gitea / etc.
-```
+````
 
 - [ ] **Step 2: Write `.gitignore`**
 
