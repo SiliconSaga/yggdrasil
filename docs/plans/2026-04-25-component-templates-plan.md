@@ -368,13 +368,13 @@ Expected: `syntax ok`.
 
 In `D:/Dev/GitWS/yggdrasil/scripts/ws`, locate the `# Commands:` block at the top of the file (around line 8-32). Find the existing line:
 
-```
+```bash
 #   hoard list                 Show hoards and which thalami hoard is active
 ```
 
 Immediately after that line, insert:
 
-```
+```bash
 #   component init <flavor> [name]   Scaffold a new component from a template
 #   component list                   Show known component flavors
 ```
@@ -444,13 +444,13 @@ Open `D:/Dev/GitWS/yggdrasil/.claude/settings.json`. Locate the `bash scripts/ws
 
 After the line:
 
-```
+```json
       "Bash(bash scripts/ws hoard init * *)",
 ```
 
 insert:
 
-```
+```json
       "Bash(bash scripts/ws component)",
       "Bash(bash scripts/ws component --help)",
       "Bash(bash scripts/ws component -h)",
@@ -468,13 +468,13 @@ In the same file, locate the `ws hoard init * *` line (in the bare-`ws` section,
 
 After the line:
 
-```
+```json
       "Bash(ws hoard init * *)",
 ```
 
 insert:
 
-```
+```json
       "Bash(ws component)",
       "Bash(ws component --help)",
       "Bash(ws component -h)",

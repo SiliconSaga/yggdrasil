@@ -43,7 +43,7 @@ and a sentence in `docs/ws-cli-guide.md`. No code change.
 
 ## Directory Structure
 
-```
+```text
 yggdrasil/
   templates/
     README.md
@@ -79,7 +79,7 @@ into `components/<name>/` at init time.
 
 ### Arg shape
 
-```
+```text
 ws component init <flavor> [name] [template-args...]
 ```
 
@@ -153,7 +153,7 @@ ws component init <flavor> [name] [template-args...]
 After a successful init, the agent prints a structured "what just
 happened" block. Concrete wording:
 
-```
+```text
 Component initialized: components/<name>
 
 Registered in ecosystem.local.yaml:
