@@ -20,6 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${ECOSYSTEM:="$ROOT_DIR/ecosystem.yaml"}"
 : "${REALMS_DIR:="$ROOT_DIR/realms"}"
+: "${HOARDS_DIR:="$ROOT_DIR/hoards"}"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
 
 _RESOLVED_ECOSYSTEM=""
@@ -32,8 +33,8 @@ COMPONENT_DIR=""  # Set by ws_validate_component
 # Validate a component name against ecosystem.yaml.
 # Usage: ws_validate_component <name>
 # Sets: COMPONENT_DIR to the resolved path.
-# Accepts "yggdrasil" (workspace root), realm directory names, and
-# components declared in the merged ecosystem config.
+# Accepts "yggdrasil" (workspace root), realm directory names, hoard
+# directory names, and components declared in the merged ecosystem config.
 ws_validate_component() {
     local name="$1"
 
@@ -46,6 +47,13 @@ ws_validate_component() {
     # Check if name is a realm directory (uses broader name pattern)
     if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$REALMS_DIR/$name/.git" ]]; then
         COMPONENT_DIR="$REALMS_DIR/$name"
+        return 0
+    fi
+
+    # Check if name is a hoard directory (same broader name pattern as realms,
+    # since hoards are personal containers cloned with arbitrary repo names).
+    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$HOARDS_DIR/$name/.git" ]]; then
+        COMPONENT_DIR="$HOARDS_DIR/$name"
         return 0
     fi
 
