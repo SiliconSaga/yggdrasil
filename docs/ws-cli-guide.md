@@ -233,8 +233,10 @@ Behavior:
    isn't already in `ecosystem.local.yaml`. Warns + confirms if `<name>`
    shadows a realm-catalog entry.
 4. Copies the template directory into `components/<name>/`.
-5. `git init -b main`, initial commit using the user's git config
-   (with fallback to `identity.human_account` from merged config).
+5. `git init -b main`, initial commit using the user's git config —
+   `git config user.name` for the author name (fallback to
+   `identity.human_account`) and `git config user.email` for the email
+   (fallback to `<human_account>@local`).
 6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.url`.
    The URL is inferred from `identity.human_account` and the component
    name.

@@ -134,6 +134,12 @@ That's the whole loop.
 The template stays minimal so you can take it where you want. A few
 common next steps:
 
+- **Fill in the placeholders.** A few files ship with literal
+  `<your name>` / `<year>` / `<name>` placeholders meant for you to
+  edit: the `title:` line in `_config.yml`, the front-matter `title:`
+  in `index.md`, and the `Copyright (c) <year> <name>` line in
+  `LICENSE`. Replace them whenever you're ready (or ask your agent to
+  fill them in based on your `identity.human_account`).
 - **Different theme.** Edit the `theme:` line in `_config.yml`. The
   comments next to that line list other GitHub-supported themes you
   can pick from. For richer theming (custom CSS, layouts), you'd

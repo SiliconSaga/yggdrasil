@@ -142,8 +142,10 @@ ws_component_init() {
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
         local existing
-        existing="$(yq ".components.\"$name\" // \"\"" "$local_file" 2>/dev/null)"
-        if [[ -n "$existing" && "$existing" != "null" && "$existing" != '""' ]]; then
+        # Don't suppress yq errors here — a malformed local file should surface
+        # loudly, not be silently misread as "no collision."
+        existing="$(yq ".components.\"$name\" // \"\"" "$local_file")"
+        if [[ -n "$existing" && "$existing" != "null" ]]; then
             echo "ERROR: component '$name' is already declared in ecosystem.local.yaml." >&2
             echo "  Edit the file or pick a different name." >&2
             exit 1
@@ -153,7 +155,7 @@ ws_component_init() {
     # Warn if name shadows a realm-catalog component
     local eco realm_entry
     eco="$(ws_resolve_ecosystem)"
-    realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco" 2>/dev/null)"
+    realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco")"
     if [[ "$realm_entry" != "missing" ]]; then
         echo "WARNING: '$name' is already declared in the merged ecosystem catalog." >&2
         echo "  Adding a local-layer entry will shadow it. This is allowed but unusual." >&2
@@ -193,9 +195,18 @@ ws_component_init() {
     mkdir -p "$COMPONENTS_DIR"
     cp -R "$template_dir" "$target"
 
+    # Track whether ecosystem.local.yaml exists already, so the rollback trap
+    # can also remove a freshly-created (header-only) local file if a later
+    # step fails. Without this, an init that fails between `printf header`
+    # and `yq -i …` would leave a header-only file behind.
+    local local_file_was_new=0
+    if [[ ! -f "$local_file" ]]; then
+        local_file_was_new=1
+    fi
+
     # Trap rollback on subsequent failure
     local rollback_target="$target"
-    trap 'rm -rf "$rollback_target" 2>/dev/null' ERR
+    trap 'rm -rf "$rollback_target" 2>/dev/null; [[ "$local_file_was_new" == 1 ]] && rm -f "$local_file" 2>/dev/null' ERR
 
     # git init + initial commit
     local commit_name commit_email
@@ -211,7 +222,7 @@ ws_component_init() {
 
     # Add ecosystem.local.yaml entry
     local url="https://github.com/${who}/${name}"
-    if [[ ! -f "$local_file" ]]; then
+    if [[ "$local_file_was_new" == 1 ]]; then
         printf '# ecosystem.local.yaml — per-developer overrides (gitignored)\n# Created by ws component init.\n' > "$local_file"
     fi
     yq -i ".components.\"$name\".url = \"$url\"" "$local_file"
