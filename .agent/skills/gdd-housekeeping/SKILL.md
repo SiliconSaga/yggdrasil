@@ -31,6 +31,23 @@ sections. Count them and give the human a quick summary before diving in:
 
 ### Step 2: Review Each Item with the Human
 
+**Per-item special case — permissions items.** If the item mentions
+permissions, `.claude/settings.json`, a permission prompt the user
+wants to follow up on, or "don't ask again" decisions, prompt the
+user to walk through it via the `permissions-management` skill before
+applying the standard Promote/Keep/Prune trichotomy. Example:
+
+> "This observation mentions a permission prompt for `xxd` you got
+> last session. Want me to invoke `permissions-management` to think
+> through whether it's worth allowlisting?"
+
+This routes permissions-related work through the dedicated skill
+rather than handling it ad hoc during housekeeping. After the skill
+completes (pattern added or declined), the housekeeping flow
+resumes — the original Thalamus item typically becomes Prune-able
+since the underlying decision has been recorded in
+`.claude/settings.json` and `docs/gdd/permissions.md`.
+
 Present items one at a time or in small groups (related items together).
 For each, offer three actions:
 
