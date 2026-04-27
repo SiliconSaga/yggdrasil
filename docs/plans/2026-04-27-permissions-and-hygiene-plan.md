@@ -237,9 +237,12 @@ EOF
 
 # Run via the router. Before the fix, this would have written into the
 # real workspace. After the fix, env overrides land it in $tmpdir.
+# (Note: don't override ROOT_DIR — the router resets it from
+# $SCRIPT_DIR/.., so ROOT_DIR isn't a useful override knob. Override
+# the downstream paths instead.)
 COMPONENTS_DIR="$tmpdir/components" \
-ROOT_DIR="$tmpdir" \
 ECOSYSTEM="$tmpdir/ecosystem.yaml" \
+ECOSYSTEM_LOCAL="$tmpdir/ecosystem.local.yaml" \
 TEMPLATES_DIR="$tmpdir/templates" \
   ws component init dummy testfix 2>&1 | tail -5
 
@@ -1545,7 +1548,7 @@ cat > "$tmpdir/ecosystem.yaml" << 'EOF'
 identity:
   human_account: testuser
 EOF
-COMPONENTS_DIR="$tmpdir/components" ROOT_DIR="$tmpdir" ECOSYSTEM="$tmpdir/ecosystem.yaml" TEMPLATES_DIR="$tmpdir/templates" \
+COMPONENTS_DIR="$tmpdir/components" ECOSYSTEM="$tmpdir/ecosystem.yaml" ECOSYSTEM_LOCAL="$tmpdir/ecosystem.local.yaml" TEMPLATES_DIR="$tmpdir/templates" \
     ws component init dummy testfix 2>&1 | tail -3
 ls "$tmpdir/components/testfix/" 2>&1 | head -3
 rm -rf "$tmpdir"

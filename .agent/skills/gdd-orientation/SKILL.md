@@ -90,14 +90,16 @@ Mechanism:
 1. Detect file-level dirty state for the per-machine thalamus
    specifically — not just hoard-wide dirty state, since `ws status`
    could report the hoard as dirty for unrelated reasons (other
-   machine's thalamus, scratch notes, etc.). Use:
+   machine's thalamus, scratch notes, etc.). Use porcelain status
+   (NOT `diff --quiet`, which returns "clean" for untracked files
+   and would silently skip first-time machines):
 
    ```bash
-   git -C hoards/<thalami-hoard> diff --quiet -- <machine>-thalamus.md
+   git -C hoards/<thalami-hoard> status --porcelain -- <machine>-thalamus.md
    ```
 
-   Exit 0 = clean (skip the rest of the check); exit 1 = dirty
-   (continue).
+   Empty output = clean (skip the rest of the check); non-empty
+   output = dirty, including the untracked case (continue).
 
 2. If dirty, get its last-commit timestamp:
 
