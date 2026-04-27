@@ -46,7 +46,7 @@ ws <command> [args...]
 | `ws vscode` | Generate VS Code workspace file |
 | `ws test <comp> [args...]` | Run tests (auto-detects runner: Makefile, Go, Python) |
 | `ws review <comp> <cr#\|threads> [options]` | CR review comments and thread management |
-| `ws commit <comp> <message> [bodyfile]` | Commit with Co-Authored-By trailer |
+| `ws commit <comp> <bodyfile>` | Commit with Co-Authored-By trailer (bodyfile-driven) |
 | `ws log [comp] [--oneline]` | Show commits on current branch vs main |
 | `ws clean` | Remove draft files from `.issues/`, `.crs/`, `.commits/` |
 | `ws exec <comp> <cmd...>` | Run a command in a component directory |

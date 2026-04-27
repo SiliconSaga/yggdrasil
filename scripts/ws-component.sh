@@ -201,10 +201,6 @@ ws_component_init() {
             ;;
     esac
 
-    # Copy template directory
-    mkdir -p "$COMPONENTS_DIR"
-    cp -R "$template_dir" "$target"
-
     # Track whether ecosystem.local.yaml exists already, so the rollback trap
     # can also remove a freshly-created (header-only) local file if a later
     # step fails. Without this, an init that fails between `printf header`
@@ -214,9 +210,15 @@ ws_component_init() {
         local_file_was_new=1
     fi
 
-    # Trap rollback on subsequent failure
+    # Install rollback trap BEFORE the destructive cp -R so a mid-copy
+    # failure also cleans up the partial component dir (would otherwise
+    # block the next init's pre-flight collision check).
     local rollback_target="$target"
     trap 'rm -rf "$rollback_target" 2>/dev/null; [[ "$local_file_was_new" == 1 ]] && rm -f "$local_file" 2>/dev/null' ERR
+
+    # Copy template directory
+    mkdir -p "$COMPONENTS_DIR"
+    cp -R "$template_dir" "$target"
 
     # git init + initial commit
     local commit_name commit_email

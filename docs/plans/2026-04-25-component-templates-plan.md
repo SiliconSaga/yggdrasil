@@ -729,6 +729,17 @@ theme: jekyll-theme-cayman
 
 - [ ] **Step 1: Write the README**
 
+> **Note on drift:** the README content below is the original drafted
+> form. After implementation, code review on PR #45 caught two
+> substantive issues that landed fixes in the committed file:
+> (a) raw `git add` / `git commit -m "..."` / `git push -u` in §2 was
+> replaced with the canonical `ws commit <name> <bodyfile>` /
+> `ws push <name> <branch>` flow (since the component is registered
+> in `ecosystem.local.yaml` and `ws` is the workspace convention);
+> (b) the cwd story was clarified to keep the user in the yggdrasil
+> root throughout. The committed
+> `templates/components/gh-pages/README.md` is canonical.
+
 Write `D:/Dev/GitWS/yggdrasil/templates/components/gh-pages/README.md` with this exact content:
 
 ````markdown

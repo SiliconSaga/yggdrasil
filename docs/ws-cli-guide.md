@@ -192,8 +192,7 @@ commands need one `*` per argument:
       "Bash(bash scripts/ws push * *)",
       "Bash(bash scripts/ws cr * * *)",
       "Bash(bash scripts/ws issue * * * *)",
-      "Bash(bash scripts/ws commit * *)",
-      "Bash(bash scripts/ws commit * * *)"
+      "Bash(bash scripts/ws commit * *)"
     ]
   }
 }
@@ -205,8 +204,7 @@ commands need one `*` per argument:
 | `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push mimir feat/foo` |
 | `Bash(bash scripts/ws cr * * *)` | CR with component + title + bodyfile | `ws cr mimir "feat: add X" .crs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
-| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit mimir "fix: race"` |
-| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit mimir "feat: X" .commits/x.md` |
+| `Bash(bash scripts/ws commit * *)` | Commit (bodyfile-driven) | `ws commit mimir .commits/race-fix.md` |
 
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.

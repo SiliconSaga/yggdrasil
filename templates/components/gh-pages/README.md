@@ -66,23 +66,26 @@ you should see the placeholder page.
 ## 2. Make your first edit
 
 The point of the demo is to feel the full GDD loop — write, propose,
-review, merge — on a tiny target. Try it now:
+review, merge — on a tiny target. The walkthrough below stays in the
+yggdrasil workspace root throughout (no `cd`-juggling), since `ws`
+operates on components by name from there.
+
+**1. Create your topic branch:**
 
 ```bash
-cd components/<name>
-git checkout -b first-post
+git -C components/<name> checkout -b first-post
 ```
 
-Open `index.md` and replace the placeholder paragraph with whatever
-you want. A sentence or two is enough.
+(Branch creation is git's job; `ws` doesn't wrap it.)
 
-Save, then commit + push using the `ws` CLI from the yggdrasil
-workspace root. The component is registered in your
-`ecosystem.local.yaml`, so `ws` knows about it by name.
+**2. Edit the home page.** Open `components/<name>/index.md` in your
+editor and replace the placeholder paragraph with whatever you want.
 
-`ws commit` is bodyfile-driven — a small YAML+markdown file describing
-the commit. Create `.commits/first-post.md` (the `.commits/` directory
-is gitignored) with this content:
+**3. Write a commit bodyfile.** `ws commit` is bodyfile-driven — every
+commit declares the files it stages, so there's no separate `git add`
+step. Create `.commits/first-post.md` *in the yggdrasil workspace root*
+(the `.commits/` directory is gitignored at the workspace level) with
+this content:
 
 ```markdown
 ---
@@ -93,22 +96,20 @@ add:
 First edit on the new GitHub Pages site.
 ```
 
-The `add:` list is what gets staged. The body below the frontmatter
-becomes the commit message body. Then run:
+The `add:` paths are relative to the component, not the workspace
+root — `ws commit` cd's into `components/<name>/` before staging.
+The body below the frontmatter becomes the commit message body.
+
+**4. Commit and push:**
 
 ```bash
-cd ../..   # back up to yggdrasil/
 ws commit <name> .commits/first-post.md
 ws push <name> first-post
 ```
 
 `ws commit` stages the listed files, builds the message, and appends a
 Co-Authored-By trailer. `ws push` picks the right remote from your
-identity config. (If you'd rather skip the bodyfile for a quick edit,
-you can `git add index.md` from inside `components/<name>/` and then
-`ws commit <name> "Make the home page mine"` — the inline-message form
-needs pre-staged files. Bodyfiles are nicer once you're committing
-several files at once.)
+identity config.
 
 ---
 

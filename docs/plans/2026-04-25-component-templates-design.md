@@ -288,11 +288,12 @@ Sections:
    - Wait ~1 minute. Visit
      `https://<your-username>.github.io/<your-repo>/` to confirm.
 3. **Make your first edit** — guided exercise editing `index.md`. Use
-   a topic branch (`git checkout -b first-post`). Suggested edit:
-   replace the placeholder text with anything.
-4. **Open a PR and watch the bots** — `git push -u <remote>
-   first-post`, then `gh pr create --fill` (or use GitHub UI). What to
-   expect:
+   a topic branch (`git -C components/<name> checkout -b first-post`).
+   Write a `.commits/first-post.md` bodyfile listing `index.md` under
+   `add:` (paths relative to the component), then commit:
+   `ws commit <name> .commits/first-post.md`.
+4. **Open a PR and watch the bots** — `ws push <name> first-post`,
+   then `gh pr create --fill` (or use GitHub UI). What to expect:
    - **CodeRabbit** posts a review usually within a couple of minutes.
      If you don't see one, check that the [CodeRabbit GitHub App](https://github.com/marketplace/coderabbit)
      is installed on your account.
@@ -549,11 +550,12 @@ gh repo create cervator/my-page --public \
 # Open in browser, click through Settings → Pages → enable, wait 1 min.
 # Visit cervator.github.io/my-page
 
-# First edit:
-cd components/my-page
-git checkout -b first-post
-# ... edit index.md ...
-git push -u cervator first-post
+# First edit (from yggdrasil root):
+git -C components/my-page checkout -b first-post
+# ... edit components/my-page/index.md ...
+# ... write .commits/first-post.md bodyfile (message + add: index.md) ...
+ws commit my-page .commits/first-post.md
+ws push my-page first-post
 gh pr create --fill
 
 # Watch CodeRabbit review the PR. Address feedback. Merge. Refresh page.

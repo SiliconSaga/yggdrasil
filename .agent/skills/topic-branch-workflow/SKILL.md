@@ -29,7 +29,7 @@ attribution trailers, auth, and remote selection automatically.
 | `ws push <comp> [branch]` | Push current (or named) branch |
 | `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR from current branch |
 | `ws issue <comp> <title> <label> <bodyfile>` | File an issue |
-| `ws commit <comp> <bodyfile\|message>` | Commit with Co-Authored-By trailer |
+| `ws commit <comp> <bodyfile>` | Commit with Co-Authored-By trailer (bodyfile-driven; see `templates/commit.md`) |
 | `ws diagnose <comp>` | Show remotes, provider, and token coverage — run before first push to a component |
 
 CR body drafts follow the same pattern as issue drafts:
