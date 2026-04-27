@@ -104,6 +104,9 @@ realm commands. Pay particular attention to:
 - `ws hoard init [template]` / `ws hoard <url>` / `ws hoard list` —
   manage personal hoards (per-user containers). Canonical type is
   `thalami` for per-machine Thalamus sync.
+- `ws component init <flavor> [name]` / `ws component list` — scaffold a
+  new component from a template under `templates/components/<flavor>/`.
+  Flagship flavor is `gh-pages` (a tutorial-friendly GitHub Pages site).
 
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
 for how to add commands and classify their permission tier.
@@ -134,6 +137,26 @@ macOS, and Windows Git Bash). Pin a stable name with `machine: <value>`
 in `ecosystem.local.yaml` if needed.
 
 See [Realms and Hoards Design](docs/plans/2026-04-24-realms-and-hoards-design.md)
+for the full picture.
+
+---
+
+## Components (template-scaffolded)
+
+Components are the third member of the template family alongside hoards
+and realms. `templates/components/<flavor>/` directories ship in upstream
+yggdrasil; `ws component init <flavor> <name>` copies one into
+`components/<name>/`, git-inits it, and registers an entry in
+`ecosystem.local.yaml` (the per-developer layer of the three-layer
+config merge). The component is immediately usable from the workspace
+without touching the realm; when ready to share, move the entry into the
+realm's `ecosystem.yaml` with realm-appropriate fields and push.
+
+Flagship flavor is `gh-pages` — a tutorial-friendly GitHub Pages site
+with a README that walks a solo user through the full edit → PR →
+bot-review → merge → see-it-live loop.
+
+See [Component Templates Design](docs/plans/2026-04-25-component-templates-design.md)
 for the full picture.
 
 ---

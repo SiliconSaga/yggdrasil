@@ -74,7 +74,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `actions` |
+| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions` |
 | **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs) |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
@@ -211,6 +211,50 @@ commands need one `*` per argument:
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.
 See "Why exec always requires human approval" above.
+
+## ws component init
+
+Scaffolds a new component into `components/<name>/` from a template
+shipped at `templates/components/<flavor>/`.
+
+Usage:
+
+```bash
+ws component init <flavor> [name] [template-args]
+ws component list
+```
+
+Behavior:
+
+1. Validates the flavor exists. Errors with the available-flavors list
+   if not.
+2. Resolves the component name. Required; prompted on a tty if omitted.
+3. Pre-flight checks: `components/<name>/` doesn't exist, `<name>`
+   isn't already in `ecosystem.local.yaml`. Warns + confirms if `<name>`
+   shadows a realm-catalog entry.
+4. Copies the template directory into `components/<name>/`.
+5. `git init -b main`, initial commit using the user's git config
+   (with fallback to `identity.human_account` from merged config).
+6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.url`.
+   The URL is inferred from `identity.human_account` and the component
+   name.
+7. Prints educational output explaining the local-first → upstream-when-
+   ready flow plus a flavor-appropriate `gh repo create` suggestion.
+
+`ecosystem.local.yaml` is the per-developer (gitignored) layer of the
+three-layer merge. The new component is immediately usable from this
+workspace; when ready to share with the community, move the entry into
+the realm's `ecosystem.yaml` with realm-appropriate fields (tier,
+chartVersion, etc.) and push the realm.
+
+Currently shipped flavors:
+
+- `gh-pages` — tutorial-friendly GitHub Pages site, bare markdown +
+  default GitHub Jekyll theme. Comprehensive README walks the user
+  through the edit → PR → bot-review → merge → see-it-live demo loop.
+
+Per-flavor flag handling is hardcoded in `scripts/ws-component.sh`
+for v1.
 
 ## Finding Patterns Worth Scripting
 

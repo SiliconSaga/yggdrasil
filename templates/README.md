@@ -14,6 +14,8 @@ Workspace scaffolding used by `ws` commands and `ws hoard init`.
 ## Subdirectories
 
 - `hoards/` — templates for `ws hoard init <type>` (e.g. `thalami/`).
+- `components/` — templates for `ws component init <flavor> <name>`
+  (e.g. `gh-pages/` — a tutorial-friendly GitHub Pages site).
 - `external/` — gitignored landing area for fetched / externally-sourced
   templates (future "marketplace" use). Tracked only by `.gitkeep`.
 

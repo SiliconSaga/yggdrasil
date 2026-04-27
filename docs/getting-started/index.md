@@ -8,6 +8,25 @@ Note that this currently assumes a variety of prerequisites:
 - You're using GitHub or GitLab for version control (Gitea/Forgejo planned)
 - You're using a Unix-like shell (Linux, macOS, WSL, Git Bash)
 
+## Templates, instances, and tutorials
+
+The yggdrasil workspace ships three kinds of templates, all with the
+same shape: `templates/<kind>/<flavor>/` directories that an `init`
+command copies out into the live workspace.
+
+| Kind | Templates dir | Instance dir | Init command |
+|------|---------------|--------------|--------------|
+| **Realm** | `templates/realms/<flavor>/` (currently external; clone-and-fork) | `realms/realm-<community>/` | `ws realm init` |
+| **Hoard** | `templates/hoards/<type>/` | `hoards/<type>-<username>/` | `ws hoard init <type>` |
+| **Component** | `templates/components/<flavor>/` | `components/<name>/` | `ws component init <flavor> <name>` |
+
+A *template* is a forkable scaffold. An *instance* is the on-disk
+result of running its `init` command. A *tutorial* is an instance
+deliberately suitable for newcomers — the `gh-pages` component
+template produces a tutorial instance with a comprehensive README and
+a designed-to-be-edited home page. Other flavors may not be tutorial-
+friendly (they're production scaffolds).
+
 ## Setup
 
 1. **Clone the workspace**
@@ -63,6 +82,21 @@ Note that this currently assumes a variety of prerequisites:
    git clone https://github.com/your-org/your-project.git
    cd ..
    ```
+
+### Recommended first scaffold
+
+If you're new to GDD and want to feel the full workflow on a tiny live
+target, scaffold the GitHub Pages tutorial:
+
+```bash
+ws component init gh-pages my-page
+```
+
+Then follow the printed instructions and `components/my-page/README.md`.
+The tutorial walks you through creating the GitHub repo, enabling
+Pages, making a first edit on a topic branch, opening a PR, watching
+CodeRabbit and Copilot review, and seeing it deploy live — the whole
+GDD loop on something small enough to feel in 15 minutes.
 
 ## Your First Session
 
