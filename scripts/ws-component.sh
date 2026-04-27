@@ -9,8 +9,6 @@
 # Templates ship under templates/components/<flavor>/.
 # Currently shipped: gh-pages.
 
-set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
@@ -290,6 +288,7 @@ ws_component_init() {
 
 # Guard: if sourced by another script, stop here
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
+set -euo pipefail
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2

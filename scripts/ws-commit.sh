@@ -36,7 +36,7 @@ commit_help() {
         echo "              with YAML frontmatter — typically .commits/<name>.md"
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
-        echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.6)."
+        echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.7)."
         echo ""
         echo "Bodyfile frontmatter (YAML between --- markers):"
         echo "  message:      Commit subject line (required)"
@@ -96,7 +96,7 @@ if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
     # No custom identity configured — fall back to Claude, with CLAUDE_MODEL
     # selecting the model name. CLAUDE_MODEL does not override a configured
     # identity (e.g. "Human Dev" or a non-Claude AI should pass through).
-    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.6}"
+    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.7}"
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"

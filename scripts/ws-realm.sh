@@ -14,8 +14,6 @@
 #                           (Inheritance reservation: the merge generalizes to
 #                           N layers if multi-realm chains land later.)
 
-set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${ECOSYSTEM:="$ROOT_DIR/ecosystem.yaml"}"
@@ -204,6 +202,7 @@ trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 
 # Guard: if sourced by another script, stop here — don't parse $1 as a command
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
+set -euo pipefail
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
