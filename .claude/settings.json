@@ -119,7 +119,16 @@
       "Bash(bash scripts/ws mcp-status)",
       "Bash(ws mcp-setup)",
       "Bash(ws mcp-setup --dry-run)",
-      "Bash(ws mcp-status)"
+      "Bash(ws mcp-status)",
+      "Bash(git -C * show *)",
+      "Bash(git -C * grep *)",
+      "Bash(git -C * log *)",
+      "Bash(git -C * status)",
+      "Bash(git -C * status --short)",
+      "Bash(git -C * diff *)",
+      "Bash(git -C * remote -v)",
+      "Bash(git -C * branch --show-current)",
+      "Bash(git -C * ls-tree *)"
     ]
   }
 }
