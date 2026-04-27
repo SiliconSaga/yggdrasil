@@ -87,17 +87,28 @@ the audit `staleness_days` in Step 3.
 
 Mechanism:
 
-1. Detect dirty state for the active thalami hoard. `ws status`
-   walks `hoards/*/.git/` and reports per-hoard dirty state — look
-   for the active hoard's block.
-2. If the per-machine thalamus file is dirty, get its last-commit
-   timestamp:
+1. Detect file-level dirty state for the per-machine thalamus
+   specifically — not just hoard-wide dirty state, since `ws status`
+   could report the hoard as dirty for unrelated reasons (other
+   machine's thalamus, scratch notes, etc.). Use:
 
    ```bash
-   git -C hoards/<thalami-hoard> log -1 --format=%ct -- <machine>-thalamus.md
+   git -C hoards/<thalami-hoard> diff --quiet -- <machine>-thalamus.md
    ```
 
-3. Compute elapsed time:
+   Exit 0 = clean (skip the rest of the check); exit 1 = dirty
+   (continue).
+
+2. If dirty, get its last-commit timestamp:
+
+   ```bash
+   last_commit_timestamp=$(git -C hoards/<thalami-hoard> log -1 --format=%ct -- <machine>-thalamus.md)
+   ```
+
+3. Handle the "no prior commit" case (new file never committed):
+   if `last_commit_timestamp` is empty, surface a different nudge
+   ("first commit for this machine's thalamus — commit now?") and
+   skip the elapsed-time math. Otherwise compute:
 
    ```bash
    elapsed_seconds=$(( $(date +%s) - last_commit_timestamp ))

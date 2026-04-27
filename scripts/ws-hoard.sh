@@ -43,7 +43,7 @@ ws_resolve_human_account() {
 # Bash, where `hostname` accepts no flags. Strip any domain suffix from
 # the bash builtin $HOSTNAME instead — works on all platforms.
 ws_resolve_machine_name() {
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local override
         override="$(yq '.machine // ""' "$local_file" 2>/dev/null)"
@@ -66,7 +66,7 @@ ws_resolve_machine_name() {
 #   2. Single thalami-* directory in hoards/
 #   3. None
 ws_detect_thalami_hoard() {
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local selector
         selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)"

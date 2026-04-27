@@ -101,7 +101,7 @@ ws_validate_component() {
 #
 # Errors if step 2 finds multiple non-template realms (ambiguous).
 ws_detect_realm() {
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local selector
         if ! selector="$(yq '.realm // ""' "$local_file")"; then
@@ -159,9 +159,9 @@ ws_resolve_ecosystem() {
     # (three layers). When multi-realm inheritance lands, this generalizes
     # to N layers with child-wins semantics — no new identifier needed.
 
-    local base="$ROOT_DIR/ecosystem.yaml"
+    local base="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
     local realm_file=""
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
 
     local active_realm
     active_realm="$(ws_detect_realm)"
@@ -226,7 +226,7 @@ ws_realm_init() {
     # Copy ecosystem.local.yaml.example if no local config exists.
     # Must happen BEFORE ws_resolve_ecosystem — the example file contains
     # defaults.templateRealm which the merge needs to find.
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     local example_file="$ROOT_DIR/ecosystem.local.yaml.example"
     if [[ ! -f "$local_file" && -f "$example_file" ]]; then
         cp "$example_file" "$local_file"
@@ -276,7 +276,7 @@ ws_realm_use() {
         done
         exit 1
     fi
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         yq -i ".realm = \"$name\"" "$local_file"
     else

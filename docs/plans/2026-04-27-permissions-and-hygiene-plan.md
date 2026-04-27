@@ -78,7 +78,7 @@
 
 Three small mechanical fixes. Each is a few lines.
 
-### Task A1: Move `set -euo pipefail` after the source-vs-execute guard in three sibling scripts
+## Task A1: Move `set -euo pipefail` after the source-vs-execute guard in three sibling scripts
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/scripts/ws-realm.sh`
@@ -140,7 +140,7 @@ Expected: lines showing `errexit=off`, `nounset=off`, `pipefail=off` (or none of
 
 (If the parent shell shows `errexit=on` etc. after sourcing, the fix didn't take. Re-check that `set -euo pipefail` is below the guard, not above.)
 
-### Task A2: Bump stale `Co-Authored-By` model default in `ws-commit.sh`
+## Task A2: Bump stale `Co-Authored-By` model default in `ws-commit.sh`
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/scripts/ws-commit.sh`
@@ -185,7 +185,7 @@ grep "Opus 4" scripts/ws-commit.sh
 
 Expected: shows `4.7` in both the runtime default and any help text. No `4.6` left.
 
-### Task A3: Switch router env-var assignments to `:=` defaults
+## Task A3: Switch router env-var assignments to `:=` defaults
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/scripts/ws`
@@ -252,7 +252,7 @@ rm -rf "$tmpdir"
 
 Expected: scaffold visible in the temp dir; the real workspace's `components/` does NOT contain a `testfix/` directory.
 
-### Task A4: Commit Phase A
+## Task A4: Commit Phase A
 
 - [ ] **Step 1: Write the bodyfile.**
 
@@ -309,7 +309,7 @@ Expected: 5 files modified, totals around 10-15 line-changes.
 
 Single-script extension. Adds two new walk-loops mirroring the existing components walk.
 
-### Task B1: Read the current `ws-status.sh` to understand its loop pattern
+## Task B1: Read the current `ws-status.sh` to understand its loop pattern
 
 **Files:**
 - Read-only: `D:/Dev/GitWS/yggdrasil/scripts/ws-status.sh`
@@ -326,7 +326,7 @@ Locate:
 
 Note the pattern. Keep the existing yggdrasil-root and components-walk as-is.
 
-### Task B2: Add the realm walk-loop
+## Task B2: Add the realm walk-loop
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/scripts/ws-status.sh`
@@ -403,7 +403,7 @@ fi
 bash -n D:/Dev/GitWS/yggdrasil/scripts/ws-status.sh && echo "syntax ok"
 ```
 
-### Task B3: Smoke test
+## Task B3: Smoke test
 
 - [ ] **Step 1: Run `ws status` from a clean workspace.**
 
@@ -439,7 +439,7 @@ Expected:
 
 If realms or hoards aren't cloned locally, the corresponding section should be SUPPRESSED (not shown as empty). The `realm_count`/`hoard_count` guard handles this. Verify by spot-checking the `ws status` output for any `=== realms ===` followed immediately by another `===` header (which would indicate empty). There shouldn't be any.
 
-### Task B4: Commit Phase B
+## Task B4: Commit Phase B
 
 - [ ] **Step 1: Write the bodyfile.**
 
@@ -488,7 +488,7 @@ Expected: 1 file modified, ~30-40 line additions.
 
 Two-repo coordination. Realm side first (so the content is in its new home before being removed from yggdrasil). Yggdrasil-side commit follows. **Don't push either side until Phase H.**
 
-### Task C1: Verify no internal links to `docs/agent-security/`
+## Task C1: Verify no internal links to `docs/agent-security/`
 
 **Files:**
 - Read-only sweep across yggdrasil
@@ -507,7 +507,7 @@ Expected (per design-time check): no hits other than within `docs/agent-security
 
 If hits found beyond the design plan itself: pause and report to the controller before continuing.
 
-### Task C2: Realm-side — copy files in, commit, and prepare push
+## Task C2: Realm-side — copy files in, commit, and prepare push
 
 **Files:**
 - Create: `realms/realm-siliconsaga/docs/agent-security/{advanced-capability-model,implementation-phases,openclaw-security,pattern-calendar,pattern-chat-segmentation,pattern-contact-management,pattern-email,pattern-gitops-staging,pattern-voice-pipeline}.md`
@@ -594,7 +594,7 @@ Save this SHA. The yggdrasil-side commit (Task C3) references it.
 
 - [ ] **Step 6: DO NOT push the realm.** Hold for Phase H.
 
-### Task C3: Yggdrasil-side — remove the files
+## Task C3: Yggdrasil-side — remove the files
 
 **Files:**
 - Remove: nine files under `docs/agent-security/`
@@ -671,7 +671,7 @@ Don't commit the Thalamus yet — batched per the cadence preference.
 
 Single new file at `docs/gdd/permissions.md`. Content per the design spec's §5 ("Permission system documentation"). Length target ~250-400 lines, seven sections.
 
-### Task D1: Confirm `docs/gdd/` exists
+## Task D1: Confirm `docs/gdd/` exists
 
 **Files:**
 - Read-only check
@@ -684,7 +684,7 @@ ls D:/Dev/GitWS/yggdrasil/docs/gdd/ 2>&1 | head -10
 
 Expected: directory exists, has some content (e.g. `samples/`, `index.md`, etc.). If absent, `mkdir -p` it before D2.
 
-### Task D2: Write `docs/gdd/permissions.md`
+## Task D2: Write `docs/gdd/permissions.md`
 
 **Files:**
 - Create: `D:/Dev/GitWS/yggdrasil/docs/gdd/permissions.md`
@@ -939,7 +939,7 @@ grep -E '^\s*"Bash\(git -C' D:/Dev/GitWS/yggdrasil/.claude/settings.json | head 
 
 Confirm that each pattern in the doc's §4 table has a corresponding entry in `.claude/settings.json`.
 
-### Task D3: Commit Phase D
+## Task D3: Commit Phase D
 
 - [ ] **Step 1: Write the bodyfile.**
 
@@ -989,7 +989,7 @@ Expected: 1 file added, ~340 lines.
 
 Single new file at `.agent/skills/permissions-management/SKILL.md`. Content per the design spec's §6. Length target ~80-150 lines.
 
-### Task E1: Write the skill
+## Task E1: Write the skill
 
 **Files:**
 - Create: `D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md`
@@ -1137,7 +1137,7 @@ tail -5 D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md
 
 Expected: starts with `---\nname: permissions-management\n...` frontmatter; ends with the "Future scope" section.
 
-### Task E2: Commit Phase E
+## Task E2: Commit Phase E
 
 - [ ] **Step 1: Write the bodyfile.**
 
@@ -1192,7 +1192,7 @@ Expected: 1 file added, ~120 lines.
 
 Two additions to the existing skill: pointer at permissions-management, plus the commit-cadence nudge logic. Plus updating the thalamus template's frontmatter example.
 
-### Task F1: Read the current `gdd-orientation/SKILL.md` to find insertion points
+## Task F1: Read the current `gdd-orientation/SKILL.md` to find insertion points
 
 **Files:**
 - Read-only: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-orientation/SKILL.md`
@@ -1207,7 +1207,7 @@ Identify:
 - The startup-sequence section (where Step 0 / Step 1 are).
 - A natural place for a one-paragraph "available skills for this session" note (likely near the end of the startup sequence or in a "Skills you might invoke during the session" sidebar).
 
-### Task F2: Add the permissions-management pointer
+## Task F2: Add the permissions-management pointer
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-orientation/SKILL.md`
@@ -1239,7 +1239,7 @@ exist.
 
 (Adapt the section heading and prose style to match the existing skill — this is a guide, not verbatim required.)
 
-### Task F3: Add the commit-cadence-nudge logic
+## Task F3: Add the commit-cadence-nudge logic
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-orientation/SKILL.md`
@@ -1264,15 +1264,19 @@ Mechanism:
    hoard. (`ws status` walks `hoards/*/.git/` and reports per-hoard
    dirty state.)
 2. If dirty: get the last-commit timestamp for the per-machine file:
-   ```
+
+   ```bash
    git -C hoards/<thalami-hoard> log -1 --format=%ct <machine>-thalamus.md
    ```
+
    This returns a Unix timestamp.
 3. Compute elapsed time:
-   ```
+
+   ```bash
    elapsed_seconds = $(date +%s) - last_commit_timestamp
    threshold_seconds = commit_staleness_days * 86400
    ```
+
 4. If `elapsed_seconds > threshold_seconds`: surface a nudge.
 
 Wording:
@@ -1304,7 +1308,7 @@ head -50 D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-orientation/SKILL.md | grep -c
 
 Expected: a reasonable count of headers — hard to be precise without seeing the existing structure, but should NOT be zero (would indicate something broke).
 
-### Task F4: Update the thalamus template frontmatter
+## Task F4: Update the thalamus template frontmatter
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/templates/thalamus.md`
@@ -1331,7 +1335,7 @@ Add immediately after:
 commit_staleness_days: 2  # nudge to commit thalamus if uncommitted changes are older than this
 ```
 
-### Task F5: Smoke-test the cadence nudge
+## Task F5: Smoke-test the cadence nudge
 
 This requires a real workspace with an active thalami hoard. If the test workspace doesn't have one, skip the live test and just verify the skill text is well-formed.
 
@@ -1355,7 +1359,7 @@ fi
 
 This reproduces the orientation skill's elapsed-time calculation. Verify the output is sensible (not negative, not absurdly large).
 
-### Task F6: Commit Phase F
+## Task F6: Commit Phase F
 
 - [ ] **Step 1: Write the bodyfile.**
 
@@ -1418,7 +1422,7 @@ Expected: 2 files modified.
 
 Single skill update: add a per-item permissions-related hook to the existing housekeeping flow.
 
-### Task G1: Read the current housekeeping skill
+## Task G1: Read the current housekeeping skill
 
 **Files:**
 - Read-only: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-housekeeping/SKILL.md`
@@ -1431,7 +1435,7 @@ cat D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-housekeeping/SKILL.md
 
 Identify the per-item review section. Each housekeeping item gets reviewed; we want to add a hook.
 
-### Task G2: Add the permissions-management hook
+## Task G2: Add the permissions-management hook
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-housekeeping/SKILL.md`
@@ -1466,7 +1470,7 @@ head -50 D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-housekeeping/SKILL.md | grep -
 
 Expected: a reasonable count of headers.
 
-### Task G3: Commit Phase G
+## Task G3: Commit Phase G
 
 - [ ] **Step 1: Write the bodyfile.**
 
@@ -1510,7 +1514,7 @@ Expected: 1 file modified.
 
 # Phase H — Final verification + push
 
-### Task H1: Final verification — syntax + smoke
+## Task H1: Final verification — syntax + smoke
 
 - [ ] **Step 1: Syntax-check all touched scripts.**
 
@@ -1576,7 +1580,7 @@ git -C D:/Dev/GitWS/yggdrasil status --short
 
 Expected: nothing tracked-and-modified. Untracked `.commits/*.md` bodyfiles are fine.
 
-### Task H2: Push the branch (gated on user authorization)
+## Task H2: Push the branch (gated on user authorization)
 
 - [ ] **Step 1: Wait for user clearance.**
 
@@ -1598,7 +1602,7 @@ ws push yggdrasil design/permissions-and-hygiene
 
 Expected: push succeeds; output shows the branch URL on GitHub.
 
-### Task H3: Open the CR
+## Task H3: Open the CR
 
 - [ ] **Step 1: Write the CR body.**
 
@@ -1667,7 +1671,7 @@ ws cr yggdrasil "Permissions doc + workspace tooling hygiene pass" .crs/permissi
 
 Expected: PR URL printed; capture for the user.
 
-### Task H4: Triage initial review
+## Task H4: Triage initial review
 
 - [ ] **Step 1: Wait for CodeRabbit / Copilot review to land.**
 

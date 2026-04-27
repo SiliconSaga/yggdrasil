@@ -81,7 +81,7 @@ Before committing any new pattern:
   command's semantics? (Almost never; the matcher rejects substitution
   and validates compound commands per-segment, but corner cases exist.)
 - [ ] Is there an existing auto-allowed form that covers this without
-  a custom pattern? (See `docs/gdd/permissions.md` § 1.)
+  a custom pattern? (See `docs/gdd/permissions.md` § 5.)
 - [ ] Does the pattern align with `docs/gdd/permissions.md` § 5
   (when-to-widen-vs-narrow)? If you're departing from the doc's
   guidance, document the reason in the commit body.

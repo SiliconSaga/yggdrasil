@@ -43,10 +43,19 @@ applying the standard Promote/Keep/Prune trichotomy. Example:
 
 This routes permissions-related work through the dedicated skill
 rather than handling it ad hoc during housekeeping. After the skill
-completes (pattern added or declined), the housekeeping flow
-resumes — the original Thalamus item typically becomes Prune-able
-since the underlying decision has been recorded in
-`.claude/settings.json` and `docs/gdd/permissions.md`.
+completes, the housekeeping flow resumes:
+
+- **Pattern added.** The decision is durably recorded across the
+  paired artifacts `.claude/settings.json` (the rule itself) and
+  `docs/gdd/permissions.md` § 4 (the empirical-findings table per
+  the cross-reference rule). The original Thalamus item is typically
+  Prune-able once both updates are in place.
+- **Pattern declined.** No artifact captures a decline by default —
+  `.claude/settings.json` only records accepted patterns. Before
+  pruning the Thalamus item, write the decline outcome to the Audit
+  Log (or a Concern, if it's safety-flavored) so the reasoning
+  doesn't evaporate; otherwise the same prompt will surface again
+  next session and re-litigate the same decision.
 
 Present items one at a time or in small groups (related items together).
 For each, offer three actions:
