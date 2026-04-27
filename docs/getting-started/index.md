@@ -10,15 +10,17 @@ Note that this currently assumes a variety of prerequisites:
 
 ## Templates, instances, and tutorials
 
-The yggdrasil workspace ships three kinds of templates, all with the
-same shape: `templates/<kind>/<flavor>/` directories that an `init`
-command copies out into the live workspace.
+The yggdrasil workspace ships templates in two shapes: in-repo
+`templates/<kind>/<flavor>/` directories that an `init` command copies
+out (hoards, components), and external git repos that an `init` command
+clones (realms — referenced via `defaults.templateRealm` URL in the
+ecosystem config).
 
-| Kind | Templates dir | Instance dir | Init command |
-|------|---------------|--------------|--------------|
-| **Realm** | `templates/realms/<flavor>/` (currently external; clone-and-fork) | `realms/realm-<community>/` | `ws realm init` |
-| **Hoard** | `templates/hoards/<type>/` | `hoards/<type>-<username>/` | `ws hoard init <type>` |
-| **Component** | `templates/components/<flavor>/` | `components/<name>/` | `ws component init <flavor> <name>` |
+| Kind | Source | Instance dir | Init command |
+|------|--------|--------------|--------------|
+| **Realm** | external git repo (URL in `defaults.templateRealm`) | `realms/realm-<community>/` (or `realms/realm-template/` for the upstream tutorial) | `ws realm init` (clones the template URL) |
+| **Hoard** | `templates/hoards/<type>/` | `hoards/<type>-<username>/` | `ws hoard init <type>` (copies + git-inits) |
+| **Component** | `templates/components/<flavor>/` | `components/<name>/` | `ws component init <flavor> <name>` (copies + git-inits) |
 
 A *template* is a forkable scaffold. An *instance* is the on-disk
 result of running its `init` command. A *tutorial* is an instance
