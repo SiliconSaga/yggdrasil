@@ -74,7 +74,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `actions` |
+| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions` |
 | **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs) |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
@@ -192,8 +192,7 @@ commands need one `*` per argument:
       "Bash(bash scripts/ws push * *)",
       "Bash(bash scripts/ws cr * * *)",
       "Bash(bash scripts/ws issue * * * *)",
-      "Bash(bash scripts/ws commit * *)",
-      "Bash(bash scripts/ws commit * * *)"
+      "Bash(bash scripts/ws commit * *)"
     ]
   }
 }
@@ -205,12 +204,58 @@ commands need one `*` per argument:
 | `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push mimir feat/foo` |
 | `Bash(bash scripts/ws cr * * *)` | CR with component + title + bodyfile | `ws cr mimir "feat: add X" .crs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
-| `Bash(bash scripts/ws commit * *)` | Commit with message only | `ws commit mimir "fix: race"` |
-| `Bash(bash scripts/ws commit * * *)` | Commit with message + bodyfile | `ws commit mimir "feat: X" .commits/x.md` |
+| `Bash(bash scripts/ws commit * *)` | Commit (bodyfile-driven) | `ws commit mimir .commits/race-fix.md` |
 
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.
 See "Why exec always requires human approval" above.
+
+## ws component init
+
+Scaffolds a new component into `components/<name>/` from a template
+shipped at `templates/components/<flavor>/`.
+
+Usage:
+
+```bash
+ws component init <flavor> [name] [template-args]
+ws component list
+```
+
+Behavior:
+
+1. Validates the flavor exists. Errors with the available-flavors list
+   if not.
+2. Resolves the component name. Required; prompted on a tty if omitted.
+3. Pre-flight checks: `components/<name>/` doesn't exist, `<name>`
+   isn't already in `ecosystem.local.yaml`. Warns + confirms if `<name>`
+   shadows a realm-catalog entry.
+4. Copies the template directory into `components/<name>/`.
+5. `git init -b main`, initial commit using the user's git config —
+   `git config user.name` for the author name (fallback to
+   `identity.human_account`) and `git config user.email` for the email
+   (fallback to `<human_account>@local`).
+6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.repo`
+   (matches the field `ws-clone.sh` reads). The URL is inferred from
+   `identity.human_account` and the component name, in canonical
+   `https://github.com/<user>/<name>.git` form.
+7. Prints educational output explaining the local-first → upstream-when-
+   ready flow plus a flavor-appropriate `gh repo create` suggestion.
+
+`ecosystem.local.yaml` is the per-developer (gitignored) layer of the
+three-layer merge. The new component is immediately usable from this
+workspace; when ready to share with the community, move the entry into
+the realm's `ecosystem.yaml` with realm-appropriate fields (tier,
+chartVersion, etc.) and push the realm.
+
+Currently shipped flavors:
+
+- `gh-pages` — tutorial-friendly GitHub Pages site, bare markdown +
+  default GitHub Jekyll theme. Comprehensive README walks the user
+  through the edit → PR → bot-review → merge → see-it-live demo loop.
+
+Per-flavor flag handling is hardcoded in `scripts/ws-component.sh`
+for v1.
 
 ## Finding Patterns Worth Scripting
 

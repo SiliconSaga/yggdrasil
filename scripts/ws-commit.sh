@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# ws-commit.sh — Commit with Co-Authored-By trailer
+# ws-commit.sh — Commit with Co-Authored-By trailer (bodyfile-driven)
 #
 # Usage:
 #   ws-commit.sh <component> <bodyfile>
-#   ws-commit.sh <component> <message> [bodyfile]
 #
-# Two modes: bodyfile (preferred) or inline message. See `ws commit --help`
-# for full documentation. Uses shared functions from ws-realm.sh.
+# Bodyfile-only: every commit declares its `add:` frontmatter so staging
+# is part of the bodyfile contract, never a hidden precondition. See
+# `ws commit --help` for full documentation. Uses shared functions from
+# ws-realm.sh.
 
 set -euo pipefail
 
@@ -23,28 +24,22 @@ commit_help() {
     local stream="${1:-2}"
     {
         echo "Usage: ws commit <component> <bodyfile>"
-        echo "       ws commit <component> <message> [bodyfile]"
         echo ""
-        echo "Commit with a Co-Authored-By trailer. Two modes:"
-        echo ""
-        echo "  Bodyfile mode (preferred):"
-        echo "    ws commit <component> .commits/my-change.md"
-        echo "    The bodyfile contains everything: message, files to stage, body text."
-        echo ""
-        echo "  Inline mode:"
-        echo "    ws commit <component> 'commit subject' [bodyfile]"
-        echo "    Message on the command line, optional bodyfile for extended body."
+        echo "Commit with a Co-Authored-By trailer. Bodyfile-driven: every"
+        echo "commit declares its files to stage in the bodyfile frontmatter,"
+        echo "so there's no separate \`git add\` step and no implicit staging"
+        echo "preconditions."
         echo ""
         echo "Arguments:"
         echo "  component   Component name (or 'yggdrasil' for workspace root)"
-        echo "  bodyfile    Commit file from .commits/ (detected by .md extension)"
-        echo "  message     Commit subject line (inline mode)"
+        echo "  bodyfile    Path (relative to workspace root) to a .md file"
+        echo "              with YAML frontmatter — typically .commits/<name>.md"
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
         echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.6)."
         echo ""
         echo "Bodyfile frontmatter (YAML between --- markers):"
-        echo "  message:      Commit subject line (required in bodyfile mode)"
+        echo "  message:      Commit subject line (required)"
         echo "  add:          List of files to stage before committing"
         echo "  remove:       List of deleted files to stage for removal"
         echo "  Frontmatter is stripped from the commit body automatically."
@@ -53,8 +48,7 @@ commit_help() {
         echo ""
         echo "Examples:"
         echo "  ws commit yggdrasil .commits/fix-store-race.md"
-        echo "  ws commit mimir 'fix: resolve store race condition'"
-        echo "  ws commit yggdrasil 'feat(ws): add feature' .commits/details.md"
+        echo "  ws commit mimir .commits/race-fix.md"
     } >&"$stream"
 }
 
@@ -65,48 +59,33 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     exit 0
 fi
 
-if [[ $# -lt 2 ]]; then
+if [[ $# -ne 2 ]]; then
     commit_help 2
     exit 1
 fi
 
-if [[ $# -gt 3 ]]; then
-    echo "ERROR: Too many arguments." >&2
+comp="$1"
+bodyfile="$2"
+message=""
+
+# The bodyfile arg should be a path to a .md file. Reject anything else
+# loudly so a stray inline-message-style invocation doesn't silently
+# misread.
+if [[ "$bodyfile" != *.md ]]; then
+    echo "ERROR: ws commit is bodyfile-only — second arg must be a .md path." >&2
+    echo "  Got: '$bodyfile'" >&2
     echo "  Usage: ws commit <component> <bodyfile>" >&2
-    echo "  Usage: ws commit <component> <message> [bodyfile]" >&2
+    echo "  Write a bodyfile (see templates/commit.md) under .commits/ first." >&2
     exit 1
 fi
 
-# Detect mode: if second arg ends in .md, treat it as a bodyfile path.
-# This requires the file to exist — we fail loudly if not, rather than
-# silently treating a message like 'docs: update README.md' as a commit
-# subject (which would skip the bodyfile logic entirely and ship the
-# message literally). The error points the user at the collision.
-comp="$1"
-message=""
-bodyfile=""
-resolved_arg2="$2"
-[[ "$resolved_arg2" != /* ]] && resolved_arg2="$ROOT_DIR/$resolved_arg2"
-if [[ "$2" == *.md ]]; then
-    # Looks like a bodyfile path — verify it exists
-    if [[ ! -f "$resolved_arg2" ]]; then
-        echo "ERROR: bodyfile not found: $2" >&2
-        echo "  If this was meant as a commit message, note that arguments" >&2
-        echo "  ending in .md are treated as bodyfile paths." >&2
-        exit 1
-    fi
-    # Bodyfile mode: ws commit <comp> <bodyfile>
-    bodyfile="$2"
-    if [[ $# -gt 2 ]]; then
-        echo "ERROR: Too many arguments for bodyfile mode." >&2
-        echo "  Usage: ws commit <component> <bodyfile>" >&2
-        echo "  Put the commit message in the bodyfile frontmatter (message: field)." >&2
-        exit 1
-    fi
-else
-    # Inline mode: ws commit <comp> <message> [bodyfile]
-    message="$2"
-    bodyfile="${3:-}"
+# Resolve to an absolute path so later code (which cd's into the component
+# dir) can still read the file. Validate existence here; no later check
+# needed.
+[[ "$bodyfile" != /* ]] && bodyfile="$ROOT_DIR/$bodyfile"
+if [[ ! -f "$bodyfile" ]]; then
+    echo "ERROR: bodyfile not found: $bodyfile" >&2
+    exit 1
 fi
 
 # --- Build Co-Authored-By trailer from identity config ---
@@ -125,17 +104,6 @@ trailer="Co-Authored-By: $co_authored_by <noreply@anthropic.com>"
 
 # Ensure .commits/ exists (may be first use on a fresh clone)
 mkdir -p "$ROOT_DIR/.commits"
-
-# Resolve bodyfile path before cd (relative paths are from workspace root)
-if [[ -n "$bodyfile" ]]; then
-    if [[ "$bodyfile" != /* ]]; then
-        bodyfile="$ROOT_DIR/$bodyfile"
-    fi
-    if [[ ! -f "$bodyfile" ]]; then
-        echo "ERROR: body file not found: $bodyfile" >&2
-        exit 1
-    fi
-fi
 
 ws_validate_component "$comp"
 cd "$COMPONENT_DIR"
@@ -162,13 +130,11 @@ if [[ -n "$bodyfile" ]]; then
             # ones (e.g. markdown horizontal rules in the commit body).
             body_content="$(echo "$file_content" | awk 'BEGIN{n=0} /^---$/ && n<2 {n++; next} n>=2')"
 
-            # Parse message: from frontmatter if not provided on command line
+            # Parse message: from frontmatter (required)
+            message="$(echo "$frontmatter" | yq -r '.message // ""' 2>/dev/null)"
             if [[ -z "$message" ]]; then
-                message="$(echo "$frontmatter" | yq -r '.message // ""' 2>/dev/null)"
-                if [[ -z "$message" ]]; then
-                    echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
-                    exit 1
-                fi
+                echo "ERROR: No commit message. Bodyfile frontmatter must include a 'message:' field." >&2
+                exit 1
             fi
 
             # Parse add: list from frontmatter
@@ -213,16 +179,21 @@ if [[ -n "$bodyfile" ]]; then
     fi
 fi
 
-# Verify we have a commit message at this point
+# Verify we have a commit message at this point. Reaches here only when
+# the bodyfile had no YAML frontmatter (just body text) — in which case
+# message: was never parsed and the bodyfile is malformed.
 if [[ -z "$message" ]]; then
-    echo "ERROR: No commit message. Provide message: in bodyfile frontmatter or as a command-line argument." >&2
+    echo "ERROR: No commit message. Bodyfile must start with --- delimited frontmatter containing 'message:'." >&2
     exit 1
 fi
 
-# Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty)
+# Verify there are staged changes (--quiet exits 0 when clean, 1 when dirty).
+# In bodyfile mode the add: list does the staging, so this check usually
+# passes. Failure means the bodyfile had no add: list and the workspace
+# had no pre-staged changes — point the user at the canonical fix.
 if git diff --cached --quiet 2>/dev/null; then
     echo "ERROR: No staged changes to commit in $comp." >&2
-    echo "  Stage files first with git add, or use a bodyfile with add: frontmatter." >&2
+    echo "  Add files to the bodyfile's 'add:' frontmatter list." >&2
     exit 1
 fi
 

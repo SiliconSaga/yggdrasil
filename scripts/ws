@@ -17,7 +17,7 @@
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
-#   commit <comp> <bodyfile|message> Commit with Co-Authored-By trailer (bodyfile preferred)
+#   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean             Remove draft files from .issues/, .crs/, .commits/
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
@@ -28,6 +28,8 @@
 #   hoard init [template]      Scaffold a new hoard (default: thalami)
 #   hoard <url>                Clone an existing hoard
 #   hoard list                 Show hoards and which thalami hoard is active
+#   component init <flavor> [name]   Scaffold a new component from a template
+#   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component
 #   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
@@ -584,6 +586,9 @@ case "$COMMAND" in
         ;;
     hoard)
         bash "$SCRIPT_DIR/ws-hoard.sh" "$@"
+        ;;
+    component)
+        bash "$SCRIPT_DIR/ws-component.sh" "$@"
         ;;
     gitlab-auth)
         ws_gitlab_auth "$@"
