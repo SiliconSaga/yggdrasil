@@ -101,10 +101,13 @@ ws component init <flavor> [name] [template-args...]
    doesn't exist; list available flavors in the error message.
 2. **Resolve name.** Use the `name` arg, prompt for one if omitted on
    a tty, or error.
-3. **Validate name** against a safe pattern
-   (`^[a-z]([a-z0-9-]*[a-z0-9])?$`) — same as the existing component
-   regex. Reject the workspace-root name `yggdrasil` (the only reserved
-   name today; `ws_validate_component` already special-cases it).
+3. **Validate name** against the same safe pattern used by
+   `ws_validate_component` in `ws-realm.sh`:
+   `^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$`. Allows
+   dotted segments (e.g. `some.component`) for parity with names already
+   accepted across the workspace. Reject the workspace-root name
+   `yggdrasil` (the only reserved name today; `ws_validate_component`
+   already special-cases it).
 4. **Pre-flight checks (before any filesystem mutation):**
    - `components/<name>/` does not exist (otherwise: error).
    - `<name>` is not already declared in `ecosystem.local.yaml`
@@ -126,7 +129,7 @@ ws component init <flavor> [name] [template-args...]
    ```yaml
    components:
      <name>:
-       url: https://github.com/<human_account>/<name>   # edit if you push elsewhere
+       repo: https://github.com/<human_account>/<name>.git   # edit if you push elsewhere
    ```
 
    The URL is inferred from the printed `gh repo create` suggestion
@@ -159,7 +162,7 @@ Component initialized: components/<name>
 Registered in ecosystem.local.yaml:
   components:
     <name>:
-      url: https://github.com/<human_account>/<name>
+      repo: https://github.com/<human_account>/<name>.git
 
 This is the local-only layer of the three-layer config merge:
   upstream ecosystem.yaml → realm/ecosystem.yaml → ecosystem.local.yaml
@@ -357,7 +360,7 @@ config and clonable later if needed:
 ```yaml
 components:
   <name>:
-    url: https://github.com/<human_account>/<name>   # edit if you push elsewhere
+    repo: https://github.com/<human_account>/<name>.git   # edit if you push elsewhere
 ```
 
 Realm-specific fields (`tier`, `chartVersion`, `chartName`, `path`,
@@ -371,7 +374,7 @@ with just:
 ```yaml
 components:
   <name>:
-    url: https://github.com/<human_account>/<name>
+    repo: https://github.com/<human_account>/<name>.git
 ```
 
 If it does exist, init runs `yq -i '.components["<name>"] = { ... }'`
@@ -404,7 +407,7 @@ needed to `ws_validate_component`**.
 ### `ws clone <name>`
 
 Reads merged ecosystem config to find a URL. After init writes the
-local entry with `url:`, `ws clone <name>` would find a URL but the
+local entry with `repo:`, `ws clone <name>` would find a URL but the
 local component dir already exists, so clone would skip with the
 existing "already cloned" guard. No new behavior needed.
 

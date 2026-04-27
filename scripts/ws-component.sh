@@ -126,9 +126,12 @@ ws_component_init() {
         echo "ERROR: 'yggdrasil' is the workspace root name; pick a different component name." >&2
         exit 1
     fi
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?$ ]]; then
+    # Match the regex used by ws_validate_component in ws-realm.sh — allows
+    # dotted segments (e.g. some.component) for parity with names already
+    # accepted by the rest of the workspace's component handling.
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Invalid component name '$name'." >&2
-        echo "  Must start with lowercase letter, then lowercase alphanumeric and hyphens." >&2
+        echo "  Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
         exit 1
     fi
 
@@ -220,12 +223,16 @@ ws_component_init() {
             commit -q -m "Initial commit (${flavor} component for ${who})"
     )
 
-    # Add ecosystem.local.yaml entry
-    local url="https://github.com/${who}/${name}"
+    # Add ecosystem.local.yaml entry. Field name is `repo`, matching what
+    # ws-clone.sh reads (.components.<name>.repo, with fallback to
+    # defaults.gitOrg + name + ".git" when unset). Canonical HTTPS + .git
+    # form so a downstream `ws clone <name>` from a fresh workspace gets
+    # exactly the right URL without ambiguity.
+    local repo_url="https://github.com/${who}/${name}.git"
     if [[ "$local_file_was_new" == 1 ]]; then
         printf '# ecosystem.local.yaml — per-developer overrides (gitignored)\n# Created by ws component init.\n' > "$local_file"
     fi
-    yq -i ".components.\"$name\".url = \"$url\"" "$local_file"
+    yq -i ".components.\"$name\".repo = \"$repo_url\"" "$local_file"
 
     # Disarm rollback trap — past the danger zone
     trap - ERR
@@ -244,7 +251,7 @@ ws_component_init() {
     echo "Registered in ecosystem.local.yaml:"
     echo "  components:"
     echo "    ${name}:"
-    echo "      url: ${url}"
+    echo "      repo: ${repo_url}"
     echo ""
     echo "This is the local-only layer of the three-layer config merge:"
     echo "  upstream ecosystem.yaml → realm/ecosystem.yaml → ecosystem.local.yaml"

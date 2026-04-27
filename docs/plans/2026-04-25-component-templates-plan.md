@@ -189,9 +189,12 @@ ws_component_init() {
         echo "ERROR: 'yggdrasil' is the workspace root name; pick a different component name." >&2
         exit 1
     fi
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?$ ]]; then
+    # Match the regex used by ws_validate_component in ws-realm.sh — allows
+    # dotted segments (e.g. some.component) for parity with names already
+    # accepted by the rest of the workspace's component handling.
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "ERROR: Invalid component name '$name'." >&2
-        echo "  Must start with lowercase letter, then lowercase alphanumeric and hyphens." >&2
+        echo "  Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
         exit 1
     fi
 
@@ -272,12 +275,16 @@ ws_component_init() {
             commit -q -m "Initial commit (${flavor} component for ${who})"
     )
 
-    # Add ecosystem.local.yaml entry
-    local url="https://github.com/${who}/${name}"
+    # Add ecosystem.local.yaml entry. Field name is `repo`, matching what
+    # ws-clone.sh reads (.components.<name>.repo, with fallback to
+    # defaults.gitOrg + name + ".git" when unset). Canonical HTTPS + .git
+    # form so a downstream `ws clone <name>` from a fresh workspace gets
+    # exactly the right URL without ambiguity.
+    local repo_url="https://github.com/${who}/${name}.git"
     if [[ ! -f "$local_file" ]]; then
         printf '# ecosystem.local.yaml — per-developer overrides (gitignored)\n# Created by ws component init.\n' > "$local_file"
     fi
-    yq -i ".components.\"$name\".url = \"$url\"" "$local_file"
+    yq -i ".components.\"$name\".repo = \"$repo_url\"" "$local_file"
 
     # Disarm rollback trap — past the danger zone
     trap - ERR
@@ -542,7 +549,7 @@ Component initialized: components/testcomp
 Registered in ecosystem.local.yaml:
   components:
     testcomp:
-      url: https://github.com/testuser/testcomp
+      repo: https://github.com/testuser/testcomp.git
 ...
 Suggested next step — create and push the GitHub remote:
   gh repo create testuser/testcomp  \
@@ -563,7 +570,7 @@ git -C "$tmpdir/components/testcomp" log --oneline -1
 
 Expected:
 - `components/testcomp/` contains `README.md` and `dummy.yaml`
-- `ecosystem.local.yaml` contains `components.testcomp.url: https://github.com/testuser/testcomp`
+- `ecosystem.local.yaml` contains `components.testcomp.repo: https://github.com/testuser/testcomp.git`
 - Initial commit message is `Initial commit (dummy component for testuser)`
 
 - [ ] **Step 5: Verify rerun-collision behavior**
@@ -609,7 +616,7 @@ resolves the component name (prompts on a tty if missing), checks for
 local collisions, warns and confirms when shadowing a realm-catalog
 component, copies the template directory into components/<name>/,
 git-inits with the user's git config, registers an entry in
-ecosystem.local.yaml under components.<name>.url (the per-developer
+ecosystem.local.yaml under components.<name>.repo (the per-developer
 layer of the three-layer merge), and prints educational output
 explaining the local-first → upstream-when-ready flow plus a flavor-
 appropriate gh repo create suggestion.
@@ -983,7 +990,7 @@ Component initialized: components/testblog
 Registered in ecosystem.local.yaml:
   components:
     testblog:
-      url: https://github.com/testuser/testblog
+      repo: https://github.com/testuser/testblog.git
 ...
 Suggested next step — create and push the GitHub remote:
   gh repo create testuser/testblog --public \
@@ -1005,7 +1012,7 @@ git -C "$tmpdir/components/testblog" branch --show-current
 
 Expected:
 - Five files in `components/testblog/`: `.gitignore  LICENSE  README.md  _config.yml  index.md`
-- `ecosystem.local.yaml` contains `components.testblog.url: https://github.com/testuser/testblog`
+- `ecosystem.local.yaml` contains `components.testblog.repo: https://github.com/testuser/testblog.git`
 - Initial commit attribution uses your git config (e.g. `Cervator <cervator@gmail.com>: Initial commit (gh-pages component for testuser)`)
 - Branch is `main`
 
@@ -1190,9 +1197,10 @@ Behavior:
 4. Copies the template directory into `components/<name>/`.
 5. `git init -b main`, initial commit using the user's git config
    (with fallback to `identity.human_account` from merged config).
-6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.url`.
-   The URL is inferred from `identity.human_account` and the component
-   name.
+6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.repo`
+   (matches the field `ws-clone.sh` reads). The URL is inferred from
+   `identity.human_account` and the component name, in canonical
+   `https://github.com/<user>/<name>.git` form.
 7. Prints educational output explaining the local-first → upstream-when-
    ready flow plus a flavor-appropriate `gh repo create` suggestion.
 

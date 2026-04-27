@@ -237,9 +237,10 @@ Behavior:
    `git config user.name` for the author name (fallback to
    `identity.human_account`) and `git config user.email` for the email
    (fallback to `<human_account>@local`).
-6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.url`.
-   The URL is inferred from `identity.human_account` and the component
-   name.
+6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.repo`
+   (matches the field `ws-clone.sh` reads). The URL is inferred from
+   `identity.human_account` and the component name, in canonical
+   `https://github.com/<user>/<name>.git` form.
 7. Prints educational output explaining the local-first → upstream-when-
    ready flow plus a flavor-appropriate `gh repo create` suggestion.
 
