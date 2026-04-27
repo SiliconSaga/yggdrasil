@@ -27,8 +27,7 @@ wins. The relevant top-level structure is:
   "permissions": {
     "allow": [ "Bash(...)", "..." ],
     "deny":  [ "Bash(...)", "..." ]
-  },
-  "enableAllProjectMcpServers": false
+  }
 }
 ```
 
@@ -36,9 +35,6 @@ wins. The relevant top-level structure is:
 A command is checked against `deny` first; if it matches, it's blocked
 regardless of `allow`. Otherwise, if it matches any `allow`, it's
 auto-approved. Otherwise the user is prompted.
-
-`enableAllProjectMcpServers: false` means MCP servers declared by the
-project don't auto-enable; users opt in per server via `/mcp`.
 
 ---
 
@@ -66,8 +62,8 @@ produce a permission prompt.
 ```text
 Bash(git -C * show *)
 Bash(git -C * log *)
-Bash(ws push *)
-Bash(bash scripts/ws review * --since *)
+Bash(bash scripts/ws clone *)
+Bash(bash scripts/ws review * * --since *)
 ```
 
 Each `*` is a wildcard slot. The matcher binds each slot to a single
