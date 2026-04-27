@@ -1,0 +1,13 @@
+# Jekyll local build output
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
+# Bundler artifacts (only present if you decide to run Jekyll locally)
+.bundle/
+vendor/
+Gemfile.lock
+
+# OS noise
+.DS_Store
+Thumbs.db

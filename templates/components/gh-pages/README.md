@@ -1,0 +1,172 @@
+# Your GitHub Pages site
+
+> **You can ask your AI agent to walk you through any step below, or
+> follow this guide directly. Both paths arrive at roughly the same
+> place.** The agent is non-deterministic; this guide is the
+> deterministic path. They do the same thing in spirit.
+
+This is a starter site scaffolded from the GDD `gh-pages` component
+template. It deploys to GitHub Pages as-is, lets you exercise the full
+GDD-and-bot-review workflow with a tiny live target, and is meant to
+be edited from day one.
+
+---
+
+## 1. Setup checklist
+
+After `ws component init gh-pages <name>` finished, the suggested next
+step it printed was something like:
+
+```bash
+gh repo create <yourname>/<name> --public \
+  --source=components/<name> --remote=<yourname> --push
+```
+
+Run that. It creates a public repo on your GitHub account, sets your
+username as the remote name (avoids the generic `origin`), and pushes
+the initial commit.
+
+> **Why public?** Free GitHub Pages on personal accounts requires a
+> public repo. A private Pages site is paid (GitHub Pro / Team /
+> Enterprise). If you want it private, swap `--public` for `--private`
+> in the suggested command and accept the cost on your end.
+
+If you'd rather create the repo by hand:
+
+1. Go to `https://github.com/new` while signed in.
+2. Repository name: `<name>` (matching the directory). Public.
+3. Skip the README / .gitignore / license options — your scaffold
+   already has them.
+4. Click **Create repository**.
+5. Back in your terminal, set the remote and push:
+
+   ```bash
+   cd components/<name>
+   git remote add <yourname> https://github.com/<yourname>/<name>.git
+   git push -u <yourname> main
+   ```
+
+### Enable GitHub Pages
+
+GitHub doesn't auto-enable Pages on new repos. You enable it once,
+manually:
+
+1. In your new repo on GitHub, click **Settings** (top nav).
+2. In the left sidebar, click **Pages** (under "Code and automation").
+3. Under **Source**, choose **Deploy from a branch**.
+4. Under **Branch**, pick `main` and folder `/ (root)`. Click **Save**.
+5. Wait ~1 minute. Refresh the Pages settings page; it'll show a green
+   banner with the URL once the first build is done.
+
+Your site lives at `https://<yourname>.github.io/<name>/`. Visit it and
+you should see the placeholder page.
+
+---
+
+## 2. Make your first edit
+
+The point of the demo is to feel the full GDD loop — write, propose,
+review, merge — on a tiny target. Try it now:
+
+```bash
+cd components/<name>
+git checkout -b first-post
+```
+
+Open `index.md` and replace the placeholder paragraph with whatever
+you want. A sentence or two is enough.
+
+Save, commit, push:
+
+```bash
+git add index.md
+git commit -m "Make the home page mine"
+git push -u <yourname> first-post
+```
+
+---
+
+## 3. Open a PR and watch the bots
+
+Open the PR:
+
+```bash
+gh pr create --fill
+```
+
+(`--fill` reuses your commit message as the PR title and body.)
+
+Now wait for the reviewers:
+
+- **CodeRabbit** posts a review usually within a couple of minutes.
+  If you don't see one, install the [CodeRabbit GitHub App](https://github.com/marketplace/coderabbit)
+  on your account first; it's free for public repos.
+- **GitHub Copilot review**, if you have a Copilot subscription, can
+  be requested from the PR's **Reviewers** panel — click the gear icon
+  next to "Reviewers" and choose "GitHub Copilot". Copilot doesn't
+  re-review automatically on every push; if you want a second pass
+  after addressing feedback, click "Re-request review" in the same
+  panel.
+
+You'll see review threads appear inline in the diff. CodeRabbit's
+review tends to be detailed; for a one-paragraph change it might just
+suggest a wording tweak or note that everything looks fine.
+
+---
+
+## 4. Merge and see it live
+
+Once you're happy with the review thread responses (or there's nothing
+to address):
+
+1. Click **Merge pull request** on the PR. **Squash and merge** is a
+   reasonable default for a single-commit PR.
+2. GitHub Pages rebuilds the site within a minute or so. There's no
+   click required — the rebuild fires on every push to `main`.
+3. Refresh `https://<yourname>.github.io/<name>/`. Your edit is live.
+
+That's the whole loop.
+
+---
+
+## 5. Going further
+
+The template stays minimal so you can take it where you want. A few
+common next steps:
+
+- **Different theme.** Edit the `theme:` line in `_config.yml`. The
+  comments next to that line list other GitHub-supported themes you
+  can pick from. For richer theming (custom CSS, layouts), you'd
+  either fork a Jekyll theme repo or move to a different static-site
+  generator (Astro, VitePress, 11ty, Hugo). Ask your agent to walk
+  you through whichever path interests you — *or capture a Thalamus
+  todo about the theme work and come back to it later when you have
+  ideas*.
+- **Custom domain.** Drop a `CNAME` file at the repo root containing
+  your domain. Configure DNS to point at GitHub Pages' servers
+  (instructions in your domain registrar's docs + GitHub's [custom
+  domain guide](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site)).
+- **More pages.** Add `<page-name>.md` files alongside `index.md`,
+  link from `index.md` (Markdown links: `[About](about.md)`).
+- **Comments / analytics / search.** Each is a separate add-on with
+  its own setup. Ask your agent for the typical patterns — Disqus or
+  utterances for comments, GoatCounter or Plausible for cookieless
+  analytics, lunr or Algolia for search.
+
+---
+
+## What's in this directory
+
+- `index.md` — the home page you're editing
+- `_config.yml` — Jekyll config (title, theme)
+- `README.md` — this file
+- `.gitignore` — keeps Jekyll's local build output out of git
+- `LICENSE` — MIT placeholder; replace or leave as-is once your repo
+  is the source of truth
+
+The component is registered in your workspace's `ecosystem.local.yaml`
+under `components.<name>` so `ws status`, `ws push <name>`, `ws log
+<name>`, etc. all work from the yggdrasil root. To share this
+component with your community, move that `ecosystem.local.yaml` entry
+into your realm's `ecosystem.yaml` with realm-appropriate fields
+(tier, etc.) and push the realm.
