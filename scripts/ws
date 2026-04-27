@@ -28,6 +28,8 @@
 #   hoard init [template]      Scaffold a new hoard (default: thalami)
 #   hoard <url>                Clone an existing hoard
 #   hoard list                 Show hoards and which thalami hoard is active
+#   component init <flavor> [name]   Scaffold a new component from a template
+#   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component
 #   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
@@ -584,6 +586,9 @@ case "$COMMAND" in
         ;;
     hoard)
         bash "$SCRIPT_DIR/ws-hoard.sh" "$@"
+        ;;
+    component)
+        bash "$SCRIPT_DIR/ws-component.sh" "$@"
         ;;
     gitlab-auth)
         ws_gitlab_auth "$@"
