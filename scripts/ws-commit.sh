@@ -167,9 +167,17 @@ if [[ -n "$bodyfile" ]]; then
                 echo "Staging removals from bodyfile frontmatter..."
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
-                    git rm --cached "$f" 2>/dev/null || git rm "$f" 2>/dev/null || {
+                    # `git rm` (no --cached) so removal applies to BOTH the
+                    # index and the working tree. Index-only removal would
+                    # leave dangling untracked files behind and surprise the
+                    # next `git status` reader. If the file has uncommitted
+                    # changes, git refuses — we surface the error rather
+                    # than swallowing it, so the operator can decide whether
+                    # `git rm -f` was actually intended.
+                    if ! git rm "$f"; then
                         echo "WARNING: could not stage removal of $f" >&2
-                    }
+                        echo "  (file may have uncommitted changes — use 'git rm -f $f' if intended)" >&2
+                    fi
                 done <<< "$remove_files"
             fi
         fi
