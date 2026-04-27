@@ -140,7 +140,7 @@ ws_component_init() {
         exit 1
     fi
 
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local existing
         # Capture yq's exit status explicitly — `existing="$(yq ...)"` swallows
