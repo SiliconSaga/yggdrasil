@@ -58,6 +58,17 @@ Lands the `ws component init` command end-to-end without any shipped templates. 
 
 - [ ] **Step 1: Write the file**
 
+> **Note on drift:** the code block below is the original drafted form
+> from when this plan was written. After implementation, code review on
+> PR #45 surfaced refinements (yq exit-status checking, atomic
+> `ecosystem.local.yaml` rollback when newly created, `--private` as
+> the safe default visibility for unknown flavors, cosmetic cleanups).
+> The committed `scripts/ws-component.sh` is canonical; if executing
+> this plan from scratch in the future, prefer that file's current
+> contents over the inlined version here. The most egregious drifts
+> have been patched inline below to keep this block buildable, but
+> small differences may remain.
+
 Write `D:/Dev/GitWS/yggdrasil/scripts/ws-component.sh` with this exact content:
 
 ```bash
@@ -208,8 +219,11 @@ ws_component_init() {
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
         local existing
-        existing="$(yq ".components.\"$name\" // \"\"" "$local_file" 2>/dev/null)"
-        if [[ -n "$existing" && "$existing" != "null" && "$existing" != '""' ]]; then
+        if ! existing="$(yq ".components.\"$name\" // \"\"" "$local_file")"; then
+            echo "ERROR: failed to parse $local_file. Check YAML syntax." >&2
+            exit 1
+        fi
+        if [[ -n "$existing" && "$existing" != "null" ]]; then
             echo "ERROR: component '$name' is already declared in ecosystem.local.yaml." >&2
             echo "  Edit the file or pick a different name." >&2
             exit 1
@@ -219,7 +233,10 @@ ws_component_init() {
     # Warn if name shadows a realm-catalog component
     local eco realm_entry
     eco="$(ws_resolve_ecosystem)"
-    realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco" 2>/dev/null)"
+    if ! realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco")"; then
+        echo "ERROR: failed to parse merged ecosystem config." >&2
+        exit 1
+    fi
     if [[ "$realm_entry" != "missing" ]]; then
         echo "WARNING: '$name' is already declared in the merged ecosystem catalog." >&2
         echo "  Adding a local-layer entry will shadow it. This is allowed but unusual." >&2
@@ -289,11 +306,12 @@ ws_component_init() {
     # Disarm rollback trap — past the danger zone
     trap - ERR
 
-    # Per-flavor visibility default for the suggested gh command
-    local visibility=""
+    # Per-flavor visibility default for the suggested gh command. `gh repo
+    # create` requires one of --public/--private/--internal in non-interactive
+    # mode, so fall back to --private for unknown flavors.
+    local visibility="--private"
     case "$flavor" in
         gh-pages) visibility="--public" ;;
-        *)        visibility="" ;;
     esac
 
     # Educational output
@@ -303,7 +321,7 @@ ws_component_init() {
     echo "Registered in ecosystem.local.yaml:"
     echo "  components:"
     echo "    ${name}:"
-    echo "      url: ${url}"
+    echo "      repo: ${repo_url}"
     echo ""
     echo "This is the local-only layer of the three-layer config merge:"
     echo "  upstream ecosystem.yaml → realm/ecosystem.yaml → ecosystem.local.yaml"

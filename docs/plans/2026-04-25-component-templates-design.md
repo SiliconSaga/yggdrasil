@@ -385,7 +385,7 @@ preserve every comment in every position. Acceptable trade-off for
 v1.)
 
 Other code reading the merged config (e.g. `ws-resolve.sh`,
-`ws-list.sh`) sees a minimal entry with only `url` and must handle the
+`ws-list.sh`) sees a minimal entry with only `repo` and must handle the
 absence of realm-specific fields (`tier`, `chartVersion`, etc.)
 gracefully. This is already an existing concern — those fields are
 optional even in the community catalog — but worth a verification step

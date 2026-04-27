@@ -145,9 +145,13 @@ ws_component_init() {
     local local_file="$ROOT_DIR/ecosystem.local.yaml"
     if [[ -f "$local_file" ]]; then
         local existing
-        # Don't suppress yq errors here — a malformed local file should surface
-        # loudly, not be silently misread as "no collision."
-        existing="$(yq ".components.\"$name\" // \"\"" "$local_file")"
+        # Capture yq's exit status explicitly — `existing="$(yq ...)"` swallows
+        # the substitution's status under set -e, so a parse error would
+        # silently yield an empty result and be misread as "no collision."
+        if ! existing="$(yq ".components.\"$name\" // \"\"" "$local_file")"; then
+            echo "ERROR: failed to parse $local_file. Check YAML syntax." >&2
+            exit 1
+        fi
         if [[ -n "$existing" && "$existing" != "null" ]]; then
             echo "ERROR: component '$name' is already declared in ecosystem.local.yaml." >&2
             echo "  Edit the file or pick a different name." >&2
@@ -158,7 +162,10 @@ ws_component_init() {
     # Warn if name shadows a realm-catalog component
     local eco realm_entry
     eco="$(ws_resolve_ecosystem)"
-    realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco")"
+    if ! realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco")"; then
+        echo "ERROR: failed to parse merged ecosystem config." >&2
+        exit 1
+    fi
     if [[ "$realm_entry" != "missing" ]]; then
         echo "WARNING: '$name' is already declared in the merged ecosystem catalog." >&2
         echo "  Adding a local-layer entry will shadow it. This is allowed but unusual." >&2
@@ -237,11 +244,14 @@ ws_component_init() {
     # Disarm rollback trap — past the danger zone
     trap - ERR
 
-    # Per-flavor visibility default for the suggested gh command
-    local visibility=""
+    # Per-flavor visibility default for the suggested gh command. `gh repo
+    # create` requires one of --public/--private/--internal in non-interactive
+    # mode, so fall back to --private for unknown flavors (safest default —
+    # user can override if they want public). gh-pages is the special case
+    # because free GH Pages on personal accounts requires public visibility.
+    local visibility="--private"
     case "$flavor" in
         gh-pages) visibility="--public" ;;
-        *)        visibility="" ;;
     esac
 
     # Educational output

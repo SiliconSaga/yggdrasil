@@ -76,13 +76,20 @@ git checkout -b first-post
 Open `index.md` and replace the placeholder paragraph with whatever
 you want. A sentence or two is enough.
 
-Save, commit, push:
+Save, commit, push — using the `ws` CLI from the yggdrasil workspace
+root (since the component is registered in your `ecosystem.local.yaml`,
+`ws` knows about it by name):
 
 ```bash
-git add index.md
-git commit -m "Make the home page mine"
-git push -u <yourname> first-post
+cd ../..   # back up to yggdrasil/
+ws commit <name> "Make the home page mine"
+ws push <name> first-post
 ```
+
+`ws commit` handles staging and adds the Co-Authored-By trailer; `ws push`
+picks the right remote from your identity config. (If you'd rather work
+from inside `components/<name>/` with raw `git`, that works too — you'll
+just need to manage staging and remote selection by hand.)
 
 ---
 
