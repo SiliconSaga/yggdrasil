@@ -76,20 +76,39 @@ git checkout -b first-post
 Open `index.md` and replace the placeholder paragraph with whatever
 you want. A sentence or two is enough.
 
-Save, commit, push — using the `ws` CLI from the yggdrasil workspace
-root (since the component is registered in your `ecosystem.local.yaml`,
-`ws` knows about it by name):
+Save, then commit + push using the `ws` CLI from the yggdrasil
+workspace root. The component is registered in your
+`ecosystem.local.yaml`, so `ws` knows about it by name.
+
+`ws commit` is bodyfile-driven — a small YAML+markdown file describing
+the commit. Create `.commits/first-post.md` (the `.commits/` directory
+is gitignored) with this content:
+
+```markdown
+---
+message: "Make the home page mine"
+add:
+  - index.md
+---
+First edit on the new GitHub Pages site.
+```
+
+The `add:` list is what gets staged. The body below the frontmatter
+becomes the commit message body. Then run:
 
 ```bash
 cd ../..   # back up to yggdrasil/
-ws commit <name> "Make the home page mine"
+ws commit <name> .commits/first-post.md
 ws push <name> first-post
 ```
 
-`ws commit` handles staging and adds the Co-Authored-By trailer; `ws push`
-picks the right remote from your identity config. (If you'd rather work
-from inside `components/<name>/` with raw `git`, that works too — you'll
-just need to manage staging and remote selection by hand.)
+`ws commit` stages the listed files, builds the message, and appends a
+Co-Authored-By trailer. `ws push` picks the right remote from your
+identity config. (If you'd rather skip the bodyfile for a quick edit,
+you can `git add index.md` from inside `components/<name>/` and then
+`ws commit <name> "Make the home page mine"` — the inline-message form
+needs pre-staged files. Bodyfiles are nicer once you're committing
+several files at once.)
 
 ---
 
