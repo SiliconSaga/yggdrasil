@@ -127,6 +127,108 @@ ws_hoard_help() {
     echo "                                  Move root Thalamus.md into the new hoard" >&2
     echo "  <git-url>                Clone an existing hoard" >&2
     echo "  list                     Show hoards and which thalami hoard is active" >&2
+    echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
+    echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
+}
+
+# Read commit_staleness_days from a thalamus file's YAML frontmatter.
+# Defaults to 2 if the field is absent or the file doesn't exist yet.
+ws_hoard_read_staleness_days() {
+    local file="$1"
+    [[ -f "$file" ]] || { echo 2; return; }
+    # Pull the value from the leading `---` frontmatter block. awk
+    # toggles `n` on the `---` markers; we read fields only inside
+    # the first such block.
+    local value
+    value="$(awk '
+        /^---$/ { n++; next }
+        n == 1 && /^commit_staleness_days:[[:space:]]*[0-9]+/ {
+            sub(/^commit_staleness_days:[[:space:]]*/, "")
+            sub(/[[:space:]].*$/, "")
+            print
+            exit
+        }
+    ' "$file")"
+    echo "${value:-2}"
+}
+
+# Report cadence state for the active per-machine thalamus file.
+# Output is key=value lines on stdout — easy for the orientation
+# skill (or any caller) to grep. Always exit 0 except on tooling
+# failure; "nothing to check" is a status, not an error.
+#
+# Statuses:
+#   clean             — file exists, has no uncommitted changes
+#   dirty-fresh       — dirty, last commit within threshold (no nudge)
+#   dirty-stale       — dirty, last commit older than threshold (nudge!)
+#   never-committed   — dirty, no prior commit for this file at all
+#   no-active-hoard   — no thalami-* hoard found
+#   no-thalamus-file  — active hoard but expected file isn't on disk
+ws_hoard_cadence() {
+    local hoard
+    hoard="$(ws_detect_thalami_hoard)"
+    if [[ -z "$hoard" ]]; then
+        echo "status: no-active-hoard"
+        return 0
+    fi
+
+    local thalamus_path
+    thalamus_path="$(ws_resolve_thalamus_path)"
+    local machine_file
+    machine_file="$(basename "$thalamus_path")"
+    local hoard_path="$HOARDS_DIR/$hoard"
+
+    if [[ ! -f "$thalamus_path" ]]; then
+        # Could legitimately mean "first session on this machine,
+        # template-copy hasn't happened yet." Caller decides what to
+        # do; we just report.
+        echo "status: no-thalamus-file"
+        echo "file: $thalamus_path"
+        return 0
+    fi
+
+    local threshold_days
+    threshold_days="$(ws_hoard_read_staleness_days "$thalamus_path")"
+    local threshold_seconds=$(( threshold_days * 86400 ))
+
+    # File-scoped dirty check via porcelain. Empty output = clean;
+    # non-empty (including untracked `??`) = dirty.
+    local porcelain
+    porcelain="$(git -C "$hoard_path" status --porcelain -- "$machine_file" 2>/dev/null)"
+
+    if [[ -z "$porcelain" ]]; then
+        echo "status: clean"
+        echo "file: $thalamus_path"
+        echo "threshold_days: $threshold_days"
+        return 0
+    fi
+
+    # Dirty. Need timestamp to classify fresh vs stale vs never.
+    local last_commit_ts
+    last_commit_ts="$(git -C "$hoard_path" log -1 --format=%ct -- "$machine_file" 2>/dev/null)"
+
+    if [[ -z "$last_commit_ts" ]]; then
+        echo "status: never-committed"
+        echo "file: $thalamus_path"
+        echo "threshold_days: $threshold_days"
+        return 0
+    fi
+
+    local now_ts
+    now_ts="$(date +%s)"
+    local elapsed_seconds=$(( now_ts - last_commit_ts ))
+    local elapsed_days=$(( elapsed_seconds / 86400 ))
+    local elapsed_hours=$(( (elapsed_seconds % 86400) / 3600 ))
+
+    local status="dirty-fresh"
+    [[ "$elapsed_seconds" -gt "$threshold_seconds" ]] && status="dirty-stale"
+
+    echo "status: $status"
+    echo "file: $thalamus_path"
+    echo "elapsed_days: $elapsed_days"
+    echo "elapsed_hours: $elapsed_hours"
+    echo "threshold_days: $threshold_days"
+    echo "last_commit_unix: $last_commit_ts"
 }
 
 # ws_hoard_init [template] [template-args...]
@@ -349,6 +451,9 @@ case "$SUBCMD" in
         ;;
     list)
         ws_hoard_list
+        ;;
+    cadence)
+        ws_hoard_cadence
         ;;
     *)
         ws_hoard_clone_url "$SUBCMD"
