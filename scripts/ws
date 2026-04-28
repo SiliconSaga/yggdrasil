@@ -56,9 +56,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ECOSYSTEM="$ROOT_DIR/ecosystem.yaml"
-REALMS_DIR="$ROOT_DIR/realms"
-COMPONENTS_DIR="$ROOT_DIR/components"
+: "${ECOSYSTEM:="$ROOT_DIR/ecosystem.yaml"}"
+: "${ECOSYSTEM_LOCAL:="$ROOT_DIR/ecosystem.local.yaml"}"
+: "${REALMS_DIR:="$ROOT_DIR/realms"}"
+: "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
+# Export ECOSYSTEM_LOCAL so non-exported caller-side overrides
+# (`ECOSYSTEM_LOCAL=/foo ws ...`) propagate to every child script
+# without each one independently re-deriving the path.
+export ECOSYSTEM_LOCAL
 # Auto-source .env if present — makes tokens available to all sub-commands
 # without requiring `source .env` before every ws invocation.
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"

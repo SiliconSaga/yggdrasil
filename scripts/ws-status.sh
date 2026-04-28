@@ -78,3 +78,29 @@ for name in $(yq '.components | keys | .[]' "$ECO"); do
     print_repo_status "$target"
     echo ""
 done
+
+# Walk realms/ — directories with a .git/ subfolder. Disk-driven, not
+# config-driven; we show all cloned realms regardless of active-realm
+# selection so users get full workspace dirty-state visibility.
+realms_dir="${REALMS_DIR:-$ROOT_DIR/realms}"
+if [[ -d "$realms_dir" ]]; then
+    for realm_path in "$realms_dir"/*/; do
+        [[ -d "${realm_path}.git" ]] || continue
+        realm_name="$(basename "$realm_path")"
+        echo "=== $realm_name ==="
+        print_repo_status "$realm_path"
+        echo ""
+    done
+fi
+
+# Walk hoards/ — same shape as realms walk.
+hoards_dir="${HOARDS_DIR:-$ROOT_DIR/hoards}"
+if [[ -d "$hoards_dir" ]]; then
+    for hoard_path in "$hoards_dir"/*/; do
+        [[ -d "${hoard_path}.git" ]] || continue
+        hoard_name="$(basename "$hoard_path")"
+        echo "=== $hoard_name ==="
+        print_repo_status "$hoard_path"
+        echo ""
+    done
+fi

@@ -5,6 +5,7 @@ last_audit: null
 mode: null          # zen, quick, mentoring, autonomous — or null for "ask me"
 role: null          # developer, designer, reviewer — or null for "ask me"
 staleness_days: 14  # suggest housekeeping after this many days without audit
+commit_staleness_days: 2  # nudge to commit thalamus if uncommitted changes are older than this
 ---
 
 # Thalamus

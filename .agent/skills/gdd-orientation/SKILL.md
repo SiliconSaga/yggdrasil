@@ -77,6 +77,70 @@ Git Bash). If your hostname is awkward or unstable across boots, set
 `machine: <name>` in `ecosystem.local.yaml` to pin a stable name. The
 override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
 
+### Step 0a: Thalamus commit-cadence nudge
+
+If Step 0 resolved an active thalami hoard, check whether the
+per-machine thalamus file has uncommitted changes that have been
+sitting around longer than `commit_staleness_days` (frontmatter
+field; defaults to 2 if unset). This is a separate cadence from
+the audit `staleness_days` in Step 3.
+
+Mechanism:
+
+1. Detect file-level dirty state for the per-machine thalamus
+   specifically — not just hoard-wide dirty state, since `ws status`
+   could report the hoard as dirty for unrelated reasons (other
+   machine's thalamus, scratch notes, etc.). Use porcelain status
+   (NOT `diff --quiet`, which returns "clean" for untracked files
+   and would silently skip first-time machines):
+
+   ```bash
+   git -C hoards/<thalami-hoard> status --porcelain -- <machine>-thalamus.md
+   ```
+
+   Empty output = clean (skip the rest of the check); non-empty
+   output = dirty, including the untracked case (continue).
+
+2. If dirty, get its last-commit timestamp:
+
+   ```bash
+   last_commit_timestamp=$(git -C hoards/<thalami-hoard> log -1 --format=%ct -- <machine>-thalamus.md)
+   ```
+
+3. Handle the "no prior commit" case (new file never committed):
+   if `last_commit_timestamp` is empty, surface a different nudge
+   ("first commit for this machine's thalamus — commit now?") and
+   skip the elapsed-time math. Otherwise compute:
+
+   ```bash
+   elapsed_seconds=$(( $(date +%s) - last_commit_timestamp ))
+   threshold_seconds=$(( commit_staleness_days * 86400 ))
+   ```
+
+4. If `elapsed_seconds > threshold_seconds`, surface a soft nudge:
+
+   > "Thalamus: <N> uncommitted observations. Last commit was
+   > <X> days, <Y> hours ago (threshold: commit_staleness_days =
+   > <Z>). Want me to commit these before we start, or save for
+   > later?"
+
+   Where `<N>` is the line count from the same file-scoped
+   `git status --porcelain -- <machine>-thalamus.md` used in Step 1
+   (so it excludes unrelated hoard-wide changes), `<X>` / `<Y>` are
+   elapsed days / hours, `<Z>` is the configured threshold. Reports
+   honest elapsed time — not rounded to "calendar days," which
+   would false-positive across midnight.
+
+If the user agrees to commit now, walk them through writing a
+bodyfile and run `ws commit thalami-<user> <bodyfile>` (do NOT
+auto-stage; the bodyfile's `add:` list is explicit per the cadence
+preference captured elsewhere in the Thalamus). If they defer,
+proceed silently.
+
+Below threshold or working tree clean: silent. No mention at all in
+orientation. The threshold is the only signal — no nudge means no
+need to think about it.
+
 ### Step 1: Check for Thalamus.md
 
 **Skip this step if Step 0 resolved an active thalami hoard** — the hoard
@@ -274,6 +338,26 @@ to the current human, but to the integrity of the shared workspace:
 - Flag things that could harm other contributors or the project
 - Refuse to participate in actions that would compromise the workspace, while
   making clear the human is free to do those things on their own
+
+## Skills available during this session
+
+The session has several specialized skills that are NOT loaded by
+default at startup but are worth knowing about:
+
+- **`permissions-management`** — invoke when handling permission
+  prompts during the session, especially when offered a "don't ask
+  again" choice or when adding/editing patterns in
+  `.claude/settings.json`. See `docs/gdd/permissions.md` for the
+  underlying reference content; the skill carries the operational
+  decision-making guidance.
+
+- **`fewer-permission-prompts`** (Claude Code-native) — invoke when
+  permission prompts are piling up and you want to scan recent
+  transcripts to propose a batch of safe additions to
+  `.claude/settings.json`.
+
+These skills load on-demand. Don't preload them; just remember they
+exist for the right moment.
 
 ## What This Skill Does NOT Do
 

@@ -153,7 +153,7 @@ clone_url() {
     fi
 
     if [[ "$add_eco" == "true" ]]; then
-        local local_config="$ROOT_DIR/ecosystem.local.yaml"
+        local local_config="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
 
         # Ensure ecosystem.local.yaml exists — copy from example template if available
         if [[ ! -f "$local_config" ]]; then

@@ -10,7 +10,12 @@
 # Templates ship under templates/hoards/<name>/.
 # Currently shipped: thalami.
 
-set -euo pipefail
+# Apply strict mode only when executed directly, NOT when sourced —
+# many callers don't want errexit/nounset/pipefail in their shell.
+# When executed, strict mode is enabled before any top-level command
+# (notably the `source ws-realm.sh` below) so a failed source
+# fail-fasts instead of producing confusing downstream errors.
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
@@ -45,7 +50,7 @@ ws_resolve_human_account() {
 # Bash, where `hostname` accepts no flags. Strip any domain suffix from
 # the bash builtin $HOSTNAME instead — works on all platforms.
 ws_resolve_machine_name() {
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local override
         override="$(yq '.machine // ""' "$local_file" 2>/dev/null)"
@@ -68,7 +73,7 @@ ws_resolve_machine_name() {
 #   2. Single thalami-* directory in hoards/
 #   3. None
 ws_detect_thalami_hoard() {
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local selector
         selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)"
@@ -322,7 +327,9 @@ ws_hoard_list() {
     fi
 }
 
-# Guard: if sourced by another script, stop here
+# Guard: if sourced by another script, stop here. Strict mode is
+# already on (from the conditional at top) when we reach this point
+# during direct execution, so no second `set -euo pipefail` needed.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
 if ! command -v yq &>/dev/null; then

@@ -9,7 +9,12 @@
 # Templates ship under templates/components/<flavor>/.
 # Currently shipped: gh-pages.
 
-set -euo pipefail
+# Apply strict mode only when executed directly, NOT when sourced —
+# many callers don't want errexit/nounset/pipefail in their shell.
+# When executed, strict mode is enabled before any top-level command
+# (notably the `source ws-realm.sh` below) so a failed source
+# fail-fasts instead of producing confusing downstream errors.
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
@@ -142,7 +147,7 @@ ws_component_init() {
         exit 1
     fi
 
-    local local_file="$ROOT_DIR/ecosystem.local.yaml"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
         local existing
         # Capture yq's exit status explicitly — `existing="$(yq ...)"` swallows
@@ -153,7 +158,7 @@ ws_component_init() {
             exit 1
         fi
         if [[ -n "$existing" && "$existing" != "null" ]]; then
-            echo "ERROR: component '$name' is already declared in ecosystem.local.yaml." >&2
+            echo "ERROR: component '$name' is already declared in $local_file." >&2
             echo "  Edit the file or pick a different name." >&2
             exit 1
         fi
@@ -288,7 +293,9 @@ ws_component_init() {
     echo "Then read components/${name}/README.md for the demo walkthrough."
 }
 
-# Guard: if sourced by another script, stop here
+# Guard: if sourced by another script, stop here. Strict mode is
+# already on (from the conditional at top) when we reach this point
+# during direct execution, so no second `set -euo pipefail` needed.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
 if ! command -v yq &>/dev/null; then
