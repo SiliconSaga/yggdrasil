@@ -158,7 +158,7 @@ ws_component_init() {
             exit 1
         fi
         if [[ -n "$existing" && "$existing" != "null" ]]; then
-            echo "ERROR: component '$name' is already declared in ecosystem.local.yaml." >&2
+            echo "ERROR: component '$name' is already declared in $local_file." >&2
             echo "  Edit the file or pick a different name." >&2
             exit 1
         fi

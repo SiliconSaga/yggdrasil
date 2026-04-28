@@ -124,10 +124,12 @@ Mechanism:
    > <Z>). Want me to commit these before we start, or save for
    > later?"
 
-   Where `<N>` is the dirty-line count from `ws status`, `<X>` /
-   `<Y>` are elapsed days / hours, `<Z>` is the configured threshold.
-   Reports honest elapsed time — not rounded to "calendar days,"
-   which would false-positive across midnight.
+   Where `<N>` is the line count from the same file-scoped
+   `git status --porcelain -- <machine>-thalamus.md` used in Step 1
+   (so it excludes unrelated hoard-wide changes), `<X>` / `<Y>` are
+   elapsed days / hours, `<Z>` is the configured threshold. Reports
+   honest elapsed time — not rounded to "calendar days," which
+   would false-positive across midnight.
 
 If the user agrees to commit now, walk them through writing a
 bodyfile and run `ws commit thalami-<user> <bodyfile>` (do NOT
