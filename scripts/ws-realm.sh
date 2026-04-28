@@ -14,6 +14,13 @@
 #                           (Inheritance reservation: the merge generalizes to
 #                           N layers if multi-realm chains land later.)
 
+# Apply strict mode only when executed directly, NOT when sourced —
+# this script is sourced by ws-hoard.sh and ws-component.sh for its
+# helper functions, and many callers don't want errexit/nounset/
+# pipefail in their shell. When executed, strict mode is enabled
+# before any top-level command so failures fail-fast.
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${ECOSYSTEM:="$ROOT_DIR/ecosystem.yaml"}"
@@ -200,9 +207,10 @@ trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 # Subcommands — only run when called directly (not when sourced)
 # ---------------------------------------------------------------------------
 
-# Guard: if sourced by another script, stop here — don't parse $1 as a command
+# Guard: if sourced by another script, stop here — don't parse $1 as
+# a command. Strict mode is already on (from the conditional at top)
+# when we reach this point during direct execution.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
-set -euo pipefail
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2

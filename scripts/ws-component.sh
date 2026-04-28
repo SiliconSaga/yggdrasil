@@ -9,6 +9,13 @@
 # Templates ship under templates/components/<flavor>/.
 # Currently shipped: gh-pages.
 
+# Apply strict mode only when executed directly, NOT when sourced —
+# many callers don't want errexit/nounset/pipefail in their shell.
+# When executed, strict mode is enabled before any top-level command
+# (notably the `source ws-realm.sh` below) so a failed source
+# fail-fasts instead of producing confusing downstream errors.
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
@@ -286,9 +293,10 @@ ws_component_init() {
     echo "Then read components/${name}/README.md for the demo walkthrough."
 }
 
-# Guard: if sourced by another script, stop here
+# Guard: if sourced by another script, stop here. Strict mode is
+# already on (from the conditional at top) when we reach this point
+# during direct execution, so no second `set -euo pipefail` needed.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
-set -euo pipefail
 
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
