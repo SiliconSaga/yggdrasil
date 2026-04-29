@@ -45,9 +45,9 @@ restating command details that can drift.
 Run `bash scripts/ws hoard thalamus-path` (or `ws hoard thalamus-path`
 if `ws` is on PATH). It prints the resolved path to the active
 per-machine thalamus file, or empty if no thalami hoard is active.
-Single command, auto-approved via the existing
-`Bash(bash scripts/ws hoard *)` allowlist pattern — no permission
-prompt, no compound shell needed.
+Single command, auto-approved via the existing allowlisted
+`ws hoard thalamus-path` command form(s) — no permission prompt,
+no compound shell needed.
 
 If non-empty: that's the **primary** thalamus file. Also check for a
 root `Thalamus.md` — if it exists, read it as **scratch** during

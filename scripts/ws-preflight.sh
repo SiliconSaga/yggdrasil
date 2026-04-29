@@ -139,7 +139,7 @@ check_tool git  required
 # We require BOTH the mikefarah marker AND a v4-or-newer major version
 # on the same line, so a Mike Farah v3 install (or the unrelated Python
 # yq from PyPI, which our scripts can't drive) doesn't slip through.
-check_tool yq required 'yq --version 2>&1 | grep -qE "mikefarah.*v?[4-9]\."'
+check_tool yq required 'yq --version 2>&1 | grep -qE "mikefarah.*v?([4-9]|[1-9][0-9]+)\."'
 check_tool jq required
 
 echo ""

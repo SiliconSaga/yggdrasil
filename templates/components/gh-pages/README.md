@@ -51,7 +51,7 @@ and pushes the initial commit.
 > Enterprise). If you want it private, swap `--public` for
 > `--private` in the suggested command and accept the cost on your
 > end.
-
+>
 > **Auth wrinkle for agent-account tokens.** If your `.env` holds a
 > bot/agent token (e.g. one issued to `agent-refr`) rather than a
 > personal PAT, `gh repo create <yourname>/<name>` may fail with
