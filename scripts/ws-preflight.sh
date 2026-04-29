@@ -134,7 +134,12 @@ check_tool git  required
 # yq must be Mike Farah's Go-based yq v4+. The Python yq prints
 # usage lines that don't include "mikefarah" and uses different
 # syntax — we'd misbehave silently if pointed at it.
-check_tool yq required 'yq --version 2>&1 | grep -qE "(mikefarah|version v?4\.)"'
+# Mike Farah's yq v4 prints a single line like:
+#   yq (https://github.com/mikefarah/yq/) version v4.40.5
+# We require BOTH the mikefarah marker AND a v4-or-newer major version
+# on the same line, so a Mike Farah v3 install (or the unrelated Python
+# yq from PyPI, which our scripts can't drive) doesn't slip through.
+check_tool yq required 'yq --version 2>&1 | grep -qE "mikefarah.*v?[4-9]\."'
 check_tool jq required
 
 echo ""

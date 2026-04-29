@@ -306,7 +306,7 @@ the bottom. For each finding, decide:
 - **Address it.** Edit the file, write a fixup bodyfile, `ws
   commit` and `ws push` — CodeRabbit auto-resolves the thread when
   the next commit lands.
-- **Reply with reasoning.** `ws review <name> <pr#> reply <thread-id>
+- **Reply with reasoning.** `ws review <name> reply <pr#> <thread-id>
   "<message>" --resolve` lets you respond and close the thread in
   one go.
 - **Decline.** Sometimes the bot's suggestion isn't right.

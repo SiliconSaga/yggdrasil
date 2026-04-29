@@ -31,9 +31,10 @@
 #   component init <flavor> [name]   Scaffold a new component from a template
 #   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component
+#   preflight [--soft]  Check workspace prerequisites (bash, git, yq, jq, gh/glab)
 #   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
-#   help              Show this help message
+#   help              Show this help message (or `ws help <subcommand>` for per-command help)
 #
 # Auth commands (run these before ws push / ws cr):
 #   gitlab-auth [--status]  Configure glab + git credentials from .env tokens.

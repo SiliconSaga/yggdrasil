@@ -149,7 +149,18 @@ ws_hoard_read_staleness_days() {
     local value
     value="$(yq '.staleness_days // ""' "$config" 2>/dev/null)"
     [[ "$value" == "null" ]] && value=""
-    echo "${value:-2}"
+    [[ -z "$value" ]] && { echo 2; return; }
+    # Validate: must be a non-negative integer. The cadence math
+    # downstream feeds this into `(( threshold_days * 86400 ))`; a
+    # non-numeric or negative value would break classification or
+    # error out. Warn loudly and fall back to the default rather than
+    # silently misbehaving.
+    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        echo "WARNING: $config: staleness_days='$value' is not a non-negative integer; falling back to 2." >&2
+        echo 2
+        return
+    fi
+    echo "$value"
 }
 
 # Report cadence state for the active per-machine thalamus file.

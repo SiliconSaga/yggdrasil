@@ -87,10 +87,12 @@ Steps for a thalami hoard:
 1. Create the personal repo: `gh repo create <user>/thalami-<user>
    --private --source=hoards/thalami-<user> --remote=<user> --push`.
 2. Add the agent as collaborator:
+
    ```bash
    gh api repos/<user>/thalami-<user>/collaborators/agent-refr \
        -X PUT -f permission=push
    ```
+
 3. The agent's PAT (which has `repo` scope) now inherits write
    access via the collaboration — `ws push thalami-<user>` works
    without needing the agent to fork your personal repo.
@@ -131,7 +133,7 @@ present and authenticated.
 ## 5. Multi-provider workflows
 
 The workspace is provider-agnostic. A component on GitHub uses
-`GH_TOKEN`; a component on GitLab uses `GLAB_TOKEN`; a self-hosted
+`GH_TOKEN`; a component on GitLab uses `GITLAB_TOKEN`; a self-hosted
 Forgejo or Gitea instance uses whatever variable you map under
 `defaults.gitTokens` in the realm or local config.
 
@@ -145,7 +147,7 @@ Tokens for additional providers go in `.env`:
 
 ```bash
 export GH_TOKEN=ghp_xxx
-export GLAB_TOKEN=glpat_xxx
+export GITLAB_TOKEN=glpat_xxx
 # Add more as needed for self-hosted instances
 ```
 

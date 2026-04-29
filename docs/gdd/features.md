@@ -118,9 +118,9 @@ Every component PR runs through automated review:
 - **Copilot** — additional review (semantically distinct findings;
   often catches things CodeRabbit misses, and vice versa).
 - **`ws review <component> <pr#>`** — fetches both reviews into a
-  single shell view. `ws review threads --resolve <id>` for thread
-  management; `ws review reply <pr#> <thread> "<msg>" --resolve`
-  for a reply-and-resolve in one go.
+  single shell view. `ws review <component> threads <pr#> --resolve <id>`
+  for thread management; `ws review <component> reply <pr#> <thread-id>
+  "<msg>" --resolve` for a reply-and-resolve in one go.
 
 The agent + the bots together form the review apparatus. You can
 work fully via the agent (which reads the bot output and proposes

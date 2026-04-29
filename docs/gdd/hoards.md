@@ -70,15 +70,18 @@ thalami hoard.
 ## Per-machine files
 
 The thalami hoard contains one `<machine>-thalamus.md` file per
-workstation you use. The machine name comes from the bash builtin
-`$HOSTNAME` with any domain suffix stripped (so `dionysus.local`
-becomes `dionysus`); set `machine: <name>` in
+workstation you use. The machine name comes from the environment
+variable `$HOSTNAME` with any domain suffix stripped (so
+`dionysus.local` becomes `dionysus`); set `machine: <name>` in
 `ecosystem.local.yaml` to override if your hostname is unstable.
 
 Each per-machine file carries:
 
-- **Frontmatter** for per-machine state: `last_session`, `last_audit`,
-  default `mode`, default `role`, audit `staleness_days`.
+- **Frontmatter** for per-machine state: `last_session`,
+  `last_audit`, default `mode`, default `role`, plus the audit
+  `staleness_days` (housekeeping cadence — distinct from the
+  hoard-wide commit cadence covered below, which lives in
+  `.ws-cadence.yaml` at the hoard root).
 - **Body sections**: Preferences, Observations, Concerns, Audit Log
   (per the Thalamus model — see [thalamus.md](thalamus.md)).
 

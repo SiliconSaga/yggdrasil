@@ -101,12 +101,15 @@ hostname is awkward or unstable across boots, set
 
 If Step 0 resolved an active thalami hoard, run `bash scripts/ws hoard cadence`
 (or `ws hoard cadence` if `ws` is on PATH) and react to its
-`status:` line. The script handles dirty-detection,
-timestamp lookup, threshold comparison (`commit_staleness_days` from
-the thalamus frontmatter; default 2), and edge cases (file missing,
-file untracked) — the skill just decides what to surface based on
-the reported status. This is a separate cadence from the audit
-`staleness_days` in Step 3.
+`status:` line. The script handles dirty-detection, timestamp
+lookup, threshold comparison (`staleness_days` from the hoard's
+`.ws-cadence.yaml` config — hoard-wide, shared across machines;
+default 2 if the file or field is absent), and edge cases (file
+missing, file untracked) — the skill just decides what to surface
+based on the reported status. This is a separate cadence from the
+audit `staleness_days` in Step 3 (which lives in per-machine
+thalamus frontmatter and tracks housekeeping cadence, not
+commit-sync cadence).
 
 Status-to-action mapping:
 
@@ -123,8 +126,8 @@ Nudge wording for `dirty-stale`:
 
 > "Thalamus has uncommitted changes. Last commit was `<elapsed_days>`
 > days, `<elapsed_hours>` hours ago (threshold:
-> `commit_staleness_days = <threshold_days>`). Want me to commit
-> these before we start, or save for later?"
+> `staleness_days = <threshold_days>` from `.ws-cadence.yaml`).
+> Want me to commit these before we start, or save for later?"
 
 Substitute the values from the `ws hoard cadence` output (it emits
 `elapsed_days:`, `elapsed_hours:`, `threshold_days:` as key-value

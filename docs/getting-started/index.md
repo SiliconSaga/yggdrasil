@@ -80,24 +80,29 @@ is stand-alone. If you already have an account, skip ahead.
 ### Walkthrough
 
 1. **Clone the workspace**
+
    ```bash
    git clone https://github.com/SiliconSaga/yggdrasil.git
    cd yggdrasil
    ```
 
    Once cloned, run a prerequisite check before going further:
+
    ```bash
    bash scripts/ws preflight
    ```
+
    It verifies bash, git, `yq` (v4+ — Mike Farah's, not the
    Python yq), `jq`, and a provider CLI (`gh` or `glab`). Anything
    missing prints a per-OS install hint. Re-run after installing
    to confirm.
 
 2. **Configure your identity** — copy the example config and fill in your details:
+
    ```bash
    cp ecosystem.local.yaml.example ecosystem.local.yaml
    ```
+
    Edit `ecosystem.local.yaml` and set at minimum:
    - `identity.human_account` — your GitHub/GitLab username
    - `identity.forkOrg` — the org/group name for your git remote (e.g., `SiliconSaga`)
