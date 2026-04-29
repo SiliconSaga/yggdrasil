@@ -51,18 +51,31 @@ ws_resolve_human_account() {
 # the bash builtin $HOSTNAME instead — works on all platforms.
 ws_resolve_machine_name() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    local raw=""
     if [[ -f "$local_file" ]]; then
-        local override
-        override="$(yq '.machine // ""' "$local_file" 2>/dev/null)"
-        if [[ -n "$override" && "$override" != "null" ]]; then
-            echo "$override"
-            return
-        fi
+        raw="$(yq '.machine // ""' "$local_file" 2>/dev/null)"
+        [[ "$raw" == "null" ]] && raw=""
     fi
-    # ${HOSTNAME%%.*} keeps everything before the first dot.
-    # If $HOSTNAME isn't set (rare), fall back to plain `hostname`.
-    local h="${HOSTNAME:-$(hostname)}"
-    echo "${h%%.*}"
+    if [[ -z "$raw" ]]; then
+        # ${HOSTNAME%%.*} keeps everything before the first dot.
+        # If $HOSTNAME isn't set (rare), fall back to plain `hostname`.
+        local h="${HOSTNAME:-$(hostname)}"
+        raw="${h%%.*}"
+    fi
+    # Sanitize to filesystem-safe characters. Hostnames or override
+    # values with spaces, colons, backslashes, etc. would otherwise
+    # produce broken thalamus filenames (`hoards/thalami-X/My PC-thalamus.md`
+    # is fine on disk but ugly; colons are illegal on Windows/macOS).
+    # `tr -cs` replaces any character not in the allowed set with a
+    # single dash, squeezing consecutive replacements. `printf '%s'`
+    # avoids tr eating the trailing newline into a trailing dash.
+    local sanitized
+    sanitized="$(printf '%s' "$raw" | tr -cs 'A-Za-z0-9._-' '-')"
+    # Defensive default: if sanitization left nothing useful (raw was
+    # empty or all-bad-chars), fall back to a placeholder rather than
+    # producing `<empty>-thalamus.md` or `--thalamus.md`.
+    [[ -z "$sanitized" || "$sanitized" == "-" ]] && sanitized="unknown"
+    echo "$sanitized"
 }
 
 # Detect the active thalami hoard.
