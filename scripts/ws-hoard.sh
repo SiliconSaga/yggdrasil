@@ -142,8 +142,8 @@ ws_hoard_read_staleness_days() {
     local value
     value="$(awk '
         /^---$/ { n++; next }
-        n == 1 && /^commit_staleness_days:[[:space:]]*[0-9]+/ {
-            sub(/^commit_staleness_days:[[:space:]]*/, "")
+        n == 1 && /^[[:space:]]*commit_staleness_days:[[:space:]]*[0-9]+/ {
+            sub(/^[[:space:]]*commit_staleness_days:[[:space:]]*/, "")
             sub(/[[:space:]].*$/, "")
             print
             exit
@@ -153,7 +153,7 @@ ws_hoard_read_staleness_days() {
 }
 
 # Report cadence state for the active per-machine thalamus file.
-# Output is key=value lines on stdout — easy for the orientation
+# Output is `key: value` lines on stdout — easy for the orientation
 # skill (or any caller) to grep. Always exit 0 except on tooling
 # failure; "nothing to check" is a status, not an error.
 #
@@ -192,9 +192,15 @@ ws_hoard_cadence() {
     local threshold_seconds=$(( threshold_days * 86400 ))
 
     # File-scoped dirty check via porcelain. Empty output = clean;
-    # non-empty (including untracked `??`) = dirty.
+    # non-empty (including untracked `??`) = dirty. Capture git's
+    # exit status explicitly — without the `if !` guard, a tooling
+    # failure (corrupt repo, permission denied, etc.) would yield an
+    # empty `$porcelain` and we'd misreport `clean`.
     local porcelain
-    porcelain="$(git -C "$hoard_path" status --porcelain -- "$machine_file" 2>/dev/null)"
+    if ! porcelain="$(git -C "$hoard_path" status --porcelain -- "$machine_file" 2>/dev/null)"; then
+        echo "ERROR: failed to read git status for '$machine_file' in '$hoard_path'." >&2
+        return 1
+    fi
 
     if [[ -z "$porcelain" ]]; then
         echo "status: clean"
@@ -204,8 +210,13 @@ ws_hoard_cadence() {
     fi
 
     # Dirty. Need timestamp to classify fresh vs stale vs never.
+    # Same exit-status guard as the porcelain call above — otherwise
+    # a git failure would silently look like "no prior commit."
     local last_commit_ts
-    last_commit_ts="$(git -C "$hoard_path" log -1 --format=%ct -- "$machine_file" 2>/dev/null)"
+    if ! last_commit_ts="$(git -C "$hoard_path" log -1 --format=%ct -- "$machine_file" 2>/dev/null)"; then
+        echo "ERROR: failed to read git history for '$machine_file' in '$hoard_path'." >&2
+        return 1
+    fi
 
     if [[ -z "$last_commit_ts" ]]; then
         echo "status: never-committed"

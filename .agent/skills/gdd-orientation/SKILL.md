@@ -79,8 +79,9 @@ override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
 
 ### Step 0a: Thalamus commit-cadence nudge
 
-If Step 0 resolved an active thalami hoard, run `ws hoard cadence`
-and react to its `status:` line. The script handles dirty-detection,
+If Step 0 resolved an active thalami hoard, run `bash scripts/ws hoard cadence`
+(or `ws hoard cadence` if `ws` is on PATH) and react to its
+`status:` line. The script handles dirty-detection,
 timestamp lookup, threshold comparison (`commit_staleness_days` from
 the thalamus frontmatter; default 2), and edge cases (file missing,
 file untracked) — the skill just decides what to surface based on
