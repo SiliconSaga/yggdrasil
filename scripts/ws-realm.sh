@@ -356,6 +356,16 @@ ws_realm_clone_url() {
 }
 
 ws_actions() {
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'HELP'
+Usage: ws actions <component>
+
+List adapter commands available for a component (test runners,
+build commands, etc.) as declared in the realm or ecosystem
+config under the component's `adapters:` section.
+HELP
+        return 0
+    fi
     if [[ $# -ne 1 ]]; then
         echo "Usage: ws actions <component>" >&2
         exit 1

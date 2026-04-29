@@ -197,6 +197,23 @@ URL=""
 NAME=""
 ADD_ECO="false"
 
+# Help mode — print usage and exit before any arg validation.
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<'HELP'
+Usage:
+  ws clone <component>                          Clone a declared ecosystem component
+  ws clone --all                                Clone all non-disabled components
+  ws clone --url <git-url> [--name <name>] [--add-eco]
+                                                Clone an arbitrary repo
+    --name     Override the component directory name (default: derived from URL)
+    --add-eco  Add the component to ecosystem.local.yaml as trusted
+
+Components are cloned into components/<component-name>/ as independent
+Git repos. If the directory already exists, it is skipped.
+HELP
+    exit 0
+fi
+
 # Check for --url mode
 if [[ "${1:-}" == "--url" ]]; then
     shift

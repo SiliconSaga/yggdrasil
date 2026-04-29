@@ -109,6 +109,20 @@ ws_exec() {
 }
 
 ws_push() {
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'HELP'
+Usage: ws push [component] [branch] [--force]
+
+  component  Component to push (default: yggdrasil)
+  branch     Branch to push (default: current branch)
+  --force    Force push (use with care; only after a rebase typically)
+
+Pushes to the component's per-developer fork remote (resolved via
+identity.forkOrg in ecosystem config). For repos you own directly,
+pushes to the configured remote.
+HELP
+        return 0
+    fi
     if [[ $# -gt 3 ]]; then
         echo "Usage: ws push [component] [branch] [--force]" >&2
         exit 1
@@ -537,6 +551,18 @@ EOF
 COMMAND="${1:-help}"
 shift 2>/dev/null || true
 
+# Allow `ws help <subcommand> [args]` as an alias for `ws <subcommand>
+# --help [args]`. New sessions reach for either form depending on
+# habit; both should reach per-subcommand help. This rewrite happens
+# before the dispatch case so the subcommand handler does the actual
+# help work — keeps each subcommand the source of truth for its own
+# help text.
+if [[ ( "$COMMAND" == "help" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ) && $# -gt 0 ]]; then
+    COMMAND="$1"
+    shift
+    set -- "--help" "$@"
+fi
+
 case "$COMMAND" in
     help|--help|-h)
         ws_help
@@ -600,6 +626,9 @@ case "$COMMAND" in
         ;;
     diagnose)
         ws_diagnose "$@"
+        ;;
+    preflight)
+        bash "$SCRIPT_DIR/ws-preflight.sh" "$@"
         ;;
     actions)
         bash "$SCRIPT_DIR/ws-realm.sh" actions "$@"

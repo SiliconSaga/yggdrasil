@@ -19,6 +19,17 @@ if ! command -v yq &>/dev/null; then
     exit 1
 fi
 
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<'HELP'
+Usage:
+  ws pull               Pull all cloned components (skips dirty repos)
+  ws pull <component>   Pull a single component
+
+Skips components with an unclean working tree — commit or stash first.
+HELP
+    exit 0
+fi
+
 ECO="$(ws_resolve_ecosystem)"
 
 pull_component() {
