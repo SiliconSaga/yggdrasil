@@ -131,11 +131,16 @@ command, expected outcome) triple:
 
 | Pattern | Command | Expected outcome | Notes |
 |---------|---------|------------------|-------|
-| `Bash(git -C * show *)` | `git -C . show HEAD --stat` | Allowed silently | Baseline |
+| `Bash(git -C * show *)` | `git -C . show HEAD --stat` | Allowed without prompt | Baseline |
 | `Bash(git -C * show *)` | `git -C . show HEAD --stat \| xxd` | Right side prompts; left is allowed | Per-segment |
 | `Bash(git -C * show *)` | `git -C $(echo .) show HEAD --stat` | Prompted; no don't-ask offer | Substitution rejected |
 | `Bash(git -C * branch --show-current)` | `git -C . branch --list` | Prompted; don't-ask offer is the exact command | Exact-form pinning honored |
 | `Bash(git -C * remote -v)` | `git -C . remote` | Prompted; don't-ask offer is the exact command | Same — exact-form |
+| `Bash(ws hoard cadence)` | `ws hoard cadence` | Allowed without prompt | Exact-form for the cadence reporter |
+| `Bash(ws hoard cadence)` | `ws hoard cadence --debug` | Prompted | Exact-form pinning — extra arg doesn't match |
+| `Bash(ws hoard thalamus-path)` | `ws hoard thalamus-path` | Allowed without prompt | Exact-form for path resolution |
+| `Bash(ws preflight)` / `Bash(ws preflight --soft)` | `ws preflight` or `ws preflight --soft` | Allowed without prompt | Two exact-forms cover the common invocations |
+| `Bash(ws preflight)` | `ws preflight --json` | Prompted | Hypothetical flag not allowlisted; exact-form pinning honored |
 
 When you add a new allow pattern, also add at least one positive case
 (matches → allowed) and one negative case (close-but-not-quite →

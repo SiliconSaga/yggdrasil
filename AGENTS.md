@@ -111,6 +111,19 @@ realm commands. Pay particular attention to:
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
 for how to add commands and classify their permission tier.
 
+**One command at a time, not bundled.** Don't wrap `ws` calls (or
+auto-approved read-only commands like `cat`, `ls`, `hostname`,
+`grep`) in compound shells like `ws X; ws Y; cat Z` or `ws status &&
+ws log`. Each piece is auto-approved individually, but compounds
+often trigger a permission prompt even when each segment is
+harmless — and a multi-segment shell at session start is unsettling
+for newcomers regardless of whether it prompts. Run them as
+separate commands; the human can read each step rather than scanning
+a wall of shell, and the prompts disappear. Same rule applies to
+discovery probes during orientation — see the `gdd-orientation`
+skill's "Command style during orientation" section for the
+extended rationale.
+
 ### Standalone scripts (not wrapped by `ws`)
 
 | Script | Usage |
