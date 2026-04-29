@@ -79,67 +79,43 @@ override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
 
 ### Step 0a: Thalamus commit-cadence nudge
 
-If Step 0 resolved an active thalami hoard, check whether the
-per-machine thalamus file has uncommitted changes that have been
-sitting around longer than `commit_staleness_days` (frontmatter
-field; defaults to 2 if unset). This is a separate cadence from
-the audit `staleness_days` in Step 3.
+If Step 0 resolved an active thalami hoard, run `bash scripts/ws hoard cadence`
+(or `ws hoard cadence` if `ws` is on PATH) and react to its
+`status:` line. The script handles dirty-detection,
+timestamp lookup, threshold comparison (`commit_staleness_days` from
+the thalamus frontmatter; default 2), and edge cases (file missing,
+file untracked) — the skill just decides what to surface based on
+the reported status. This is a separate cadence from the audit
+`staleness_days` in Step 3.
 
-Mechanism:
+Status-to-action mapping:
 
-1. Detect file-level dirty state for the per-machine thalamus
-   specifically — not just hoard-wide dirty state, since `ws status`
-   could report the hoard as dirty for unrelated reasons (other
-   machine's thalamus, scratch notes, etc.). Use porcelain status
-   (NOT `diff --quiet`, which returns "clean" for untracked files
-   and would silently skip first-time machines):
+| `status:` | What to do |
+|-----------|------------|
+| `clean` | Silent. No nudge. |
+| `dirty-fresh` | Silent. Within threshold; user is mid-cadence. |
+| `dirty-stale` | Surface the nudge below with elapsed time. |
+| `never-committed` | Surface a "first commit for this machine's thalamus — commit now?" prompt. |
+| `no-active-hoard` | Silent. Nothing to check. |
+| `no-thalamus-file` | Silent unless the user is clearly mid-setup; then offer to copy `templates/thalamus.md` into place. |
 
-   ```bash
-   git -C hoards/<thalami-hoard> status --porcelain -- <machine>-thalamus.md
-   ```
+Nudge wording for `dirty-stale`:
 
-   Empty output = clean (skip the rest of the check); non-empty
-   output = dirty, including the untracked case (continue).
+> "Thalamus has uncommitted changes. Last commit was `<elapsed_days>`
+> days, `<elapsed_hours>` hours ago (threshold:
+> `commit_staleness_days = <threshold_days>`). Want me to commit
+> these before we start, or save for later?"
 
-2. If dirty, get its last-commit timestamp:
-
-   ```bash
-   last_commit_timestamp=$(git -C hoards/<thalami-hoard> log -1 --format=%ct -- <machine>-thalamus.md)
-   ```
-
-3. Handle the "no prior commit" case (new file never committed):
-   if `last_commit_timestamp` is empty, surface a different nudge
-   ("first commit for this machine's thalamus — commit now?") and
-   skip the elapsed-time math. Otherwise compute:
-
-   ```bash
-   elapsed_seconds=$(( $(date +%s) - last_commit_timestamp ))
-   threshold_seconds=$(( commit_staleness_days * 86400 ))
-   ```
-
-4. If `elapsed_seconds > threshold_seconds`, surface a soft nudge:
-
-   > "Thalamus: <N> uncommitted observations. Last commit was
-   > <X> days, <Y> hours ago (threshold: commit_staleness_days =
-   > <Z>). Want me to commit these before we start, or save for
-   > later?"
-
-   Where `<N>` is the line count from the same file-scoped
-   `git status --porcelain -- <machine>-thalamus.md` used in Step 1
-   (so it excludes unrelated hoard-wide changes), `<X>` / `<Y>` are
-   elapsed days / hours, `<Z>` is the configured threshold. Reports
-   honest elapsed time — not rounded to "calendar days," which
-   would false-positive across midnight.
+Substitute the values from the `ws hoard cadence` output (it emits
+`elapsed_days:`, `elapsed_hours:`, `threshold_days:` as key-value
+lines below the status). Reports honest elapsed time — not rounded
+to "calendar days," which would false-positive across midnight.
 
 If the user agrees to commit now, walk them through writing a
 bodyfile and run `ws commit thalami-<user> <bodyfile>` (do NOT
 auto-stage; the bodyfile's `add:` list is explicit per the cadence
 preference captured elsewhere in the Thalamus). If they defer,
 proceed silently.
-
-Below threshold or working tree clean: silent. No mention at all in
-orientation. The threshold is the only signal — no nudge means no
-need to think about it.
 
 ### Step 1: Check for Thalamus.md
 

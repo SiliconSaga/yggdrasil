@@ -33,23 +33,20 @@ patterns at once), invoke `fewer-permission-prompts` instead.
 
 ## Pattern-form decision tree
 
-Before adding any pattern:
+The full decision tree is in `docs/gdd/permissions.md` § 5
+("When to widen vs narrow patterns"). Read that for the full
+reasoning before adding any non-trivial pattern.
 
-1. **Already auto-allowed?** Many commands are auto-allowed by Claude
-   Code without an explicit pattern (`cat`, `ls`, `pwd`, plain `git
-   status`, plain `git log`, `gh pr view`, etc.). If yes: don't add a
-   pattern — it's redundant.
-2. **Subcommand has mutating flag-forms?**
-   - **No** (e.g. `git show`, `git diff`, `git ls-tree`): a prefix
-     wildcard is fine: `Bash(git -C * show *)`.
-   - **Yes** (e.g. `git branch -d`, `git remote add`): pin to the
-     exact safe form: `Bash(git -C * branch --show-current)`,
-     `Bash(git -C * remote -v)`.
-3. **Arbitrary-execution shell?** (`bash *`, `python *`, `node *`,
-   `npx *`, `bunx *`, `uvx *`, `make *`, `npm run *`, `gh api *`.)
-   Never widen. Exact forms only, if at all.
-4. **Writes to a shared system?** (push, deploy, publish, send.)
-   Don't allow at all. Side-effect-tier per `docs/ws-cli-guide.md`.
+Operational shortcuts when you've already read the doc:
+
+- **Already auto-allowed by Claude Code?** Don't add — redundant.
+- **Subcommand has no mutating flag-form?** Prefix wildcard is fine.
+- **Subcommand has mutating flag-forms?** Pin to the exact safe form.
+- **Wrapping an interpreter or task runner** (`bash`, `python`,
+  `node`, `make`, `npm run`, `gh api`, etc.)? **Never widen.**
+- **Writes to a shared system** (push, deploy, publish, send)?
+  Don't allowlist at all — side-effect-tier per
+  `docs/ws-cli-guide.md`.
 
 When in doubt, narrower wins.
 
