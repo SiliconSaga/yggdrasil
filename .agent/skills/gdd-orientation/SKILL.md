@@ -43,18 +43,29 @@ restating command details that can drift.
 ### Step 0: Resolve the active thalamus file
 
 Run `bash scripts/ws hoard thalamus-path` (or `ws hoard thalamus-path`
-if `ws` is on PATH). It prints the resolved path to the active
-per-machine thalamus file, or empty if no thalami hoard is active.
-Single command, auto-approved via the existing allowlisted
-`ws hoard thalamus-path` command form(s) — no permission prompt,
-no compound shell needed.
+if `ws` is on PATH). It prints the **resolved path** to where the
+active per-machine thalamus file would be, or empty if no thalami
+hoard is active. Single command, auto-approved via the existing
+allowlisted `ws hoard thalamus-path` command form(s) — no permission
+prompt, no compound shell needed. (This subcommand is exempt from
+the global `yq` requirement so fresh machines without yq still get
+a useful answer.)
 
-If non-empty: that's the **primary** thalamus file. Also check for a
-root `Thalamus.md` — if it exists, read it as **scratch** during
-orientation, but writes default to the primary.
+A resolved path is **not** proof the file exists yet — `ws hoard
+cadence` reports `status: no-thalamus-file` for the
+"hoard-active-but-file-not-yet-created" case. Branch on existence
+explicitly:
 
-If empty: no thalami hoard is active. Use root `Thalamus.md` as today
-(existing behavior).
+- **Path empty:** no thalami hoard is active. Use root `Thalamus.md`
+  as today (existing behavior).
+- **Path non-empty AND file exists** (`[[ -f "$path" ]]`): that's
+  the **primary** thalamus file. Also check for a root
+  `Thalamus.md` — if it exists, read it as **scratch** during
+  orientation, but writes default to the primary.
+- **Path non-empty BUT file missing:** first-session-on-this-machine
+  case. Offer to copy `templates/thalamus.md` into place at the
+  resolved path before proceeding. Don't try to read the
+  not-yet-existing file.
 
 The helper resolves three things in one go: the active hoard
 (directory matching `thalami-*`, with the `hoards.thalami:` selector

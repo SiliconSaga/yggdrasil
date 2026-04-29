@@ -45,8 +45,15 @@ _create_pr_with_prominent_url() {
   # parsers / log scrapers keep working.
   printf '%s\n' "$output"
   if [[ $rc -eq 0 ]]; then
+    # `grep -o ... | tail -1` returns nonzero if no match. Under
+    # `set -euo pipefail`, that nonzero would propagate through the
+    # pipe and fail the whole script — turning "PR succeeded but
+    # output had no URL we recognized" into a false-positive
+    # failure. The `|| true` neutralizes that; the `[[ -n "$url" ]]`
+    # guard already skips the prominent line cleanly when no URL is
+    # extracted.
     local url
-    url=$(printf '%s\n' "$output" | grep -oE 'https?://[^[:space:]]+' | tail -1)
+    url=$(printf '%s\n' "$output" | grep -oE 'https?://[^[:space:]]+' | tail -1 || true)
     if [[ -n "$url" ]]; then
       echo ""
       echo "✓ CR ready: $url"

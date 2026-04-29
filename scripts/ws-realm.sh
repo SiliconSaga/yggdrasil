@@ -356,16 +356,23 @@ ws_realm_clone_url() {
 }
 
 ws_actions() {
-    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-        cat <<'HELP'
+    # Detect --help / -h anywhere in args, not just $1, so
+    # `ws actions <comp> --help` works as expected.
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
 Usage: ws actions <component>
 
-List adapter commands available for a component (test runners,
-build commands, etc.) as declared in the realm or ecosystem
-config under the component's `adapters:` section.
+List adapter commands declared for a component (test runners,
+build commands, etc.). Source of truth is
+`realms/<active>/adapters/<comp>.yaml` in the active realm — the
+realm-side adapter file lists test/build/lint/etc. commands the
+workspace can invoke. Falls back to auto-detection from the
+component directory when no adapter file exists.
 HELP
-        return 0
-    fi
+            return 0
+        fi
+    done
     if [[ $# -ne 1 ]]; then
         echo "Usage: ws actions <component>" >&2
         exit 1

@@ -36,7 +36,24 @@ HELP
 fi
 
 SOFT=false
-[[ "${1:-}" == "--soft" ]] && SOFT=true
+# Loop-parse args so unknown flags fail fast instead of being
+# silently ignored — `ws preflight --json` (typo or wishful) should
+# error rather than running the default mode and leaving the operator
+# wondering why their flag did nothing.
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --soft) SOFT=true; shift ;;
+        --help|-h)
+            # --help anywhere in args still wins (already handled
+            # above for $1, but a later position works too).
+            exec "$0" --help
+            ;;
+        *)
+            echo "ERROR: unknown argument '$1'. Run 'ws preflight --help' for usage." >&2
+            exit 2
+            ;;
+    esac
+done
 
 # Detect OS for install-hint targeting. Bash on Windows reports
 # msys/cygwin/mingw under $OSTYPE; macOS is darwin*; Linux is linux*.
@@ -61,7 +78,7 @@ hint_for() {
         mac:gh)           echo "'brew install gh'." ;;
         mac:glab)         echo "'brew install glab'." ;;
         mac:uv)           echo "'brew install uv' or 'curl -LsSf https://astral.sh/uv/install.sh | sh'." ;;
-        mac:realpath)     echo "Usually present via coreutils. If missing: 'brew install coreutils' (then 'grealpath' or 'PATH=$(brew --prefix coreutils)/libexec/gnubin:\$PATH')." ;;
+        mac:realpath)     echo 'Usually present via coreutils. If missing: "brew install coreutils" (then use "grealpath", or add the gnubin to PATH: PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH").' ;;
 
         linux:bash)       echo "Should be present. Most distros ship bash by default." ;;
         linux:git)        echo "'sudo apt install git' (Debian/Ubuntu) or 'sudo dnf install git' (Fedora)." ;;
@@ -88,7 +105,6 @@ hint_for() {
 # Report a single tool. Args: tool name, severity (required|provider|optional), version-check (optional).
 # Sets MISSING_REQUIRED=1 in the parent scope when something required is absent.
 MISSING_REQUIRED=0
-MISSING_PROVIDER=0
 PROVIDER_FOUND=0
 
 check_tool() {
@@ -99,7 +115,7 @@ check_tool() {
     if ! command -v "$name" &>/dev/null; then
         case "$severity" in
             required) echo "  ✗ $name (required) — not found"; MISSING_REQUIRED=1 ;;
-            provider) echo "  ✗ $name (provider) — not found"; MISSING_PROVIDER=$((MISSING_PROVIDER + 1)) ;;
+            provider) echo "  ✗ $name (provider) — not found" ;;
             optional) echo "  ⚠ $name (optional) — not found" ;;
         esac
         echo "       hint: $(hint_for "$name")"

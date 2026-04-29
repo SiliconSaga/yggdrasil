@@ -159,8 +159,21 @@ ws_hoard_read_staleness_days() {
     local hoard_path="$1"
     local config="$hoard_path/.ws-cadence.yaml"
     [[ -f "$config" ]] || { echo 2; return; }
+    # Capture yq's exit status separately so a YAML parse error or
+    # other tooling failure surfaces a warning, instead of silently
+    # collapsing to the same "field not set → default 2" path. A
+    # corrupt config should be fixable, not invisible.
     local value
-    value="$(yq '.staleness_days // ""' "$config" 2>/dev/null)"
+    local yq_stderr
+    yq_stderr="$(mktemp)"
+    if ! value="$(yq '.staleness_days // ""' "$config" 2>"$yq_stderr")"; then
+        echo "WARNING: $config: yq failed to parse — falling back to 2 days." >&2
+        [[ -s "$yq_stderr" ]] && sed 's/^/  yq: /' "$yq_stderr" >&2
+        rm -f "$yq_stderr"
+        echo 2
+        return
+    fi
+    rm -f "$yq_stderr"
     [[ "$value" == "null" ]] && value=""
     [[ -z "$value" ]] && { echo 2; return; }
     # Validate: must be a non-negative integer. The cadence math
@@ -472,13 +485,24 @@ ws_hoard_list() {
 # during direct execution, so no second `set -euo pipefail` needed.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
-if ! command -v yq &>/dev/null; then
-    echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
-    exit 1
-fi
-
 SUBCMD="${1:-}"
 shift 2>/dev/null || true
+
+# Subcommands that need yq enforce the dependency at top. Lightweight
+# subcommands (--help, thalamus-path) deliberately skip it so they
+# work on fresh machines that haven't installed yq yet — important
+# for orientation flow where `ws hoard thalamus-path` is one of the
+# first probes the agent runs and shouldn't error before the operator
+# has even seen `ws preflight`'s install hints.
+case "$SUBCMD" in
+    ""|--help|-h|thalamus-path) ;;
+    *)
+        if ! command -v yq &>/dev/null; then
+            echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+            exit 1
+        fi
+        ;;
+esac
 
 case "$SUBCMD" in
     ""|--help|-h)

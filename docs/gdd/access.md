@@ -118,10 +118,12 @@ common-case minimum:
 
 **Known scope-friction case:** `gh pr edit --title <title>` on an
 org-owned repo requires `read:org` and `read:discussion`. If your
-agent PAT doesn't have those scopes, the workaround is `gh api PATCH
-repos/<owner>/<repo>/pulls/<n> --input <file>` with just `repo`
-scope. (On Windows Git Bash, drop the leading `/` from the API path
-to avoid MSYS path conversion rewriting it.)
+agent PAT doesn't have those scopes, the workaround is `gh api -X
+PATCH repos/<owner>/<repo>/pulls/<n> --input <file>` with just
+`repo` scope (`gh api` expects the HTTP method via `-X`/`--method`,
+not as a positional argument). On Windows Git Bash, drop the
+leading `/` from the API path to avoid MSYS path conversion
+rewriting it as a Windows filesystem path.
 
 When in doubt about whether a token covers an operation, run
 `ws diagnose <component>` — it reports per-component remote

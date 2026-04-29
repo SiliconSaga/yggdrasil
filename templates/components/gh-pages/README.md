@@ -56,14 +56,20 @@ and pushes the initial commit.
 > bot/agent token (e.g. one issued to `agent-refr`) rather than a
 > personal PAT, `gh repo create <yourname>/<name>` may fail with
 > *"cannot create a repository for `<yourname>`"* — the agent
-> identity can't create repos under your username. Two fixes: (1)
-> create this tutorial repo under your personal PAT (open a fresh
-> shell, `export GH_TOKEN=<your-personal-pat>`, then run the create
-> command), or (2) create it under the agent's namespace
-> (`gh repo create <agent-account>/<name> ...`) and accept that the
-> deployed site URL will reflect that account. Default assumption
-> stays "your PAT can create personal repos" — this only matters if
-> you've configured a separate agent identity.
+> identity can't create repos under your username. **Recommended
+> fix:** open a fresh shell, `export GH_TOKEN=<your-personal-pat>`,
+> and run the create command under your personal token. The
+> tutorial repo lives under your account — that's what Chapter 2's
+> CodeRabbit/Copilot install assumes (you need admin on the repo's
+> account to install GitHub Apps), and what `<yourname>.github.io`
+> deploys reflect.
+>
+> Creating the repo under the agent's namespace
+> (`gh repo create <agent-account>/<name>`) is a stopgap **only**
+> if you also administer that namespace yourself (rare). Otherwise
+> Chapter 2 stalls — you can't install CodeRabbit on an account you
+> don't control, so the bot-reviewed half of the tutorial becomes
+> impossible to complete.
 
 If you'd rather create the repo by hand:
 
@@ -254,6 +260,14 @@ CodeRabbit is a GitHub App. Free for public repos.
 > needs to happen on whichever account hosts the repo. A fresh user
 > shouldn't have to authorise a third-party app just to ship a
 > first deploy — that's why Chapter 1 skipped it.
+>
+> **If your Ch 1 repo ended up under an agent namespace** you don't
+> administer, Chapter 2 is blocked here — you can't install
+> CodeRabbit on someone else's account. Re-create the tutorial repo
+> under your personal account first (per the Ch 1 §1 auth wrinkle):
+> `export GH_TOKEN=<your-personal-pat>` in a fresh shell, then
+> `gh repo create <yourname>/<name> --public --source=components/<name> --remote=<yourname> --push`,
+> then come back here.
 
 ## 2. Optional: enable Copilot review
 

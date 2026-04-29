@@ -110,8 +110,12 @@ ws_exec() {
 }
 
 ws_push() {
-    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-        cat <<'HELP'
+    # Detect --help/-h anywhere in args (e.g. `ws push my-comp --help`),
+    # not just $1, so the typical UNIX-y "any position" form works.
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
 Usage: ws push [component] [branch] [--force]
 
   component  Component to push (default: yggdrasil)
@@ -122,8 +126,9 @@ Pushes to the component's per-developer fork remote (resolved via
 identity.forkOrg in ecosystem config). For repos you own directly,
 pushes to the configured remote.
 HELP
-        return 0
-    fi
+            return 0
+        fi
+    done
     if [[ $# -gt 3 ]]; then
         echo "Usage: ws push [component] [branch] [--force]" >&2
         exit 1
