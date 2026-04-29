@@ -367,13 +367,36 @@ sessions don't pick it up.
 - Ensure the `api` scope is selected.
 - For self-hosted: set `GITLAB_HOST` in `.env`.
 
-### Push fails with "remote: Permission denied"
+### Push fails with "remote: Permission denied" or "Write access not granted"
 
 - Credential helper may not have your token stored. Run
   `gh auth status` (GitHub) or `glab auth status` (GitLab) to check.
-- On Windows, check Windows Credential Manager for stale entries.
+- **Stale cached credential (Windows):** Git Credential Manager caches tokens
+  and won't pick up a new `GH_TOKEN` from `.env` automatically. If you rotated
+  your PAT, erase the stale entry and let the next push re-cache:
+
+  ```bash
+  # Erase the cached credential for github.com
+  printf 'protocol=https\nhost=github.com\n' | git credential-manager erase
+
+  # Verify the new token works
+  source .env
+  gh api user --jq .login    # should print your bot account name
+  ```
+
+  The next `git push` will prompt GCM to store the current credential.
+  If using a bot PAT via `.env`, you can pre-store it:
+
+  ```bash
+  source .env
+  printf 'protocol=https\nhost=github.com\nusername=agent-refr\npassword=%s\n' \
+    "$GH_TOKEN" | git credential-manager store
+  ```
+
 - GitKraken users: check `~/.gitconfig` for `url.insteadOf` entries that
   redirect HTTPS to SSH. Remove or scope them if they interfere with CLI auth.
+  GitKraken manages its own credentials separately from the system credential
+  helper, so it is unaffected by the erase/store steps above.
 
 ### "Cannot detect git provider for URL"
 
