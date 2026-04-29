@@ -125,6 +125,24 @@ line (`clean`, `dirty-fresh`, `dirty-stale`, `never-committed`,
 nudge text substitutes in. The orientation skill calls it
 automatically; you can also run it manually any time.
 
+**Migrating an existing thalami hoard.** If your thalami hoard
+predates the `.ws-cadence.yaml` convention (created before
+yggdrasil PR #49) and used to carry `commit_staleness_days` in
+each `<machine>-thalamus.md` frontmatter, copy the template file
+into the hoard root once:
+
+```bash
+cp templates/hoards/thalami/.ws-cadence.yaml hoards/thalami-<user>/
+```
+
+…then commit and push it to the hoard remote so other machines
+pick up the same threshold. The old per-machine frontmatter field
+is now ignored — without the new file, the cadence script falls
+back to its default of 2 days, which is fine for most setups. Easy
+to forget since it's a one-time migration on a hoard that already
+exists; the cadence nudge will just silently use the default until
+the file is in place.
+
 **Future direction: scope filters.** A `watch:` glob list at the
 hoard root would let other hoard types scope dirty-detection to
 specific files (e.g., a vault-style hoard might want all `*.md`
