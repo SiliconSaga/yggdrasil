@@ -115,13 +115,29 @@ identity config.
 
 ## 3. Open a PR and watch the bots
 
+Like `ws commit`, `ws cr` is bodyfile-driven. Copy the change template to
+`.crs/first-post.md` *in the yggdrasil workspace root* (gitignored) and
+fill in the summary:
+
+```bash
+cp templates/change.md .crs/first-post.md
+$EDITOR .crs/first-post.md
+```
+
+Replace the bracketed placeholder under **Summary** with one bullet
+describing the edit, and either keep the **Test plan** as-is (loading
+the deployed site is the test) or trim it. The `@HUMAN_ACCOUNT` /
+`@GDD_HOME` markers in the body are substituted at CR-creation time
+from your identity config.
+
 Open the PR:
 
 ```bash
-gh pr create --fill
+ws cr <name> "Make the home page mine" .crs/first-post.md
 ```
 
-(`--fill` reuses your commit message as the PR title and body.)
+`ws cr` picks the right remote from your identity, runs the underlying
+`gh pr create`, and prints the PR URL.
 
 Now wait for the reviewers:
 
@@ -146,8 +162,12 @@ suggest a wording tweak or note that everything looks fine.
 Once you're happy with the review thread responses (or there's nothing
 to address):
 
-1. Click **Merge pull request** on the PR. **Squash and merge** is a
-   reasonable default for a single-commit PR.
+1. Click **Merge pull request** on the PR, then **Create a merge
+   commit**. The GDD convention is to keep the original commit (with
+   its body and Co-Authored-By trailer) in `main` history rather than
+   collapse it via *Squash and merge* — the trail is more useful when
+   you're scanning history later, and AI-pair-programming attribution
+   stays intact.
 2. GitHub Pages rebuilds the site within a minute or so. There's no
    click required — the rebuild fires on every push to `main`.
 3. Refresh `https://<yourname>.github.io/<name>/`. Your edit is live.
