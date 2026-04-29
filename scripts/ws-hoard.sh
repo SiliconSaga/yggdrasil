@@ -52,8 +52,12 @@ ws_resolve_human_account() {
 ws_resolve_machine_name() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     local raw=""
-    if [[ -f "$local_file" ]]; then
-        raw="$(yq '.machine // ""' "$local_file" 2>/dev/null)"
+    # Same yq-tolerance as ws_detect_thalami_hoard: read the
+    # `machine:` override only if the file exists AND yq is
+    # available. Fresh-machine `ws hoard thalamus-path` flows here
+    # and must not abort if yq isn't installed yet.
+    if [[ -f "$local_file" ]] && command -v yq &>/dev/null; then
+        raw="$(yq '.machine // ""' "$local_file" 2>/dev/null)" || raw=""
         [[ "$raw" == "null" ]] && raw=""
     fi
     if [[ -z "$raw" ]]; then
@@ -87,9 +91,15 @@ ws_resolve_machine_name() {
 #   3. None
 ws_detect_thalami_hoard() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
-    if [[ -f "$local_file" ]]; then
+    # Read the selector via yq IF the config file exists AND yq is
+    # actually installed. Lightweight subcommands like `ws hoard
+    # thalamus-path` are exempt from the global yq guard so they
+    # work on fresh machines; this function gets called by those
+    # paths and must not fail when yq is absent. Without yq we just
+    # skip the selector lookup and rely on the disk-walk below.
+    if [[ -f "$local_file" ]] && command -v yq &>/dev/null; then
         local selector
-        selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)"
+        selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)" || selector=""
         if [[ -n "$selector" && "$selector" != "null" ]]; then
             if [[ -d "$HOARDS_DIR/$selector" ]]; then
                 echo "$selector"

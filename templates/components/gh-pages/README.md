@@ -101,10 +101,12 @@ Two equivalent paths:
 4. Under **Branch**, pick `main` and folder `/ (root)`.
    Click **Save**.
 
-**Via `gh api`** (one-liner, useful for scripted setups):
+**Via `gh api`** (one-liner, useful for scripted setups). Note
+the path has no leading `/` — Windows Git Bash's MSYS layer
+otherwise rewrites `/repos/...` as a Windows filesystem path:
 
 ```bash
-gh api -X POST /repos/<yourname>/<name>/pages \
+gh api -X POST repos/<yourname>/<name>/pages \
   --raw-field 'source[branch]=main' \
   --raw-field 'source[path]=/'
 ```

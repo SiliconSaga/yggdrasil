@@ -151,17 +151,24 @@ single branch (`main`) with multiple writers (one per machine),
 so a bare commit + push will fail non-fast-forward whenever any
 other machine has pushed since the last sync:
 
-1. `ws commit thalami-<user> <bodyfile>` — local commit. Do NOT
-   auto-stage; the bodyfile's `add:` list is explicit per the
+Use the **active thalami hoard name** that Step 0 resolved (which
+respects the `hoards.thalami:` selector in `ecosystem.local.yaml`
+when set, falling back to whichever single `hoards/thalami-*`
+directory exists). Substitute that real name in the commands below
+in place of `<active-thalami-hoard>` — it's frequently
+`thalami-<user>` but doesn't have to be.
+
+1. `ws commit <active-thalami-hoard> <bodyfile>` — local commit. Do
+   NOT auto-stage; the bodyfile's `add:` list is explicit per the
    cadence preference captured elsewhere in the Thalamus.
-2. `ws pull thalami-<user>` — `git pull --rebase` on the hoard.
-   Each machine writes to its own per-machine file so direct
+2. `ws pull <active-thalami-hoard>` — `git pull --rebase` on the
+   hoard. Each machine writes to its own per-machine file so direct
    conflicts on file content are rare, but cross-machine
    housekeeping can touch multiple files in one commit. If
    `ws pull` reports `CONFLICT` and aborts the rebase, resolve
-   manually: `cd hoards/thalami-<user>`, fix the marked files,
-   `git rebase --continue`, then return to step 3.
-3. `ws push thalami-<user>` — push the rebased history.
+   manually: `cd hoards/<active-thalami-hoard>`, fix the marked
+   files, `git rebase --continue`, then return to step 3.
+3. `ws push <active-thalami-hoard>` — push the rebased history.
 
 If they defer, move on without further mention.
 
