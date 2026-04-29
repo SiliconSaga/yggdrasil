@@ -172,11 +172,14 @@ ws_hoard_cadence() {
         return 0
     fi
 
-    local thalamus_path
-    thalamus_path="$(ws_resolve_thalamus_path)"
-    local machine_file
-    machine_file="$(basename "$thalamus_path")"
+    # Build the thalamus path from the already-resolved $hoard rather
+    # than calling ws_resolve_thalamus_path() (which re-runs hoard
+    # detection internally). Keeps this function single-pass.
+    local machine
+    machine="$(ws_resolve_machine_name)"
+    local machine_file="${machine}-thalamus.md"
     local hoard_path="$HOARDS_DIR/$hoard"
+    local thalamus_path="$hoard_path/$machine_file"
 
     if [[ ! -f "$thalamus_path" ]]; then
         # Could legitimately mean "first session on this machine,
