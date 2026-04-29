@@ -129,26 +129,26 @@ ws_hoard_help() {
     echo "  list                     Show hoards and which thalami hoard is active" >&2
     echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
+    echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
+    echo "                           thalamus file (empty if no active hoard)" >&2
 }
 
-# Read commit_staleness_days from a thalamus file's YAML frontmatter.
-# Defaults to 2 if the field is absent or the file doesn't exist yet.
+# Read staleness_days from a hoard's `.ws-cadence.yaml`. Defaults to 2
+# if the file is absent or the field isn't set. Argument is the hoard
+# directory path (the file lives at `<hoard_path>/.ws-cadence.yaml`).
+#
+# Hoard-wide config, committable, shared across the hoard's machines —
+# replaces the earlier per-machine `commit_staleness_days` frontmatter
+# field that lived in `<machine>-thalamus.md`. Hoard-wide is the right
+# scope: the cadence threshold is a workflow preference for the user,
+# not a per-machine value.
 ws_hoard_read_staleness_days() {
-    local file="$1"
-    [[ -f "$file" ]] || { echo 2; return; }
-    # Pull the value from the leading `---` frontmatter block. awk
-    # toggles `n` on the `---` markers; we read fields only inside
-    # the first such block.
+    local hoard_path="$1"
+    local config="$hoard_path/.ws-cadence.yaml"
+    [[ -f "$config" ]] || { echo 2; return; }
     local value
-    value="$(awk '
-        /^---$/ { n++; next }
-        n == 1 && /^[[:space:]]*commit_staleness_days:[[:space:]]*[0-9]+/ {
-            sub(/^[[:space:]]*commit_staleness_days:[[:space:]]*/, "")
-            sub(/[[:space:]].*$/, "")
-            print
-            exit
-        }
-    ' "$file")"
+    value="$(yq '.staleness_days // ""' "$config" 2>/dev/null)"
+    [[ "$value" == "null" ]] && value=""
     echo "${value:-2}"
 }
 
@@ -191,7 +191,7 @@ ws_hoard_cadence() {
     fi
 
     local threshold_days
-    threshold_days="$(ws_hoard_read_staleness_days "$thalamus_path")"
+    threshold_days="$(ws_hoard_read_staleness_days "$hoard_path")"
     local threshold_seconds=$(( threshold_days * 86400 ))
 
     # File-scoped dirty check via porcelain. Empty output = clean;
@@ -468,6 +468,12 @@ case "$SUBCMD" in
         ;;
     cadence)
         ws_hoard_cadence
+        ;;
+    thalamus-path)
+        # Echo the resolved path or empty if no active hoard. The
+        # gdd-orientation skill calls this so it can probe the file
+        # in one auto-approved command instead of compound shell.
+        ws_resolve_thalamus_path
         ;;
     *)
         ws_hoard_clone_url "$SUBCMD"
