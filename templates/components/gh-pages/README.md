@@ -72,12 +72,13 @@ If you'd rather create the repo by hand:
 3. Skip the README / .gitignore / license options — your scaffold
    already has them.
 4. Click **Create repository**.
-5. Back in your terminal, set the remote and push:
+5. Back in your terminal, set the remote and push (`ws push`
+   handles the upstream-tracking setup; subsequent pushes work
+   without the explicit branch arg):
 
    ```bash
-   cd components/<name>
-   git remote add <yourname> https://github.com/<yourname>/<name>.git
-   git push -u <yourname> main
+   git -C components/<name> remote add <yourname> https://github.com/<yourname>/<name>.git
+   ws push <name> main
    ```
 
 ## 2. Enable GitHub Pages
