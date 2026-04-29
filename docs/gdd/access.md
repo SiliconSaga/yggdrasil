@@ -155,6 +155,30 @@ The mapping from provider → token variable lives in your realm's
 `ecosystem.yaml` under `defaults.gitTokens`, or override per-developer
 in `ecosystem.local.yaml`.
 
+**Default behavior with no `gitTokens` entry.** For GitHub remotes,
+`gh` reads `$GH_TOKEN` automatically — no `gitTokens` entry needed
+in the common case. Same for GitLab: `glab` reads `$GITLAB_TOKEN`.
+`ws diagnose` reports this as `✓ <VAR> is set (default for
+<provider>; no gitTokens entry needed)`. You only need an explicit
+`gitTokens` entry when you want **fine-grained per-namespace control**
+— e.g., the org repos use the team's `GH_TOKEN` but your personal
+forks under `<your-user>` should use a different `GH_TOKEN_PERSONAL`.
+In that case, add a longer-prefix `gitTokens` entry that wins the
+longest-prefix match for the personal namespace:
+
+```yaml
+defaults:
+  gitTokens:
+    github.com:                          # default for any GitHub remote
+      var: GH_TOKEN
+    github.com/<your-user>:              # personal forks override
+      var: GH_TOKEN_PERSONAL
+```
+
+Without that entry, both namespaces flow through the same default
+`GH_TOKEN` — fine for most setups; only worth splitting when the
+isolation is intentional.
+
 ### GitLab specifics (gitlab.com or self-hosted)
 
 GitLab's API model differs from GitHub's enough that the same

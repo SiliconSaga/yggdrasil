@@ -399,8 +399,30 @@ ws_diagnose() {
                 token_status="✗ $best_var is NOT SET — add 'export $best_var=<token>' to .env"
             fi
         else
-            token_status="✗ no gitTokens entry matches normalized path: $normalized"
-            token_status+=$'\n'"      → Add an entry to defaults.gitTokens in ecosystem.local.yaml"
+            # No gitTokens entry. For known providers, fall back to the
+            # default env var their CLI reads automatically (gh →
+            # GH_TOKEN, glab → GITLAB_TOKEN). Only report a missing
+            # entry as a problem for unknown providers — GitHub
+            # remotes with no gitTokens map are the common case, not
+            # an error. (False-alarm fix: was reporting "no gitTokens
+            # entry matches" for vanilla GitHub remotes that work
+            # fine via $GH_TOKEN.)
+            local default_var=""
+            case "$provider" in
+                github) default_var="GH_TOKEN" ;;
+                gitlab) default_var="GITLAB_TOKEN" ;;
+            esac
+            if [[ -n "$default_var" ]]; then
+                local default_val="${!default_var:-}"
+                if [[ -n "$default_val" ]]; then
+                    token_status="✓ $default_var is set (default for $provider; no gitTokens entry needed)"
+                else
+                    token_status="✗ $default_var is NOT SET — add 'export $default_var=<token>' to .env"
+                fi
+            else
+                token_status="✗ no gitTokens entry matches normalized path: $normalized"
+                token_status+=$'\n'"      → Add an entry to defaults.gitTokens in ecosystem.local.yaml"
+            fi
         fi
 
         echo "    $remote ($provider): $token_status"
