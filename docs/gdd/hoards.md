@@ -163,6 +163,13 @@ Two coexisting modes that work well:
   machine's audit log. The other machines pick up the consolidated
   state on next pull.
 
+**Push directly to `main` — no PR ceremony.** Thalami (and other
+personal hoards) are stream-of-consciousness notes; bot review
+adds nothing useful and a PR/review cycle just slows down sync.
+The convention is: `ws commit` → `ws pull` (fetch+rebase) →
+`ws push`, straight to `main`. PRs are a component-and-realm
+pattern.
+
 ---
 
 ## Future hoard types
