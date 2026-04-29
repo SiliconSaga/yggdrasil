@@ -2,6 +2,8 @@
 
 The fastest way to experience GDD is to clone the yggdrasil workspace and start a session in **Mentoring mode** — the AI will explain the workspace, the methodology, and the tools as you go. You don't need to understand everything upfront.
 
+If you'd rather see what's in the box first before diving in, the [GDD Features Tour](../gdd/features.md) is a quick read covering the workspace, realms, hoards, component templates, the bot-driven review loop, modes, and permissions.
+
 Note that this currently assumes a variety of prerequisites:
 
 - You're using Claude Code as your AI agent (more validated agents coming soon)
@@ -31,11 +33,66 @@ friendly (they're production scaffolds).
 
 ## Setup
 
+### Before you start: bootstrap
+
+Two foundational pieces have to be in place before any of the rest
+of the walkthrough works. Skim these and skip whichever you already
+have.
+
+#### Install Git
+
+You need Git to clone the workspace, and on Windows it's also how
+you get bash (the shell `ws` runs in).
+
+- **macOS:** `xcode-select --install` to get Git via Xcode Command
+  Line Tools, OR `brew install git` if you already use Homebrew.
+  Bash is built-in.
+- **Windows:** Download Git for Windows from
+  https://git-scm.com/download/win — this bundles **Git Bash**, the
+  shell you'll use for everything else. Accept the installer's
+  default to add Git to your PATH (the "Git from the command line
+  and also from 3rd-party software" option). After install, **open
+  Git Bash** (Start menu → Git Bash). Run all subsequent commands
+  from Git Bash, not cmd.exe or PowerShell.
+- **Linux:** `sudo apt install git` (Debian/Ubuntu) or
+  `sudo dnf install git` (Fedora). Bash is built-in.
+
+You don't need Python for the workspace itself. Python and `uv` are
+optional, only required for components or MCP servers that
+explicitly use them.
+
+#### Get a GitHub or GitLab account
+
+GDD assumes you have a hosting account — agents push, open PRs, and
+file issues on your behalf, and there has to be an account those
+operations belong to. **If you don't have one yet:**
+
+- **GitHub:** sign up at https://github.com/signup (free). Pick a
+  username — that's your `identity.human_account` in the workspace
+  config below. Verify your email so you can create repos.
+- **GitLab:** sign up at https://gitlab.com/users/sign_up (free).
+  Same shape — username becomes your config identity.
+
+That's enough to get through this walkthrough. The token + CLI
+setup (Step 3 below) needs your account to exist; everything else
+is stand-alone. If you already have an account, skip ahead.
+
+### Walkthrough
+
 1. **Clone the workspace**
    ```bash
    git clone https://github.com/SiliconSaga/yggdrasil.git
    cd yggdrasil
    ```
+
+   Once cloned, run a prerequisite check before going further:
+   ```bash
+   bash scripts/ws preflight
+   ```
+   It verifies bash, git, `yq` (v4+ — Mike Farah's, not the
+   Python yq), `jq`, and a provider CLI (`gh` or `glab`). Anything
+   missing prints a per-OS install hint. Re-run after installing
+   to confirm.
 
 2. **Configure your identity** — copy the example config and fill in your details:
    ```bash

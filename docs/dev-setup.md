@@ -2,10 +2,52 @@
 
 ## Prerequisites
 
-- Git
-- [yq v4+](https://github.com/mikefarah/yq) — YAML processor
-- [gh](https://cli.github.com/) — GitHub CLI (optional, for issues/PRs)
-- [uv](https://docs.astral.sh/uv/) — Python package manager (optional, for MCP servers and Python components)
+After cloning, run `bash scripts/ws preflight` from the workspace root —
+it checks each tool below and prints per-OS install hints for anything
+missing.
+
+**Required:**
+
+- **Bash** — On Windows, use Git Bash (bundled with Git for Windows).
+  Run all `ws` commands from a Git Bash shell, not cmd or PowerShell.
+- **Git** itself.
+- **[yq v4+](https://github.com/mikefarah/yq)** — Mike Farah's
+  Go-based YAML processor. *Not* the Python `yq` from PyPI; that's a
+  different tool with incompatible syntax.
+- **[jq](https://jqlang.github.io/jq/)** — JSON processor (used by
+  `ws review` and several internal scripts).
+
+**Provider CLI** (need at least one — match your hosting choice):
+
+- **[gh](https://cli.github.com/)** — for GitHub-hosted components.
+- **[glab](https://gitlab.com/gitlab-org/cli)** — for GitLab-hosted
+  components (gitlab.com or self-hosted instances).
+
+**Optional** (only needed for specific component types):
+
+- **[uv](https://docs.astral.sh/uv/)** — Python package manager,
+  for MCP servers and Python components.
+- **realpath** — usually present (coreutils on Linux, Git Bash on
+  Windows); on macOS comes via `brew install coreutils`.
+
+### Install hints by OS
+
+| Tool | macOS (Homebrew) | Windows (winget) | Linux (Debian/Ubuntu) |
+|------|------------------|------------------|-----------------------|
+| Git | `brew install git` | `winget install Git.Git` | `sudo apt install git` |
+| yq | `brew install yq` | `winget install MikeFarah.yq` | Download from [yq releases](https://github.com/mikefarah/yq/releases) |
+| jq | `brew install jq` | `winget install jqlang.jq` | `sudo apt install jq` |
+| gh | `brew install gh` | `winget install GitHub.cli` | [GitHub CLI repo setup](https://cli.github.com) |
+| glab | `brew install glab` | `winget install GLab.GLab` | Download from [glab releases](https://gitlab.com/gitlab-org/cli/-/releases) |
+
+If `winget` isn't available on your Windows version (older SKUs,
+locked-down environments), Chocolatey is the fallback —
+`choco install <tool>` from an **elevated PowerShell** (right-click
+→ Run as administrator). `winget` doesn't need elevation.
+
+For provider authentication setup (PATs, `.env` configuration,
+multi-provider workspaces), see
+[`docs/git-provider-setup.md`](git-provider-setup.md).
 
 ## Getting Started
 

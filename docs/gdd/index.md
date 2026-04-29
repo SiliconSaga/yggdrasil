@@ -73,10 +73,22 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 
 ## Learn More
 
+**Feature tour** (start here if you want to know what's in the box):
+
+- [Features Tour](features.md) — what GDD ships: workspace, realms, hoards, components, bot review loop, modes, permissions
+- [Hoards](hoards.md) — personal containers including the canonical thalami type, cadence config, multi-machine sync
+
+**Methodology and concepts:**
+
 - [Roles and Modes](roles-and-modes.md) — how GDD adapts to who you are and what you're doing
 - [The Thalamus](thalamus.md) — shared thinking space between human and AI
 - [Trust and Safety](trust-and-safety.md) — trust hierarchy, black-box pattern, community responsibility
+- [Permissions](permissions.md) — `.claude/settings.json` reference and the two-layer defense model (local shell commands)
+- [Access](access.md) — identities, tokens, and remote Git operations (the companion to Permissions)
 - [The Self-Improving Loop](self-improving-loop.md) — how the framework evolves through use
+
+**Design archive:**
+
 - [Samples](samples/index.md) — session transcripts, Thalamus snapshots, GDD in action
 - [GDD Design Doc](../plans/2026-03-12-gdd-design.md) — full methodology design
 - [Thalamus Design](../plans/2026-03-22-secondbrain-design.md) — detailed spec
