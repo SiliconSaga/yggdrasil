@@ -32,6 +32,44 @@ if [[ -f "$SCRIPT_DIR/ws-realm.sh" ]]; then
   _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 fi
 
+# Wrapper around gp_create_pr that captures the URL output and re-emits
+# it with a prominent "CR ready:" line. The URL was easy to lose in the
+# preceding "Opening CR..." chatter — this surfaces it as a dedicated
+# line at the end so the operator (or a follow-up `ws review` call)
+# can grab it at a glance.
+_create_pr_with_prominent_url() {
+  local rc=0
+  local output
+  # `output=$(...)` buffers stdout until gp_create_pr finishes
+  # — the user sees nothing during the call, then the whole
+  # captured text at once. That's a small UX regression vs
+  # streaming, but the trade is letting us extract the URL
+  # afterwards and emit a prominent line. Acceptable for a
+  # CR-creation call that takes a couple of seconds; would
+  # need a tee-style approach if it ever became long-running.
+  output=$(gp_create_pr "$@") || rc=$?
+  # Replay the captured output so existing downstream parsers /
+  # log scrapers see the same text they would have seen without
+  # the wrapper.
+  printf '%s\n' "$output"
+  if [[ $rc -eq 0 ]]; then
+    # `grep -o ... | tail -1` returns nonzero if no match. Under
+    # `set -euo pipefail`, that nonzero would propagate through the
+    # pipe and fail the whole script — turning "PR succeeded but
+    # output had no URL we recognized" into a false-positive
+    # failure. The `|| true` neutralizes that; the `[[ -n "$url" ]]`
+    # guard already skips the prominent line cleanly when no URL is
+    # extracted.
+    local url
+    url=$(printf '%s\n' "$output" | grep -oE 'https?://[^[:space:]]+' | tail -1 || true)
+    if [[ -n "$url" ]]; then
+      echo ""
+      echo "✓ CR ready: $url"
+    fi
+  fi
+  return $rc
+}
+
 # Parse --upstream flag
 UPSTREAM=""
 if [[ "${1:-}" == "--upstream" ]]; then
@@ -186,7 +224,7 @@ if [[ -n "$UPSTREAM" ]]; then
   # glab ≥1.65 with --head POSTs to the fork project — switch to fork write token
   gp_set_token_for_url "$FORK_URL" "$_ECO"
 
-  gp_create_pr \
+  _create_pr_with_prominent_url \
     --repo "$UPSTREAM_SLUG" \
     --base "$UPSTREAM_DEFAULT" \
     --head "$BRANCH" \
@@ -204,7 +242,7 @@ else
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
   echo ""
 
-  gp_create_pr \
+  _create_pr_with_prominent_url \
     --repo "$FORK_SLUG" \
     --base "$DEFAULT_BRANCH" \
     --head "$BRANCH" \

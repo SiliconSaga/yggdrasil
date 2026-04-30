@@ -1,0 +1,19 @@
+# Cadence config for this hoard. Read by `ws hoard cadence`.
+#
+# `staleness_days` is the threshold the gdd-orientation skill uses
+# to decide whether to surface a "you've been editing without
+# committing" nudge at session start. Default behavior (no file, or
+# file with no value) is 2 days.
+#
+# Commit this file — it's hoard-wide config, shared across the
+# hoard's machines. Per-machine state belongs in the per-machine
+# thalamus file's own frontmatter (e.g. `last_session`).
+staleness_days: 2
+
+# Future direction: a `watch:` glob list to scope dirty-detection to
+# specific files (e.g., for thalami: ["<machine>-thalamus.md"] so
+# unrelated dirty files in the hoard don't trigger nudges; for an
+# Obsidian-vault-style hoard: leave unset so any dirty file counts).
+# Not implemented in v1 — `ws hoard cadence` currently checks the
+# per-machine thalamus file specifically. Add `watch:` here if/when
+# a hoard type needs different scoping.

@@ -42,22 +42,54 @@ restating command details that can drift.
 
 ### Step 0: Resolve the active thalamus file
 
-Determine which Thalamus file to read by inspecting the workspace directly:
+Run `bash scripts/ws hoard thalamus-path` (or `ws hoard thalamus-path`
+if `ws` is on PATH). It prints the **resolved path** to where the
+active per-machine thalamus file would be, or empty if no thalami
+hoard is active. Single command, auto-approved via the existing
+allowlisted `ws hoard thalamus-path` command form(s) — no permission
+prompt, no compound shell needed. (This subcommand is exempt from
+the global `yq` requirement so fresh machines without yq still get
+a useful answer.)
 
-1. Look in `hoards/` for a directory matching `thalami-*`. If one exists,
-   it's the active thalami hoard. (If multiple exist, look for the
-   `hoards.thalami:` selector in `ecosystem.local.yaml`.)
-2. If a thalami hoard is active:
-   - **Primary:** `hoards/thalami-<user>/<machine>-thalamus.md` where
-     `<machine>` is the short hostname (or the `machine:` override in
-     `ecosystem.local.yaml`).
-   - **Scratch:** root `Thalamus.md` if it exists. Read this too on
-     orientation, but writes default to the primary.
-3. If no thalami hoard is active:
-   - Use root `Thalamus.md` as today (existing behavior).
+A resolved path is **not** proof the file exists yet — `ws hoard
+cadence` reports `status: no-thalamus-file` for the
+"hoard-active-but-file-not-yet-created" case. Branch on existence
+explicitly:
 
-Scripts that need a deterministic answer can source `scripts/ws-hoard.sh`
-and call the `ws_resolve_thalamus_path` helper.
+- **Path empty:** no thalami hoard is active. Use root `Thalamus.md`
+  as today (existing behavior).
+- **Path non-empty AND file exists** (`[[ -f "$path" ]]`): that's
+  the **primary** thalamus file. Also check for a root
+  `Thalamus.md` — if it exists, read it as **scratch** during
+  orientation, but writes default to the primary.
+- **Path non-empty BUT file missing:** first-session-on-this-machine
+  case. Offer to copy `templates/thalamus.md` into place at the
+  resolved path before proceeding. Don't try to read the
+  not-yet-existing file.
+
+The helper resolves three things in one go: the active hoard
+(directory matching `thalami-*`, with the `hoards.thalami:` selector
+in `ecosystem.local.yaml` breaking ties when multiple exist), the
+machine name (bash `$HOSTNAME` with any domain suffix stripped, or
+the `machine:` override in `ecosystem.local.yaml`), and the file
+path constructed from those.
+
+#### Command style during orientation
+
+Prefer **single auto-approved commands** during discovery. Each
+command in Claude Code's auto-allow list (`hostname`, `cat`, `ls`,
+`pwd`, etc.) executes without a permission prompt when run
+individually, but a compound shell like `hostname; cat foo; ls bar`
+will often prompt anyway because the matcher treats compounds more
+cautiously than each segment in isolation. **Don't bundle discovery
+into one shell — issue separate commands.** Newcomers find an
+unannounced multi-step shell at session start unsettling, even when
+each piece is harmless.
+
+When a probe is non-trivial enough to be worth a one-line preface,
+state what you're about to check: *"Let me find the active
+thalamus..."* before running the command. The session feels
+collaborative rather than the agent disappearing into a shell.
 
 Briefly note the resolution to the human:
 
@@ -69,24 +101,26 @@ If both exist:
 > "Hoard thalamus (5 obs, 1 concern) + scratch (1 item). Writes default
 > to the hoard."
 
-#### Machine name
+#### Machine name override
 
-The per-machine filename uses the short hostname (bash `$HOSTNAME` with
-any domain suffix stripped — portable across Linux, macOS, and Windows
-Git Bash). If your hostname is awkward or unstable across boots, set
-`machine: <name>` in `ecosystem.local.yaml` to pin a stable name. The
-override is read by `ws_resolve_machine_name` in `scripts/ws-hoard.sh`.
+The default hostname-derivation works on most setups, but if your
+hostname is awkward or unstable across boots, set
+`machine: <name>` in `ecosystem.local.yaml` to pin a stable name.
+`ws hoard thalamus-path` honors the override automatically.
 
 ### Step 0a: Thalamus commit-cadence nudge
 
 If Step 0 resolved an active thalami hoard, run `bash scripts/ws hoard cadence`
 (or `ws hoard cadence` if `ws` is on PATH) and react to its
-`status:` line. The script handles dirty-detection,
-timestamp lookup, threshold comparison (`commit_staleness_days` from
-the thalamus frontmatter; default 2), and edge cases (file missing,
-file untracked) — the skill just decides what to surface based on
-the reported status. This is a separate cadence from the audit
-`staleness_days` in Step 3.
+`status:` line. The script handles dirty-detection, timestamp
+lookup, threshold comparison (`staleness_days` from the hoard's
+`.ws-cadence.yaml` config — hoard-wide, shared across machines;
+default 2 if the file or field is absent), and edge cases (file
+missing, file untracked) — the skill just decides what to surface
+based on the reported status. This is a separate cadence from the
+audit `staleness_days` in Step 3 (which lives in per-machine
+thalamus frontmatter and tracks housekeeping cadence, not
+commit-sync cadence).
 
 Status-to-action mapping:
 
@@ -103,8 +137,8 @@ Nudge wording for `dirty-stale`:
 
 > "Thalamus has uncommitted changes. Last commit was `<elapsed_days>`
 > days, `<elapsed_hours>` hours ago (threshold:
-> `commit_staleness_days = <threshold_days>`). Want me to commit
-> these before we start, or save for later?"
+> `staleness_days = <threshold_days>` from `.ws-cadence.yaml`).
+> Want me to commit these before we start, or save for later?"
 
 Substitute the values from the `ws hoard cadence` output (it emits
 `elapsed_days:`, `elapsed_hours:`, `threshold_days:` as key-value
@@ -112,10 +146,31 @@ lines below the status). Reports honest elapsed time — not rounded
 to "calendar days," which would false-positive across midnight.
 
 If the user agrees to commit now, walk them through writing a
-bodyfile and run `ws commit thalami-<user> <bodyfile>` (do NOT
-auto-stage; the bodyfile's `add:` list is explicit per the cadence
-preference captured elsewhere in the Thalamus). If they defer,
-proceed silently.
+bodyfile and run the full sync cycle — the thalami hoard has a
+single branch (`main`) with multiple writers (one per machine),
+so a bare commit + push will fail non-fast-forward whenever any
+other machine has pushed since the last sync:
+
+Use the **active thalami hoard name** that Step 0 resolved (which
+respects the `hoards.thalami:` selector in `ecosystem.local.yaml`
+when set, falling back to whichever single `hoards/thalami-*`
+directory exists). Substitute that real name in the commands below
+in place of `<active-thalami-hoard>` — it's frequently
+`thalami-<user>` but doesn't have to be.
+
+1. `ws commit <active-thalami-hoard> <bodyfile>` — local commit. Do
+   NOT auto-stage; the bodyfile's `add:` list is explicit per the
+   cadence preference captured elsewhere in the Thalamus.
+2. `ws pull <active-thalami-hoard>` — `git pull --rebase` on the
+   hoard. Each machine writes to its own per-machine file so direct
+   conflicts on file content are rare, but cross-machine
+   housekeeping can touch multiple files in one commit. If
+   `ws pull` reports `CONFLICT` and aborts the rebase, resolve
+   manually: `cd hoards/<active-thalami-hoard>`, fix the marked
+   files, `git rebase --continue`, then return to step 3.
+3. `ws push <active-thalami-hoard>` — push the rebased history.
+
+If they defer, move on without further mention.
 
 ### Step 1: Check for Thalamus.md
 
@@ -201,6 +256,29 @@ Per-mode adaptation of orientation itself:
   concerns or doing housekeeping before diving into work
 - **Mentoring mode:** explain what orientation is doing and why as you go
 - **Autonomous mode:** minimal orientation, log-only, proceed to work
+
+#### Tutorial detection — offer mentoring mode
+
+If the user signals they're starting a tutorial — opening a
+component README in `templates/components/<flavor>/`, running
+`ws component init` for the first time, or saying things like "let's
+try the tutorial" / "walk me through this" / "I just ran the gh-pages
+init" — and the current mode is **not already mentoring**, offer
+the swap:
+
+> "Looks like you're starting the tutorial. Want to switch to
+> mentoring mode for the duration? I'll explain each command and
+> decision rather than just running them — useful for
+> first-time-through learning. We can swap back any time you say
+> 'switch to flow' (or whichever mode)."
+
+If the user accepts: treat the rest of the session (or until they
+ask to revert) as mentoring. Don't update the Thalamus frontmatter
+default — this is a session-scoped override, not a permanent
+preference change.
+
+If the user declines or doesn't respond: continue at the current
+mode without further mention. Ask once, not repeatedly.
 
 ### Step 6: Trust Verification of Realms and Nested Components
 

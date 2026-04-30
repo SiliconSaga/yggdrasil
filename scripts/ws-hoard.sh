@@ -51,18 +51,35 @@ ws_resolve_human_account() {
 # the bash builtin $HOSTNAME instead — works on all platforms.
 ws_resolve_machine_name() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
-    if [[ -f "$local_file" ]]; then
-        local override
-        override="$(yq '.machine // ""' "$local_file" 2>/dev/null)"
-        if [[ -n "$override" && "$override" != "null" ]]; then
-            echo "$override"
-            return
-        fi
+    local raw=""
+    # Same yq-tolerance as ws_detect_thalami_hoard: read the
+    # `machine:` override only if the file exists AND yq is
+    # available. Fresh-machine `ws hoard thalamus-path` flows here
+    # and must not abort if yq isn't installed yet.
+    if [[ -f "$local_file" ]] && command -v yq &>/dev/null; then
+        raw="$(yq '.machine // ""' "$local_file" 2>/dev/null)" || raw=""
+        [[ "$raw" == "null" ]] && raw=""
     fi
-    # ${HOSTNAME%%.*} keeps everything before the first dot.
-    # If $HOSTNAME isn't set (rare), fall back to plain `hostname`.
-    local h="${HOSTNAME:-$(hostname)}"
-    echo "${h%%.*}"
+    if [[ -z "$raw" ]]; then
+        # ${HOSTNAME%%.*} keeps everything before the first dot.
+        # If $HOSTNAME isn't set (rare), fall back to plain `hostname`.
+        local h="${HOSTNAME:-$(hostname)}"
+        raw="${h%%.*}"
+    fi
+    # Sanitize to filesystem-safe characters. Hostnames or override
+    # values with spaces, colons, backslashes, etc. would otherwise
+    # produce broken thalamus filenames (`hoards/thalami-X/My PC-thalamus.md`
+    # is fine on disk but ugly; colons are illegal on Windows/macOS).
+    # `tr -cs` replaces any character not in the allowed set with a
+    # single dash, squeezing consecutive replacements. `printf '%s'`
+    # avoids tr eating the trailing newline into a trailing dash.
+    local sanitized
+    sanitized="$(printf '%s' "$raw" | tr -cs 'A-Za-z0-9._-' '-')"
+    # Defensive default: if sanitization left nothing useful (raw was
+    # empty or all-bad-chars), fall back to a placeholder rather than
+    # producing `<empty>-thalamus.md` or `--thalamus.md`.
+    [[ -z "$sanitized" || "$sanitized" == "-" ]] && sanitized="unknown"
+    echo "$sanitized"
 }
 
 # Detect the active thalami hoard.
@@ -74,9 +91,15 @@ ws_resolve_machine_name() {
 #   3. None
 ws_detect_thalami_hoard() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
-    if [[ -f "$local_file" ]]; then
+    # Read the selector via yq IF the config file exists AND yq is
+    # actually installed. Lightweight subcommands like `ws hoard
+    # thalamus-path` are exempt from the global yq guard so they
+    # work on fresh machines; this function gets called by those
+    # paths and must not fail when yq is absent. Without yq we just
+    # skip the selector lookup and rely on the disk-walk below.
+    if [[ -f "$local_file" ]] && command -v yq &>/dev/null; then
         local selector
-        selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)"
+        selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)" || selector=""
         if [[ -n "$selector" && "$selector" != "null" ]]; then
             if [[ -d "$HOARDS_DIR/$selector" ]]; then
                 echo "$selector"
@@ -129,27 +152,51 @@ ws_hoard_help() {
     echo "  list                     Show hoards and which thalami hoard is active" >&2
     echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
+    echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
+    echo "                           thalamus file (empty if no active hoard)" >&2
 }
 
-# Read commit_staleness_days from a thalamus file's YAML frontmatter.
-# Defaults to 2 if the field is absent or the file doesn't exist yet.
+# Read staleness_days from a hoard's `.ws-cadence.yaml`. Defaults to 2
+# if the file is absent or the field isn't set. Argument is the hoard
+# directory path (the file lives at `<hoard_path>/.ws-cadence.yaml`).
+#
+# Hoard-wide config, committable, shared across the hoard's machines —
+# replaces the earlier per-machine `commit_staleness_days` frontmatter
+# field that lived in `<machine>-thalamus.md`. Hoard-wide is the right
+# scope: the cadence threshold is a workflow preference for the user,
+# not a per-machine value.
 ws_hoard_read_staleness_days() {
-    local file="$1"
-    [[ -f "$file" ]] || { echo 2; return; }
-    # Pull the value from the leading `---` frontmatter block. awk
-    # toggles `n` on the `---` markers; we read fields only inside
-    # the first such block.
+    local hoard_path="$1"
+    local config="$hoard_path/.ws-cadence.yaml"
+    [[ -f "$config" ]] || { echo 2; return; }
+    # Capture yq's exit status separately so a YAML parse error or
+    # other tooling failure surfaces a warning, instead of silently
+    # collapsing to the same "field not set → default 2" path. A
+    # corrupt config should be fixable, not invisible.
     local value
-    value="$(awk '
-        /^---$/ { n++; next }
-        n == 1 && /^[[:space:]]*commit_staleness_days:[[:space:]]*[0-9]+/ {
-            sub(/^[[:space:]]*commit_staleness_days:[[:space:]]*/, "")
-            sub(/[[:space:]].*$/, "")
-            print
-            exit
-        }
-    ' "$file")"
-    echo "${value:-2}"
+    local yq_stderr
+    yq_stderr="$(mktemp)"
+    if ! value="$(yq '.staleness_days // ""' "$config" 2>"$yq_stderr")"; then
+        echo "WARNING: $config: yq failed to parse — falling back to 2 days." >&2
+        [[ -s "$yq_stderr" ]] && sed 's/^/  yq: /' "$yq_stderr" >&2
+        rm -f "$yq_stderr"
+        echo 2
+        return
+    fi
+    rm -f "$yq_stderr"
+    [[ "$value" == "null" ]] && value=""
+    [[ -z "$value" ]] && { echo 2; return; }
+    # Validate: must be a non-negative integer. The cadence math
+    # downstream feeds this into `(( threshold_days * 86400 ))`; a
+    # non-numeric or negative value would break classification or
+    # error out. Warn loudly and fall back to the default rather than
+    # silently misbehaving.
+    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        echo "WARNING: $config: staleness_days='$value' is not a non-negative integer; falling back to 2." >&2
+        echo 2
+        return
+    fi
+    echo "$value"
 }
 
 # Report cadence state for the active per-machine thalamus file.
@@ -191,7 +238,7 @@ ws_hoard_cadence() {
     fi
 
     local threshold_days
-    threshold_days="$(ws_hoard_read_staleness_days "$thalamus_path")"
+    threshold_days="$(ws_hoard_read_staleness_days "$hoard_path")"
     local threshold_seconds=$(( threshold_days * 86400 ))
 
     # File-scoped dirty check via porcelain. Empty output = clean;
@@ -448,13 +495,24 @@ ws_hoard_list() {
 # during direct execution, so no second `set -euo pipefail` needed.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
-if ! command -v yq &>/dev/null; then
-    echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
-    exit 1
-fi
-
 SUBCMD="${1:-}"
 shift 2>/dev/null || true
+
+# Subcommands that need yq enforce the dependency at top. Lightweight
+# subcommands (--help, thalamus-path) deliberately skip it so they
+# work on fresh machines that haven't installed yq yet — important
+# for orientation flow where `ws hoard thalamus-path` is one of the
+# first probes the agent runs and shouldn't error before the operator
+# has even seen `ws preflight`'s install hints.
+case "$SUBCMD" in
+    ""|--help|-h|thalamus-path) ;;
+    *)
+        if ! command -v yq &>/dev/null; then
+            echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+            exit 1
+        fi
+        ;;
+esac
 
 case "$SUBCMD" in
     ""|--help|-h)
@@ -468,6 +526,12 @@ case "$SUBCMD" in
         ;;
     cadence)
         ws_hoard_cadence
+        ;;
+    thalamus-path)
+        # Echo the resolved path or empty if no active hoard. The
+        # gdd-orientation skill calls this so it can probe the file
+        # in one auto-approved command instead of compound shell.
+        ws_resolve_thalamus_path
         ;;
     *)
         ws_hoard_clone_url "$SUBCMD"

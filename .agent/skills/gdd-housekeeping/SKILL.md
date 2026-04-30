@@ -74,6 +74,25 @@ For each, offer three actions:
 
 **Prune** — resolved, stale, or superseded. Remove from the file.
 
+#### When you Promote, delete the original entry — don't leave a stub
+
+Once an item lands in its canonical home (a doc, a skill update, an
+issue, an instruction-file change), the corresponding Thalamus
+entry should disappear entirely. **Don't replace the entry with a
+"promoted to X" pointer** — that's graveyard noise, and the
+Thalamus should be a current-working-brain rather than a history
+of what used to be there. The Audit Log entry (Step 4) is what
+records that the promotion happened; the canonical doc itself is
+the new source of truth; git history preserves the original
+phrasing for anyone archaeology-bound. Three durable records is
+plenty; a fourth in the Thalamus is clutter.
+
+The same applies to `~~strikethrough~~` markers that linger
+indefinitely. A short `~~item~~ DONE in PR #N` line is reasonable
+*briefly* (across the next session or two while the PR settles),
+but they should age out — pruned at the next housekeeping pass
+once the PR has merged and the canonical doc is stable.
+
 ### Step 3: Check for Pattern Accumulation
 
 After reviewing individual items, look across them:
@@ -130,6 +149,20 @@ If `hoards/thalami-<user>/` is the active hoard, housekeeping can audit
 across every `<machine>-thalamus.md` file in the hoard. Use this to catch
 preferences/observations that should be promoted across machines or
 duplicates that should be merged.
+
+### Thalami repos use direct push, not PR review
+
+Unlike components and realms, thalami repos are stream-of-consciousness
+personal notes — there's nothing for a bot to review usefully, and a
+PR-and-review ceremony just adds friction to multi-machine sync. The
+convention is: **commit and push directly to `main`** (after the
+fetch+rebase cycle described in `gdd-orientation` Step 0a). Don't open
+PRs against the thalami hoard, don't request CodeRabbit/Copilot review,
+don't gate the push on anything beyond the rebase. The whole point of
+the hoard is fast personal-state sync; ceremony defeats it.
+
+Same convention applies to other personal hoards (Claudesidian-style
+vaults, scratch hoards). PRs are a component-and-realm pattern.
 
 ### When to use multi-thalami mode
 

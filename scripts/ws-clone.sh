@@ -14,6 +14,29 @@
 
 set -euo pipefail
 
+# Help short-circuit BEFORE any dependency check — fresh machines
+# without yq still need to be able to read the help text. Detect
+# --help/-h ANYWHERE in args so `ws clone <component> --help` and
+# `ws clone --url <url> --help` both work, matching the style used
+# by ws push / ws actions / ws pull.
+for _arg in "$@"; do
+    if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+        cat <<'HELP'
+Usage:
+  ws clone <component>                          Clone a declared ecosystem component
+  ws clone --all                                Clone all non-disabled components
+  ws clone --url <git-url> [--name <name>] [--add-eco]
+                                                Clone an arbitrary repo
+    --name     Override the component directory name (default: derived from URL)
+    --add-eco  Add the component to ecosystem.local.yaml as trusted
+
+Components are cloned into components/<component-name>/ as independent
+Git repos. If the directory already exists, it is skipped.
+HELP
+        exit 0
+    fi
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPONENTS_DIR="$ROOT_DIR/components"
