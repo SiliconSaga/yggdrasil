@@ -139,7 +139,8 @@ command, expected outcome) triple:
 | `Bash(ws hoard cadence)` | `ws hoard cadence` | Allowed without prompt | Exact-form for the cadence reporter |
 | `Bash(ws hoard cadence)` | `ws hoard cadence --debug` | Prompted | Exact-form pinning — extra arg doesn't match |
 | `Bash(ws hoard thalamus-path)` | `ws hoard thalamus-path` | Allowed without prompt | Exact-form for path resolution |
-| `Bash(ws preflight)` / `Bash(ws preflight --soft)` | `ws preflight` or `ws preflight --soft` | Allowed without prompt | Two exact-forms cover the common invocations |
+| `Bash(ws preflight)` | `ws preflight` | Allowed without prompt | Exact-form for the bare prereq check |
+| `Bash(ws preflight --soft)` | `ws preflight --soft` | Allowed without prompt | Exact-form for the soft-exit variant |
 | `Bash(ws preflight)` | `ws preflight --json` | Prompted | Hypothetical flag not allowlisted; exact-form pinning honored |
 
 When you add a new allow pattern, also add at least one positive case

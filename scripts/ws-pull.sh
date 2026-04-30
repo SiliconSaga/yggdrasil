@@ -8,9 +8,12 @@
 set -euo pipefail
 
 # Help short-circuit BEFORE any dependency check — fresh machines
-# without yq still need to be able to read the help text.
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    cat <<'HELP'
+# without yq still need to be able to read the help text. Detect
+# --help/-h ANYWHERE in args so `ws pull <name> --help` works the
+# same as `ws pull --help`, matching ws push / ws actions style.
+for _arg in "$@"; do
+    if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+        cat <<'HELP'
 Usage:
   ws pull             Pull all cloned components, realms, and hoards (skips dirty repos)
   ws pull <name>      Pull a single component, realm, or hoard
@@ -19,8 +22,9 @@ Skips repos with an unclean working tree — commit or stash first.
 Walks ecosystem-declared components plus on-disk realms/ and hoards/
 (parallel to `ws status`).
 HELP
-    exit 0
-fi
+        exit 0
+    fi
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"

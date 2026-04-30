@@ -40,9 +40,17 @@ fi
 _create_pr_with_prominent_url() {
   local rc=0
   local output
+  # `output=$(...)` buffers stdout until gp_create_pr finishes
+  # — the user sees nothing during the call, then the whole
+  # captured text at once. That's a small UX regression vs
+  # streaming, but the trade is letting us extract the URL
+  # afterwards and emit a prominent line. Acceptable for a
+  # CR-creation call that takes a couple of seconds; would
+  # need a tee-style approach if it ever became long-running.
   output=$(gp_create_pr "$@") || rc=$?
-  # Stream the captured output unchanged so existing downstream
-  # parsers / log scrapers keep working.
+  # Replay the captured output so existing downstream parsers /
+  # log scrapers see the same text they would have seen without
+  # the wrapper.
   printf '%s\n' "$output"
   if [[ $rc -eq 0 ]]; then
     # `grep -o ... | tail -1` returns nonzero if no match. Under

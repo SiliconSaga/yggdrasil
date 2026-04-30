@@ -422,7 +422,12 @@ ws_diagnose() {
                 if [[ -n "$default_val" ]]; then
                     token_status="✓ $default_var is set (default for $provider; no gitTokens entry needed)"
                 else
-                    token_status="✗ $default_var is NOT SET — add 'export $default_var=<token>' to .env"
+                    # Note: $default_var being unset doesn't necessarily mean
+                    # `gh`/`glab` will fail — interactive `gh auth login` /
+                    # `glab auth login` stores credentials separately. But
+                    # agent / non-interactive flows (ws push, ws cr, ws review)
+                    # need the env var, so we still flag it.
+                    token_status="✗ $default_var is NOT SET — required for agent/non-interactive ops (ws push, ws cr, ws review). Add 'export $default_var=<token>' to .env. Interactive 'gh auth login' / 'glab auth login' may still work for direct CLI use."
                 fi
             else
                 token_status="✗ no gitTokens entry matches normalized path: $normalized"
