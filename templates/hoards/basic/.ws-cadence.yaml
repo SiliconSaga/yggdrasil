@@ -1,0 +1,4 @@
+# Commit staleness threshold for this hoard.
+# ws hoard cadence nudges you to commit when the active thalamus file
+# (or hoard content generally) has been dirty for longer than this.
+staleness_days: 2

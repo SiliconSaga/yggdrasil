@@ -13,7 +13,7 @@ first.
 
 ## The workspace and the `ws` CLI
 
-Yggdrasil is a *workspace* — a top-level directory that contains a
+Yggdrasil is a *meta workspace* — a top-level directory that contains a
 shared CLI (`scripts/ws`), a workspace-level ecosystem config, and
 everything else (realms, hoards, components, templates, docs) hanging
 off it. Sessions run from the workspace root; all path references are

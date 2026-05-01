@@ -29,7 +29,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
 
 _RESOLVED_ECOSYSTEM=""
-COMPONENT_DIR=""  # Set by ws_validate_component
+# Initialize only if unset so callers that set COMPONENT_DIR before sourcing
+# this file (e.g. git-issue.sh) keep their value. Without :=, sourcing this
+# file from such callers wiped COMPONENT_DIR and broke downstream validation.
+: "${COMPONENT_DIR:=""}"  # Set by ws_validate_component
 
 # ---------------------------------------------------------------------------
 # Shared functions (used by ws-clone.sh, ws-list.sh, ws, etc.)

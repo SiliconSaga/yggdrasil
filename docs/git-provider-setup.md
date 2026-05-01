@@ -38,7 +38,19 @@ Settings:
 | Scope | Why |
 |-------|-----|
 | `repo` | Full repo access — PRs, issues, code, cross-org forks |
+| `read:org` | Read org membership — needed by `gh pr edit` and other org-aware ops |
+| `read:discussion` | Read discussion threads — also checked by `gh pr edit` |
+| `read:project` | Read GitHub Projects — checked by `gh pr edit --body-file` |
 | `workflow` | Only if you modify `.github/workflows` files |
+
+The three `read:*` scopes are the recommended baseline alongside
+`repo`. They don't grant any mutation power — they just remove
+recurring papercuts where `gh pr edit`-shaped operations would
+otherwise fail with a scopes error and need the `gh api PATCH`
+workaround documented in [`docs/gdd/access.md`](gdd/access.md) § 4.
+If org policy or token-issuance rules block adding them, the
+strict-minimum (`repo` alone) still works — you'll just hit the
+fallback path more often.
 
 > **Why classic and not fine-grained?** Fine-grained PATs have known
 > limitations with cross-org pull requests and workflow file access.

@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>]"
+    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]"
     echo "       ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
     echo "       ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
@@ -30,6 +30,10 @@ review_help() {
     echo "    --reviewer <name>        Filter by reviewer login"
     echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
     echo "                             (--since push events: GitHub only)"
+    echo "    --compact                Headline-only view: each comment shrinks to its"
+    echo "                             [reviewer] file:line + first body line. Useful when"
+    echo "                             a busy PR's full output runs into thousands of lines"
+    echo "                             and you just want to triage at a glance."
     echo ""
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
@@ -46,6 +50,7 @@ review_help() {
     echo ""
     echo "Examples:"
     echo "  ws review yggdrasil 8                      # All review output (start here)"
+    echo "  ws review yggdrasil 8 --compact             # Headline-only triage view"
     echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     echo "  ws review yggdrasil notes 8                # Top-level notes only"
@@ -59,7 +64,7 @@ review_help() {
 
 review_comments() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>]" >&2
+        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]" >&2
         exit 1
     fi
 
@@ -68,6 +73,7 @@ review_comments() {
     shift
     local reviewer=""
     local since=""
+    local compact=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --reviewer)
@@ -76,6 +82,8 @@ review_comments() {
             --since)
                 [[ $# -ge 2 ]] || { echo "ERROR: --since requires a value" >&2; exit 1; }
                 since="$2"; shift 2 ;;
+            --compact)
+                compact=true; shift ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
     done
@@ -134,6 +142,71 @@ review_comments() {
         fi
     fi
 
+    # Compact rendering: extract `[reviewer] file:line` headers + the
+    # first meaningful body line per comment block, drop the rest.
+    # Skip severity markers (start with `_`), HTML <details> wrappers,
+    # blockquoted prefixes (`>`), code fences, and the `---` separator.
+    # Strip leading/trailing markdown bold from titles. Output stays
+    # readable as a flat list — fits comfortably in agent context for
+    # PRs with dozens of comments where the full output runs 1000+
+    # lines.
+    _render_compact() {
+        # Tight header regex: must look like `[<login>[bot]] <path>:<N>`
+        # or `[<login>[bot]] (note)`. Distinguishes real reviewer headers
+        # from CR analysis-chain `[warning]` / `[grammar]` lint lines and
+        # from bash conditionals like `[[ "${1:-}" == ... ]]` that start
+        # with a `[`.
+        #
+        # Track depth into `<details>` blocks (CR's analysis chain wraps
+        # everything in nested details — script blobs, web queries, etc.)
+        # and skip the entire block. Without this, `#!/bin/bash` inside
+        # a shell code-fence inside an analysis-chain details would slip
+        # through as the "first body line."
+        LC_ALL=C awk '
+            BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] "; details_depth=0 }
+            /^---$/ { in_block=0; emitted_body=0; details_depth=0; next }
+            # Match either path:LINE (numeric) or path:? (GitLab fallback
+            # when no line number is available — see providers/gitlab.sh
+            # gp_review_list_comments where missing line positions render
+            # as ":?"). Without the "?" alternative, GitLab review
+            # comments without line numbers were parsed as body text and
+            # their headlines were merged into the previous block.
+            $0 ~ hdr "[^[:space:]]+:(\\?|[0-9]+)" || $0 ~ hdr "\\(note\\)" {
+                if (in_block && !emitted_body) print ""
+                print
+                in_block=1; emitted_body=0; details_depth=0
+                next
+            }
+            /<details>/ { details_depth++; next }
+            /<\/details>/ { if (details_depth > 0) details_depth--; next }
+            details_depth > 0 { next }
+            in_block && !emitted_body && NF > 0 {
+                if (/^_/ || /^</ || /^>/ || /^```/) next
+                # Skip CR analysis-chain marker lines. The four known
+                # marker emoji all live in the Symbols & Pictographs
+                # supplementary block, so each is a 4-byte UTF-8
+                # sequence starting with 0xF0 0x9F. Match each exact
+                # byte sequence using POSIX-portable octal escapes
+                # (\NNN) — narrower than [\x80-\xff], which would also
+                # drop legitimate non-English review content (CJK,
+                # accented Latin, etc.). Octal rather than \xHH because
+                # \xHH is GNU-specific; \NNN is portable across mawk,
+                # nawk, and traditional awk. LC_ALL=C above makes awk
+                # operate in byte mode so these sequences match
+                # reliably regardless of system locale.
+                if (/^\360\237\217\201/) next  # 0xF0 9F 8F 81 — chequered flag
+                if (/^\360\237\223\235/) next  # 0xF0 9F 93 9D — memo
+                if (/^\360\237\214\220/) next  # 0xF0 9F 8C 90 — globe with meridians
+                if (/^\360\237\222\241/) next  # 0xF0 9F 92 A1 — light bulb
+                line = $0
+                sub(/^\*\*/, "", line)
+                sub(/\*\*\.?$/, "", line)
+                print "    " line
+                emitted_body=1
+            }
+        '
+    }
+
     # Build jq filters
     local reviewer_filter="."
     if [[ -n "$reviewer" ]]; then
@@ -175,7 +248,11 @@ review_comments() {
     if [[ $_rc -ne 0 ]]; then
         echo "(failed to fetch inline comments — check auth and connectivity)" >&2
     elif [[ -n "$comments" ]]; then
-        echo "$comments"
+        if [[ "$compact" == true ]]; then
+            printf '%s\n' "$comments" | _render_compact
+        else
+            echo "$comments"
+        fi
     else
         echo "(no inline comments${reviewer:+ from $reviewer})"
     fi
@@ -188,7 +265,11 @@ review_comments() {
     if [[ $_rc -ne 0 ]]; then
         echo "(failed to fetch notes — check auth and connectivity)" >&2
     elif [[ -n "$notes" ]]; then
-        echo "$notes"
+        if [[ "$compact" == true ]]; then
+            printf '%s\n' "$notes" | _render_compact
+        else
+            echo "$notes"
+        fi
     else
         echo "(no notes${reviewer:+ from $reviewer})"
     fi
@@ -393,7 +474,7 @@ _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 if [[ $# -lt 1 ]]; then
     echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
-    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]" >&2
+    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]" >&2
     echo "" >&2
     echo "Run 'ws review --help' for details." >&2
     exit 1

@@ -22,7 +22,7 @@ agent contributions cleanly attributed.
 
 ## 1. Two identities, one workspace
 
-A GDD session typically has **two** Git identities in play:
+A GDD session can have **two** Git identities in play:
 
 - **The human contributor** (you). Your GitHub/GitLab username, your
   PAT for any commands you run interactively. Used for committing
@@ -106,24 +106,34 @@ the human's account on every machine.
 ## 4. Token scopes in practice
 
 The agent PAT's scope set determines what it can do remotely. The
-common-case minimum:
+recommended baseline is one write scope plus three read scopes —
+all the read scopes are low-risk additions that just remove
+recurring papercuts in routine PR/review operations:
 
 | Scope | What it enables |
 |-------|-----------------|
-| `repo` | Full read/write on accessible repos. PRs, issues, releases, code, branches. |
-| `read:org` | Read org membership / discussion (needed for some `gh pr edit` operations on org-owned repos). |
+| `repo` | Full read/write on accessible repos. PRs, issues, releases, code, branches. The one *write* scope. |
+| `read:org` | Read org membership. `gh pr edit` and several other org-aware operations need this. |
+| `read:discussion` | Read discussion threads. `gh pr edit` checks this. |
+| `read:project` | Read GitHub Projects (boards, items). `gh pr edit --body-file` checks this. |
 
 `workflow` scope is needed only if the agent edits files under
 `.github/workflows/`. Most GDD work doesn't touch CI definitions.
 
-**Known scope-friction case:** `gh pr edit --title <title>` on an
-org-owned repo requires `read:org` and `read:discussion`. If your
-agent PAT doesn't have those scopes, the workaround is `gh api -X
-PATCH repos/<owner>/<repo>/pulls/<n> --input <file>` with just
-`repo` scope (`gh api` expects the HTTP method via `-X`/`--method`,
-not as a positional argument). On Windows Git Bash, drop the
-leading `/` from the API path to avoid MSYS path conversion
-rewriting it as a Windows filesystem path.
+The three `read:*` scopes don't grant any mutation power and don't
+unlock any code the agent can't already reach via `repo` — they're
+metadata reads that gate routine `gh pr edit`-shaped operations.
+Compromise of the agent token isn't meaningfully expanded by adding
+them; declining them just means hitting the `gh api PATCH` fallback
+below for every PR-edit-shaped call.
+
+**Strict-minimum** (when org policy or paranoia gates the read
+scopes): `repo` alone, with the `gh api -X PATCH
+repos/<owner>/<repo>/pulls/<n> --input <file>` workaround for
+PR-edit operations. `gh api` expects the HTTP method via
+`-X`/`--method`, not as a positional argument. On Windows Git
+Bash, drop the leading `/` from the API path to avoid MSYS path
+conversion rewriting it as a Windows filesystem path.
 
 When in doubt about whether a token covers an operation, run
 `ws diagnose <component>` — it reports per-component remote
@@ -192,7 +202,7 @@ practice. Notes from real workflows on self-hosted GitLab:
 **fork's** API — the `--repo` flag looks like a target but the
 actual POST goes through the fork project. Consequence: the **fork
 write token**, not the upstream reporter token, is the one needed
-for MR creation, even though the MR targets upstream. This catches
+for MR creation, even though the MR targets upstream. This may catch
 people the first time.
 
 **Two-token model.** Every fork-based GitLab operation needs two

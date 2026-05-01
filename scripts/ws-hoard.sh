@@ -26,7 +26,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ws-realm.sh"   # for ws_resolve_ecosystem
 
 # Resolve identity.human_account from merged ecosystem config.
-# Errors with guidance if unset — required for hoard naming.
+# Errors with guidance if unset — used for the initial commit
+# attribution, the printed `gh repo create` URL, and the recommended
+# remote name when scaffolding a hoard. Hoard *directory* names no
+# longer carry a username suffix, so this is no longer needed for the
+# directory itself, but the three uses above still depend on it.
 ws_resolve_human_account() {
     local eco
     eco="$(ws_resolve_ecosystem)"
@@ -34,8 +38,9 @@ ws_resolve_human_account() {
     who="$(yq '.identity.human_account // ""' "$eco" 2>/dev/null)"
     if [[ -z "$who" || "$who" == "null" ]]; then
         echo "ERROR: identity.human_account is not set." >&2
-        echo "  Set it in ecosystem.local.yaml so hoard names can be generated." >&2
-        echo "  Example:" >&2
+        echo "  Set it in ecosystem.local.yaml — used for the initial commit" >&2
+        echo "  attribution, the printed gh repo create URL, and the" >&2
+        echo "  recommended remote name. Example:" >&2
         echo "    identity:" >&2
         echo "      human_account: cervator" >&2
         exit 1
@@ -87,7 +92,9 @@ ws_resolve_machine_name() {
 #
 # Discovery rule:
 #   1. ecosystem.local.yaml `hoards.thalami:` selector
-#   2. Single thalami-* directory in hoards/
+#   2. Single `thalami` or `thalami-*` directory in hoards/
+#      (current default is plain `thalami`; legacy `thalami-<user>` form
+#      stays supported indefinitely)
 #   3. None
 ws_detect_thalami_hoard() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
@@ -110,7 +117,10 @@ ws_detect_thalami_hoard() {
 
     local candidates=()
     if [[ -d "$HOARDS_DIR" ]]; then
-        for d in "$HOARDS_DIR"/thalami-*/; do
+        # Match the current `thalami` default and the legacy `thalami-*`
+        # form. Both globs are evaluated; the [[ -d ]] guard filters out
+        # any literal that didn't expand.
+        for d in "$HOARDS_DIR"/thalami "$HOARDS_DIR"/thalami-*/; do
             [[ -d "$d" ]] || continue
             candidates+=("$(basename "$d")")
         done
@@ -120,7 +130,7 @@ ws_detect_thalami_hoard() {
         0) echo "" ;;
         1) echo "${candidates[0]}" ;;
         *)
-            echo "ERROR: Multiple thalami-* hoards found in hoards/: ${candidates[*]}." >&2
+            echo "ERROR: Multiple thalami hoards found in hoards/: ${candidates[*]}." >&2
             echo "  Set 'hoards.thalami: <name>' in ecosystem.local.yaml to pick one." >&2
             exit 1
             ;;
@@ -144,7 +154,11 @@ ws_hoard_help() {
     echo "Usage: ws hoard <subcommand> [args...]" >&2
     echo "" >&2
     echo "Subcommands:" >&2
-    echo "  init [template] [args]   Scaffold a new hoard locally (default: thalami)" >&2
+    echo "  init [template] [--name <name>] [template-args]" >&2
+    echo "                           Scaffold a new hoard locally (default template: thalami)" >&2
+    echo "                           --name overrides the directory name" >&2
+    echo "                           (default: <template> — same as the template name)" >&2
+    echo "                           Available templates: thalami, basic" >&2
     echo "                           Per-template args:" >&2
     echo "                             thalami --from-thalamus" >&2
     echo "                                  Move root Thalamus.md into the new hoard" >&2
@@ -209,7 +223,7 @@ ws_hoard_read_staleness_days() {
 #   dirty-fresh       — dirty, last commit within threshold (no nudge)
 #   dirty-stale       — dirty, last commit older than threshold (nudge!)
 #   never-committed   — dirty, no prior commit for this file at all
-#   no-active-hoard   — no thalami-* hoard found
+#   no-active-hoard   — no thalami hoard found
 #   no-thalamus-file  — active hoard but expected file isn't on disk
 ws_hoard_cadence() {
     local hoard
@@ -292,8 +306,9 @@ ws_hoard_cadence() {
     echo "last_commit_unix: $last_commit_ts"
 }
 
-# ws_hoard_init [template] [template-args...]
+# ws_hoard_init [template] [--name <hoard-name>] [template-args...]
 # Default template: thalami.
+# --name overrides the hoard directory name (default: <template>).
 # Per-template args:
 #   thalami --from-thalamus    Move root Thalamus.md into the new hoard
 ws_hoard_init() {
@@ -319,30 +334,83 @@ ws_hoard_init() {
 
     local who
     who="$(ws_resolve_human_account)"
-    local target="$HOARDS_DIR/${template}-${who}"
+
+    # Parse --name and per-template args from remaining args
+    local custom_name=""
+    local from_thalamus=false
+    local remaining_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)
+                [[ -z "${2:-}" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                custom_name="$2"
+                shift 2
+                ;;
+            --name=*)
+                custom_name="${1#--name=}"
+                [[ -z "$custom_name" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                shift
+                ;;
+            --from-thalamus)
+                from_thalamus=true
+                shift
+                ;;
+            *)
+                remaining_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    if [[ ${#remaining_args[@]} -gt 0 ]]; then
+        echo "ERROR: unexpected args for '$template' template: ${remaining_args[*]}" >&2
+        exit 2
+    fi
+
+    # Validate custom name if given
+    if [[ -n "$custom_name" ]]; then
+        if [[ ! "$custom_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "ERROR: --name must be a safe directory name (got: $custom_name)." >&2
+            exit 2
+        fi
+    fi
+
+    # Warn if a thalami hoard is being created with a non-conforming name.
+    # ws_detect_thalami_hoard() globs `thalami` and `thalami-*`; anything
+    # else won't be auto-detected as the active thalami without an explicit
+    # selector in ecosystem.local.yaml. Warn rather than reject — the
+    # selector is a perfectly valid escape hatch and the user may be doing
+    # this on purpose.
+    if [[ "$template" == "thalami" && -n "$custom_name" ]]; then
+        if [[ "$custom_name" != "thalami" && "$custom_name" != thalami-* ]]; then
+            echo "WARNING: --name '$custom_name' won't be auto-detected as the active thalami." >&2
+            echo "  ws_detect_thalami_hoard() globs 'thalami' or 'thalami-*' only." >&2
+            echo "  To use this hoard as the active thalami, set in ecosystem.local.yaml:" >&2
+            echo "    hoards:" >&2
+            echo "      thalami: $custom_name" >&2
+            echo "" >&2
+        fi
+    fi
+
+    # Resolve target directory: --name override, else <template>.
+    # No username suffix — hoards live under hoards/ which is already
+    # per-developer (gitignored), so an extra owner suffix is redundant
+    # and forces an awkward name on whatever the user actually wants
+    # to call this hoard.
+    local hoard_name="${custom_name:-$template}"
+    local target="$HOARDS_DIR/$hoard_name"
     if [[ -d "$target" ]]; then
         echo "ERROR: Hoard already exists at $target." >&2
         echo "  Remove it first if you want to start over." >&2
         exit 1
     fi
 
-    # Per-template arg handling
-    local from_thalamus=false
+    # thalami-specific validation
     case "$template" in
-        thalami)
-            for arg in "$@"; do
-                case "$arg" in
-                    --from-thalamus) from_thalamus=true ;;
-                    *)
-                        echo "ERROR: unknown arg for thalami template: '$arg'." >&2
-                        exit 2
-                        ;;
-                esac
-            done
-            ;;
+        thalami) ;;  # --from-thalamus already parsed above
         *)
-            if [[ $# -gt 0 ]]; then
-                echo "ERROR: template '$template' does not accept extra args (got: $*)." >&2
+            if [[ "$from_thalamus" == true ]]; then
+                echo "ERROR: --from-thalamus is only valid for the thalami template." >&2
                 exit 2
             fi
             ;;
@@ -413,14 +481,14 @@ ws_hoard_init() {
         git init -q -b main
         git add .
         git -c user.name="$commit_name" -c user.email="$commit_email" \
-            commit -q -m "Initial commit (${template} hoard for ${who})"
+            commit -q -m "Initial commit ($hoard_name hoard for ${who})"
     )
 
     echo ""
     echo "Hoard initialized: $target"
     echo ""
     echo "Push to your own remote when ready, e.g.:"
-    echo "  gh repo create ${who}/${template}-${who} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
+    echo "  gh repo create ${who}/${hoard_name} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
     echo ""
     echo "Or set up the remote manually (using ${who} as the remote name —"
     echo "the workspace convention is to avoid generic 'origin'):"
@@ -431,18 +499,39 @@ ws_hoard_init() {
 
 ws_hoard_clone_url() {
     local url="$1"
+    shift
     if [[ ! "$url" =~ ^(https?://|git@) ]]; then
         echo "ERROR: Unknown subcommand or invalid URL '$url'." >&2
         echo "  Run 'ws hoard' for usage." >&2
         exit 1
     fi
 
-    # Derive hoard directory name from the URL's repo basename
+    # Parse --name from remaining args
+    local custom_name=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)
+                [[ -z "${2:-}" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                custom_name="$2"; shift 2 ;;
+            --name=*)
+                custom_name="${1#--name=}"
+                [[ -z "$custom_name" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                shift ;;
+            *)
+                echo "ERROR: unexpected arg for hoard clone: '$1'." >&2; exit 2 ;;
+        esac
+    done
+
+    # Derive hoard directory name from --name or the URL's repo basename
     local repo_name
-    repo_name="${url##*/}"
-    repo_name="${repo_name%.git}"
+    if [[ -n "$custom_name" ]]; then
+        repo_name="$custom_name"
+    else
+        repo_name="${url##*/}"
+        repo_name="${repo_name%.git}"
+    fi
     if [[ ! "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-        echo "ERROR: hoard repo name must be a safe directory name (got: $repo_name)." >&2
+        echo "ERROR: hoard name must be a safe directory name (got: $repo_name)." >&2
         exit 1
     fi
 
@@ -456,8 +545,26 @@ ws_hoard_clone_url() {
     echo "CLONE: hoard -> $target"
     git clone "$url" "$target"
     echo ""
-    echo "Hoard cloned. If this is a thalami hoard, the active machine's thalamus"
-    echo "file is at $target/$(ws_resolve_machine_name)-thalamus.md (created on first session if absent)."
+    echo "Hoard cloned: $target"
+
+    # Post-clone heuristic: if the cloned hoard looks like a thalami
+    # (has at least one <machine>-thalamus.md file at its root) but the
+    # local directory name won't be auto-detected by
+    # ws_detect_thalami_hoard()'s `thalami` / `thalami-*` glob, point
+    # the user at the explicit selector. We can't know it's a thalami
+    # until after the clone, so the warning lives here rather than
+    # pre-flight.
+    if compgen -G "$target/*-thalamus.md" >/dev/null 2>&1; then
+        if [[ "$repo_name" != "thalami" && "$repo_name" != thalami-* ]]; then
+            echo "" >&2
+            echo "NOTE: $target appears to be a thalami hoard (contains *-thalamus.md)" >&2
+            echo "  but its name '$repo_name' won't be auto-detected as the active thalami." >&2
+            echo "  ws_detect_thalami_hoard() globs 'thalami' or 'thalami-*' only." >&2
+            echo "  To use this hoard as the active thalami, set in ecosystem.local.yaml:" >&2
+            echo "    hoards:" >&2
+            echo "      thalami: $repo_name" >&2
+        fi
+    fi
 }
 
 ws_hoard_list() {
@@ -477,7 +584,7 @@ ws_hoard_list() {
                 marker="  * "
             fi
             local label=""
-            if [[ "$dname" == thalami-* && "$dname" == "$active_thalami" ]]; then
+            if [[ -n "$active_thalami" && "$dname" == "$active_thalami" ]]; then
                 label=" (active thalami)"
             fi
             echo "${marker}${dname}${label}"
@@ -534,6 +641,6 @@ case "$SUBCMD" in
         ws_resolve_thalamus_path
         ;;
     *)
-        ws_hoard_clone_url "$SUBCMD"
+        ws_hoard_clone_url "$SUBCMD" "$@"
         ;;
 esac

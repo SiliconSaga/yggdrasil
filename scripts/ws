@@ -25,7 +25,7 @@
 #   realm <url>       Clone a community realm
 #   realm use <name>  Set active realm
 #   realm list        Show available realms
-#   hoard init [template]      Scaffold a new hoard (default: thalami)
+#   hoard init [template] [--name <name>]   Scaffold a new hoard (default template: thalami)
 #   hoard <url>                Clone an existing hoard
 #   hoard list                 Show hoards and which thalami hoard is active
 #   component init <flavor> [name]   Scaffold a new component from a template
