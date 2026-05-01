@@ -8,7 +8,9 @@ history.
 ## Layout
 
 ```text
-thalami-<username>/
+thalami/                    # default name (ws hoard init thalami).
+                            # Override with --name; legacy `thalami-<username>`
+                            # form still supported for existing hoards.
   README.md
   <machine>-thalamus.md     # one per machine; e.g. win10-desktop-thalamus.md
   <machine>-thalamus.md

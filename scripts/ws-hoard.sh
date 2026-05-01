@@ -343,6 +343,7 @@ ws_hoard_init() {
                 ;;
             --name=*)
                 custom_name="${1#--name=}"
+                [[ -z "$custom_name" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
                 shift
                 ;;
             --from-thalamus)
@@ -366,6 +367,23 @@ ws_hoard_init() {
         if [[ ! "$custom_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
             echo "ERROR: --name must be a safe directory name (got: $custom_name)." >&2
             exit 2
+        fi
+    fi
+
+    # Warn if a thalami hoard is being created with a non-conforming name.
+    # ws_detect_thalami_hoard() globs `thalami` and `thalami-*`; anything
+    # else won't be auto-detected as the active thalami without an explicit
+    # selector in ecosystem.local.yaml. Warn rather than reject — the
+    # selector is a perfectly valid escape hatch and the user may be doing
+    # this on purpose.
+    if [[ "$template" == "thalami" && -n "$custom_name" ]]; then
+        if [[ "$custom_name" != "thalami" && "$custom_name" != thalami-* ]]; then
+            echo "WARNING: --name '$custom_name' won't be auto-detected as the active thalami." >&2
+            echo "  ws_detect_thalami_hoard() globs 'thalami' or 'thalami-*' only." >&2
+            echo "  To use this hoard as the active thalami, set in ecosystem.local.yaml:" >&2
+            echo "    hoards:" >&2
+            echo "      thalami: $custom_name" >&2
+            echo "" >&2
         fi
     fi
 
@@ -491,7 +509,9 @@ ws_hoard_clone_url() {
                 [[ -z "${2:-}" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
                 custom_name="$2"; shift 2 ;;
             --name=*)
-                custom_name="${1#--name=}"; shift ;;
+                custom_name="${1#--name=}"
+                [[ -z "$custom_name" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                shift ;;
             *)
                 echo "ERROR: unexpected arg for hoard clone: '$1'." >&2; exit 2 ;;
         esac
