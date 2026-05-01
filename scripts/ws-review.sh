@@ -165,7 +165,13 @@ review_comments() {
         LC_ALL=C awk '
             BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] "; details_depth=0 }
             /^---$/ { in_block=0; emitted_body=0; details_depth=0; next }
-            $0 ~ hdr "[^[:space:]]+:[0-9]+" || $0 ~ hdr "\\(note\\)" {
+            # Match either path:LINE (numeric) or path:? (GitLab fallback
+            # when no line number is available — see providers/gitlab.sh
+            # gp_review_list_comments where missing line positions render
+            # as ":?"). Without the "?" alternative, GitLab review
+            # comments without line numbers were parsed as body text and
+            # their headlines were merged into the previous block.
+            $0 ~ hdr "[^[:space:]]+:(\\?|[0-9]+)" || $0 ~ hdr "\\(note\\)" {
                 if (in_block && !emitted_body) print ""
                 print
                 in_block=1; emitted_body=0; details_depth=0
