@@ -73,7 +73,7 @@ swapping role.
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  AGENTS.md          (skill table rows + hoards section) │
 │   └─ "scribe" role; keyword triggers documented         │
@@ -220,7 +220,7 @@ Step 5 logic.
 
 Called by all four trigger paths.
 
-```
+```text
 1. Run: ws hoard scan --flavor obsidian
    → returns YAML list of obsidian-flavored hoards
 
@@ -302,7 +302,7 @@ Vendored, vanilla, no plugins. Aligned with the `00–06` PARA + supporting
 numbering for symmetry with the Claudesidian template (one set of scribe
 conventions covers both).
 
-```
+```text
 templates/hoards/obsidian-vault/
 ├── README.md                  # what this is, install Obsidian, GDD usage
 ├── .gitignore                 # .trash, workspace.json, .DS_Store
@@ -344,7 +344,7 @@ when creating notes via Claude.
 
 Thin wrapper. No upstream files vendored.
 
-```
+```text
 templates/hoards/claudesidian-vault/
 ├── README.md                  # install instructions, attribution,
 │                              #  optional /init-bootstrap step (see below)
