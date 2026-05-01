@@ -176,13 +176,19 @@ review_comments() {
             details_depth > 0 { next }
             in_block && !emitted_body && NF > 0 {
                 if (/^_/ || /^</ || /^>/ || /^```/) next
-                # Skip analysis-chain marker lines (any line starting
-                # with a non-ASCII byte — covers emoji-led markers like
-                # 🏁/📝/🌐/💡 from CR variants without embedding
-                # non-ASCII literals into the awk source. LC_ALL=C makes
-                # awk operate in byte mode so the [\x80-\xff] range
-                # matches reliably regardless of system locale.
-                if (/^[\x80-\xff]/) next
+                # Skip CR analysis-chain marker lines. The four known
+                # marker emoji all live in the Symbols & Pictographs
+                # supplementary block, so each is a 4-byte UTF-8
+                # sequence starting with \xF0\x9F. Match each exact
+                # byte sequence — narrower than [\x80-\xff], which
+                # would also drop legitimate non-English review content
+                # (CJK, accented Latin, etc.). LC_ALL=C above makes awk
+                # operate in byte mode so these sequences match
+                # reliably regardless of system locale.
+                if (/^\xF0\x9F\x8F\x81/) next  # chequered flag
+                if (/^\xF0\x9F\x93\x9D/) next  # memo
+                if (/^\xF0\x9F\x8C\x90/) next  # globe with meridians
+                if (/^\xF0\x9F\x92\xA1/) next  # light bulb
                 line = $0
                 sub(/^\*\*/, "", line)
                 sub(/\*\*\.?$/, "", line)
