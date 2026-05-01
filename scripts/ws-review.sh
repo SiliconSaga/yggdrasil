@@ -185,16 +185,19 @@ review_comments() {
                 # Skip CR analysis-chain marker lines. The four known
                 # marker emoji all live in the Symbols & Pictographs
                 # supplementary block, so each is a 4-byte UTF-8
-                # sequence starting with \xF0\x9F. Match each exact
-                # byte sequence — narrower than [\x80-\xff], which
-                # would also drop legitimate non-English review content
-                # (CJK, accented Latin, etc.). LC_ALL=C above makes awk
+                # sequence starting with 0xF0 0x9F. Match each exact
+                # byte sequence using POSIX-portable octal escapes
+                # (\NNN) — narrower than [\x80-\xff], which would also
+                # drop legitimate non-English review content (CJK,
+                # accented Latin, etc.). Octal rather than \xHH because
+                # \xHH is GNU-specific; \NNN is portable across mawk,
+                # nawk, and traditional awk. LC_ALL=C above makes awk
                 # operate in byte mode so these sequences match
                 # reliably regardless of system locale.
-                if (/^\xF0\x9F\x8F\x81/) next  # chequered flag
-                if (/^\xF0\x9F\x93\x9D/) next  # memo
-                if (/^\xF0\x9F\x8C\x90/) next  # globe with meridians
-                if (/^\xF0\x9F\x92\xA1/) next  # light bulb
+                if (/^\360\237\217\201/) next  # 0xF0 9F 8F 81 — chequered flag
+                if (/^\360\237\223\235/) next  # 0xF0 9F 93 9D — memo
+                if (/^\360\237\214\220/) next  # 0xF0 9F 8C 90 — globe with meridians
+                if (/^\360\237\222\241/) next  # 0xF0 9F 92 A1 — light bulb
                 line = $0
                 sub(/^\*\*/, "", line)
                 sub(/\*\*\.?$/, "", line)
@@ -471,7 +474,7 @@ _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 if [[ $# -lt 1 ]]; then
     echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
-    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>]" >&2
+    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]" >&2
     echo "" >&2
     echo "Run 'ws review --help' for details." >&2
     exit 1
