@@ -106,8 +106,9 @@ the skills already know how to recognize.
 
 ### `scripts/ws-hoard.sh` — `scan` subcommand
 
-New subcommand. Iterates `hoards/*/` and applies three classifiers
-independently — flavors stack:
+New subcommand. Iterates `hoards/*/` (sorted by name ascending under
+`LC_ALL=C` so the output order is stable across filesystems) and applies
+three classifiers independently — flavors stack:
 
 - **`thalami`** — directory name matches `thalami-*` (existing convention,
   via `ws_detect_thalami_hoard()` which is reused, not rewritten)
@@ -392,7 +393,7 @@ section:
 > from public profiles). If you want that, do it once standalone:
 >
 > ```bash
-> cd hoards/claudesidian-vault
+> cd hoards/<your-vault-name>   # the name you passed to --name (or the default)
 > claude
 > /init-bootstrap
 > ```
