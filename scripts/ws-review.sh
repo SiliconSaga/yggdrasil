@@ -162,7 +162,7 @@ review_comments() {
         # and skip the entire block. Without this, `#!/bin/bash` inside
         # a shell code-fence inside an analysis-chain details would slip
         # through as the "first body line."
-        awk '
+        LC_ALL=C awk '
             BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] "; details_depth=0 }
             /^---$/ { in_block=0; emitted_body=0; details_depth=0; next }
             $0 ~ hdr "[^[:space:]]+:[0-9]+" || $0 ~ hdr "\\(note\\)" {
@@ -176,9 +176,13 @@ review_comments() {
             details_depth > 0 { next }
             in_block && !emitted_body && NF > 0 {
                 if (/^_/ || /^</ || /^>/ || /^```/) next
-                # Skip emoji-led analysis-chain markers (some CR variants
-                # put these outside details blocks too).
-                if (/^[🏁📝🌐💡]/) next
+                # Skip analysis-chain marker lines (any line starting
+                # with a non-ASCII byte — covers emoji-led markers like
+                # 🏁/📝/🌐/💡 from CR variants without embedding
+                # non-ASCII literals into the awk source. LC_ALL=C makes
+                # awk operate in byte mode so the [\x80-\xff] range
+                # matches reliably regardless of system locale.
+                if (/^[\x80-\xff]/) next
                 line = $0
                 sub(/^\*\*/, "", line)
                 sub(/\*\*\.?$/, "", line)
