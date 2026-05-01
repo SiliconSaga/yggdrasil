@@ -33,6 +33,9 @@ ecosystem.local.yaml
 # Claude Code local settings — per-user overrides, never committed
 .claude/settings.local.json
 
+# Claude Code runtime state — scheduled-task lock file, recreated on demand
+.claude/scheduled_tasks.lock
+
 # Claude Code MCP server config — generated per-user by ws mcp-setup, never committed
 # (content is realm-specific; regenerate with: bash scripts/ws mcp-setup)
 /.mcp.json
