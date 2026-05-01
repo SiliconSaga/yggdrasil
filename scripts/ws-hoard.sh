@@ -87,7 +87,9 @@ ws_resolve_machine_name() {
 #
 # Discovery rule:
 #   1. ecosystem.local.yaml `hoards.thalami:` selector
-#   2. Single thalami-* directory in hoards/
+#   2. Single `thalami` or `thalami-*` directory in hoards/
+#      (current default is plain `thalami`; legacy `thalami-<user>` form
+#      stays supported indefinitely)
 #   3. None
 ws_detect_thalami_hoard() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
@@ -110,7 +112,10 @@ ws_detect_thalami_hoard() {
 
     local candidates=()
     if [[ -d "$HOARDS_DIR" ]]; then
-        for d in "$HOARDS_DIR"/thalami-*/; do
+        # Match the current `thalami` default and the legacy `thalami-*`
+        # form. Both globs are evaluated; the [[ -d ]] guard filters out
+        # any literal that didn't expand.
+        for d in "$HOARDS_DIR"/thalami "$HOARDS_DIR"/thalami-*/; do
             [[ -d "$d" ]] || continue
             candidates+=("$(basename "$d")")
         done
@@ -120,7 +125,7 @@ ws_detect_thalami_hoard() {
         0) echo "" ;;
         1) echo "${candidates[0]}" ;;
         *)
-            echo "ERROR: Multiple thalami-* hoards found in hoards/: ${candidates[*]}." >&2
+            echo "ERROR: Multiple thalami hoards found in hoards/: ${candidates[*]}." >&2
             echo "  Set 'hoards.thalami: <name>' in ecosystem.local.yaml to pick one." >&2
             exit 1
             ;;
@@ -147,7 +152,7 @@ ws_hoard_help() {
     echo "  init [template] [--name <name>] [template-args]" >&2
     echo "                           Scaffold a new hoard locally (default template: thalami)" >&2
     echo "                           --name overrides the directory name" >&2
-    echo "                           (default: <template>-<username>)" >&2
+    echo "                           (default: <template> — same as the template name)" >&2
     echo "                           Available templates: thalami, basic" >&2
     echo "                           Per-template args:" >&2
     echo "                             thalami --from-thalamus" >&2
@@ -213,7 +218,7 @@ ws_hoard_read_staleness_days() {
 #   dirty-fresh       — dirty, last commit within threshold (no nudge)
 #   dirty-stale       — dirty, last commit older than threshold (nudge!)
 #   never-committed   — dirty, no prior commit for this file at all
-#   no-active-hoard   — no thalami-* hoard found
+#   no-active-hoard   — no thalami hoard found
 #   no-thalamus-file  — active hoard but expected file isn't on disk
 ws_hoard_cadence() {
     local hoard
@@ -298,7 +303,7 @@ ws_hoard_cadence() {
 
 # ws_hoard_init [template] [--name <hoard-name>] [template-args...]
 # Default template: thalami.
-# --name overrides the hoard directory name (default: <template>-<username>).
+# --name overrides the hoard directory name (default: <template>).
 # Per-template args:
 #   thalami --from-thalamus    Move root Thalamus.md into the new hoard
 ws_hoard_init() {
@@ -364,9 +369,13 @@ ws_hoard_init() {
         fi
     fi
 
-    # Resolve target directory: <name>-<username> or <template>-<username>
-    local hoard_prefix="${custom_name:-$template}"
-    local target="$HOARDS_DIR/${hoard_prefix}-${who}"
+    # Resolve target directory: --name override, else <template>.
+    # No username suffix — hoards live under hoards/ which is already
+    # per-developer (gitignored), so an extra owner suffix is redundant
+    # and forces an awkward name on whatever the user actually wants
+    # to call this hoard.
+    local hoard_name="${custom_name:-$template}"
+    local target="$HOARDS_DIR/$hoard_name"
     if [[ -d "$target" ]]; then
         echo "ERROR: Hoard already exists at $target." >&2
         echo "  Remove it first if you want to start over." >&2
@@ -449,14 +458,14 @@ ws_hoard_init() {
         git init -q -b main
         git add .
         git -c user.name="$commit_name" -c user.email="$commit_email" \
-            commit -q -m "Initial commit (${hoard_prefix} hoard for ${who})"
+            commit -q -m "Initial commit ($hoard_name hoard for ${who})"
     )
 
     echo ""
     echo "Hoard initialized: $target"
     echo ""
     echo "Push to your own remote when ready, e.g.:"
-    echo "  gh repo create ${who}/${hoard_prefix}-${who} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
+    echo "  gh repo create ${who}/${hoard_name} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
     echo ""
     echo "Or set up the remote manually (using ${who} as the remote name —"
     echo "the workspace convention is to avoid generic 'origin'):"
@@ -531,7 +540,7 @@ ws_hoard_list() {
                 marker="  * "
             fi
             local label=""
-            if [[ "$dname" == thalami-* && "$dname" == "$active_thalami" ]]; then
+            if [[ -n "$active_thalami" && "$dname" == "$active_thalami" ]]; then
                 label=" (active thalami)"
             fi
             echo "${marker}${dname}${label}"

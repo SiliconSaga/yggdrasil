@@ -41,10 +41,13 @@ The `ws hoard init` flow creates this hoard as a local git repo without
 a remote. To push:
 
 ```bash
-gh repo create <yourname>/thalami-<yourname> \
-  --private --source=hoards/thalami-<yourname> \
+gh repo create <yourname>/thalami \
+  --private --source=hoards/thalami \
   --remote=<yourname> --push
 ```
+
+(The `ws hoard init thalami` command prints the exact command for
+you, with `<yourname>` already filled in.)
 
 The `--remote=<yourname>` flag honors the workspace convention of
 avoiding generic `origin` remote names. `--push` pushes the initial
