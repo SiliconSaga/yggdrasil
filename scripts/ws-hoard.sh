@@ -144,7 +144,11 @@ ws_hoard_help() {
     echo "Usage: ws hoard <subcommand> [args...]" >&2
     echo "" >&2
     echo "Subcommands:" >&2
-    echo "  init [template] [args]   Scaffold a new hoard locally (default: thalami)" >&2
+    echo "  init [template] [--name <name>] [template-args]" >&2
+    echo "                           Scaffold a new hoard locally (default template: thalami)" >&2
+    echo "                           --name overrides the directory name" >&2
+    echo "                           (default: <template>-<username>)" >&2
+    echo "                           Available templates: thalami, basic" >&2
     echo "                           Per-template args:" >&2
     echo "                             thalami --from-thalamus" >&2
     echo "                                  Move root Thalamus.md into the new hoard" >&2
@@ -292,8 +296,9 @@ ws_hoard_cadence() {
     echo "last_commit_unix: $last_commit_ts"
 }
 
-# ws_hoard_init [template] [template-args...]
+# ws_hoard_init [template] [--name <hoard-name>] [template-args...]
 # Default template: thalami.
+# --name overrides the hoard directory name (default: <template>-<username>).
 # Per-template args:
 #   thalami --from-thalamus    Move root Thalamus.md into the new hoard
 ws_hoard_init() {
@@ -319,30 +324,61 @@ ws_hoard_init() {
 
     local who
     who="$(ws_resolve_human_account)"
-    local target="$HOARDS_DIR/${template}-${who}"
+
+    # Parse --name and per-template args from remaining args
+    local custom_name=""
+    local from_thalamus=false
+    local remaining_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)
+                [[ -z "${2:-}" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                custom_name="$2"
+                shift 2
+                ;;
+            --name=*)
+                custom_name="${1#--name=}"
+                shift
+                ;;
+            --from-thalamus)
+                from_thalamus=true
+                shift
+                ;;
+            *)
+                remaining_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    if [[ ${#remaining_args[@]} -gt 0 ]]; then
+        echo "ERROR: unexpected args for '$template' template: ${remaining_args[*]}" >&2
+        exit 2
+    fi
+
+    # Validate custom name if given
+    if [[ -n "$custom_name" ]]; then
+        if [[ ! "$custom_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "ERROR: --name must be a safe directory name (got: $custom_name)." >&2
+            exit 2
+        fi
+    fi
+
+    # Resolve target directory: <name>-<username> or <template>-<username>
+    local hoard_prefix="${custom_name:-$template}"
+    local target="$HOARDS_DIR/${hoard_prefix}-${who}"
     if [[ -d "$target" ]]; then
         echo "ERROR: Hoard already exists at $target." >&2
         echo "  Remove it first if you want to start over." >&2
         exit 1
     fi
 
-    # Per-template arg handling
-    local from_thalamus=false
+    # thalami-specific validation
     case "$template" in
-        thalami)
-            for arg in "$@"; do
-                case "$arg" in
-                    --from-thalamus) from_thalamus=true ;;
-                    *)
-                        echo "ERROR: unknown arg for thalami template: '$arg'." >&2
-                        exit 2
-                        ;;
-                esac
-            done
-            ;;
+        thalami) ;;  # --from-thalamus already parsed above
         *)
-            if [[ $# -gt 0 ]]; then
-                echo "ERROR: template '$template' does not accept extra args (got: $*)." >&2
+            if [[ "$from_thalamus" == true ]]; then
+                echo "ERROR: --from-thalamus is only valid for the thalami template." >&2
                 exit 2
             fi
             ;;
@@ -413,14 +449,14 @@ ws_hoard_init() {
         git init -q -b main
         git add .
         git -c user.name="$commit_name" -c user.email="$commit_email" \
-            commit -q -m "Initial commit (${template} hoard for ${who})"
+            commit -q -m "Initial commit (${hoard_prefix} hoard for ${who})"
     )
 
     echo ""
     echo "Hoard initialized: $target"
     echo ""
     echo "Push to your own remote when ready, e.g.:"
-    echo "  gh repo create ${who}/${template}-${who} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
+    echo "  gh repo create ${who}/${hoard_prefix}-${who} --private --source=${target#"$ROOT_DIR"/} --remote=${who} --push"
     echo ""
     echo "Or set up the remote manually (using ${who} as the remote name —"
     echo "the workspace convention is to avoid generic 'origin'):"
@@ -431,18 +467,37 @@ ws_hoard_init() {
 
 ws_hoard_clone_url() {
     local url="$1"
+    shift
     if [[ ! "$url" =~ ^(https?://|git@) ]]; then
         echo "ERROR: Unknown subcommand or invalid URL '$url'." >&2
         echo "  Run 'ws hoard' for usage." >&2
         exit 1
     fi
 
-    # Derive hoard directory name from the URL's repo basename
+    # Parse --name from remaining args
+    local custom_name=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)
+                [[ -z "${2:-}" ]] && { echo "ERROR: --name requires a value." >&2; exit 2; }
+                custom_name="$2"; shift 2 ;;
+            --name=*)
+                custom_name="${1#--name=}"; shift ;;
+            *)
+                echo "ERROR: unexpected arg for hoard clone: '$1'." >&2; exit 2 ;;
+        esac
+    done
+
+    # Derive hoard directory name from --name or the URL's repo basename
     local repo_name
-    repo_name="${url##*/}"
-    repo_name="${repo_name%.git}"
+    if [[ -n "$custom_name" ]]; then
+        repo_name="$custom_name"
+    else
+        repo_name="${url##*/}"
+        repo_name="${repo_name%.git}"
+    fi
     if [[ ! "$repo_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-        echo "ERROR: hoard repo name must be a safe directory name (got: $repo_name)." >&2
+        echo "ERROR: hoard name must be a safe directory name (got: $repo_name)." >&2
         exit 1
     fi
 
@@ -456,8 +511,7 @@ ws_hoard_clone_url() {
     echo "CLONE: hoard -> $target"
     git clone "$url" "$target"
     echo ""
-    echo "Hoard cloned. If this is a thalami hoard, the active machine's thalamus"
-    echo "file is at $target/$(ws_resolve_machine_name)-thalamus.md (created on first session if absent)."
+    echo "Hoard cloned: $target"
 }
 
 ws_hoard_list() {
@@ -534,6 +588,6 @@ case "$SUBCMD" in
         ws_resolve_thalamus_path
         ;;
     *)
-        ws_hoard_clone_url "$SUBCMD"
+        ws_hoard_clone_url "$SUBCMD" "$@"
         ;;
 esac
