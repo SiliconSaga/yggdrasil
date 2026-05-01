@@ -75,14 +75,18 @@ if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
   exit 1
 fi
 
-# Detect whether this branch already has an upstream tracking ref
-# pointing at the same remote we're about to push to. If not, add
-# `-u` so the first push wires up tracking automatically — without
-# this, a later `ws pull <name>` would skip the repo as "no upstream
-# tracking branch." Caller can still re-push later without args
-# because tracking is now set.
+# Detect whether $BRANCH already has an upstream tracking ref pointing
+# at the same remote we're about to push to. If not, add `-u` so the
+# first push wires up tracking automatically — without this, a later
+# `ws pull <name>` would skip the repo as "no upstream tracking
+# branch." Caller can still re-push later without args because tracking
+# is now set.
+#
+# Important: scope the upstream lookup to ${BRANCH}@{upstream}, not the
+# bare @{upstream} (which is the *current* branch's upstream). When the
+# caller passes an explicit branch name, those can differ.
 SET_UPSTREAM=""
-if ! current_upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "@{upstream}" 2>/dev/null); then
+if ! current_upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "${BRANCH}@{upstream}" 2>/dev/null); then
   SET_UPSTREAM="--set-upstream"
 elif [[ "$current_upstream" != "$REMOTE_NAME/$BRANCH" ]]; then
   # Tracking exists but points elsewhere (e.g. branch was created
