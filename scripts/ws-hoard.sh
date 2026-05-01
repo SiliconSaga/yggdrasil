@@ -26,7 +26,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ws-realm.sh"   # for ws_resolve_ecosystem
 
 # Resolve identity.human_account from merged ecosystem config.
-# Errors with guidance if unset — required for hoard naming.
+# Errors with guidance if unset — used for the initial commit
+# attribution, the printed `gh repo create` URL, and the recommended
+# remote name when scaffolding a hoard. Hoard *directory* names no
+# longer carry a username suffix, so this is no longer needed for the
+# directory itself, but the three uses above still depend on it.
 ws_resolve_human_account() {
     local eco
     eco="$(ws_resolve_ecosystem)"
@@ -34,8 +38,9 @@ ws_resolve_human_account() {
     who="$(yq '.identity.human_account // ""' "$eco" 2>/dev/null)"
     if [[ -z "$who" || "$who" == "null" ]]; then
         echo "ERROR: identity.human_account is not set." >&2
-        echo "  Set it in ecosystem.local.yaml so hoard names can be generated." >&2
-        echo "  Example:" >&2
+        echo "  Set it in ecosystem.local.yaml — used for the initial commit" >&2
+        echo "  attribution, the printed gh repo create URL, and the" >&2
+        echo "  recommended remote name. Example:" >&2
         echo "    identity:" >&2
         echo "      human_account: cervator" >&2
         exit 1
@@ -541,6 +546,25 @@ ws_hoard_clone_url() {
     git clone "$url" "$target"
     echo ""
     echo "Hoard cloned: $target"
+
+    # Post-clone heuristic: if the cloned hoard looks like a thalami
+    # (has at least one <machine>-thalamus.md file at its root) but the
+    # local directory name won't be auto-detected by
+    # ws_detect_thalami_hoard()'s `thalami` / `thalami-*` glob, point
+    # the user at the explicit selector. We can't know it's a thalami
+    # until after the clone, so the warning lives here rather than
+    # pre-flight.
+    if compgen -G "$target/*-thalamus.md" >/dev/null 2>&1; then
+        if [[ "$repo_name" != "thalami" && "$repo_name" != thalami-* ]]; then
+            echo "" >&2
+            echo "NOTE: $target appears to be a thalami hoard (contains *-thalamus.md)" >&2
+            echo "  but its name '$repo_name' won't be auto-detected as the active thalami." >&2
+            echo "  ws_detect_thalami_hoard() globs 'thalami' or 'thalami-*' only." >&2
+            echo "  To use this hoard as the active thalami, set in ecosystem.local.yaml:" >&2
+            echo "    hoards:" >&2
+            echo "      thalami: $repo_name" >&2
+        fi
+    fi
 }
 
 ws_hoard_list() {
