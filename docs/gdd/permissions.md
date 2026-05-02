@@ -154,6 +154,10 @@ command, expected outcome) triple:
 | `Bash(ws preflight)` | `ws preflight --json` | Prompted | Hypothetical flag not allowlisted; exact-form pinning honored |
 | `Bash(ws review * *)` | `ws review yggdrasil 52 > /tmp/r.txt` | Prompted | Stdout redirect treated as side-effect regardless of LHS — destination opaque to static analysis |
 | `Bash(ws review * * --output *)` | `ws review yggdrasil 52 --output snap` | Allowed without prompt | Wrapper-side `--output <phrase>` validates destination is under `.outputs/` — bounded blast radius |
+| `Bash(ws log * *)` | `ws log --oneline --limit=5` | Allowed without prompt | Two args; equals form binds to one wildcard slot |
+| `Bash(ws log * * *)` | `ws log --oneline --limit 5` | Allowed without prompt | Three args; spaced form needs the wider slot |
+| `Bash(ws log * * * *)` | `ws log mimir --oneline --limit 5` | Allowed without prompt | Four args; component + flags |
+| `Bash(ws log)` | `ws log --rebase` | Prompted | Hypothetical flag not allowlisted; bare-form pinning honored |
 
 When you add a new allow pattern, also add at least one positive case
 (matches → allowed) and one negative case (close-but-not-quite →

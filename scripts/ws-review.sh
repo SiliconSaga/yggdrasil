@@ -132,6 +132,7 @@ review_comments() {
     # The phrase carries intent (e.g. `before-fix`); the script appends
     # a YYYYMMDD-HHMMSS suffix for collision-free re-runs.
     local output_path=""
+    local output_tmp=""
     if [[ -n "$output_phrase" ]]; then
         if [[ ! "$output_phrase" =~ ^[A-Za-z0-9._-]+$ ]]; then
             echo "ERROR: --output phrase '$output_phrase' must contain only alphanumeric, dot, dash, or underscore characters." >&2
@@ -145,6 +146,13 @@ review_comments() {
         # iterations on the same PR also stay adjacent because they
         # share the date prefix.
         output_path="$outputs_dir/$(date +%Y%m%d-%H%M%S)-${output_phrase}.txt"
+        # Write to a sibling temp file and rename on success. Avoids
+        # leaving stale partial snapshots if a fetch (or anything
+        # else) fails mid-render. Trap on EXIT removes the tmp if
+        # we don't reach the explicit `mv` below.
+        output_tmp="$(mktemp "${output_path}.tmp.XXXXXX")"
+        # shellcheck disable=SC2064  # intentional immediate expansion
+        trap "rm -f '$output_tmp'" EXIT
     fi
 
     # Validate CR number is numeric
@@ -318,12 +326,14 @@ review_comments() {
         review_filter="$review_filter | select((.submitted_at // .created_at) > \"$since_ts\")"
     fi
 
-    # If --output set, redirect stdout to the snapshot file. Save
-    # original stdout to fd 3 so we can restore it for the final
-    # "Saved: <path>" announce. Stderr is unaffected (errors still
-    # surface to the terminal even when output is being captured).
+    # If --output set, redirect stdout to a sibling temp file. We
+    # rename the temp to the final $output_path only after every
+    # fetch + render succeeds, so failed runs don't leave stale
+    # partial snapshots. Save original stdout to fd 3 for the final
+    # "Saved:" announce. Stderr is unaffected — errors still surface
+    # to the terminal even when output is being captured.
     if [[ -n "$output_path" ]]; then
-        exec 3>&1 1>"$output_path"
+        exec 3>&1 1>"$output_tmp"
     fi
 
     # Fetch CR summary
@@ -381,9 +391,13 @@ review_comments() {
         echo "(no notes${reviewer:+ from $reviewer})"
     fi
 
-    # Restore stdout (if redirected) and announce the snapshot path.
+    # Restore stdout (if redirected), promote temp to final, and
+    # announce. Disarm the cleanup trap once the rename succeeds so
+    # the file persists past function exit.
     if [[ -n "$output_path" ]]; then
         exec 1>&3 3>&-
+        mv "$output_tmp" "$output_path"
+        trap - EXIT
         echo "Saved: $output_path"
     fi
 }
