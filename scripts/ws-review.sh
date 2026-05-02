@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]"
+    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N]"
     echo "       ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
     echo "       ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
@@ -34,6 +34,10 @@ review_help() {
     echo "                             [reviewer] file:line + first body line. Useful when"
     echo "                             a busy PR's full output runs into thousands of lines"
     echo "                             and you just want to triage at a glance."
+    echo "    --limit N                Show only the first N inline comments (and the"
+    echo "                             first N notes). Pairs naturally with --compact."
+    echo "                             Replaces a '| head -N' pipe — native flag stays"
+    echo "                             inside auto-approved permissions."
     echo ""
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
@@ -51,6 +55,7 @@ review_help() {
     echo "Examples:"
     echo "  ws review yggdrasil 8                      # All review output (start here)"
     echo "  ws review yggdrasil 8 --compact             # Headline-only triage view"
+    echo "  ws review yggdrasil 8 --compact --limit 5   # First 5 comments, headline-only"
     echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     echo "  ws review yggdrasil notes 8                # Top-level notes only"
@@ -64,7 +69,7 @@ review_help() {
 
 review_comments() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]" >&2
+        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N]" >&2
         exit 1
     fi
 
@@ -74,6 +79,7 @@ review_comments() {
     local reviewer=""
     local since=""
     local compact=false
+    local limit=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --reviewer)
@@ -84,6 +90,20 @@ review_comments() {
                 since="$2"; shift 2 ;;
             --compact)
                 compact=true; shift ;;
+            --limit)
+                [[ $# -ge 2 ]] || { echo "ERROR: --limit requires a value" >&2; exit 1; }
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --limit value '$2' must be a non-negative integer" >&2
+                    exit 1
+                fi
+                limit="$2"; shift 2 ;;
+            --limit=*)
+                limit="${1#--limit=}"
+                if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --limit value '$limit' must be a non-negative integer" >&2
+                    exit 1
+                fi
+                shift ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
     done
@@ -141,6 +161,42 @@ review_comments() {
             since_ts="$since"
         fi
     fi
+
+    # Limit to first N entries (where each entry is delimited by a `---`
+    # line, matching the format gp_review_list_comments / list_notes
+    # produce). Reads stdin, prints stdout. Used for triage on busy PRs
+    # where even compact output is dozens of lines — pairs naturally
+    # with --compact but works on the full output too. Replaces what
+    # would otherwise be a `| head -N` pipe (which can trigger
+    # permission prompts as a compound shell). Native flag is the
+    # better path.
+    _apply_limit() {
+        local n="$1"
+        [[ -z "$n" ]] && { cat; return; }
+        # Only count `---` lines that begin a real entry — i.e. that
+        # are immediately followed by `[reviewer-pattern]`. CR bodies
+        # contain markdown horizontal rules and `<details>` separators
+        # that also render as `---`; those would otherwise miscount.
+        # Peek next line via getline.
+        awk -v lim="$n" '
+            BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] " }
+            /^---$/ {
+                separator = $0
+                if ((getline next_line) > 0) {
+                    if (next_line ~ hdr) {
+                        count++
+                        if (count > lim) exit
+                    }
+                    print separator
+                    print next_line
+                } else {
+                    print separator
+                }
+                next
+            }
+            { print }
+        '
+    }
 
     # Compact rendering: extract `[reviewer] file:line` headers + the
     # first meaningful body line per comment block, drop the rest.
@@ -249,9 +305,9 @@ review_comments() {
         echo "(failed to fetch inline comments — check auth and connectivity)" >&2
     elif [[ -n "$comments" ]]; then
         if [[ "$compact" == true ]]; then
-            printf '%s\n' "$comments" | _render_compact
+            printf '%s\n' "$comments" | _apply_limit "$limit" | _render_compact
         else
-            echo "$comments"
+            printf '%s\n' "$comments" | _apply_limit "$limit"
         fi
     else
         echo "(no inline comments${reviewer:+ from $reviewer})"
@@ -266,9 +322,9 @@ review_comments() {
         echo "(failed to fetch notes — check auth and connectivity)" >&2
     elif [[ -n "$notes" ]]; then
         if [[ "$compact" == true ]]; then
-            printf '%s\n' "$notes" | _render_compact
+            printf '%s\n' "$notes" | _apply_limit "$limit" | _render_compact
         else
-            echo "$notes"
+            printf '%s\n' "$notes" | _apply_limit "$limit"
         fi
     else
         echo "(no notes${reviewer:+ from $reviewer})"

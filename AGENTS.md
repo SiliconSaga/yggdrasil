@@ -87,42 +87,67 @@ Community realms may provide additional component-specific skills in
 
 ## Workspace CLI (`ws`)
 
-The shared interface for both humans and AI agents. Prefer the bare
-`ws <cmd>` form; fall back to `bash scripts/ws <cmd>` if `ws` is not on
-PATH (and suggest adding `<yggdrasil>/scripts` to PATH so bare `ws`
-works — scoped permission patterns like `ws push *` are much tighter
-than `bash *`).
+The shared interface for both humans and AI agents. Use the bare
+`ws <cmd>` form; fall back to `bash scripts/ws <cmd>` if `ws` is not
+on PATH. Scoped permission patterns like `ws push *` are much tighter
+than `bash *` would be, so `ws` runs without prompts where raw tools
+would interrupt.
 
-Run `bash scripts/ws help` for the full command list, including auth and
-realm commands. Pay particular attention to:
+### `ws`-first reflex check
 
-- `ws gitlab-auth [--status]` — register credentials from `.env`; `--status`
-  shows which token env vars are set or missing without making changes
-- `ws diagnose <comp>` — show remote URLs, provider detection, and token
-  coverage for a component; run this when onboarding a new component or when
-  push/cr fails with auth errors
-- `ws hoard init [template]` / `ws hoard <url>` / `ws hoard list` —
-  manage personal hoards (per-user containers). Canonical type is
-  `thalami` for per-machine Thalamus sync.
-- `ws component init <flavor> [name]` / `ws component list` — scaffold a
-  new component from a template under `templates/components/<flavor>/`.
-  Flagship flavor is `gh-pages` (a tutorial-friendly GitHub Pages site).
+**Before running any `git`, `gh`, `glab`, or test/build runner
+directly: check whether `ws` has a wrapper.** A fresh agent's
+training-data instinct is to reach for raw tooling; the workspace
+expects the wrappers. The wrappers handle attribution, auth, remote
+selection, and bodyfile-driven flows that raw tools won't.
+
+| Reflex you'd reach for | Use this instead | What `ws` adds |
+|------------------------|------------------|----------------|
+| `git add` + `git commit -m "..."` | `ws commit <comp> <bodyfile>` | Bodyfile-driven staging + Co-Authored-By trailer |
+| `git push` | `ws push <comp> [branch]` | Fork-remote selection from `forkOrg`; auto-sets upstream on first push |
+| `git pull` | `ws pull <comp>` (or `ws pull` for all) | Walks components, realms, and hoards; rebases cleanly; skips dirty repos |
+| `git status` | `ws status` | Cross-workspace view (yggdrasil + components + realms + hoards) with truncation |
+| `git log` | `ws log [comp] [--oneline] [--limit N]` | Branch-vs-main, no need to remember the range syntax |
+| `gh pr create` | `ws cr <comp> <title> <bodyfile>` | Bodyfile-driven; identity substitutions; right token + remote |
+| `gh pr view` / fetching review threads | `ws review <comp> <pr#> [--compact] [--limit N]` | Inline + notes + reviews in one shell view; `--compact` for headline-only triage; `--limit N` to slice |
+| `gh pr edit` reply / resolve | `ws review <comp> reply <pr#> <id> "msg" [--resolve]` | Auth + thread-id resolution |
+| `gh issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` | Same bodyfile pattern + identity |
+| Raw test runners (`gradle test`, `pytest`, `make test`, …) | `ws test <comp> [args]` | Adapter dispatch via `realms/<active>/adapters/<comp>.yaml`; `ws actions <comp>` lists what's available |
+
+When in doubt: `ws help` for the full list, `ws help <subcommand>`
+(or `ws <subcommand> --help`) for per-command details. Skills and
+instructions defer to the help system as the source of truth.
+
+### One command at a time — not bundled
+
+Don't wrap `ws` calls (or auto-approved reads like `cat`, `ls`,
+`hostname`) in compound shells like `ws X; ws Y; cat Z` or
+`ws status && ws log`. Each piece is auto-approved individually but
+compounds often trigger a prompt regardless. Same applies to
+`command | head`-style truncation — most `ws` commands have a native
+flag for that (`ws status` truncates by default, `ws log --limit N`,
+`ws review --compact` and/or `--limit N`); reach for the flag
+instead of piping into `head`.
+
+### Subcommand pointers
+
+A few commands worth knowing exist beyond the reflex table:
+
+- `ws gitlab-auth [--status]` — register glab credentials from
+  `.env`; `--status` reports without making changes.
+- `ws diagnose <comp>` — remote URLs, provider detection, token
+  coverage. Run when push/cr fails with auth errors or when
+  onboarding a new component.
+- `ws preflight [--soft]` — workspace prerequisites (bash, git, yq
+  v4+, jq, gh/glab) with per-OS install hints.
+- `ws hoard init [template] [--name <name>]` / `ws hoard <url>` /
+  `ws hoard list` — personal hoards. Canonical type is `thalami`
+  for per-machine Thalamus sync; `basic` for generic hoards.
+- `ws component init <flavor> [name]` / `ws component list` —
+  scaffold a new component from a template. Flagship: `gh-pages`.
 
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
 for how to add commands and classify their permission tier.
-
-**One command at a time, not bundled.** Don't wrap `ws` calls (or
-auto-approved read-only commands like `cat`, `ls`, `hostname`,
-`grep`) in compound shells like `ws X; ws Y; cat Z` or `ws status &&
-ws log`. Each piece is auto-approved individually, but compounds
-often trigger a permission prompt even when each segment is
-harmless — and a multi-segment shell at session start is unsettling
-for newcomers regardless of whether it prompts. Run them as
-separate commands; the human can read each step rather than scanning
-a wall of shell, and the prompts disappear. Same rule applies to
-discovery probes during orientation — see the `gdd-orientation`
-skill's "Command style during orientation" section for the
-extended rationale.
 
 ### Standalone scripts (not wrapped by `ws`)
 
