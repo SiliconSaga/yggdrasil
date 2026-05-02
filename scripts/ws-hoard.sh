@@ -150,6 +150,135 @@ ws_resolve_thalamus_path() {
     echo "$HOARDS_DIR/$hoard/${machine}-thalamus.md"
 }
 
+# Classify a hoard directory by flavor.
+# Echoes a comma-separated list of flavors, or empty if none.
+# Argument is the hoard directory path. Flavors stack — a hoard can be
+# both `obsidian` and `claudesidian`.
+#
+# Detection rules:
+#   thalami      — directory name matches `thalami-*`
+#   obsidian     — has a `.obsidian/` subdirectory
+#   claudesidian — has `.obsidian/` AND `.claude/` AND a top-level
+#                  CLAUDE.md whose first 30 lines reference Claudesidian
+#                  or PARA conventions (multi-signal — avoids
+#                  false-positives on unrelated `.claude/` directories)
+ws_classify_hoard() {
+    local hoard_path="$1"
+    local hoard_name
+    hoard_name="$(basename "$hoard_path")"
+    local flavors=()
+
+    # thalami: name pattern (matches existing ws_detect_thalami_hoard convention)
+    if [[ "$hoard_name" == thalami-* ]]; then
+        flavors+=("thalami")
+    fi
+
+    # obsidian: .obsidian/ directory present
+    if [[ -d "$hoard_path/.obsidian" ]]; then
+        flavors+=("obsidian")
+    fi
+
+    # claudesidian: obsidian + .claude/ + signature in CLAUDE.md
+    if [[ -d "$hoard_path/.obsidian" ]] && \
+       [[ -d "$hoard_path/.claude" ]] && \
+       [[ -f "$hoard_path/CLAUDE.md" ]]; then
+        # Multi-signal: read first 30 lines, look for either
+        # "Claudesidian" (the kit's name) or "PARA Method" (its
+        # organizational scheme) — case-insensitive.
+        if head -n 30 "$hoard_path/CLAUDE.md" 2>/dev/null | \
+           grep -qiE 'claudesidian|PARA Method'; then
+            flavors+=("claudesidian")
+        fi
+    fi
+
+    if [[ ${#flavors[@]} -eq 0 ]]; then
+        echo ""
+    else
+        local IFS=,
+        echo "${flavors[*]}"
+    fi
+}
+
+# Iterate hoards/ and emit a YAML inventory with flavor classification.
+# Optional flags:
+#   --flavor <name>   Only emit hoards containing the named flavor
+#   --names-only      Emit just hoard names (one per line) — for shell pipelines
+ws_hoard_scan() {
+    local filter_flavor=""
+    local names_only=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --flavor)
+                if [[ -z "${2:-}" ]]; then
+                    echo "ERROR: --flavor requires a value" >&2
+                    return 2
+                fi
+                filter_flavor="$2"
+                shift 2
+                ;;
+            --names-only)
+                names_only=true
+                shift
+                ;;
+            -h|--help)
+                echo "Usage: ws hoard scan [--flavor <name>] [--names-only]" >&2
+                echo "" >&2
+                echo "Emit a YAML inventory of hoards/ classified by flavor." >&2
+                echo "" >&2
+                echo "Flavors detected:" >&2
+                echo "  thalami       — directory name matches thalami-*" >&2
+                echo "  obsidian      — contains .obsidian/" >&2
+                echo "  claudesidian  — contains .obsidian/ + .claude/ + Claudesidian-signed CLAUDE.md" >&2
+                return 0
+                ;;
+            *)
+                echo "ERROR: Unknown flag: $1" >&2
+                return 2
+                ;;
+        esac
+    done
+
+    [[ -d "$HOARDS_DIR" ]] || return 0
+
+    # Iterate via find + sort under LC_ALL=C so YAML output order is
+    # stable across filesystems and locales (design contract — the
+    # scribe skill and other consumers depend on reproducible output).
+    local d hoard_name flavors_csv
+    while IFS= read -r d; do
+        [[ -d "$d" ]] || continue
+        hoard_name="$(basename "$d")"
+        flavors_csv="$(ws_classify_hoard "$d")"
+
+        # Apply --flavor filter
+        if [[ -n "$filter_flavor" ]]; then
+            local found=false
+            local IFS=,
+            for f in $flavors_csv; do
+                if [[ "$f" == "$filter_flavor" ]]; then
+                    found=true
+                    break
+                fi
+            done
+            $found || continue
+        fi
+
+        if $names_only; then
+            echo "$hoard_name"
+        else
+            echo "- name: $hoard_name"
+            echo "  path: $d"
+            if [[ -z "$flavors_csv" ]]; then
+                echo "  flavors: []"
+            else
+                # Convert "a,b" → "[a, b]" for inline YAML list form
+                local yaml_list="${flavors_csv//,/, }"
+                echo "  flavors: [$yaml_list]"
+            fi
+        fi
+    done < <(LC_ALL=C find "$HOARDS_DIR" -maxdepth 1 -mindepth 1 -type d -print 2>/dev/null | LC_ALL=C sort)
+}
+
 ws_hoard_help() {
     echo "Usage: ws hoard <subcommand> [args...]" >&2
     echo "" >&2
@@ -164,6 +293,9 @@ ws_hoard_help() {
     echo "                                  Move root Thalamus.md into the new hoard" >&2
     echo "  <git-url>                Clone an existing hoard" >&2
     echo "  list                     Show hoards and which thalami hoard is active" >&2
+    echo "  scan [--flavor <name>] [--names-only]" >&2
+    echo "                           Emit a YAML inventory of hoards classified by" >&2
+    echo "                           flavor (thalami / obsidian / claudesidian)" >&2
     echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
     echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
@@ -630,6 +762,9 @@ case "$SUBCMD" in
         ;;
     list)
         ws_hoard_list
+        ;;
+    scan)
+        ws_hoard_scan "$@"
         ;;
     cadence)
         ws_hoard_cadence
