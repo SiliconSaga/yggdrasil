@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]"
+    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]"
     echo "       ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
     echo "       ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
@@ -34,6 +34,18 @@ review_help() {
     echo "                             [reviewer] file:line + first body line. Useful when"
     echo "                             a busy PR's full output runs into thousands of lines"
     echo "                             and you just want to triage at a glance."
+    echo "    --limit N | --limit=N    Show only the first N inline comments (and the"
+    echo "                             first N notes). Both spaced and equals forms"
+    echo "                             work. Pairs naturally with --compact. Replaces a"
+    echo "                             '| head -N' pipe — native flag stays inside"
+    echo "                             auto-approved permissions."
+    echo "    --output <phrase>        Save the rendered review to .outputs/<ts>-<phrase>.txt"
+    echo "                             (timestamp prefix: YYYYMMDD-HHMMSS, sorts cleanly)."
+    echo "                             Phrase carries intent (e.g. 'before-fix'); script"
+    echo "                             appends timestamp so re-runs don't collide. Prints"
+    echo "                             the path on stdout for downstream commands like grep."
+    echo "                             Replaces a '> file' redirect — native flag keeps the"
+    echo "                             write confined to .outputs/ (covered by ws clean)."
     echo ""
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
@@ -51,6 +63,8 @@ review_help() {
     echo "Examples:"
     echo "  ws review yggdrasil 8                      # All review output (start here)"
     echo "  ws review yggdrasil 8 --compact             # Headline-only triage view"
+    echo "  ws review yggdrasil 8 --compact --limit 5   # First 5 comments, headline-only"
+    echo "  ws review yggdrasil 8 --output before-fix    # Save snapshot for grep follow-up"
     echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     echo "  ws review yggdrasil notes 8                # Top-level notes only"
@@ -64,7 +78,7 @@ review_help() {
 
 review_comments() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]" >&2
+        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
         exit 1
     fi
 
@@ -74,6 +88,8 @@ review_comments() {
     local reviewer=""
     local since=""
     local compact=false
+    local limit=""
+    local output_phrase=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --reviewer)
@@ -84,9 +100,65 @@ review_comments() {
                 since="$2"; shift 2 ;;
             --compact)
                 compact=true; shift ;;
+            --limit)
+                [[ $# -ge 2 ]] || { echo "ERROR: --limit requires a value" >&2; exit 1; }
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --limit value '$2' must be a non-negative integer" >&2
+                    exit 1
+                fi
+                limit="$2"; shift 2 ;;
+            --limit=*)
+                limit="${1#--limit=}"
+                if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --limit value '$limit' must be a non-negative integer" >&2
+                    exit 1
+                fi
+                shift ;;
+            --output)
+                [[ $# -ge 2 ]] || { echo "ERROR: --output requires a phrase" >&2; exit 1; }
+                [[ -n "$2" ]] || { echo "ERROR: --output phrase cannot be empty" >&2; exit 1; }
+                output_phrase="$2"; shift 2 ;;
+            --output=*)
+                output_phrase="${1#--output=}"
+                [[ -n "$output_phrase" ]] || { echo "ERROR: --output= phrase cannot be empty" >&2; exit 1; }
+                shift ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
     done
+
+    # Validate --output phrase: alphanumeric + dot/dash/underscore only.
+    # Rejects slashes (the only real path-traversal vector) — destination
+    # is always confined to <workspace>/.outputs/ since the resulting
+    # name has no path component. Phrases like `..foo` or `..` are
+    # technically allowed because they're interpreted as literal
+    # filenames inside .outputs/, not directory traversals; harmless
+    # weird names if they slip through.
+    # The phrase carries intent (e.g. `before-fix`); the script
+    # PREFIXES a YYYYMMDD-HHMMSS timestamp for collision-free re-runs
+    # and clean `ls`-by-time sorting.
+    local output_path=""
+    local output_tmp=""
+    if [[ -n "$output_phrase" ]]; then
+        if [[ ! "$output_phrase" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "ERROR: --output phrase '$output_phrase' must contain only alphanumeric, dot, dash, or underscore characters." >&2
+            echo "  No slashes — destination is always under <workspace>/.outputs/." >&2
+            exit 1
+        fi
+        local outputs_dir="$ROOT_DIR/.outputs"
+        mkdir -p "$outputs_dir"
+        # Timestamp-first so `ls .outputs/` sorts cleanly by time —
+        # latest snapshot at the bottom, easy to spot. Re-review
+        # iterations on the same PR also stay adjacent because they
+        # share the date prefix.
+        output_path="$outputs_dir/$(date +%Y%m%d-%H%M%S)-${output_phrase}.txt"
+        # Write to a sibling temp file and rename on success. Avoids
+        # leaving stale partial snapshots if a fetch (or anything
+        # else) fails mid-render. Trap on EXIT removes the tmp if
+        # we don't reach the explicit `mv` below.
+        output_tmp="$(mktemp "${output_path}.tmp.XXXXXX")"
+        # shellcheck disable=SC2064  # intentional immediate expansion
+        trap "rm -f '$output_tmp'" EXIT
+    fi
 
     # Validate CR number is numeric
     if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
@@ -141,6 +213,46 @@ review_comments() {
             since_ts="$since"
         fi
     fi
+
+    # Limit to first N entries (where each entry is delimited by a `---`
+    # line, matching the format gp_review_list_comments / list_notes
+    # produce). Reads stdin, prints stdout. Used for triage on busy PRs
+    # where even compact output is dozens of lines — pairs naturally
+    # with --compact but works on the full output too. Replaces what
+    # would otherwise be a `| head -N` pipe (which can trigger
+    # permission prompts as a compound shell). Native flag is the
+    # better path.
+    _apply_limit() {
+        local n="$1"
+        [[ -z "$n" ]] && { cat; return; }
+        # Only count `---` lines that begin a real entry — i.e. that
+        # are immediately followed by `[reviewer-pattern]`. CR bodies
+        # contain markdown horizontal rules and `<details>` separators
+        # that also render as `---`; those would otherwise miscount.
+        # Peek next line via getline.
+        # LC_ALL=C makes the `[A-Za-z0-9._-]` ranges in the header
+        # regex lexicographic instead of locale-collated, so behavior
+        # is identical regardless of the user's locale (mirrors what
+        # _render_compact does for the same reason).
+        LC_ALL=C awk -v lim="$n" '
+            BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] " }
+            /^---$/ {
+                separator = $0
+                if ((getline next_line) > 0) {
+                    if (next_line ~ hdr) {
+                        count++
+                        if (count > lim) exit
+                    }
+                    print separator
+                    print next_line
+                } else {
+                    print separator
+                }
+                next
+            }
+            { print }
+        '
+    }
 
     # Compact rendering: extract `[reviewer] file:line` headers + the
     # first meaningful body line per comment block, drop the rest.
@@ -219,6 +331,16 @@ review_comments() {
         review_filter="$review_filter | select((.submitted_at // .created_at) > \"$since_ts\")"
     fi
 
+    # If --output set, redirect stdout to a sibling temp file. We
+    # rename the temp to the final $output_path only after every
+    # fetch + render succeeds, so failed runs don't leave stale
+    # partial snapshots. Save original stdout to fd 3 for the final
+    # "Saved:" announce. Stderr is unaffected — errors still surface
+    # to the terminal even when output is being captured.
+    if [[ -n "$output_path" ]]; then
+        exec 3>&1 1>"$output_tmp"
+    fi
+
     # Fetch CR summary
     echo "=== CR #$pr_num ($REPO_SLUG) ==="
     gp_review_summary "$REPO_SLUG" "$pr_num" || {
@@ -232,8 +354,12 @@ review_comments() {
     echo "=== Reviews ==="
     local reviews="" _rc=0
     reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || _rc=$?
+    # Failure markers go to stdout (not stderr) so they end up IN
+    # the saved snapshot when `--output` redirects stdout to a file.
+    # Otherwise a fetch failure under `--output` produces a partial
+    # file with no in-file indication that a section was lost.
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch reviews — check auth and connectivity)" >&2
+        echo "(failed to fetch reviews — check auth and connectivity)"
     elif [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
@@ -246,12 +372,12 @@ review_comments() {
     local comments="" _rc=0
     comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch inline comments — check auth and connectivity)" >&2
+        echo "(failed to fetch inline comments — check auth and connectivity)"
     elif [[ -n "$comments" ]]; then
         if [[ "$compact" == true ]]; then
-            printf '%s\n' "$comments" | _render_compact
+            printf '%s\n' "$comments" | _apply_limit "$limit" | _render_compact
         else
-            echo "$comments"
+            printf '%s\n' "$comments" | _apply_limit "$limit"
         fi
     else
         echo "(no inline comments${reviewer:+ from $reviewer})"
@@ -263,15 +389,25 @@ review_comments() {
     local notes="" _rc=0
     notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch notes — check auth and connectivity)" >&2
+        echo "(failed to fetch notes — check auth and connectivity)"
     elif [[ -n "$notes" ]]; then
         if [[ "$compact" == true ]]; then
-            printf '%s\n' "$notes" | _render_compact
+            printf '%s\n' "$notes" | _apply_limit "$limit" | _render_compact
         else
-            echo "$notes"
+            printf '%s\n' "$notes" | _apply_limit "$limit"
         fi
     else
         echo "(no notes${reviewer:+ from $reviewer})"
+    fi
+
+    # Restore stdout (if redirected), promote temp to final, and
+    # announce. Disarm the cleanup trap once the rename succeeds so
+    # the file persists past function exit.
+    if [[ -n "$output_path" ]]; then
+        exec 1>&3 3>&-
+        mv "$output_tmp" "$output_path"
+        trap - EXIT
+        echo "Saved: $output_path"
     fi
 }
 
@@ -333,8 +469,12 @@ review_notes() {
     echo "=== Notes: CR #$pr_num ($REPO_SLUG) ==="
     local notes="" _rc=0
     notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    # Failure marker on stdout (not stderr) — section status, not
+    # script error. Consistent with review_comments. If --output
+    # ever extends to this subcommand, the marker will land in
+    # the captured file rather than getting lost on stderr.
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch notes — check auth and connectivity)" >&2
+        echo "(failed to fetch notes — check auth and connectivity)"
     elif [[ -n "$notes" ]]; then
         echo "$notes"
     else

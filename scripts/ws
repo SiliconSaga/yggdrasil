@@ -173,37 +173,60 @@ ws_cr() {
 
 
 ws_log() {
-    if [[ $# -gt 2 ]]; then
-        echo "Usage: ws log [component] [--oneline]" >&2
-        echo "" >&2
-        echo "Show commits on the current branch that aren't on main." >&2
-        echo "" >&2
-        echo "Options:" >&2
-        echo "  --oneline  One line per commit (default: full log)" >&2
-        echo "" >&2
-        echo "Examples:" >&2
-        echo "  ws log                # yggdrasil branch vs main" >&2
-        echo "  ws log --oneline      # compact format" >&2
-        echo "  ws log mimir           # mimir branch vs main" >&2
-        echo "  ws log mimir --oneline # mimir compact" >&2
-        exit 1
-    fi
+    # Detect --help anywhere in args.
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws log [component] [--oneline] [--limit N]
+
+Show commits on the current branch that aren't on main.
+
+Options:
+  --oneline           One line per commit (default: full log)
+  --limit N           Show only the most recent N commits
+  --limit=N           Same; equals form also accepted
+
+Examples:
+  ws log                       # yggdrasil branch vs main
+  ws log --oneline             # compact format
+  ws log --limit 5             # last 5 commits, full format
+  ws log --oneline --limit=10  # last 10, one-line each (equals form)
+  ws log mimir                 # mimir branch vs main
+HELP
+            return 0
+        fi
+    done
 
     local comp=""
     local oneline=""
-    for arg in "$@"; do
-        case "$arg" in
-            --oneline) oneline="--oneline" ;;
+    local limit=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --oneline) oneline="--oneline"; shift ;;
+            --limit)
+                [[ $# -ge 2 ]] || { echo "ERROR: --limit requires a value" >&2; exit 1; }
+                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --limit value '$2' must be a non-negative integer" >&2
+                    exit 1
+                fi
+                limit="$2"; shift 2 ;;
+            --limit=*)
+                limit="${1#--limit=}"
+                if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --limit value '$limit' must be a non-negative integer" >&2
+                    exit 1
+                fi
+                shift ;;
             -*)
-                echo "ERROR: Unknown option '$arg'" >&2
+                echo "ERROR: Unknown option '$1'" >&2
                 exit 1 ;;
             *)
                 if [[ -n "$comp" ]]; then
-                    echo "ERROR: Multiple components specified ('$comp' and '$arg')." >&2
-                    echo "  Usage: ws log [component] [--oneline]" >&2
+                    echo "ERROR: Multiple components specified ('$comp' and '$1')." >&2
+                    echo "  Usage: ws log [component] [--oneline] [--limit N]" >&2
                     exit 1
                 fi
-                comp="$arg" ;;
+                comp="$1"; shift ;;
         esac
     done
 
@@ -247,10 +270,12 @@ ws_log() {
         return
     fi
 
+    local limit_flag=""
+    [[ -n "$limit" ]] && limit_flag="-n $limit"
     if [[ -n "$oneline" ]]; then
-        git log "$main_branch..$branch" --oneline
+        git log $limit_flag "$main_branch..$branch" --oneline
     else
-        git log "$main_branch..$branch" --format="%h %s (%cr)"
+        git log $limit_flag "$main_branch..$branch" --format="%h %s (%cr)"
     fi
 }
 
@@ -258,18 +283,23 @@ ws_clean() {
     if [[ $# -gt 0 ]]; then
         echo "Usage: ws clean" >&2
         echo "" >&2
-        echo "Remove draft files from .issues/, .crs/, and .commits/ directories." >&2
+        echo "Remove draft files from .issues/, .crs/, .commits/, and .outputs/ directories." >&2
         exit 1
     fi
 
     local total=0
-    for dir in .issues .crs .commits; do
+    # Per-dir glob: bodyfile dirs hold *.md; .outputs/ holds tool-emitted
+    # snapshots in *.txt. Each spec is `<dir>:<glob>`.
+    local spec
+    for spec in '.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt'; do
+        local dir="${spec%%:*}"
+        local pattern="${spec#*:}"
         local dirpath="$ROOT_DIR/$dir"
         if [[ -d "$dirpath" ]]; then
             local count
-            count=$(find "$dirpath" -maxdepth 1 -name '*.md' -type f | wc -l)
+            count=$(find "$dirpath" -maxdepth 1 -name "$pattern" -type f | wc -l)
             if [[ "$count" -gt 0 ]]; then
-                find "$dirpath" -maxdepth 1 -name '*.md' -type f -delete
+                find "$dirpath" -maxdepth 1 -name "$pattern" -type f -delete
                 echo "  $dir/  $count file(s) removed"
                 total=$((total + count))
             fi

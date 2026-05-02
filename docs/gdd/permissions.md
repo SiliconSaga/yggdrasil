@@ -116,6 +116,16 @@ The matcher scopes wildcards correctly:
 - **Exact-form pinning is literal.** `git -C . branch --list` does
   not match `Bash(git -C * branch --show-current)` because the
   trailing literals differ.
+- **Stdout-redirect-to-file (`> file`, `>> file`) prompts
+  regardless of the LHS.** Even when the producing command is
+  read-only and individually auto-allowed, the redirect-to-file is
+  treated as a side-effect operation because the destination path
+  is opaque to static analysis (could be `/tmp/foo`,
+  `~/.bashrc`, `/etc/...`). The right design path for "save output
+  for later grep" is a wrapper-side `--output <phrase>` flag that
+  validates the destination against a workspace-internal scratch
+  dir like `.outputs/` — see `ws review --output` for the
+  reference implementation.
 
 Both layers must hold. If Claude Code's matcher behavior changes —
 for instance, if compound commands stopped being per-segment validated
@@ -142,6 +152,12 @@ command, expected outcome) triple:
 | `Bash(ws preflight)` | `ws preflight` | Allowed without prompt | Exact-form for the bare prereq check |
 | `Bash(ws preflight --soft)` | `ws preflight --soft` | Allowed without prompt | Exact-form for the soft-exit variant |
 | `Bash(ws preflight)` | `ws preflight --json` | Prompted | Hypothetical flag not allowlisted; exact-form pinning honored |
+| `Bash(ws review * *)` | `ws review yggdrasil 52 > /tmp/r.txt` | Prompted | Stdout redirect treated as side-effect regardless of LHS — destination opaque to static analysis |
+| `Bash(ws review * * --output *)` | `ws review yggdrasil 52 --output snap` | Allowed without prompt | Wrapper-side `--output <phrase>` validates destination is under `.outputs/` — bounded blast radius |
+| `Bash(ws log * *)` | `ws log --oneline --limit=5` | Allowed without prompt | Two args; equals form binds to one wildcard slot |
+| `Bash(ws log * * *)` | `ws log --oneline --limit 5` | Allowed without prompt | Three args; spaced form needs the wider slot |
+| `Bash(ws log * * * *)` | `ws log mimir --oneline --limit 5` | Allowed without prompt | Four args; component + flags |
+| `Bash(ws log)` | `ws log --rebase` | Prompted | Hypothetical flag not allowlisted; bare-form pinning honored |
 
 When you add a new allow pattern, also add at least one positive case
 (matches → allowed) and one negative case (close-but-not-quite →

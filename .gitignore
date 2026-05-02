@@ -3,6 +3,7 @@
 .issues/
 .crs/
 .commits/
+.outputs/
 .DS_Store
 
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
