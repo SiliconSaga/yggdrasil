@@ -110,7 +110,7 @@ selection, and bodyfile-driven flows that raw tools won't.
 | `git log` | `ws log [comp] [--oneline] [--limit N]` | Branch-vs-main, no need to remember the range syntax |
 | `gh pr create` | `ws cr <comp> <title> <bodyfile>` | Bodyfile-driven; identity substitutions; right token + remote |
 | `gh pr view` / fetching review threads | `ws review <comp> <cr#> [--compact] [--limit N]` | Inline + notes + reviews in one shell view; `--compact` for headline-only triage; `--limit N` to slice |
-| `gh pr edit` reply / resolve | `ws review <comp> reply <cr#> <id> "msg" [--resolve]` | Auth + thread-id resolution |
+| Reply/resolve a review thread (web UI or `gh api graphql`) | `ws review <comp> reply <cr#> <id> "msg" [--resolve]` | Auth + thread-id resolution |
 | `gh issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` | Same bodyfile pattern + identity |
 | Raw test runners (`gradle test`, `pytest`, `make test`, …) | `ws test <comp> [args]` | Adapter dispatch via `realms/<active>/adapters/<comp>.yaml`; `ws actions <comp>` lists what's available |
 
