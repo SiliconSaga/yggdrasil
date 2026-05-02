@@ -158,6 +158,11 @@ A few commands worth knowing exist beyond the reflex table:
   for per-machine Thalamus sync; `basic` for generic hoards.
 - `ws component init <flavor> [name]` / `ws component list` —
   scaffold a new component from a template. Flagship: `gh-pages`.
+- `ws test yggdrasil` — run the workspace-root shell-script test
+  suite (bats files under `tests/`). Uses a vendored `bats-core`
+  runtime under `tests/vendor/bats-core/` so contributors don't
+  need a system install; see `tests/vendor/README.md` for the
+  refresh procedure.
 
 **Adding new subcommands:** See [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md)
 for how to add commands and classify their permission tier.
