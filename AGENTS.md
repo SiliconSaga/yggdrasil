@@ -109,7 +109,7 @@ selection, and bodyfile-driven flows that raw tools won't.
 | `git status` | `ws status` | Cross-workspace view (yggdrasil + components + realms + hoards) with truncation |
 | `git log` | `ws log [comp] [--oneline] [--limit N]` | Branch-vs-main, no need to remember the range syntax |
 | `gh pr create` | `ws cr <comp> <title> <bodyfile>` | Bodyfile-driven; identity substitutions; right token + remote |
-| `gh pr view` / fetching review threads | `ws review <comp> <cr#> [--compact] [--limit N]` | Inline + notes + reviews in one shell view; `--compact` for headline-only triage; `--limit N` to slice |
+| `gh pr view` / fetching review threads | `ws review <comp> <cr#> [--compact] [--limit N] [--output <phrase>]` | Inline + notes + reviews in one shell view; `--compact` for headline-only triage; `--limit N` to slice; `--output <phrase>` saves snapshot to `.outputs/<ts>-<phrase>.txt` for follow-up grep |
 | Reply/resolve a review thread (web UI or `gh api graphql`) | `ws review <comp> reply <cr#> <id> "msg" [--resolve]` | Auth + thread-id resolution |
 | `gh issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` | Same bodyfile pattern + identity |
 | Raw test runners (`gradle test`, `pytest`, `make test`, …) | `ws test <comp> [args]` | Adapter dispatch via `realms/<active>/adapters/<comp>.yaml`; `ws actions <comp>` lists what's available |
@@ -123,11 +123,24 @@ instructions defer to the help system as the source of truth.
 Don't wrap `ws` calls (or auto-approved reads like `cat`, `ls`,
 `hostname`) in compound shells like `ws X; ws Y; cat Z` or
 `ws status && ws log`. Each piece is auto-approved individually but
-compounds often trigger a prompt regardless. Same applies to
-`command | head`-style truncation — most `ws` commands have a native
-flag for that (`ws status` truncates by default, `ws log --limit N`,
-`ws review --compact` and/or `--limit N`); reach for the flag
-instead of piping into `head`.
+compounds often trigger a prompt regardless. Same applies to:
+
+- **`command | head`-style truncation** — most `ws` commands have
+  a native flag for that (`ws status` truncates by default,
+  `ws log --limit N`, `ws review --compact` and/or `--limit N`).
+  Reach for the flag instead of piping into `head`.
+- **`command > file` redirects** — Claude Code's matcher prompts
+  on stdout-redirect-to-file regardless of the LHS, because the
+  destination path is opaque to static analysis. For `ws review`
+  specifically, use `--output <phrase>` to save into the
+  workspace-internal `.outputs/` scratch dir (`ws clean` purges
+  it). Then grep that file as a separate auto-approved command.
+  For other commands, no native equivalent yet — accept the
+  one-time prompt or argue for a flag if the pattern recurs.
+- **`command | grep`-style filtering** — `ws review` already has
+  `--reviewer <name>`, `--since <time>`, and `--compact` for the
+  most common cuts. If you need ad-hoc grep, save with `--output`
+  first then grep the file (two clean commands).
 
 ### Subcommand pointers
 

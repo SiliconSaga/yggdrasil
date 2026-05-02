@@ -283,18 +283,23 @@ ws_clean() {
     if [[ $# -gt 0 ]]; then
         echo "Usage: ws clean" >&2
         echo "" >&2
-        echo "Remove draft files from .issues/, .crs/, and .commits/ directories." >&2
+        echo "Remove draft files from .issues/, .crs/, .commits/, and .outputs/ directories." >&2
         exit 1
     fi
 
     local total=0
-    for dir in .issues .crs .commits; do
+    # Per-dir glob: bodyfile dirs hold *.md; .outputs/ holds tool-emitted
+    # snapshots in *.txt. Each spec is `<dir>:<glob>`.
+    local spec
+    for spec in '.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt'; do
+        local dir="${spec%%:*}"
+        local pattern="${spec#*:}"
         local dirpath="$ROOT_DIR/$dir"
         if [[ -d "$dirpath" ]]; then
             local count
-            count=$(find "$dirpath" -maxdepth 1 -name '*.md' -type f | wc -l)
+            count=$(find "$dirpath" -maxdepth 1 -name "$pattern" -type f | wc -l)
             if [[ "$count" -gt 0 ]]; then
-                find "$dirpath" -maxdepth 1 -name '*.md' -type f -delete
+                find "$dirpath" -maxdepth 1 -name "$pattern" -type f -delete
                 echo "  $dir/  $count file(s) removed"
                 total=$((total + count))
             fi

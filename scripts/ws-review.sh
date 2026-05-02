@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N]"
+    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]"
     echo "       ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
     echo "       ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
@@ -39,6 +39,13 @@ review_help() {
     echo "                             work. Pairs naturally with --compact. Replaces a"
     echo "                             '| head -N' pipe — native flag stays inside"
     echo "                             auto-approved permissions."
+    echo "    --output <phrase>        Save the rendered review to .outputs/<ts>-<phrase>.txt"
+    echo "                             (timestamp prefix: YYYYMMDD-HHMMSS, sorts cleanly)."
+    echo "                             Phrase carries intent (e.g. 'before-fix'); script"
+    echo "                             appends timestamp so re-runs don't collide. Prints"
+    echo "                             the path on stdout for downstream commands like grep."
+    echo "                             Replaces a '> file' redirect — native flag keeps the"
+    echo "                             write confined to .outputs/ (covered by ws clean)."
     echo ""
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
@@ -57,6 +64,7 @@ review_help() {
     echo "  ws review yggdrasil 8                      # All review output (start here)"
     echo "  ws review yggdrasil 8 --compact             # Headline-only triage view"
     echo "  ws review yggdrasil 8 --compact --limit 5   # First 5 comments, headline-only"
+    echo "  ws review yggdrasil 8 --output before-fix    # Save snapshot for grep follow-up"
     echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     echo "  ws review yggdrasil notes 8                # Top-level notes only"
@@ -70,7 +78,7 @@ review_help() {
 
 review_comments() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N]" >&2
+        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
         exit 1
     fi
 
@@ -81,6 +89,7 @@ review_comments() {
     local since=""
     local compact=false
     local limit=""
+    local output_phrase=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --reviewer)
@@ -105,9 +114,38 @@ review_comments() {
                     exit 1
                 fi
                 shift ;;
+            --output)
+                [[ $# -ge 2 ]] || { echo "ERROR: --output requires a phrase" >&2; exit 1; }
+                [[ -n "$2" ]] || { echo "ERROR: --output phrase cannot be empty" >&2; exit 1; }
+                output_phrase="$2"; shift 2 ;;
+            --output=*)
+                output_phrase="${1#--output=}"
+                [[ -n "$output_phrase" ]] || { echo "ERROR: --output= phrase cannot be empty" >&2; exit 1; }
+                shift ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
     done
+
+    # Validate --output phrase: alphanumeric + dot/dash/underscore only.
+    # Rejects slashes, `..`, absolute paths — destination is always
+    # confined to <workspace>/.outputs/, no path traversal possible.
+    # The phrase carries intent (e.g. `before-fix`); the script appends
+    # a YYYYMMDD-HHMMSS suffix for collision-free re-runs.
+    local output_path=""
+    if [[ -n "$output_phrase" ]]; then
+        if [[ ! "$output_phrase" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "ERROR: --output phrase '$output_phrase' must contain only alphanumeric, dot, dash, or underscore characters." >&2
+            echo "  No slashes, no '..', no absolute paths — destination is always under <workspace>/.outputs/." >&2
+            exit 1
+        fi
+        local outputs_dir="$ROOT_DIR/.outputs"
+        mkdir -p "$outputs_dir"
+        # Timestamp-first so `ls .outputs/` sorts cleanly by time —
+        # latest snapshot at the bottom, easy to spot. Re-review
+        # iterations on the same PR also stay adjacent because they
+        # share the date prefix.
+        output_path="$outputs_dir/$(date +%Y%m%d-%H%M%S)-${output_phrase}.txt"
+    fi
 
     # Validate CR number is numeric
     if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
@@ -280,6 +318,14 @@ review_comments() {
         review_filter="$review_filter | select((.submitted_at // .created_at) > \"$since_ts\")"
     fi
 
+    # If --output set, redirect stdout to the snapshot file. Save
+    # original stdout to fd 3 so we can restore it for the final
+    # "Saved: <path>" announce. Stderr is unaffected (errors still
+    # surface to the terminal even when output is being captured).
+    if [[ -n "$output_path" ]]; then
+        exec 3>&1 1>"$output_path"
+    fi
+
     # Fetch CR summary
     echo "=== CR #$pr_num ($REPO_SLUG) ==="
     gp_review_summary "$REPO_SLUG" "$pr_num" || {
@@ -333,6 +379,12 @@ review_comments() {
         fi
     else
         echo "(no notes${reviewer:+ from $reviewer})"
+    fi
+
+    # Restore stdout (if redirected) and announce the snapshot path.
+    if [[ -n "$output_path" ]]; then
+        exec 1>&3 3>&-
+        echo "Saved: $output_path"
     fi
 }
 
