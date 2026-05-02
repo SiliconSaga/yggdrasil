@@ -34,10 +34,11 @@ review_help() {
     echo "                             [reviewer] file:line + first body line. Useful when"
     echo "                             a busy PR's full output runs into thousands of lines"
     echo "                             and you just want to triage at a glance."
-    echo "    --limit N                Show only the first N inline comments (and the"
-    echo "                             first N notes). Pairs naturally with --compact."
-    echo "                             Replaces a '| head -N' pipe — native flag stays"
-    echo "                             inside auto-approved permissions."
+    echo "    --limit N | --limit=N    Show only the first N inline comments (and the"
+    echo "                             first N notes). Both spaced and equals forms"
+    echo "                             work. Pairs naturally with --compact. Replaces a"
+    echo "                             '| head -N' pipe — native flag stays inside"
+    echo "                             auto-approved permissions."
     echo ""
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
@@ -178,7 +179,11 @@ review_comments() {
         # contain markdown horizontal rules and `<details>` separators
         # that also render as `---`; those would otherwise miscount.
         # Peek next line via getline.
-        awk -v lim="$n" '
+        # LC_ALL=C makes the `[A-Za-z0-9._-]` ranges in the header
+        # regex lexicographic instead of locale-collated, so behavior
+        # is identical regardless of the user's locale (mirrors what
+        # _render_compact does for the same reason).
+        LC_ALL=C awk -v lim="$n" '
             BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] " }
             /^---$/ {
                 separator = $0

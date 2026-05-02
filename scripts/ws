@@ -182,14 +182,15 @@ Usage: ws log [component] [--oneline] [--limit N]
 Show commits on the current branch that aren't on main.
 
 Options:
-  --oneline    One line per commit (default: full log)
-  --limit N    Show only the most recent N commits (skip the rest)
+  --oneline           One line per commit (default: full log)
+  --limit N           Show only the most recent N commits
+  --limit=N           Same; equals form also accepted
 
 Examples:
   ws log                       # yggdrasil branch vs main
   ws log --oneline             # compact format
   ws log --limit 5             # last 5 commits, full format
-  ws log --oneline --limit 10  # last 10, one-line each
+  ws log --oneline --limit=10  # last 10, one-line each (equals form)
   ws log mimir                 # mimir branch vs main
 HELP
             return 0
