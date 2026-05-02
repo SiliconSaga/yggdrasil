@@ -113,17 +113,24 @@ three classifiers independently — flavors stack:
 - **`thalami`** — directory name matches `thalami-*` (existing convention,
   via `ws_detect_thalami_hoard()` which is reused, not rewritten)
 - **`obsidian`** — has a `.obsidian/` subdirectory
-- **`claudesidian`** — has `.obsidian/` AND `.claude/` AND a top-level
-  `CLAUDE.md` whose first ~30 lines reference Claudesidian or PARA
-  conventions (multi-signal to avoid false positives on unrelated `.claude/`
-  directories)
+- **`claudesidian`** — has `.claude/` AND a top-level `CLAUDE.md` whose
+  first ~30 lines reference Claudesidian or PARA conventions
+  (case-insensitive). The CLAUDE.md text match is a strong, specific
+  signal; false positives on unrelated `.claude/` directories are
+  essentially zero. The `.obsidian/` co-requirement was deliberately
+  dropped to support fresh clones — Claudesidian-flavored vaults need
+  to be operable from GDD before any local Obsidian session has
+  materialized the `.obsidian/` config dir.
 
-Output (YAML, multi-record, machine-readable):
+Output (YAML, multi-record, machine-readable). Example reflects the
+real fixture state where Obsidian has not been opened on the local
+machine — once Obsidian is opened on `borgr`, its `flavors:` array
+will become `[obsidian, claudesidian]`:
 
 ```yaml
 - name: borgr
   path: /Users/cervator/dev/git_ws/yggdrasil/hoards/borgr
-  flavors: [obsidian, claudesidian]
+  flavors: [claudesidian]
 - name: nonclaudesidian
   path: /Users/cervator/dev/git_ws/yggdrasil/hoards/nonclaudesidian
   flavors: [obsidian]
@@ -134,7 +141,16 @@ Output (YAML, multi-record, machine-readable):
 
 Flags:
 
-- `--flavor <name>` — filter to hoards containing the named flavor
+- `--flavor <name>` — filter to hoards containing the named flavor.
+  Concrete flavors: `thalami`, `obsidian`, `claudesidian`. A `vault`
+  meta-flavor is also accepted and matches any hoard whose recorded
+  flavors include `obsidian` or `claudesidian` — the scribe skill uses
+  `--flavor vault` for vault discovery so a single query covers both
+  plain Obsidian vaults and Claudesidian variants regardless of
+  whether Obsidian has been opened on the local machine. Meta-flavors
+  are query-time only and never appear in the recorded `flavors:`
+  array of the YAML output (which stays restricted to concrete
+  classification signals).
 - `--names-only` — emit just hoard names, one per line, for shell-friendly use
 
 The existing human-friendly `ws hoard list` is unchanged. `scan` is the
@@ -146,8 +162,11 @@ Content sections (~150 lines):
 
 1. **When to load** — role=scribe at orientation, OR keyword detection
    mid-session for dip-in
-2. **Vault discovery** — call `ws hoard scan --flavor obsidian`, parse YAML,
-   apply binding rules (see "Vault binding sub-flow" below)
+2. **Vault discovery** — call `ws hoard scan --flavor vault`, parse YAML,
+   apply binding rules (see "Vault binding sub-flow" below). The `vault`
+   meta-flavor covers both plain Obsidian vaults and Claudesidian
+   variants in a single query, including Claudesidian vaults that
+   haven't been opened in Obsidian locally yet.
 3. **PARA conventions** — folder roles for `00_Inbox`/`01_Projects`/
    `02_Areas`/`03_Resources`/`04_Archive`/`05_Attachments`/`06_Metadata`
 4. **Frontmatter habits** — YAML frontmatter for new notes (created date,
@@ -212,20 +231,22 @@ One small addition to the existing Step 6 (component scan): also call
 `ws hoard scan` and surface vault flavors. *"Detected vaults: borgr
 (claudesidian), nonclaudesidian (obsidian). Want to start in scribe role?"*
 
-The prompt only surfaces if at least one obsidian-flavored hoard exists
-AND the Thalamus frontmatter `role:` is null. If `role: scribe` is already
-set, the orientation skill loads the scribe skill directly per existing
-Step 5 logic.
+The prompt only surfaces if at least one vault-flavored hoard exists
+(via `ws hoard scan --flavor vault`, covering both `obsidian` and
+`claudesidian`) AND the Thalamus frontmatter `role:` is null. If
+`role: scribe` is already set, the orientation skill loads the scribe
+skill directly per existing Step 5 logic.
 
 ## Vault binding sub-flow
 
 Called by all four trigger paths.
 
 ```text
-1. Run: ws hoard scan --flavor obsidian
-   → returns YAML list of obsidian-flavored hoards
+1. Run: ws hoard scan --flavor vault
+   → returns YAML list of vault-flavored hoards
+     (any hoard with obsidian and/or claudesidian flavor)
 
-2. Count obsidian-flavored hoards:
+2. Count vault-flavored hoards:
    • 0  → tell user: "No vaults found. Want me to `ws hoard init
                      obsidian-vault` or `ws hoard init claudesidian-vault`?"
           → offer template choice → exit binding flow if declined
@@ -257,7 +278,8 @@ The "session named borgr / I'm in vault mode today" path. Persistent default.
 
 1. `gdd-orientation` Step 6 calls `ws hoard scan` as part of the new
    vault-detection addition
-2. Scan reports at least one obsidian-flavored hoard
+2. Scan reports at least one vault-flavored hoard
+   (`obsidian` or `claudesidian`)
 3. Role question to the user includes the discovery: *"role is null. Detected
    vault: borgr (claudesidian). Want scribe role, or another (developer /
    designer / reviewer)?"*
@@ -282,7 +304,7 @@ need to capture something. Calibration emphasized in the skill itself to
 avoid false positives.
 
 **Multi-vault edge case:** if Path C triggers in a workspace with multiple
-obsidian-flavored hoards and no `active_vault:` set in Thalamus frontmatter,
+vault-flavored hoards and no `active_vault:` set in Thalamus frontmatter,
 the binding sub-flow asks the user which vault — mid-conversation. The pin
 sticks for the rest of the session, so it's a one-time prompt, but users
 who frequently dip into capture from multi-vault workspaces should set

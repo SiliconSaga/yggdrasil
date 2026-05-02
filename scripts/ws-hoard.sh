@@ -158,10 +158,15 @@ ws_resolve_thalamus_path() {
 # Detection rules:
 #   thalami      — directory name matches `thalami-*`
 #   obsidian     — has a `.obsidian/` subdirectory
-#   claudesidian — has `.obsidian/` AND `.claude/` AND a top-level
-#                  CLAUDE.md whose first 30 lines reference Claudesidian
-#                  or PARA conventions (multi-signal — avoids
-#                  false-positives on unrelated `.claude/` directories)
+#   claudesidian — has `.claude/` AND a top-level CLAUDE.md whose first
+#                  30 lines reference Claudesidian or PARA conventions
+#                  (case-insensitive). The `.obsidian/` co-requirement
+#                  was dropped intentionally: Claudesidian-flavored
+#                  vaults need to be operable from GDD before any
+#                  Obsidian session has materialized the `.obsidian/`
+#                  config dir on the local machine. The CLAUDE.md text
+#                  match is a strong, specific signal — false positives
+#                  are essentially zero without the `.obsidian/` AND.
 ws_classify_hoard() {
     local hoard_path="$1"
     local hoard_name
@@ -178,9 +183,8 @@ ws_classify_hoard() {
         flavors+=("obsidian")
     fi
 
-    # claudesidian: obsidian + .claude/ + signature in CLAUDE.md
-    if [[ -d "$hoard_path/.obsidian" ]] && \
-       [[ -d "$hoard_path/.claude" ]] && \
+    # claudesidian: .claude/ + signature in CLAUDE.md
+    if [[ -d "$hoard_path/.claude" ]] && \
        [[ -f "$hoard_path/CLAUDE.md" ]]; then
         # Multi-signal: read first 30 lines, look for either
         # "Claudesidian" (the kit's name) or "PARA Method" (its
@@ -201,7 +205,11 @@ ws_classify_hoard() {
 
 # Iterate hoards/ and emit a YAML inventory with flavor classification.
 # Optional flags:
-#   --flavor <name>   Only emit hoards containing the named flavor
+#   --flavor <name>   Only emit hoards containing the named flavor.
+#                     Concrete flavors: thalami, obsidian, claudesidian.
+#                     Meta-flavors: vault (matches obsidian or claudesidian).
+#                     Meta-flavors are query-time only — they never appear
+#                     in the recorded `flavors:` array of the YAML output.
 #   --names-only      Emit just hoard names (one per line) — for shell pipelines
 ws_hoard_scan() {
     local filter_flavor=""
@@ -229,7 +237,13 @@ ws_hoard_scan() {
                 echo "Flavors detected:" >&2
                 echo "  thalami       — directory name matches thalami-*" >&2
                 echo "  obsidian      — contains .obsidian/" >&2
-                echo "  claudesidian  — contains .obsidian/ + .claude/ + Claudesidian-signed CLAUDE.md" >&2
+                echo "  claudesidian  — contains .claude/ + Claudesidian-signed CLAUDE.md" >&2
+                echo "" >&2
+                echo "Flags:" >&2
+                echo "  --flavor <name>   Only emit hoards containing the named flavor." >&2
+                echo "                    Concrete flavors: thalami, obsidian, claudesidian." >&2
+                echo "                    Meta-flavors: vault (matches obsidian or claudesidian)." >&2
+                echo "  --names-only      Emit just hoard names, one per line." >&2
                 return 0
                 ;;
             *)
@@ -256,6 +270,14 @@ ws_hoard_scan() {
             local IFS=,
             for f in $flavors_csv; do
                 if [[ "$f" == "$filter_flavor" ]]; then
+                    found=true
+                    break
+                fi
+                # Meta-flavor: `vault` matches any concrete vault flavor
+                # (obsidian or claudesidian). Query-time only — does not
+                # appear in the recorded YAML `flavors:` array.
+                if [[ "$filter_flavor" == "vault" ]] && \
+                   [[ "$f" == "obsidian" || "$f" == "claudesidian" ]]; then
                     found=true
                     break
                 fi
