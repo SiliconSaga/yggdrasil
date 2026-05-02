@@ -127,16 +127,21 @@ review_comments() {
     done
 
     # Validate --output phrase: alphanumeric + dot/dash/underscore only.
-    # Rejects slashes, `..`, absolute paths — destination is always
-    # confined to <workspace>/.outputs/, no path traversal possible.
-    # The phrase carries intent (e.g. `before-fix`); the script appends
-    # a YYYYMMDD-HHMMSS suffix for collision-free re-runs.
+    # Rejects slashes (the only real path-traversal vector) — destination
+    # is always confined to <workspace>/.outputs/ since the resulting
+    # name has no path component. Phrases like `..foo` or `..` are
+    # technically allowed because they're interpreted as literal
+    # filenames inside .outputs/, not directory traversals; harmless
+    # weird names if they slip through.
+    # The phrase carries intent (e.g. `before-fix`); the script
+    # PREFIXES a YYYYMMDD-HHMMSS timestamp for collision-free re-runs
+    # and clean `ls`-by-time sorting.
     local output_path=""
     local output_tmp=""
     if [[ -n "$output_phrase" ]]; then
         if [[ ! "$output_phrase" =~ ^[A-Za-z0-9._-]+$ ]]; then
             echo "ERROR: --output phrase '$output_phrase' must contain only alphanumeric, dot, dash, or underscore characters." >&2
-            echo "  No slashes, no '..', no absolute paths — destination is always under <workspace>/.outputs/." >&2
+            echo "  No slashes — destination is always under <workspace>/.outputs/." >&2
             exit 1
         fi
         local outputs_dir="$ROOT_DIR/.outputs"
@@ -464,8 +469,12 @@ review_notes() {
     echo "=== Notes: CR #$pr_num ($REPO_SLUG) ==="
     local notes="" _rc=0
     notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    # Failure marker on stdout (not stderr) — section status, not
+    # script error. Consistent with review_comments. If --output
+    # ever extends to this subcommand, the marker will land in
+    # the captured file rather than getting lost on stderr.
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch notes — check auth and connectivity)" >&2
+        echo "(failed to fetch notes — check auth and connectivity)"
     elif [[ -n "$notes" ]]; then
         echo "$notes"
     else
