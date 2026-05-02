@@ -349,8 +349,12 @@ review_comments() {
     echo "=== Reviews ==="
     local reviews="" _rc=0
     reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || _rc=$?
+    # Failure markers go to stdout (not stderr) so they end up IN
+    # the saved snapshot when `--output` redirects stdout to a file.
+    # Otherwise a fetch failure under `--output` produces a partial
+    # file with no in-file indication that a section was lost.
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch reviews — check auth and connectivity)" >&2
+        echo "(failed to fetch reviews — check auth and connectivity)"
     elif [[ -n "$reviews" ]]; then
         echo "$reviews"
     else
@@ -363,7 +367,7 @@ review_comments() {
     local comments="" _rc=0
     comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch inline comments — check auth and connectivity)" >&2
+        echo "(failed to fetch inline comments — check auth and connectivity)"
     elif [[ -n "$comments" ]]; then
         if [[ "$compact" == true ]]; then
             printf '%s\n' "$comments" | _apply_limit "$limit" | _render_compact
@@ -380,7 +384,7 @@ review_comments() {
     local notes="" _rc=0
     notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
     if [[ $_rc -ne 0 ]]; then
-        echo "(failed to fetch notes — check auth and connectivity)" >&2
+        echo "(failed to fetch notes — check auth and connectivity)"
     elif [[ -n "$notes" ]]; then
         if [[ "$compact" == true ]]; then
             printf '%s\n' "$notes" | _apply_limit "$limit" | _render_compact
