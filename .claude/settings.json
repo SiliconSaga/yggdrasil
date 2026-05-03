@@ -270,7 +270,8 @@
       "Bash(git -C * diff *)",
       "Bash(git -C * remote -v)",
       "Bash(git -C * branch --show-current)",
-      "Bash(git -C * ls-tree *)"
+      "Bash(git -C * ls-tree *)",
+      "Bash(git fetch *)"
     ]
   }
 }

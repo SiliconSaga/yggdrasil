@@ -158,6 +158,8 @@ command, expected outcome) triple:
 | `Bash(ws log * * *)` | `ws log --oneline --limit 5` | Allowed without prompt | Three args; spaced form needs the wider slot |
 | `Bash(ws log * * * *)` | `ws log mimir --oneline --limit 5` | Allowed without prompt | Four args; component + flags |
 | `Bash(ws log)` | `ws log --rebase` | Prompted | Hypothetical flag not allowlisted; bare-form pinning honored |
+| `Bash(git fetch *)` | `git fetch siliconsaga main` | Allowed without prompt | Read-only on the working tree; only writes refs/objects under `.git/` |
+| `Bash(git fetch *)` | `git fetch` | Prompted | Bare form has no trailing arg to bind to `*` — pattern requires at least one arg |
 
 When you add a new allow pattern, also add at least one positive case
 (matches → allowed) and one negative case (close-but-not-quite →
