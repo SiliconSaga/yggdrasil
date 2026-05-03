@@ -116,6 +116,20 @@ load test_helper
     [[ "$output" == *"flavors: [claudesidian]"* ]]
 }
 
+@test "lowercase 'para method' trigger is detected (case-insensitive)" {
+    # The detection regex is `-iE 'claudesidian|PARA Method'` —
+    # case-insensitive on BOTH alternatives. This pins the lowercase
+    # form of the PARA alternative; a regression that dropped the `-i`
+    # flag would fail here even if the lowercase 'claudesidian' fixture
+    # still passed (since lowercase 'claudesidian' literally matches
+    # the regex's case).
+    load_fixture claude-trigger-para-lowercase
+    run_scan
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"name: plain"* ]]
+    [[ "$output" == *"flavors: [claudesidian]"* ]]
+}
+
 @test "--flavor obsidian filters multi-fixture to obsidian-flagged hoards" {
     load_fixture multi
     run_scan --flavor obsidian

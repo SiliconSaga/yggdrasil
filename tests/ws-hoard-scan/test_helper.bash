@@ -14,7 +14,14 @@ WS_BIN="$REPO_ROOT/scripts/ws"
 load_fixture() {
     local fixture="$1"
     export HOARDS_DIR="$BATS_TEST_DIRNAME/fixtures/$fixture/hoards"
-    [[ -d "$HOARDS_DIR" ]] || skip "fixture missing: $fixture (expected $HOARDS_DIR)"
+    # Hard-fail (don't skip) when the fixture dir is missing. A typo'd
+    # fixture name silently downgrading to `skip` is indistinguishable
+    # from a deliberate skip — that hides coverage gaps. Failing the
+    # test surfaces the typo loudly.
+    if [[ ! -d "$HOARDS_DIR" ]]; then
+        echo "ERROR: fixture missing: $fixture (path: $HOARDS_DIR)" >&2
+        return 1
+    fi
 }
 
 # Convenience wrapper around `bash $WS_BIN hoard scan ...` so tests can
