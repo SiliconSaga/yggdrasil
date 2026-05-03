@@ -301,7 +301,7 @@ case "$runner" in
         bats_files=()
         while IFS= read -r f; do
             bats_files+=("$f")
-        done < <(find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print | sort)
+        done < <(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print | LC_ALL=C sort)
         if [[ ${#bats_files[@]} -eq 0 ]]; then
             echo "(no .bats files found under tests/)" >&2
             exit 0
