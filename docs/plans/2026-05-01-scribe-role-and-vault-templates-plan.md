@@ -1300,7 +1300,7 @@ hands off to `scribe-claudesidian` for extension behavior.
 
 ## Vault Discovery and Binding
 
-Run `ws hoard scan --flavor obsidian` and parse the YAML inventory.
+Run `ws hoard scan --flavor vault` and parse the YAML inventory.
 Then apply binding rules:
 
 | Match count | Action |
@@ -1620,7 +1620,7 @@ The following are intentionally NOT adopted from upstream Claudesidian:
 In normal flow:
 
 1. User triggers vault binding (any of paths A–D from the scribe skill)
-2. Scribe skill calls `ws hoard scan --flavor obsidian`
+2. Scribe skill calls `ws hoard scan --flavor vault`
 3. The bound vault's flavor list contains `claudesidian` → scribe
    instructs the agent to also load this skill
 4. This skill reads `<vault>/CLAUDE.md` and surfaces the command
@@ -1704,7 +1704,7 @@ After subsection 6b (cloned components), insert this new subsection:
 #### 6c: Hoard vault scan
 
 If `Thalamus.md` frontmatter has `role: null`, also call `ws hoard scan
---flavor obsidian` to detect any Obsidian or Claudesidian-flavored
+--flavor vault` to detect any Obsidian or Claudesidian-flavored
 hoards. The output is YAML; parse the entries and surface a brief
 summary alongside the role question:
 
