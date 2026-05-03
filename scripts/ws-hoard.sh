@@ -156,7 +156,7 @@ ws_resolve_thalamus_path() {
 # both `obsidian` and `claudesidian`.
 #
 # Detection rules:
-#   thalami      — directory name matches `thalami-*`
+#   thalami      — directory name is bare `thalami` or matches `thalami-*`
 #   obsidian     — has a `.obsidian/` subdirectory
 #   claudesidian — has `.claude/` AND a top-level CLAUDE.md whose first
 #                  30 lines reference Claudesidian or PARA conventions
@@ -173,8 +173,10 @@ ws_classify_hoard() {
     hoard_name="$(basename "$hoard_path")"
     local flavors=()
 
-    # thalami: name pattern (matches existing ws_detect_thalami_hoard convention)
-    if [[ "$hoard_name" == thalami-* ]]; then
+    # thalami: name pattern (matches existing ws_detect_thalami_hoard
+    # convention — bare `thalami` is the current default for `ws hoard
+    # init`, plus the legacy `thalami-*` suffixed form).
+    if [[ "$hoard_name" == "thalami" || "$hoard_name" == thalami-* ]]; then
         flavors+=("thalami")
     fi
 

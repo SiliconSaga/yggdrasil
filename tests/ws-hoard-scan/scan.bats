@@ -46,17 +46,9 @@ load test_helper
 }
 
 @test "thalami default name (bare 'thalami') classifies as [thalami]" {
-    # KNOWN BUG: ws_classify_hoard() in scripts/ws-hoard.sh matches
-    # only `thalami-*` (suffixed) for the thalami flavor, while
-    # ws_detect_thalami_hoard() in the same file accepts BOTH bare
-    # `thalami` and `thalami-*`. The two name conventions need to
-    # agree — bare `thalami` is the current default for `ws hoard
-    # init` and should classify as [thalami].
-    #
-    # When the classifier is fixed, drop this skip and the test
-    # asserts the corrected behavior.
-    skip "ws_classify_hoard pattern mismatch — see comment above"
-
+    # ws_classify_hoard() must agree with ws_detect_thalami_hoard():
+    # both accept bare `thalami` (the current default for `ws hoard
+    # init`) AND the legacy `thalami-*` suffixed form.
     load_fixture thalami-default
     run_scan
     [ "$status" -eq 0 ]
