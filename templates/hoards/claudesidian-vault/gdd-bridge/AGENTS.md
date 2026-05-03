@@ -16,7 +16,7 @@ the operational guide.
 ## Bridged use (from the GDD workspace)
 
 When you operate this vault from a session rooted at the parent
-yggdrasil workspace:
+GDD workspace:
 
 - The `scribe` skill loads first (PARA, frontmatter, wikilinks)
 - The `scribe-claudesidian` skill loads on top, reading this vault's

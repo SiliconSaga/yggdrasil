@@ -40,7 +40,8 @@ When you operate this vault from a GDD-rooted Claude session:
 - Say things like *"jot this in my inbox"* or *"start a daily note about
   X"* — the agent will create files following the templates here
 - Use `ws hoard list` from the workspace root to see your hoards
-- The vault is its own git repo; commit and push it like any other repo
+- The vault is its own git repo; use `ws commit` and then `ws push`
+  from the workspace root (run as separate commands)
 
 You can also run Claude Code directly inside this vault — useful if you
 want a standalone Obsidian session decoupled from the surrounding

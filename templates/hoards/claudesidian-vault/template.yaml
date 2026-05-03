@@ -9,7 +9,10 @@ upstream: https://github.com/heyitsnoah/claudesidian
 
 # Pinned commit or tag. Re-vendor by bumping this when upstream releases
 # a version worth picking up. Empty string = follow default branch.
-pin: ""
+# Using the immutable tag form here (instead of the SHA) for readability;
+# tags in upstream Claudesidian's release history are stable and don't
+# get retagged.
+pin: "v0.14.2"  # released 2026-01-13, commit 703dbf9da876811bf47117deea64db19c974ad3b
 
 # Fallback URL if upstream clone fails (e.g. GitHub outage, repo moved).
 # Currently a placeholder — the SiliconSaga fork doesn't yet exist.

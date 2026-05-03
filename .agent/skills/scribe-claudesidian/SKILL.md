@@ -62,13 +62,16 @@ commands like:
 }
 ```
 
-On first activation in a session, surface the inventory once briefly:
+On first activation in a session, surface the inventory once briefly.
+Build the command list dynamically from the parsed manifest (or, if
+`.claude/claude_config.json` is missing, from the filenames under
+`<vault>/.claude/commands/*.md`). Sort alphabetically and render
+comma-separated:
 
-> "Claudesidian-flavored vault detected. Commands available:
-> thinking-partner, inbox-processor, weekly-synthesis, daily-review,
-> research-assistant, de-ai-ify, pull-request, release. Invoke any in
-> plain text — e.g. *'do a weekly synthesis'* — and I'll follow the
-> matching instruction file."
+> "Claudesidian-flavored vault detected. Commands available: <list
+> each command name from the manifest, sorted, comma-separated>.
+> Invoke any in plain text — e.g. *'do a weekly synthesis'* — and
+> I'll follow the matching instruction file."
 
 If `.claude/claude_config.json` is missing (older Claudesidian or
 manually trimmed), fall back to enumerating `.claude/commands/*.md`
@@ -82,9 +85,13 @@ When the user references a Claudesidian command in plain text:
    Match leniently — *"do a weekly synthesis"*, *"weekly synthesis"*,
    *"run the weekly synthesis command"* all map to `weekly-synthesis`.
    Shortcuts (e.g. `tp` → `thinking-partner`) also count.
-2. Read the matching command file (`<vault>/.claude/commands/<cmd>.md`)
-3. Cite the file path so the user can see what was loaded:
-   *"Following `<vault>/.claude/commands/weekly-synthesis.md`..."*
+2. Resolve the command's `file` from `<vault>/.claude/claude_config.json`
+   (falling back to `<vault>/.claude/commands/<cmd>.md` only if the
+   manifest is absent or the command isn't listed there). The manifest
+   may map a command to a different `file` path than the conventional
+   `commands/<cmd>.md`, so trust the manifest when present.
+3. Cite the resolved file path so the user can see what was loaded:
+   *"Following `<vault>/<resolved-file-path>`..."*
 4. Follow the instructions in the file verbatim, treating them as
    authoritative for that command's behavior
 
