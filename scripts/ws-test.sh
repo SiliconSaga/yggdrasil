@@ -132,7 +132,12 @@ if [[ -z "$runner" ]]; then
     # Workspace-root tests: yggdrasil itself is treated as a "component"
     # whose test suite is the bats files under tests/. We use the vendored
     # bats-core runtime so contributors don't need a system install.
-    if [[ "$comp" == "yggdrasil" ]] && compgen -G "tests/*.bats" > /dev/null; then
+    # Detection recurses (matching the dispatch's tests/**/*.bats walk
+    # below) so the runner still engages when smoke.bats moves out of
+    # the top level — the asymmetry was only masked by smoke.bats living
+    # at tests/smoke.bats. Vendor dir is excluded; same as dispatch.
+    if [[ "$comp" == "yggdrasil" ]] && \
+       [[ -n "$(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print -quit 2>/dev/null)" ]]; then
         runner="bats"
     elif [[ -f gradlew ]]; then
         runner="gradle"

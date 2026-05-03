@@ -300,10 +300,37 @@ ws_hoard_scan() {
                 echo "  flavors: [$yaml_list]"
             fi
         fi
-    done < <(LC_ALL=C find "$HOARDS_DIR" -maxdepth 1 -mindepth 1 -type d -print 2>/dev/null | LC_ALL=C sort)
+        # Discovery semantics — keep aligned with ws_hoard_list's bash glob:
+        #   * Hidden directories (`.cache/`, `.git/`, ...) are skipped via
+        #     `! -name '.*'` because the default bash glob `*/` doesn't
+        #     match leading dots either.
+        #   * `-L` follows symlinks-to-directories so hoards that the user
+        #     symlinked in from elsewhere show up here just like they do
+        #     in `ws hoard list` (which, being a bash glob, follows them
+        #     by default). DO NOT drop `-maxdepth 1` without rethinking
+        #     this — combined with `-L` it's the guard against pathological
+        #     symlink loops; we don't recurse, so there's nothing to loop on.
+    done < <(LC_ALL=C find -L "$HOARDS_DIR" -maxdepth 1 -mindepth 1 -type d ! -name '.*' -print 2>/dev/null | LC_ALL=C sort)
 }
 
 ws_hoard_help() {
+    # Enumerate available templates from disk so the help text never drifts
+    # from what ships under templates/hoards/. Sort under LC_ALL=C for
+    # stable, locale-independent output. macOS find lacks GNU's `-printf`,
+    # so cd into the dir and strip the leading `./` for portability.
+    local templates_list
+    if [[ -d "$TEMPLATES_DIR/hoards" ]]; then
+        templates_list="$(
+            cd "$TEMPLATES_DIR/hoards" && \
+            LC_ALL=C find . -maxdepth 1 -mindepth 1 -type d ! -name '.*' -print 2>/dev/null \
+                | sed 's|^\./||' \
+                | LC_ALL=C sort \
+                | tr '\n' ',' \
+                | sed 's/,/, /g; s/, $//'
+        )"
+    fi
+    [[ -z "${templates_list:-}" ]] && templates_list="(none)"
+
     echo "Usage: ws hoard <subcommand> [args...]" >&2
     echo "" >&2
     echo "Subcommands:" >&2
@@ -311,7 +338,7 @@ ws_hoard_help() {
     echo "                           Scaffold a new hoard locally (default template: thalami)" >&2
     echo "                           --name overrides the directory name" >&2
     echo "                           (default: <template> — same as the template name)" >&2
-    echo "                           Available templates: thalami, basic, obsidian-vault, claudesidian-vault" >&2
+    echo "                           Available templates: $templates_list" >&2
     echo "                           Per-template args:" >&2
     echo "                             thalami --from-thalamus" >&2
     echo "                                  Move root Thalamus.md into the new hoard" >&2
@@ -536,6 +563,9 @@ ws_hoard_init_from_yaml() {
 
     # Iterate post_clone steps in the manifest's declared order, so future
     # templates can reorder steps without code changes here.
+    # Contract: step names must be CSV-safe shell tokens — no commas, no
+    # quoting, no whitespace. `yq -o=csv` would otherwise emit quoted
+    # fields and break this naive split-on-comma loop.
     local steps_csv
     steps_csv="$(yq -o=csv '.post_clone // []' "$manifest" 2>/dev/null | tr -d '\r')"
     if [[ -n "$steps_csv" ]]; then

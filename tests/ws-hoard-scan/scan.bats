@@ -233,3 +233,39 @@ load test_helper
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
 }
+
+@test "scan excludes hidden directories (consistent with ws_hoard_list bash glob)" {
+    # Build a synthetic HOARDS_DIR with one regular hoard and one
+    # hidden dir. ws_hoard_list's bash glob `$HOARDS_DIR/*/` won't match
+    # leading dots; ws_hoard_scan must match that semantics so a stray
+    # `.cache/` (or `.git/`) inside hoards/ doesn't appear as a hoard.
+    export HOARDS_DIR="$BATS_TEST_TMPDIR/hidden/hoards"
+    mkdir -p "$HOARDS_DIR/visible"
+    mkdir -p "$HOARDS_DIR/.hidden"
+    mkdir -p "$HOARDS_DIR/.cache"
+
+    run bash "$WS_BIN" hoard scan --names-only
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 1 ]
+    [ "${lines[0]}" = "visible" ]
+}
+
+@test "scan follows symlinks-to-directories (consistent with ws_hoard_list bash glob)" {
+    # Bash's default glob expansion on `$HOARDS_DIR/*/` follows symlinks
+    # to directories. ws_hoard_scan must match that — users who symlink
+    # an external vault into hoards/ should see it in scan output (and
+    # therefore in scribe's vault discovery), not just in `ws hoard list`.
+    export HOARDS_DIR="$BATS_TEST_TMPDIR/symlink/hoards"
+    mkdir -p "$HOARDS_DIR/regular"
+    # Real directory living outside hoards/, symlinked in
+    local external="$BATS_TEST_TMPDIR/symlink/external-vault"
+    mkdir -p "$external"
+    ln -s "$external" "$HOARDS_DIR/linked"
+
+    run bash "$WS_BIN" hoard scan --names-only
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 2 ]
+    # find -L | LC_ALL=C sort guarantees this byte order.
+    [ "${lines[0]}" = "linked" ]
+    [ "${lines[1]}" = "regular" ]
+}

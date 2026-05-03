@@ -22,23 +22,42 @@ setup() {
 # Help output
 # ---------------------------------------------------------------------------
 
-@test "ws hoard help lists all four current templates" {
+@test "ws hoard help lists every template under templates/hoards/ dynamically" {
     run bash "$REPO_ROOT/scripts/ws" hoard
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # may be 0 or 1 depending on dispatch
+    # Help dispatch (no args / --help / -h) prints to stderr and naturally
+    # returns 0 from the last echo. Lock the exact status so a regression
+    # that flips the exit code surfaces here.
+    [ "$status" -eq 0 ]
     [[ "$output" == *"Available templates:"* ]]
-    [[ "$output" == *"thalami"* ]]
-    [[ "$output" == *"basic"* ]]
-    [[ "$output" == *"obsidian-vault"* ]]
-    [[ "$output" == *"claudesidian-vault"* ]]
+    # Derive the expected list from disk so adding a fifth template under
+    # templates/hoards/ automatically gets picked up here. If help text
+    # drifts (e.g. someone reverts to a hardcoded list), this test fails.
+    local d name
+    for d in "$REPO_ROOT/templates/hoards"/*/; do
+        [[ -d "$d" ]] || continue
+        name="$(basename "$d")"
+        [[ "$name" == .* ]] && continue
+        [[ "$output" == *"$name"* ]] || {
+            echo "missing template '$name' in help output" >&2
+            return 1
+        }
+    done
 }
 
-@test "ws hoard --help also lists all four current templates" {
+@test "ws hoard --help lists every template under templates/hoards/ dynamically" {
     run bash "$REPO_ROOT/scripts/ws" hoard --help
+    [ "$status" -eq 0 ]
     [[ "$output" == *"Available templates:"* ]]
-    [[ "$output" == *"thalami"* ]]
-    [[ "$output" == *"basic"* ]]
-    [[ "$output" == *"obsidian-vault"* ]]
-    [[ "$output" == *"claudesidian-vault"* ]]
+    local d name
+    for d in "$REPO_ROOT/templates/hoards"/*/; do
+        [[ -d "$d" ]] || continue
+        name="$(basename "$d")"
+        [[ "$name" == .* ]] && continue
+        [[ "$output" == *"$name"* ]] || {
+            echo "missing template '$name' in help output" >&2
+            return 1
+        }
+    done
 }
 
 # ---------------------------------------------------------------------------
