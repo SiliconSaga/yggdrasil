@@ -311,7 +311,7 @@ ws_hoard_help() {
     echo "                           Scaffold a new hoard locally (default template: thalami)" >&2
     echo "                           --name overrides the directory name" >&2
     echo "                           (default: <template> — same as the template name)" >&2
-    echo "                           Available templates: thalami, basic" >&2
+    echo "                           Available templates: thalami, basic, obsidian-vault, claudesidian-vault" >&2
     echo "                           Per-template args:" >&2
     echo "                             thalami --from-thalamus" >&2
     echo "                                  Move root Thalamus.md into the new hoard" >&2
@@ -462,6 +462,125 @@ ws_hoard_cadence() {
     echo "last_commit_unix: $last_commit_ts"
 }
 
+# Init a hoard from a template that uses `template.yaml` for clone-on-init
+# semantics (instead of the standard cp -R). Returns 0 on success, 1 if
+# the template doesn't have a template.yaml (caller should fall back to
+# the standard flow), or exits non-zero on actual failure.
+#
+# Args:
+#   $1 — template directory (e.g. templates/hoards/claudesidian-vault)
+#   $2 — target hoard directory (e.g. hoards/my-vault)
+#
+# template.yaml schema:
+#   upstream: <url>     — required; git URL to clone from
+#   pin: <ref>          — optional; git ref to check out post-clone
+#   fallback: <url>     — optional; tried if upstream clone fails
+#   post_clone:         — ordered list of post-clone step names
+#     - strip_git       — rm -rf .git so ws_hoard_init's git init can re-init
+#     - apply_bridge    — overlay <template>/gdd-bridge/* into the clone
+ws_hoard_init_from_yaml() {
+    local template_dir="$1"
+    local target="$2"
+    local manifest="$template_dir/template.yaml"
+
+    [[ -f "$manifest" ]] || return 1   # Not a yaml-driven template
+
+    # The top-level dispatch already enforces yq for any subcommand that
+    # could land here, but keep a defensive check — ws_hoard_init() can
+    # also be called from sourced contexts that bypassed the dispatcher.
+    if ! command -v yq &>/dev/null; then
+        echo "ERROR: yq (v4+) is required for yaml-driven hoard templates." >&2
+        echo "  Install: https://github.com/mikefarah/yq" >&2
+        exit 1
+    fi
+
+    local upstream pin fallback
+    upstream="$(yq '.upstream // ""' "$manifest" 2>/dev/null)"
+    pin="$(yq '.pin // ""' "$manifest" 2>/dev/null)"
+    fallback="$(yq '.fallback // ""' "$manifest" 2>/dev/null)"
+
+    [[ "$upstream" == "null" ]] && upstream=""
+    [[ "$pin" == "null" ]] && pin=""
+    [[ "$fallback" == "null" ]] && fallback=""
+
+    if [[ -z "$upstream" ]]; then
+        echo "ERROR: $manifest is missing the 'upstream' field." >&2
+        exit 1
+    fi
+
+    echo "Cloning $upstream into $target..."
+    if ! git clone "$upstream" "$target" 2>/dev/null; then
+        if [[ -n "$fallback" ]]; then
+            echo "  Upstream clone failed; trying fallback: $fallback" >&2
+            if ! git clone "$fallback" "$target" 2>/dev/null; then
+                echo "ERROR: clone failed for both upstream and fallback." >&2
+                echo "  upstream: $upstream" >&2
+                echo "  fallback: $fallback" >&2
+                exit 1
+            fi
+        else
+            echo "ERROR: clone failed and no fallback configured." >&2
+            echo "  upstream: $upstream" >&2
+            echo "  Check network access or update the manifest:" >&2
+            echo "    $manifest" >&2
+            exit 1
+        fi
+    fi
+
+    # Honor the pin if set
+    if [[ -n "$pin" ]]; then
+        (cd "$target" && git checkout -q "$pin") || {
+            echo "WARNING: failed to check out pin '$pin'; staying on default branch." >&2
+        }
+    fi
+
+    # Iterate post_clone steps in the manifest's declared order, so future
+    # templates can reorder steps without code changes here.
+    local steps_csv
+    steps_csv="$(yq -o=csv '.post_clone // []' "$manifest" 2>/dev/null | tr -d '\r')"
+    if [[ -n "$steps_csv" ]]; then
+        local IFS=,
+        local step
+        for step in $steps_csv; do
+            # Skip blanks (e.g. trailing comma artifacts from yq -o=csv)
+            [[ -z "$step" ]] && continue
+            case "$step" in
+                strip_git)
+                    # Strip cloned .git so the upcoming git init in
+                    # ws_hoard_init() can re-init this as the user's own repo
+                    # (matches the standard flow's post-condition).
+                    rm -rf "$target/.git"
+                    ;;
+                apply_bridge)
+                    # Overlay <template_dir>/gdd-bridge/* into target.
+                    if [[ -d "$template_dir/gdd-bridge" ]]; then
+                        cp -R "$template_dir/gdd-bridge/." "$target/"
+                        echo "Applied gdd-bridge overlay."
+                    fi
+                    ;;
+                *)
+                    echo "WARNING: unknown post_clone step '$step' in $manifest; skipping." >&2
+                    ;;
+            esac
+        done
+    fi
+
+    # Print optional /init-bootstrap tip if the cloned vault advertises one
+    # in its README. We grep loosely so this works for any future template
+    # that wants to surface a similar tip.
+    local clone_readme="$target/README.md"
+    if [[ -f "$clone_readme" ]] && grep -qiE 'init-bootstrap|bootstrap wizard' "$clone_readme" 2>/dev/null; then
+        echo ""
+        echo "Tip: this vault has an optional onboarding wizard. To run it:"
+        echo "  cd $target"
+        echo "  claude"
+        echo "  /init-bootstrap"
+        echo ""
+    fi
+
+    return 0
+}
+
 # ws_hoard_init [template] [--name <hoard-name>] [template-args...]
 # Default template: thalami.
 # --name overrides the hoard directory name (default: <template>).
@@ -605,9 +724,17 @@ ws_hoard_init() {
         fi
     fi
 
-    # Copy template directory
+    # Copy template directory — UNLESS this is a yaml-driven template,
+    # in which case follow the clone-on-init flow instead. The helper
+    # returns 1 to signal "no template.yaml; fall through to standard
+    # cp -R"; on success it returns 0; on actual failure it exits.
     mkdir -p "$HOARDS_DIR"
-    cp -R "$template_dir" "$target"
+    if ws_hoard_init_from_yaml "$template_dir" "$target"; then
+        : # YAML-driven flow handled the clone + post-clone steps
+    else
+        # Standard flow: copy template files verbatim
+        cp -R "$template_dir" "$target"
+    fi
 
     # Apply per-template seeding
     if [[ "$template" == "thalami" ]]; then

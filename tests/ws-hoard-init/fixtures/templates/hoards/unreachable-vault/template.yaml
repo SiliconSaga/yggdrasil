@@ -1,0 +1,8 @@
+# Synthetic template with an unresolvable upstream — drives the
+# clone-failure path in bats tests. Both upstream and fallback point at
+# a non-existent local path so neither network nor DNS is touched.
+upstream: /nonexistent/path/upstream-bare-does-not-exist.git
+pin: ""
+fallback: /nonexistent/path/fallback-bare-does-not-exist.git
+post_clone:
+  - strip_git
