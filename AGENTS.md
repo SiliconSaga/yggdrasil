@@ -73,6 +73,8 @@ Community realms may provide additional component-specific skills in
 | **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
 | **GDD Flow Mode** | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
 | **GDD Autonomous Mode** | Permission-bounded independent work with reviewable increments | [SKILL.md](./.agent/skills/gdd-autonomous/SKILL.md) |
+| **Scribe** | Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks, inbox capture. Auto-loads for `role: scribe`; other roles dip in on capture-intent keywords. | [SKILL.md](./.agent/skills/scribe/SKILL.md) |
+| **Scribe Claudesidian** | Extension for Claudesidian-flavored vaults: reads vault CLAUDE.md, surfaces command manifest, plain-text invocation of /thinking-partner / /weekly-synthesis / etc. Auto-loaded by scribe when the bound vault has `claudesidian` flavor. | [SKILL.md](./.agent/skills/scribe-claudesidian/SKILL.md) |
 | **BDD** | Gherkin scenarios, feature authoring, planning features, runner integration, and BDD conventions | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
 | **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/bdd-pytest/SKILL.md) |
 | **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/creating-github-issues/SKILL.md) |
@@ -191,6 +193,11 @@ to override. Per-machine file is `<machine>-thalamus.md` where `<machine>`
 defaults to the short hostname (`${HOSTNAME%%.*}` — portable on Linux,
 macOS, and Windows Git Bash). Pin a stable name with `machine: <value>`
 in `ecosystem.local.yaml` if needed.
+
+Hoard templates ship under `templates/hoards/<flavor>/`. Current flavors:
+`thalami`, `basic`, `obsidian-vault` (vanilla Obsidian), `claudesidian-vault`
+(thin wrapper around upstream
+[Claudesidian](https://github.com/heyitsnoah/claudesidian)).
 
 See [Realms and Hoards Design](docs/plans/2026-04-24-realms-and-hoards-design.md)
 for the full picture.
