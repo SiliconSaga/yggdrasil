@@ -237,7 +237,7 @@ ws_hoard_scan() {
                 echo "Emit a YAML inventory of hoards/ classified by flavor." >&2
                 echo "" >&2
                 echo "Flavors detected:" >&2
-                echo "  thalami       — directory name matches thalami-*" >&2
+                echo "  thalami       — directory name is 'thalami' or matches thalami-*" >&2
                 echo "  obsidian      — contains .obsidian/" >&2
                 echo "  claudesidian  — contains .claude/ + Claudesidian-signed CLAUDE.md" >&2
                 echo "" >&2
@@ -538,6 +538,10 @@ ws_hoard_init_from_yaml() {
     echo "Cloning $upstream into $target..."
     if ! git clone "$upstream" "$target" 2>/dev/null; then
         if [[ -n "$fallback" ]]; then
+            # The failed upstream clone may have left $target half-populated
+            # (partial fetch, broken .git/, etc.). Wipe it before retrying so
+            # the fallback clone starts from a clean target path.
+            rm -rf "$target"
             echo "  Upstream clone failed; trying fallback: $fallback" >&2
             if ! git clone "$fallback" "$target" 2>/dev/null; then
                 echo "ERROR: clone failed for both upstream and fallback." >&2
@@ -554,11 +558,15 @@ ws_hoard_init_from_yaml() {
         fi
     fi
 
-    # Honor the pin if set
+    # Honor the pin if set. A configured pin is mandatory: silently falling
+    # back to the default branch would defeat the reproducibility intent of
+    # pinning in the first place.
     if [[ -n "$pin" ]]; then
-        (cd "$target" && git checkout -q "$pin") || {
-            echo "WARNING: failed to check out pin '$pin'; staying on default branch." >&2
-        }
+        if ! (cd "$target" && git checkout -q "$pin"); then
+            echo "ERROR: failed to check out pin '$pin' in $target." >&2
+            echo "  Verify the pin exists in the cloned upstream's history." >&2
+            exit 1
+        fi
     fi
 
     # Iterate post_clone steps in the manifest's declared order, so future
@@ -925,7 +933,7 @@ shift 2>/dev/null || true
 # first probes the agent runs and shouldn't error before the operator
 # has even seen `ws preflight`'s install hints.
 case "$SUBCMD" in
-    ""|--help|-h|thalamus-path) ;;
+    ""|--help|-h|thalamus-path|scan) ;;
     *)
         if ! command -v yq &>/dev/null; then
             echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2

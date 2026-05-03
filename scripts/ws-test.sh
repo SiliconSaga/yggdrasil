@@ -191,11 +191,16 @@ for arg in "$@"; do
         # Boolean flags like --parallel, --info, --debug are NOT listed.
         case "$arg" in
             # Shared / Go / Gradle / pytest
-            -run|--tests|-k|-m|-p|-r|-o|--maxfail|--tb|-timeout|\
+            -run|--tests|-k|-m|-o|--maxfail|--tb|-timeout|\
             -count|-bench|-benchtime|-cpu|-shuffle|\
             -coverprofile|-cpuprofile|-memprofile|-blockprofile|-mutexprofile|\
             -I|--init-script|--build-file|--project-dir)
                 expect_value=true ;;
+            # -p / -r take values for pytest only; bats uses them as boolean
+            # flags (--pretty, --recursive). Consuming the next arg as a value
+            # under bats would silently swallow positional args.
+            -p|-r)
+                [[ "$runner" == "python" ]] && expect_value=true ;;
         esac
     elif [[ -z "$test_filter" ]]; then
         test_filter="$arg"
