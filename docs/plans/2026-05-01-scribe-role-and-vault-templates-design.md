@@ -388,7 +388,7 @@ templates/hoards/claudesidian-vault/
 
 #### Init flow
 
-`ws hoard init claudesidian-vault <name>` extends the existing init logic:
+`ws hoard init claudesidian-vault --name <name>` extends the existing init logic:
 
 1. Read `template.yaml`
 2. `git clone <upstream> hoards/<name>` — try `upstream` first, fall back to

@@ -2,7 +2,7 @@
 
 A thin wrapper around [Claudesidian](https://github.com/heyitsnoah/claudesidian)
 — Noah Brier and Alephic's Claude-Code-friendly Obsidian starter kit
-(MIT licensed). When you run `ws hoard init claudesidian-vault <name>`,
+(MIT licensed). When you run `ws hoard init claudesidian-vault --name <name>`,
 GDD clones the upstream repo into `hoards/<name>/`, strips its `.git`
 directory, and overlays a small `gdd-bridge/` set of files that wire
 the vault into the surrounding workspace.

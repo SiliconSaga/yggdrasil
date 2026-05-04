@@ -54,7 +54,7 @@ If you want Claude-Code-specific commands (`/thinking-partner`,
 consider the `claudesidian-vault` template instead:
 
 ```bash
-ws hoard init claudesidian-vault <name>
+ws hoard init claudesidian-vault --name <name>
 ```
 
 It clones [Claudesidian](https://github.com/heyitsnoah/claudesidian)
