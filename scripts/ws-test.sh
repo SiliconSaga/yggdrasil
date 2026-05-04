@@ -196,10 +196,17 @@ for arg in "$@"; do
             -coverprofile|-cpuprofile|-memprofile|-blockprofile|-mutexprofile|\
             -I|--init-script|--build-file|--project-dir)
                 expect_value=true ;;
-            # -p / -r take values for pytest only; bats uses them as boolean
-            # flags (--pretty, --recursive). Consuming the next arg as a value
-            # under bats would silently swallow positional args.
-            -p|-r)
+            # -p takes a value for pytest (-p plugin), Go (-p N
+            # parallelism), and Gradle (-p PROJECT_DIR). Bats treats it
+            # as boolean (--pretty), so consuming the next arg as a
+            # value under bats would silently swallow a positional.
+            -p)
+                case "$runner" in
+                    python|go|gradle) expect_value=true ;;
+                esac ;;
+            # -r takes a value for pytest only (-r REPORT_CHARS); bats
+            # treats it as boolean (--recursive). Same swallow risk.
+            -r)
                 [[ "$runner" == "python" ]] && expect_value=true ;;
         esac
     elif [[ -z "$test_filter" ]]; then

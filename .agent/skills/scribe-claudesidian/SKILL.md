@@ -44,8 +44,17 @@ nothing important breaks.
 
 ## Surface the Command Manifest
 
-Read `<vault>/.claude/claude_config.json`. It declares Claudesidian
-commands like:
+The canonical source of truth is the `.claude/commands/` directory —
+each command is a Markdown file (e.g. `thinking-partner.md`,
+`weekly-synthesis.md`) with YAML frontmatter declaring the command's
+description, allowed tools, model, and arguments. Enumerate commands
+by globbing `<vault>/.claude/commands/*.md` and stripping the `.md`
+extension from each filename.
+
+If `<vault>/.claude/claude_config.json` is also present (some
+post-`/init-bootstrap` Claudesidian installs ship a manifest at this
+path; fresh upstream clones may not), parse it for richer metadata —
+shortcuts, descriptions, and any non-default `file` mappings:
 
 ```json
 {
@@ -62,11 +71,15 @@ commands like:
 }
 ```
 
+When the manifest is present, prefer its `file` field for resolving
+the command's instruction file path — that lets vaults override the
+default `commands/<cmd>.md` layout. When it's absent, fall back to
+the implicit `commands/<cmd>.md` convention.
+
 On first activation in a session, surface the inventory once briefly.
-Build the command list dynamically from the parsed manifest (or, if
-`.claude/claude_config.json` is missing, from the filenames under
-`<vault>/.claude/commands/*.md`). Sort alphabetically and render
-comma-separated:
+Build the command list from the directory glob (or the manifest if
+present, since it can carry shortcuts not visible from filenames).
+Sort alphabetically and render comma-separated:
 
 > "Claudesidian-flavored vault detected. Commands available: <list
 > each command name from the manifest, sorted, comma-separated>.
