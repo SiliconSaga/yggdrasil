@@ -110,8 +110,10 @@ New subcommand. Iterates `hoards/*/` (sorted by name ascending under
 `LC_ALL=C` so the output order is stable across filesystems) and applies
 three classifiers independently — flavors stack:
 
-- **`thalami`** — directory name matches `thalami-*` (existing convention,
-  via `ws_detect_thalami_hoard()` which is reused, not rewritten)
+- **`thalami`** — directory name is exactly `thalami` OR matches the
+  legacy `thalami-*` pattern (both forms supported by
+  `ws_detect_thalami_hoard()` and `ws_classify_hoard()` since the
+  bare-name default landed in commit `2f62ff3`)
 - **`obsidian`** — has a `.obsidian/` subdirectory
 - **`claudesidian`** — has `.claude/` AND a top-level `CLAUDE.md` whose
   first ~30 lines reference Claudesidian or PARA conventions
