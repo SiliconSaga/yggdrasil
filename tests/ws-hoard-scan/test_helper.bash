@@ -25,8 +25,15 @@ load_fixture() {
 }
 
 # Convenience wrapper around `bash $WS_BIN hoard scan ...` so tests can
-# stay short. Forwards all args to the scan subcommand. The caller is
-# expected to have called load_fixture beforehand to set HOARDS_DIR.
+# stay short. Forwards all args to the scan subcommand. The caller MUST
+# have called load_fixture beforehand to set HOARDS_DIR — without that,
+# scan would fall back to the default $ROOT_DIR/hoards and produce
+# misleading results that look like passing assertions but are actually
+# running against the workspace's real hoard tree.
 run_scan() {
+    if [[ -z "${HOARDS_DIR:-}" ]]; then
+        echo "ERROR: HOARDS_DIR is not set; call load_fixture <name> first" >&2
+        return 1
+    fi
     run bash "$WS_BIN" hoard scan "$@"
 }

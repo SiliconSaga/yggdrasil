@@ -137,7 +137,10 @@ The capture-process-organize loop:
 
 1. **Capture** — anything new lands in `00_Inbox/` with `status: unprocessed`
 2. **Process** — weekly (or on demand), go through inbox items:
-   - Delete anything no longer needed
+   - Delete only when clearly safe (obvious noise, duplicates, expired
+     captures); when in doubt, move to `04_Archive/<topic>/` instead.
+     **Never auto-delete user content silently** — uncertain items
+     always go to Archive, not the trash.
    - Move project material to `01_Projects/<name>/`
    - Move ongoing-responsibility notes to `02_Areas/<area>/`
    - Move reference material to `03_Resources/<topic>/`
@@ -145,9 +148,6 @@ The capture-process-organize loop:
    - Update wikilinks if names change
 3. **Organize** — keep `00_Inbox/` under 20 items; if it's growing,
    processing cadence is too slow
-
-When processing, never auto-delete user content silently. Move into a
-subfolder under `04_Archive/` if uncertain.
 
 ## Claudesidian Extension Hand-off
 
