@@ -1,0 +1,8 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/configuration
+
+reviews:
+  # Skip review of vendored upstream code we don't maintain. Refresh
+  # procedure for tests/vendor/bats-core/ is in tests/vendor/README.md.
+  path_filters:
+    - "!tests/vendor/**"
