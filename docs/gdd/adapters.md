@@ -43,9 +43,11 @@ ai_context:
   against when working on the component, with one-line descriptions.
 
 A starter file with comments ships in the upstream
-[`realm-template`](realms.md) repo (cloned via `ws realm init`) at
-`adapters/example.yaml`. Copy it to your community realm at
-`realms/<your-realm>/adapters/<comp>.yaml` and edit.
+[`realm-template`](https://github.com/SiliconSaga/realm-template) repo
+(cloned via `ws realm init`) at `adapters/example.yaml`. Copy it to
+your community realm at `realms/<your-realm>/adapters/<comp>.yaml`
+and edit. See [Realms](realms.md) for the realm-template's role in
+the workspace.
 
 ---
 
