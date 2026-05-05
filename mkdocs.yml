@@ -21,7 +21,6 @@ theme:
         name: Switch to light mode
   features:
     - navigation.sections
-    - navigation.expand
     - navigation.path
     - toc.follow
     - content.code.copy
@@ -56,14 +55,17 @@ nav:
     - WS CLI Guide: ws-cli-guide.md
     - Code Style: code-style.md
     - Git Provider Setup: git-provider-setup.md
+    - MCP Setup: mcp-setup.md
     - Cross-Fork CR Internals: cr-internals.md
     - Multi-Repo Workflow: multi-repo-workflow.md
   - Guardian Driven Development:
     - Overview: gdd/index.md
     - Features Tour: gdd/features.md
     - Roles and Modes: gdd/roles-and-modes.md
+    - Skills Reference: gdd/skills-reference.md
     - The Thalamus: gdd/thalamus.md
     - Realms: gdd/realms.md
+    - Adapters: gdd/adapters.md
     - Hoards: gdd/hoards.md
     - Trust and Safety: gdd/trust-and-safety.md
     - Access: gdd/access.md
