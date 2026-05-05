@@ -128,32 +128,18 @@ line (`clean`, `dirty-fresh`, `dirty-stale`, `never-committed`,
 nudge text substitutes in. The orientation skill calls it
 automatically; you can also run it manually any time.
 
-**Migrating an existing thalami hoard.** If your thalami hoard
-predates the `.ws-cadence.yaml` convention (created before
-yggdrasil PR #49) and used to carry `commit_staleness_days` in
-each `<machine>-thalamus.md` frontmatter, copy the template file
-into the hoard root once:
+**Migrating an existing thalami hoard** (created before yggdrasil
+PR #49 introduced `.ws-cadence.yaml`): copy
+`templates/hoards/thalami/.ws-cadence.yaml` into your hoard root,
+commit, and push. The old per-machine `commit_staleness_days`
+frontmatter field is now ignored; without the new file, the cadence
+script falls back to its 2-day default.
 
-```bash
-cp templates/hoards/thalami/.ws-cadence.yaml hoards/thalami-<user>/
-```
-
-…then commit and push it to the hoard remote so other machines
-pick up the same threshold. The old per-machine frontmatter field
-is now ignored — without the new file, the cadence script falls
-back to its default of 2 days, which is fine for most setups. Easy
-to forget since it's a one-time migration on a hoard that already
-exists; the cadence nudge will just silently use the default until
-the file is in place.
-
-**Future direction: scope filters.** A `watch:` glob list at the
-hoard root would let other hoard types scope dirty-detection to
-specific files (e.g., a vault-style hoard might want all `*.md`
-files to count, but ignore `_attachments/`). Not implemented in v1
-because thalami's "watch the per-machine file specifically" is
-hardcoded and that's the only shipping hoard type. Add `watch:` to
-`.ws-cadence.yaml` when a second hoard type with different scoping
-needs lands.
+**Future direction: scope filters.** A `watch:` glob list could
+let other hoard types scope dirty-detection (e.g., a vault hoard
+counting `*.md` but ignoring `_attachments/`). Not implemented in
+v1 — thalami's per-machine-file watching is hardcoded — but the
+extension point is reserved for when a second hoard type needs it.
 
 ---
 
