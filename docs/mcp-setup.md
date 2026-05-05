@@ -78,5 +78,5 @@ manually; the workspace's `.mcp.json` is Claude Code-shaped.
 - [Ecosystem Architecture](ecosystem-architecture.md) — the
   three-layer config merge `ws mcp-setup` reads from
 - [Realms](gdd/realms.md) — where the `mcp.servers` declaration lives
-- [`mcp-usage` skill](../.agent/skills/mcp-usage/SKILL.md) — agent
-  conventions around calling MCP tools and surfacing setup nudges
+- [`mcp-usage` skill](gdd/skills-reference.md#workspace-operations) —
+  agent conventions around calling MCP tools and surfacing setup nudges

@@ -1,14 +1,21 @@
 # Adapters
 
-An **adapter file** declares per-component build, test, and lint
-commands so the workspace can invoke them uniformly. Adapter files
-live in the active realm at `realms/<active>/adapters/<component>.yaml`
-— it's realm-side configuration, kept out of the component repo so a
-community can wire up commands without forking upstream.
+An **adapter file** declares per-component commands the workspace
+can list and (where wired) invoke. Today, `ws test` reads
+`commands.test` to choose the test runner — adapter > auto-detection.
+Other commands (`build`, `run`, `lint`, anything you care to declare)
+are surfaced by `ws actions <component>` for human and agent
+reference; they're documentation today, not bound to dedicated `ws`
+subcommands. Adapter files live in the active realm at
+`realms/<active>/adapters/<component>.yaml` — realm-side
+configuration, kept out of the component repo so a community can wire
+up commands without forking upstream.
 
 Components without an adapter file fall back to auto-detection
-(Gradle, Make, Go, Python, npm) — adapters are optional, but they're
-the only way to override defaults or expose project-specific commands.
+(Gradle, Make, Go, Python, npm) for `ws test`. Adapters are optional;
+add one when you want to override the test runner, document
+project-specific commands, or pin a different default for your
+community.
 
 ---
 
@@ -67,13 +74,15 @@ unconfigured commands.
 
 ## When to add an adapter
 
-The fallback patterns cover the common case — a Gradle component gets
-`build` and `test` for free. Add an adapter file when:
+The auto-detect fallback covers the common case for `ws test` — a
+Gradle component gets `./gradlew test` for free. Add an adapter file
+when:
 
-- The component uses a non-default build system the workspace doesn't
+- The component uses a non-default test runner the workspace doesn't
   auto-detect.
-- You want to expose project-specific commands (e.g. `e2e`,
-  `migrate`, `bench`) under uniform names.
+- You want to document project-specific commands (e.g. `e2e`,
+  `migrate`, `bench`) so `ws actions` surfaces them for agents and
+  contributors.
 - Different communities want different defaults for the same
   component (one realm wires `test` to a quick subset, another wires
   it to the full suite).

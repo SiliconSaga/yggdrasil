@@ -16,9 +16,9 @@ manual `source .env` step required during normal `ws` use.
 | Variable | Purpose | Required when |
 |---|---|---|
 | `GH_TOKEN` | GitHub PAT (`gh` reads it directly) | Using GitHub remotes |
-| `GH_USER` | Your GitHub username (used for attribution) | Using GitHub remotes |
+| `GH_USER` | GitHub username — used by `ws-validate-agent-setup` for attribution; falls back to `gh api /user` if unset | Optional — convenience only |
 | `GITLAB_TOKEN` | Default GitLab PAT (`glab` fallback) | Using GitLab remotes |
-| `GITLAB_USER` | Your GitLab username | Using GitLab remotes |
+| `GITLAB_USER` | GitLab username — referenced in setup docs and example `.env` | Optional — not consumed by `ws` directly |
 | `GITLAB_HOST` | Self-hosted GitLab hostname | Self-hosted GitLab only |
 | `GITLAB_<scope>_<owner>_<role>` | Per-fork / per-group GitLab tokens | Multi-token GitLab setups (see GitLab section) |
 
