@@ -42,9 +42,10 @@ ai_context:
 - **`ai_context`** — optional list of paths agents should orient
   against when working on the component, with one-line descriptions.
 
-A starter file with comments ships at
-`realm-template/adapters/example.yaml`; copy it to
-`<your-realm>/adapters/<comp>.yaml` and edit.
+A starter file with comments ships in the upstream
+[`realm-template`](realms.md) repo (cloned via `ws realm init`) at
+`adapters/example.yaml`. Copy it to your community realm at
+`realms/<your-realm>/adapters/<comp>.yaml` and edit.
 
 ---
 

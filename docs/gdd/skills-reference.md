@@ -3,8 +3,9 @@
 The yggdrasil workspace ships a set of **skills** — markdown files
 under `.agent/skills/<name>/SKILL.md` that capture how the agent
 should approach specific situations. Skills are discovered during
-[GDD orientation](self-improving-loop.md) and read as plain markdown;
-they are *not* invoked through plugin tools.
+GDD orientation and read as plain markdown; they are *not* invoked
+through plugin tools. See the [Self-Improving Loop](self-improving-loop.md)
+for how the catalog evolves over time.
 
 This page is the catalog: what ships, grouped by purpose. For
 day-to-day use, the orchestrator skill (`gdd`) decides which other
