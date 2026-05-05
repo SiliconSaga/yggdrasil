@@ -62,6 +62,16 @@ Workspace-level skills live in `.agent/skills/<name>/SKILL.md`.
 Community realms may provide additional component-specific skills in
 `realms/<name>/.agent/skills/` — these are discovered during GDD orientation.
 
+**Companion plugin (recommended):** GDD plans and several practice
+skills reference [Obra Superpowers](https://github.com/obra/superpowers)
+skills (e.g. `superpowers:executing-plans`,
+`superpowers:subagent-driven-development`, `superpowers:brainstorming`,
+`superpowers:test-driven-development`, `superpowers:receiving-code-review`).
+Install Superpowers for the smoothest experience. The `gdd-orientation`
+skill checks for it at session start and surfaces a one-line nudge if
+not detected — sessions still work without it, but agents will hit
+references to skills they can't load.
+
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
 | **GDD (Orchestrator)** | Guardian Driven Development — detects roles/modes, delegates to practice and mode skills | [SKILL.md](./.agent/skills/gdd/SKILL.md) |

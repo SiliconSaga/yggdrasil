@@ -40,6 +40,31 @@ run `bash scripts/ws <cmd> --help` to see its current options and
 argument format. Skills should defer to the help system rather than
 restating command details that can drift.
 
+### Companion check: Obra Superpowers
+
+Before Step 0, scan the available skills list for any skill name
+prefixed `superpowers:` (e.g. `superpowers:executing-plans`,
+`superpowers:brainstorming`). No shell command needed — these appear
+in the same system-reminder that lists workspace skills.
+
+- **Detected:** silent. Note for the session that Superpowers skills
+  are available and can be invoked when plans or practices reference
+  them.
+- **Not detected:** surface a single-line nudge during the greeting
+  or session-framing recap, e.g.:
+
+  > "Heads-up: Obra Superpowers isn't installed. GDD plans and a
+  > few practices (brainstorming, TDD, executing-plans) reference
+  > `superpowers:*` skills — install once and you'll get smoother
+  > plan-driven sessions. Setup: https://github.com/obra/superpowers"
+
+  Don't repeat the nudge later in the session. Don't block on it.
+  Don't try to install it — that's a user action.
+
+This is a **soft dependency** — sessions work without Superpowers,
+but agents will hit references they can't load when executing plans
+or running brainstorm/TDD-shaped work.
+
 ### Step 0: Resolve the active thalamus file
 
 Run `bash scripts/ws hoard thalamus-path` (or `ws hoard thalamus-path`

@@ -9,6 +9,7 @@ Note that this currently assumes a variety of prerequisites:
 - You're using Claude Code as your AI agent (more validated agents coming soon)
 - You're using GitHub or GitLab for version control (Gitea/Forgejo planned)
 - You're using a Unix-like shell (Linux, macOS, WSL, Git Bash)
+- **Recommended**: [Obra Superpowers](https://github.com/obra/superpowers) installed in your agent. GDD's implementation plans and several practices (brainstorming, TDD, executing plans, subagent-driven development, code review) reference `superpowers:*` skills. Everything still works without it, but you'll see references to skills the agent can't load. The orientation skill checks for Superpowers at session start and nudges you to install if missing.
 
 ## Templates, instances, and tutorials
 
