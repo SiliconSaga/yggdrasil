@@ -150,7 +150,187 @@ ws_resolve_thalamus_path() {
     echo "$HOARDS_DIR/$hoard/${machine}-thalamus.md"
 }
 
+# Classify a hoard directory by flavor.
+# Echoes a comma-separated list of flavors, or empty if none.
+# Argument is the hoard directory path. Flavors stack — a hoard can be
+# both `obsidian` and `claudesidian`.
+#
+# Detection rules:
+#   thalami      — directory name is bare `thalami` or matches `thalami-*`
+#   obsidian     — has a `.obsidian/` subdirectory
+#   claudesidian — has `.claude/` AND a top-level CLAUDE.md whose first
+#                  30 lines reference Claudesidian or PARA conventions
+#                  (case-insensitive). The `.obsidian/` co-requirement
+#                  was dropped intentionally: Claudesidian-flavored
+#                  vaults need to be operable from GDD before any
+#                  Obsidian session has materialized the `.obsidian/`
+#                  config dir on the local machine. The CLAUDE.md text
+#                  match is a strong, specific signal — false positives
+#                  are essentially zero without the `.obsidian/` AND.
+ws_classify_hoard() {
+    local hoard_path="$1"
+    local hoard_name
+    hoard_name="$(basename "$hoard_path")"
+    local flavors=()
+
+    # thalami: name pattern (matches existing ws_detect_thalami_hoard
+    # convention — bare `thalami` is the current default for `ws hoard
+    # init`, plus the legacy `thalami-*` suffixed form).
+    if [[ "$hoard_name" == "thalami" || "$hoard_name" == thalami-* ]]; then
+        flavors+=("thalami")
+    fi
+
+    # obsidian: .obsidian/ directory present
+    if [[ -d "$hoard_path/.obsidian" ]]; then
+        flavors+=("obsidian")
+    fi
+
+    # claudesidian: .claude/ + signature in CLAUDE.md
+    if [[ -d "$hoard_path/.claude" ]] && \
+       [[ -f "$hoard_path/CLAUDE.md" ]]; then
+        # Multi-signal: read first 30 lines, look for either
+        # "Claudesidian" (the kit's name) or "PARA Method" (its
+        # organizational scheme) — case-insensitive.
+        if head -n 30 "$hoard_path/CLAUDE.md" 2>/dev/null | \
+           grep -qiE 'claudesidian|PARA Method'; then
+            flavors+=("claudesidian")
+        fi
+    fi
+
+    if [[ ${#flavors[@]} -eq 0 ]]; then
+        echo ""
+    else
+        local IFS=,
+        echo "${flavors[*]}"
+    fi
+}
+
+# Iterate hoards/ and emit a YAML inventory with flavor classification.
+# Optional flags:
+#   --flavor <name>   Only emit hoards containing the named flavor.
+#                     Concrete flavors: thalami, obsidian, claudesidian.
+#                     Meta-flavors: vault (matches obsidian or claudesidian).
+#                     Meta-flavors are query-time only — they never appear
+#                     in the recorded `flavors:` array of the YAML output.
+#   --names-only      Emit just hoard names (one per line) — for shell pipelines
+ws_hoard_scan() {
+    local filter_flavor=""
+    local names_only=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --flavor)
+                if [[ -z "${2:-}" ]]; then
+                    echo "ERROR: --flavor requires a value" >&2
+                    return 2
+                fi
+                filter_flavor="$2"
+                shift 2
+                ;;
+            --names-only)
+                names_only=true
+                shift
+                ;;
+            -h|--help)
+                echo "Usage: ws hoard scan [--flavor <name>] [--names-only]" >&2
+                echo "" >&2
+                echo "Emit a YAML inventory of hoards/ classified by flavor." >&2
+                echo "" >&2
+                echo "Flavors detected:" >&2
+                echo "  thalami       — directory name is 'thalami' or matches thalami-*" >&2
+                echo "  obsidian      — contains .obsidian/" >&2
+                echo "  claudesidian  — contains .claude/ + Claudesidian-signed CLAUDE.md" >&2
+                echo "" >&2
+                echo "Flags:" >&2
+                echo "  --flavor <name>   Only emit hoards containing the named flavor." >&2
+                echo "                    Concrete flavors: thalami, obsidian, claudesidian." >&2
+                echo "                    Meta-flavors: vault (matches obsidian or claudesidian)." >&2
+                echo "  --names-only      Emit just hoard names, one per line." >&2
+                return 0
+                ;;
+            *)
+                echo "ERROR: Unknown flag: $1" >&2
+                return 2
+                ;;
+        esac
+    done
+
+    [[ -d "$HOARDS_DIR" ]] || return 0
+
+    # Iterate via find + sort under LC_ALL=C so YAML output order is
+    # stable across filesystems and locales (design contract — the
+    # scribe skill and other consumers depend on reproducible output).
+    local d hoard_name flavors_csv
+    while IFS= read -r d; do
+        [[ -d "$d" ]] || continue
+        hoard_name="$(basename "$d")"
+        flavors_csv="$(ws_classify_hoard "$d")"
+
+        # Apply --flavor filter
+        if [[ -n "$filter_flavor" ]]; then
+            local found=false
+            local IFS=,
+            for f in $flavors_csv; do
+                if [[ "$f" == "$filter_flavor" ]]; then
+                    found=true
+                    break
+                fi
+                # Meta-flavor: `vault` matches any concrete vault flavor
+                # (obsidian or claudesidian). Query-time only — does not
+                # appear in the recorded YAML `flavors:` array.
+                if [[ "$filter_flavor" == "vault" ]] && \
+                   [[ "$f" == "obsidian" || "$f" == "claudesidian" ]]; then
+                    found=true
+                    break
+                fi
+            done
+            $found || continue
+        fi
+
+        if $names_only; then
+            echo "$hoard_name"
+        else
+            echo "- name: $hoard_name"
+            echo "  path: $d"
+            if [[ -z "$flavors_csv" ]]; then
+                echo "  flavors: []"
+            else
+                # Convert "a,b" → "[a, b]" for inline YAML list form
+                local yaml_list="${flavors_csv//,/, }"
+                echo "  flavors: [$yaml_list]"
+            fi
+        fi
+        # Discovery semantics — keep aligned with ws_hoard_list's bash glob:
+        #   * Hidden directories (`.cache/`, `.git/`, ...) are skipped via
+        #     `! -name '.*'` because the default bash glob `*/` doesn't
+        #     match leading dots either.
+        #   * `-L` follows symlinks-to-directories so hoards that the user
+        #     symlinked in from elsewhere show up here just like they do
+        #     in `ws hoard list` (which, being a bash glob, follows them
+        #     by default). DO NOT drop `-maxdepth 1` without rethinking
+        #     this — combined with `-L` it's the guard against pathological
+        #     symlink loops; we don't recurse, so there's nothing to loop on.
+    done < <(LC_ALL=C find -L "$HOARDS_DIR" -maxdepth 1 -mindepth 1 -type d ! -name '.*' -print 2>/dev/null | LC_ALL=C sort)
+}
+
 ws_hoard_help() {
+    # Enumerate available templates from disk so the help text never drifts
+    # from what ships under templates/hoards/. Sort under LC_ALL=C for
+    # stable, locale-independent output. macOS find lacks GNU's `-printf`,
+    # so cd into the dir and strip the leading `./` for portability.
+    local templates_list
+    if [[ -d "$TEMPLATES_DIR/hoards" ]]; then
+        templates_list="$(
+            cd "$TEMPLATES_DIR/hoards" && \
+            LC_ALL=C find . -maxdepth 1 -mindepth 1 -type d ! -name '.*' -print 2>/dev/null \
+                | sed 's|^\./||' \
+                | LC_ALL=C sort \
+                | tr '\n' ',' \
+                | sed 's/,/, /g; s/, $//'
+        )"
+    fi
+    [[ -z "${templates_list:-}" ]] && templates_list="(none)"
+
     echo "Usage: ws hoard <subcommand> [args...]" >&2
     echo "" >&2
     echo "Subcommands:" >&2
@@ -158,12 +338,15 @@ ws_hoard_help() {
     echo "                           Scaffold a new hoard locally (default template: thalami)" >&2
     echo "                           --name overrides the directory name" >&2
     echo "                           (default: <template> — same as the template name)" >&2
-    echo "                           Available templates: thalami, basic" >&2
+    echo "                           Available templates: $templates_list" >&2
     echo "                           Per-template args:" >&2
     echo "                             thalami --from-thalamus" >&2
     echo "                                  Move root Thalamus.md into the new hoard" >&2
     echo "  <git-url>                Clone an existing hoard" >&2
     echo "  list                     Show hoards and which thalami hoard is active" >&2
+    echo "  scan [--flavor <name>] [--names-only]" >&2
+    echo "                           Emit a YAML inventory of hoards classified by" >&2
+    echo "                           flavor (thalami / obsidian / claudesidian)" >&2
     echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
     echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
@@ -304,6 +487,136 @@ ws_hoard_cadence() {
     echo "elapsed_hours: $elapsed_hours"
     echo "threshold_days: $threshold_days"
     echo "last_commit_unix: $last_commit_ts"
+}
+
+# Init a hoard from a template that uses `template.yaml` for clone-on-init
+# semantics (instead of the standard cp -R). Returns 0 on success, 1 if
+# the template doesn't have a template.yaml (caller should fall back to
+# the standard flow), or exits non-zero on actual failure.
+#
+# Args:
+#   $1 — template directory (e.g. templates/hoards/claudesidian-vault)
+#   $2 — target hoard directory (e.g. hoards/my-vault)
+#
+# template.yaml schema:
+#   upstream: <url>     — required; git URL to clone from
+#   pin: <ref>          — optional; git ref to check out post-clone
+#   fallback: <url>     — optional; tried if upstream clone fails
+#   post_clone:         — ordered list of post-clone step names
+#     - strip_git       — rm -rf .git so ws_hoard_init's git init can re-init
+#     - apply_bridge    — overlay <template>/gdd-bridge/* into the clone
+ws_hoard_init_from_yaml() {
+    local template_dir="$1"
+    local target="$2"
+    local manifest="$template_dir/template.yaml"
+
+    [[ -f "$manifest" ]] || return 1   # Not a yaml-driven template
+
+    # The top-level dispatch already enforces yq for any subcommand that
+    # could land here, but keep a defensive check — ws_hoard_init() can
+    # also be called from sourced contexts that bypassed the dispatcher.
+    if ! command -v yq &>/dev/null; then
+        echo "ERROR: yq (v4+) is required for yaml-driven hoard templates." >&2
+        echo "  Install: https://github.com/mikefarah/yq" >&2
+        exit 1
+    fi
+
+    local upstream pin fallback
+    upstream="$(yq '.upstream // ""' "$manifest" 2>/dev/null)"
+    pin="$(yq '.pin // ""' "$manifest" 2>/dev/null)"
+    fallback="$(yq '.fallback // ""' "$manifest" 2>/dev/null)"
+
+    [[ "$upstream" == "null" ]] && upstream=""
+    [[ "$pin" == "null" ]] && pin=""
+    [[ "$fallback" == "null" ]] && fallback=""
+
+    if [[ -z "$upstream" ]]; then
+        echo "ERROR: $manifest is missing the 'upstream' field." >&2
+        exit 1
+    fi
+
+    echo "Cloning $upstream into $target..."
+    if ! git clone "$upstream" "$target" 2>/dev/null; then
+        if [[ -n "$fallback" ]]; then
+            # The failed upstream clone may have left $target half-populated
+            # (partial fetch, broken .git/, etc.). Wipe it before retrying so
+            # the fallback clone starts from a clean target path.
+            rm -rf "$target"
+            echo "  Upstream clone failed; trying fallback: $fallback" >&2
+            if ! git clone "$fallback" "$target" 2>/dev/null; then
+                echo "ERROR: clone failed for both upstream and fallback." >&2
+                echo "  upstream: $upstream" >&2
+                echo "  fallback: $fallback" >&2
+                exit 1
+            fi
+        else
+            echo "ERROR: clone failed and no fallback configured." >&2
+            echo "  upstream: $upstream" >&2
+            echo "  Check network access or update the manifest:" >&2
+            echo "    $manifest" >&2
+            exit 1
+        fi
+    fi
+
+    # Honor the pin if set. A configured pin is mandatory: silently falling
+    # back to the default branch would defeat the reproducibility intent of
+    # pinning in the first place.
+    if [[ -n "$pin" ]]; then
+        if ! (cd "$target" && git checkout -q "$pin"); then
+            echo "ERROR: failed to check out pin '$pin' in $target." >&2
+            echo "  Verify the pin exists in the cloned upstream's history." >&2
+            exit 1
+        fi
+    fi
+
+    # Iterate post_clone steps in the manifest's declared order, so future
+    # templates can reorder steps without code changes here.
+    # Contract: step names must be CSV-safe shell tokens — no commas, no
+    # quoting, no whitespace. `yq -o=csv` would otherwise emit quoted
+    # fields and break this naive split-on-comma loop.
+    local steps_csv
+    steps_csv="$(yq -o=csv '.post_clone // []' "$manifest" 2>/dev/null | tr -d '\r')"
+    if [[ -n "$steps_csv" ]]; then
+        local IFS=,
+        local step
+        for step in $steps_csv; do
+            # Skip blanks (e.g. trailing comma artifacts from yq -o=csv)
+            [[ -z "$step" ]] && continue
+            case "$step" in
+                strip_git)
+                    # Strip cloned .git so the upcoming git init in
+                    # ws_hoard_init() can re-init this as the user's own repo
+                    # (matches the standard flow's post-condition).
+                    rm -rf "$target/.git"
+                    ;;
+                apply_bridge)
+                    # Overlay <template_dir>/gdd-bridge/* into target.
+                    if [[ -d "$template_dir/gdd-bridge" ]]; then
+                        cp -R "$template_dir/gdd-bridge/." "$target/"
+                        echo "Applied gdd-bridge overlay."
+                    fi
+                    ;;
+                *)
+                    echo "WARNING: unknown post_clone step '$step' in $manifest; skipping." >&2
+                    ;;
+            esac
+        done
+    fi
+
+    # Print optional /init-bootstrap tip if the cloned vault advertises one
+    # in its README. We grep loosely so this works for any future template
+    # that wants to surface a similar tip.
+    local clone_readme="$target/README.md"
+    if [[ -f "$clone_readme" ]] && grep -qiE 'init-bootstrap|bootstrap wizard' "$clone_readme" 2>/dev/null; then
+        echo ""
+        echo "Tip: this vault has an optional onboarding wizard. To run it:"
+        echo "  cd $target"
+        echo "  claude"
+        echo "  /init-bootstrap"
+        echo ""
+    fi
+
+    return 0
 }
 
 # ws_hoard_init [template] [--name <hoard-name>] [template-args...]
@@ -449,9 +762,17 @@ ws_hoard_init() {
         fi
     fi
 
-    # Copy template directory
+    # Copy template directory — UNLESS this is a yaml-driven template,
+    # in which case follow the clone-on-init flow instead. The helper
+    # returns 1 to signal "no template.yaml; fall through to standard
+    # cp -R"; on success it returns 0; on actual failure it exits.
     mkdir -p "$HOARDS_DIR"
-    cp -R "$template_dir" "$target"
+    if ws_hoard_init_from_yaml "$template_dir" "$target"; then
+        : # YAML-driven flow handled the clone + post-clone steps
+    else
+        # Standard flow: copy template files verbatim
+        cp -R "$template_dir" "$target"
+    fi
 
     # Apply per-template seeding
     if [[ "$template" == "thalami" ]]; then
@@ -612,7 +933,7 @@ shift 2>/dev/null || true
 # first probes the agent runs and shouldn't error before the operator
 # has even seen `ws preflight`'s install hints.
 case "$SUBCMD" in
-    ""|--help|-h|thalamus-path) ;;
+    ""|--help|-h|thalamus-path|scan) ;;
     *)
         if ! command -v yq &>/dev/null; then
             echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
@@ -630,6 +951,9 @@ case "$SUBCMD" in
         ;;
     list)
         ws_hoard_list
+        ;;
+    scan)
+        ws_hoard_scan "$@"
         ;;
     cadence)
         ws_hoard_cadence

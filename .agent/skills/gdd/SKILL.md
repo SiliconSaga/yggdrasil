@@ -41,7 +41,13 @@ in the Developer role.
 | **Developer** | Writing and shipping code | Implementation, tests, CRs, code review |
 | **Designer** | Defining behavior | Writing feature files, scenarios, specs |
 | **Reviewer** | Quality and safety | Code review, scenario review, testing |
+| **Scribe** | Note-taking and vault work | PARA layout, frontmatter, daily notes, capture-process-organize loop |
 | **AI Agent** | Autonomous or guided work | Any of the above, bounded by permissions |
+
+The **Scribe** role auto-loads `.agent/skills/scribe/SKILL.md` (which
+in turn auto-loads `.agent/skills/scribe-claudesidian/SKILL.md` when the
+bound vault has `claudesidian` flavor). Other roles can dip into the
+scribe skill on capture-intent keywords without switching role.
 
 ## Modes
 

@@ -1,0 +1,9 @@
+# Obsidian local state — not vault content
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.trash/
+
+# Common OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp

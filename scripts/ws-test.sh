@@ -129,7 +129,17 @@ fi
 
 # 2. Auto-detect from project files
 if [[ -z "$runner" ]]; then
-    if [[ -f gradlew ]]; then
+    # Workspace-root tests: yggdrasil itself is treated as a "component"
+    # whose test suite is the bats files under tests/. We use the vendored
+    # bats-core runtime so contributors don't need a system install.
+    # Detection recurses (matching the dispatch's tests/**/*.bats walk
+    # below) so the runner still engages when smoke.bats moves out of
+    # the top level — the asymmetry was only masked by smoke.bats living
+    # at tests/smoke.bats. Vendor dir is excluded; same as dispatch.
+    if [[ "$comp" == "yggdrasil" ]] && \
+       [[ -n "$(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print -quit 2>/dev/null)" ]]; then
+        runner="bats"
+    elif [[ -f gradlew ]]; then
         runner="gradle"
     elif [[ -f Makefile ]] && grep -q '^test:' Makefile; then
         runner="make"
@@ -181,11 +191,23 @@ for arg in "$@"; do
         # Boolean flags like --parallel, --info, --debug are NOT listed.
         case "$arg" in
             # Shared / Go / Gradle / pytest
-            -run|--tests|-k|-m|-p|-r|-o|--maxfail|--tb|-timeout|\
+            -run|--tests|-k|-m|-o|--maxfail|--tb|-timeout|\
             -count|-bench|-benchtime|-cpu|-shuffle|\
             -coverprofile|-cpuprofile|-memprofile|-blockprofile|-mutexprofile|\
             -I|--init-script|--build-file|--project-dir)
                 expect_value=true ;;
+            # -p takes a value for pytest (-p plugin), Go (-p N
+            # parallelism), and Gradle (-p PROJECT_DIR). Bats treats it
+            # as boolean (--pretty), so consuming the next arg as a
+            # value under bats would silently swallow a positional.
+            -p)
+                case "$runner" in
+                    python|go|gradle) expect_value=true ;;
+                esac ;;
+            # -r takes a value for pytest only (-r REPORT_CHARS); bats
+            # treats it as boolean (--recursive). Same swallow risk.
+            -r)
+                [[ "$runner" == "python" ]] && expect_value=true ;;
         esac
     elif [[ -z "$test_filter" ]]; then
         test_filter="$arg"
@@ -281,5 +303,31 @@ case "$runner" in
         else
             uv run pytest
         fi
+        ;;
+    bats)
+        # Workspace-root shell tests via vendored bats-core. Discovers all
+        # tests/**/*.bats files (skipping anything under tests/vendor/, which
+        # is third-party runtime code, not our tests). A test_filter, if
+        # given, is forwarded to bats as a `--filter` regex.
+        bats_bin="$ROOT_DIR/tests/vendor/bats-core/bin/bats"
+        if [[ ! -x "$bats_bin" ]]; then
+            echo "ERROR: vendored bats not found or not executable: $bats_bin" >&2
+            echo "  See tests/vendor/README.md for the refresh procedure." >&2
+            exit 1
+        fi
+        bats_files=()
+        while IFS= read -r f; do
+            bats_files+=("$f")
+        done < <(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print | LC_ALL=C sort)
+        if [[ ${#bats_files[@]} -eq 0 ]]; then
+            echo "(no .bats files found under tests/)" >&2
+            exit 0
+        fi
+        bats_argv=("$bats_bin")
+        if [[ -n "$test_filter" ]]; then
+            bats_argv+=(--filter "$test_filter")
+        fi
+        bats_argv+=("${runner_args[@]}" "${bats_files[@]}")
+        "${bats_argv[@]}"
         ;;
 esac

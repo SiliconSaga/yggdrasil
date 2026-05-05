@@ -313,6 +313,32 @@ to the human immediately rather than discovering it at push time. If
 `ws diagnose` fails or is unavailable, note the failure and continue — don't
 block the session on diagnostic tooling issues.
 
+#### 6c: Hoard vault scan
+
+If the active thalamus frontmatter resolved in Step 0 has `role: null`,
+also call `ws hoard scan --flavor vault` to detect any Obsidian or
+Claudesidian-flavored hoards (the `vault` meta-flavor matches both).
+The output is YAML; parse the entries and surface a brief inventory
+alongside the role question:
+
+> "role is null. Detected vaults: borgr (claudesidian), nonclaudesidian
+> (obsidian). Want scribe role for vault work, or another (developer
+> / designer / reviewer)?"
+
+If no vaults are detected, stay silent on the vault angle — just ask
+the role question normally. Don't surface "no vaults found" noise.
+
+If `role: scribe` is already set in frontmatter, skip this scan —
+Step 5's role-default handling already loads the scribe skill, which
+runs its own vault-binding sub-flow.
+
+If `ws hoard scan` errors or is unavailable, note the failure and
+continue — don't block orientation on it.
+
+The vault scan is informational at orientation time only. Actual
+binding (and any prompt for "which vault?") happens later, when the
+scribe skill loads — driven by user intent, not orientation.
+
 **Trust hierarchy:**
 
 | Level | Source | Treatment |

@@ -1,0 +1,39 @@
+# Shared helpers for ws-hoard-scan bats tests.
+#
+# Each test loads a fixture by name (a directory under fixtures/) and
+# points HOARDS_DIR at that fixture's hoards/ subdir. The ws-hoard.sh
+# script honors HOARDS_DIR via parameter expansion:
+#   : "${HOARDS_DIR:="$ROOT_DIR/hoards"}"
+# so passing it through the environment is sufficient — no flag wiring
+# needed.
+
+# Resolve the repo root once (the workspace root is the parent of tests/).
+REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+WS_BIN="$REPO_ROOT/scripts/ws"
+
+load_fixture() {
+    local fixture="$1"
+    export HOARDS_DIR="$BATS_TEST_DIRNAME/fixtures/$fixture/hoards"
+    # Hard-fail (don't skip) when the fixture dir is missing. A typo'd
+    # fixture name silently downgrading to `skip` is indistinguishable
+    # from a deliberate skip — that hides coverage gaps. Failing the
+    # test surfaces the typo loudly.
+    if [[ ! -d "$HOARDS_DIR" ]]; then
+        echo "ERROR: fixture missing: $fixture (path: $HOARDS_DIR)" >&2
+        return 1
+    fi
+}
+
+# Convenience wrapper around `bash $WS_BIN hoard scan ...` so tests can
+# stay short. Forwards all args to the scan subcommand. The caller MUST
+# have called load_fixture beforehand to set HOARDS_DIR — without that,
+# scan would fall back to the default $ROOT_DIR/hoards and produce
+# misleading results that look like passing assertions but are actually
+# running against the workspace's real hoard tree.
+run_scan() {
+    if [[ -z "${HOARDS_DIR:-}" ]]; then
+        echo "ERROR: HOARDS_DIR is not set; call load_fixture <name> first" >&2
+        return 1
+    fi
+    run bash "$WS_BIN" hoard scan "$@"
+}

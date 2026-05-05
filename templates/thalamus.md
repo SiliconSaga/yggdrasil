@@ -3,7 +3,12 @@
 last_session: null
 last_audit: null
 mode: null          # zen, quick, mentoring, autonomous — or null for "ask me"
-role: null          # developer, designer, reviewer — or null for "ask me"
+role: null          # developer, designer, reviewer, scribe — or null for "ask me"
+active_vault: null  # name of the vault-flavored hoard scribe should
+                    # auto-bind to (skip the "which vault?" prompt
+                    # when multiple vaults exist). Leave null to be
+                    # asked. Set when scribe is heavy use and you
+                    # want session friction reduced.
 staleness_days: 14  # suggest housekeeping after this many days without audit
 # Note: commit-cadence threshold (the "nudge to commit" prompt) lives
 # in `<hoard-root>/.ws-cadence.yaml` — hoard-wide config, not
