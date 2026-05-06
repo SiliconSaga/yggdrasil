@@ -66,7 +66,7 @@ Community realms may provide additional component-specific skills in
 |---|---|---|
 | Workspace skill path | `.agent/skills/gdd-orientation/SKILL.md` | Read the file with the Read tool. Do **not** invoke via the Skill tool. |
 | Plugin skill identifier | `superpowers:executing-plans` | Invoke via the Skill tool. Requires the plugin (e.g. Obra Superpowers) installed. |
-| `@<name>` cross-reference | `@gdd-orientation`, `@tdd` | Informational pointer in skill bodies — read the referenced skill, don't invoke it as a tool. |
+| `@<name>` cross-reference | `@gdd-orientation`, `@workflow-auditor` | Informational pointer to a workspace skill in skill bodies — read the referenced file, don't invoke it as a tool. Plugin skills always use the explicit `superpowers:*` form, never `@<name>`. |
 
 **Companion plugin (recommended):** GDD plans and several practice
 skills reference [Obra Superpowers](https://github.com/obra/superpowers)

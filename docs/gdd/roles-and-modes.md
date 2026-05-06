@@ -55,6 +55,13 @@ concerns, and completing large chunks of work end-to-end.
 Zen mode may proactively suggest housekeeping if observations have accumulated
 in the Thalamus.
 
+### Flow
+
+Adaptive ceremony for sessions that drift productively across multiple topics.
+The agent matches the human's rhythm, incorporates tangents naturally, and
+treats the Thalamus as a live collaboration surface rather than a
+session-bookend artifact. Often the natural default when no mode is set.
+
 Modes compose freely — a learning contributor might run Mentoring + Quick on
 a busy day, or Zen + Mentoring for a deep teaching session. The per-mode
 skills under `.agent/skills/gdd-<mode>/SKILL.md` describe the specific
