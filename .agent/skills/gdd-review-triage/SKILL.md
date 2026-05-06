@@ -132,7 +132,9 @@ Group by severity and present to the human:
 ## Integration with Receiving Code Review
 
 When processing findings, apply the `receiving-code-review` discipline
-(a superpowers plugin skill loaded via the Skill tool). Key principles:
+— a Superpowers plugin skill: invoke via the Skill tool when the
+plugin is installed, or read the principles below as a fallback when
+it isn't. Key principles:
 
 - Evaluate each finding with technical rigor, not performative agreement
 - Verify claims against the actual codebase before accepting

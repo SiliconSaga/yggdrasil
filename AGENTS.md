@@ -60,6 +60,14 @@ Workspace-level skills live in `.agent/skills/<name>/SKILL.md`.
 Community realms may provide additional component-specific skills in
 `realms/<name>/.agent/skills/` — these are discovered during GDD orientation.
 
+**Three reference patterns appear in this codebase — don't confuse them:**
+
+| Pattern | Example | How to use |
+|---|---|---|
+| Workspace skill path | `.agent/skills/gdd-orientation/SKILL.md` | Read the file with the Read tool. Do **not** invoke via the Skill tool. |
+| Plugin skill identifier | `superpowers:executing-plans` | Invoke via the Skill tool. Requires the plugin (e.g. Obra Superpowers) installed. |
+| `@<name>` cross-reference | `@gdd-orientation`, `@tdd` | Informational pointer in skill bodies — read the referenced skill, don't invoke it as a tool. |
+
 **Companion plugin (recommended):** GDD plans and several practice
 skills reference [Obra Superpowers](https://github.com/obra/superpowers)
 skills (e.g. `superpowers:executing-plans`,
@@ -67,8 +75,13 @@ skills (e.g. `superpowers:executing-plans`,
 `superpowers:test-driven-development`, `superpowers:receiving-code-review`).
 Install Superpowers for the smoothest experience. The `gdd-orientation`
 skill checks for it at session start and surfaces a one-line nudge if
-not detected — sessions still work without it, but agents will hit
-references to skills they can't load.
+not detected.
+
+**Graceful degradation without Superpowers:** plan execution falls back
+to manual step-by-step, TDD becomes implicit rather than skill-driven,
+and `receiving-code-review` is read as documentation rather than
+invoked. All workspace skills (under `.agent/skills/`) run without
+Superpowers — only the `superpowers:*` plugin skills are unavailable.
 
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
