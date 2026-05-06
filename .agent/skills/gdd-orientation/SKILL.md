@@ -283,14 +283,21 @@ Per-mode adaptation of orientation itself:
 
 #### Tutorial detection — offer mentoring mode
 
-If the user signals they're starting a tutorial — opening a
-component README in `templates/components/<flavor>/`, running
-`ws component init` for the first time, or saying things like "let's
-try the tutorial" / "walk me through this" / "I just ran the gh-pages
-init" — and the current mode is **not already mentoring**, offer
-the swap:
+Two flavors of tutorial-shaped signal both warrant the offer:
 
-> "Looks like you're starting the tutorial. Want to switch to
+- **Component tutorial** — opening a component README in
+  `templates/components/<flavor>/`, running `ws component init` for
+  the first time, or saying things like "let's try the tutorial" /
+  "walk me through this" / "I just ran the gh-pages init".
+- **Methodology tutorial** — saying things like "teach me GDD" /
+  "explain this workspace" / "new to GDD" / "how does this
+  methodology work". Different intent (learn the framework vs.
+  explore a scaffold), same recommendation.
+
+If either signal fires and the current mode is **not already
+mentoring**, offer the swap:
+
+> "Looks like you're starting a tutorial. Want to switch to
 > mentoring mode for the duration? I'll explain each command and
 > decision rather than just running them — useful for
 > first-time-through learning. We can swap back any time you say
