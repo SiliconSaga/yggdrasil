@@ -7,6 +7,36 @@ for `github.com` or `gitlab.com`. Self-hosted instances need a config entry
 
 ---
 
+## Env var quick reference
+
+All workspace credentials live in `.env` at the yggdrasil root
+(gitignored). The shell scripts source it automatically — there's no
+manual `source .env` step required during normal `ws` use.
+
+| Variable | Purpose | Required when |
+|---|---|---|
+| `GH_TOKEN` | GitHub PAT (`gh` reads it directly) | Using GitHub remotes |
+| `GH_USER` | GitHub username — used by `ws-validate-agent-setup` for attribution; falls back to `gh api /user` if unset | Optional — convenience only |
+| `GITLAB_TOKEN` | Default GitLab PAT (`glab` fallback) | Using GitLab remotes |
+| `GITLAB_USER` | GitLab username — referenced in setup docs and example `.env` | Optional — not consumed by `ws` directly |
+| `GITLAB_HOST` | Self-hosted GitLab hostname | Self-hosted GitLab only |
+| `GITLAB_<scope>_<owner>_<role>` | Per-fork / per-group GitLab tokens | Multi-token GitLab setups (see GitLab section) |
+
+For GitLab multi-token setups, individual env vars are mapped to URL
+prefixes via `defaults.gitTokens` in `ecosystem.yaml` (longest-prefix
+match). The script `gp_set_token_for_url` exports the right
+`GITLAB_TOKEN` for each operation. The full naming pattern and
+examples live in the [GitLab](#gitlab) section below.
+
+Verify what's currently set without changing anything:
+
+```bash
+ws gitlab-auth --status   # which token slots are set/unset
+ws diagnose <comp>        # which token covers each remote for a component
+```
+
+---
+
 ## GitHub
 
 ### Install the GitHub CLI
