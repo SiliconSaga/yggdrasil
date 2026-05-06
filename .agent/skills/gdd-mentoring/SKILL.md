@@ -40,8 +40,6 @@ Mentoring composes with other modes:
   explanations for the most unfamiliar parts.
 - **Mentoring + Zen:** Deep work with thorough teaching. Full explanations
   at every step.
-- **Mentoring + Autonomous:** AI logs its reasoning in detail for later human
-  review. Explanations go into commit messages and CR descriptions.
 
 ## What This Mode Does NOT Do
 

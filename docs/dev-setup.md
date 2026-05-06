@@ -23,6 +23,17 @@ missing.
 - **[glab](https://gitlab.com/gitlab-org/cli)** — for GitLab-hosted
   components (gitlab.com or self-hosted instances).
 
+**Recommended companion (agent-side):**
+
+- **[Obra Superpowers](https://github.com/obra/superpowers)** — a
+  Claude Code plugin that ships skills GDD plans reference
+  (`superpowers:executing-plans`, `superpowers:subagent-driven-development`,
+  `superpowers:brainstorming`, `superpowers:test-driven-development`,
+  `superpowers:receiving-code-review`, etc.). GDD works without it,
+  but plan-driven and review-heavy sessions assume it's available.
+  The `gdd-orientation` skill checks for it at session start and
+  surfaces a nudge if absent.
+
 **Optional** (only needed for specific component types):
 
 - **[uv](https://docs.astral.sh/uv/)** — Python package manager,

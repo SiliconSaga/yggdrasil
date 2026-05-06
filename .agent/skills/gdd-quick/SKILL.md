@@ -43,8 +43,6 @@ Suggest tasks appropriate to the time window:
 
 - **Quick + Mentoring:** Short session, but still explain the most unfamiliar
   parts. Trim explanations to essentials.
-- **Quick + Autonomous:** Not typical — autonomous mode implies longer
-  unattended work. If combined, produce the smallest useful increment.
 
 ## What This Mode Does NOT Do
 

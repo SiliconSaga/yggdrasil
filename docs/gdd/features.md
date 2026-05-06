@@ -155,20 +155,18 @@ Full design: [thalamus.md](thalamus.md). Operational mechanics:
 
 ## Modes — agent demeanor
 
-Sessions run in one of five modes that shape how chatty, careful,
-or autonomous the agent is:
+Sessions run in one of four modes that shape how chatty or careful
+the agent is:
 
 - **Quick** — terse, no ceremony, get-it-done.
 - **Zen** — full ceremony, deep work, frequent housekeeping.
 - **Flow** — the middle gear; sessions naturally drift across topics.
 - **Mentoring** — the agent explains decisions, teaches as it goes.
   This is the right first-session mode for new contributors.
-- **Autonomous** — minimal back-and-forth; logs progress, runs to
-  completion. Reserved for well-understood tasks.
 
 Modes are picked at session start (and can be re-picked mid-session).
 The default lives in your Thalamus frontmatter (`mode:`). Roles
-(developer, designer, reviewer) compose with modes — see
+(developer, designer, reviewer, scribe) compose with modes — see
 [roles-and-modes.md](roles-and-modes.md).
 
 ---

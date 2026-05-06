@@ -2,7 +2,7 @@
 # Thalamus frontmatter — read by orientation skill on session start
 last_session: null
 last_audit: null
-mode: null          # zen, quick, mentoring, autonomous — or null for "ask me"
+mode: null          # zen, quick, flow, mentoring — or null for "ask me"
 role: null          # developer, designer, reviewer, scribe — or null for "ask me"
 active_vault: null  # name of the vault-flavored hoard scribe should
                     # auto-bind to (skip the "which vault?" prompt

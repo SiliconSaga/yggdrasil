@@ -40,6 +40,31 @@ run `bash scripts/ws <cmd> --help` to see its current options and
 argument format. Skills should defer to the help system rather than
 restating command details that can drift.
 
+### Companion check: Obra Superpowers
+
+Before Step 0, scan the available skills list for any skill name
+prefixed `superpowers:` (e.g. `superpowers:executing-plans`,
+`superpowers:brainstorming`). No shell command needed — these appear
+in the same system-reminder that lists workspace skills.
+
+- **Detected:** silent. Note for the session that Superpowers skills
+  are available and can be invoked when plans or practices reference
+  them.
+- **Not detected:** surface a single-line nudge during the greeting
+  or session-framing recap, e.g.:
+
+  > "Heads-up: Obra Superpowers isn't installed. GDD plans and a
+  > few practices (brainstorming, TDD, executing-plans) reference
+  > `superpowers:*` skills — install once and you'll get smoother
+  > plan-driven sessions. Setup: https://github.com/obra/superpowers"
+
+  Don't repeat the nudge later in the session. Don't block on it.
+  Don't try to install it — that's a user action.
+
+This is a **soft dependency** — sessions work without Superpowers,
+but agents will hit references they can't load when executing plans
+or running brainstorm/TDD-shaped work.
+
 ### Step 0: Resolve the active thalamus file
 
 Run `bash scripts/ws hoard thalamus-path` (or `ws hoard thalamus-path`
@@ -255,18 +280,24 @@ Per-mode adaptation of orientation itself:
 - **Zen mode:** full orientation, may proactively suggest addressing stale
   concerns or doing housekeeping before diving into work
 - **Mentoring mode:** explain what orientation is doing and why as you go
-- **Autonomous mode:** minimal orientation, log-only, proceed to work
 
 #### Tutorial detection — offer mentoring mode
 
-If the user signals they're starting a tutorial — opening a
-component README in `templates/components/<flavor>/`, running
-`ws component init` for the first time, or saying things like "let's
-try the tutorial" / "walk me through this" / "I just ran the gh-pages
-init" — and the current mode is **not already mentoring**, offer
-the swap:
+Two flavors of tutorial-shaped signal both warrant the offer:
 
-> "Looks like you're starting the tutorial. Want to switch to
+- **Component tutorial** — opening a component README in
+  `templates/components/<flavor>/`, running `ws component init` for
+  the first time, or saying things like "let's try the tutorial" /
+  "walk me through this" / "I just ran the gh-pages init".
+- **Methodology tutorial** — saying things like "teach me GDD" /
+  "explain this workspace" / "new to GDD" / "how does this
+  methodology work". Different intent (learn the framework vs.
+  explore a scaffold), same recommendation.
+
+If either signal fires and the current mode is **not already
+mentoring**, offer the swap:
+
+> "Looks like you're starting a tutorial. Want to switch to
 > mentoring mode for the duration? I'll explain each command and
 > decision rather than just running them — useful for
 > first-time-through learning. We can swap back any time you say
