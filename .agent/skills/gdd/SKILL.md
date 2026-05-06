@@ -42,7 +42,7 @@ in the Developer role.
 | **Designer** | Defining behavior | Writing feature files, scenarios, specs |
 | **Reviewer** | Quality and safety | Code review, scenario review, testing |
 | **Scribe** | Note-taking and vault work | PARA layout, frontmatter, daily notes, capture-process-organize loop |
-| **AI Agent** | Autonomous or guided work | Any of the above, bounded by permissions |
+| **AI Agent** | Guided work | Any of the above, bounded by permissions |
 
 The **Scribe** role auto-loads `.agent/skills/scribe/SKILL.md` (which
 in turn auto-loads `.agent/skills/scribe-claudesidian/SKILL.md` when the
@@ -68,20 +68,17 @@ natural completion point. The agent protects focus. See @gdd-zen.
 incorporate tangents, live Thalamus collaboration. May be the natural default
 when no mode is set. The agent matches the human's rhythm. See @gdd-flow.
 
-**Autonomous** — AI works independently within permission boundaries, producing
-reviewable increments. See @gdd-autonomous.
-
 ## Mode Behavior Matrix
 
-| Activity | Quick | Zen | Flow | Mentoring | Autonomous |
-|----------|-------|-----|------|-----------|------------|
-| Orientation | Brief | Full for topic, skip unrelated | Brief, what's on your mind? | Explain what orientation does | Minimal, log-only |
-| Brainstorming | Skip if scope is clear | Full for the focus topic | Adaptive per topic | Explain each step | N/A |
-| Code review | Focus on blockers only | Comprehensive | Proportional to task | Explain review reasoning | Automated findings only |
-| Commits | Minimal messages OK | Detailed messages | Standard | Explain commit practices | Standard |
-| Housekeeping | Defer unless critical | Defer until asked or done | Continuous light triage | Explain the process | Skip |
-| Side items | Defer | Capture, don't pursue | Welcome, weave in | Explain, then decide | Log only |
-| Thalamus | Minimal | Input-only during deep work | Live collaboration surface | Explain what's captured | Log observations |
+| Activity | Quick | Zen | Flow | Mentoring |
+|----------|-------|-----|------|-----------|
+| Orientation | Brief | Full for topic, skip unrelated | Brief, what's on your mind? | Explain what orientation does |
+| Brainstorming | Skip if scope is clear | Full for the focus topic | Adaptive per topic | Explain each step |
+| Code review | Focus on blockers only | Comprehensive | Proportional to task | Explain review reasoning |
+| Commits | Minimal messages OK | Detailed messages | Standard | Explain commit practices |
+| Housekeeping | Defer unless critical | Defer until asked or done | Continuous light triage | Explain the process |
+| Side items | Defer | Capture, don't pursue | Welcome, weave in | Explain, then decide |
+| Thalamus | Minimal | Input-only during deep work | Live collaboration surface | Explain what's captured |
 
 ## Delegation
 

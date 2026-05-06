@@ -11,10 +11,16 @@ behavior). A person can switch roles between sessions or even within one.
 | **Developer** | Writing and shipping code |
 | **Designer** | Defining behavior (scenarios, specs) |
 | **Reviewer** | Quality and safety |
+| **Scribe** | Note-taking and vault work — PARA layout, frontmatter, daily notes, capture-process-organize loop |
 | **AI Agent** | Any of the above, bounded by permissions |
 
 Roles aren't skill levels. A first-time contributor and a 20-year veteran
 can both be in the Developer role — they'll just have different modes active.
+
+Today only the **Scribe** role has dedicated skill files (`scribe`
+plus the auto-loaded `scribe-claudesidian` extension); the other
+roles are the assumed default and rely on mode and practice skills
+rather than a single role file.
 
 ## Modes
 
@@ -49,30 +55,7 @@ concerns, and completing large chunks of work end-to-end.
 Zen mode may proactively suggest housekeeping if observations have accumulated
 in the Thalamus.
 
-### Autonomous
-
-The AI works independently within permission boundaries, producing reviewable
-increments. For delegating work to background agents like Jules or background
-Claude sessions. Commit messages and PR descriptions become the primary
-communication channel.
-
-## Composition
-
-Modes compose — multiple can be active simultaneously:
-
-- **Mentoring + Quick:** Short session, but still explain things. Prioritize
-  explanations for the most unfamiliar parts.
-- **Zen + Mentoring:** Deep work with thorough teaching. The most comprehensive
-  combination.
-- **Autonomous + Zen:** AI works independently with full diligence. Detailed
-  logging, comprehensive tests, thorough PR descriptions.
-
-## How Modes Affect Common Activities
-
-| Activity | Quick | Zen | Mentoring | Autonomous |
-|----------|-------|-----|-----------|------------|
-| Orientation | Brief | Full, may suggest housekeeping | Explain what orientation does | Minimal, log-only |
-| Brainstorming | Skip if scope is clear | Full brainstorming skill | Explain each step | N/A |
-| Code review | Focus on blockers only | Comprehensive | Explain review reasoning | Automated findings only |
-| Commits | Minimal messages OK | Detailed messages | Explain commit practices | Standard |
-| Housekeeping | Defer unless critical | Proactively suggest | Explain the process | Skip |
+Modes compose freely — a learning contributor might run Mentoring + Quick on
+a busy day, or Zen + Mentoring for a deep teaching session. The per-mode
+skills under `.agent/skills/gdd-<mode>/SKILL.md` describe the specific
+behavior modifiers each mode applies.

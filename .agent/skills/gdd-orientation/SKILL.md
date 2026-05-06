@@ -280,7 +280,6 @@ Per-mode adaptation of orientation itself:
 - **Zen mode:** full orientation, may proactively suggest addressing stale
   concerns or doing housekeeping before diving into work
 - **Mentoring mode:** explain what orientation is doing and why as you go
-- **Autonomous mode:** minimal orientation, log-only, proceed to work
 
 #### Tutorial detection — offer mentoring mode
 

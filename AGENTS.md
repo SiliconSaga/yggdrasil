@@ -31,8 +31,6 @@ first message:
 3. Ask about mode and role (or note the defaults from frontmatter).
    When offering modes to a human, offer **quick, zen, flow, or mentoring** —
    flow is the natural default for sessions without a single fixed goal.
-   Autonomous mode is for AI agents working independently, not for
-   interactive sessions
 4. Ask what the human wants to work on
 
 That's it for the first response. Save the component scan, trust verification,
@@ -82,7 +80,6 @@ references to skills they can't load.
 | **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
 | **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
 | **GDD Flow Mode** | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
-| **GDD Autonomous Mode** | Permission-bounded independent work with reviewable increments | [SKILL.md](./.agent/skills/gdd-autonomous/SKILL.md) |
 | **Scribe** | Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks, inbox capture. Auto-loads for `role: scribe`; other roles dip in on capture-intent keywords. | [SKILL.md](./.agent/skills/scribe/SKILL.md) |
 | **Scribe Claudesidian** | Extension for Claudesidian-flavored vaults: reads vault CLAUDE.md, surfaces command manifest, plain-text invocation of /thinking-partner / /weekly-synthesis / etc. Auto-loaded by scribe when the bound vault has `claudesidian` flavor. | [SKILL.md](./.agent/skills/scribe-claudesidian/SKILL.md) |
 | **BDD** | Gherkin scenarios, feature authoring, planning features, runner integration, and BDD conventions | [SKILL.md](./.agent/skills/bdd/SKILL.md) |

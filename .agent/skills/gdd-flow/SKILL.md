@@ -61,7 +61,7 @@ Flow mode encourages:
 Flow is the natural mode for a human overseeing parallel work:
 
 - Two agent sessions on different machines working on related features
-- Checking in on one session while another runs autonomously
+- Checking in on one session while another runs in the background
 - Cross-referencing work between sessions (like resolving CR comments from
   one workspace using tools built in another)
 
@@ -73,9 +73,6 @@ own, but the human carries context between them.
 - **Flow + Mentoring:** The agent explains things as they come up naturally,
   not as a structured curriculum. Teaching happens in context of whatever
   the current topic is.
-- **Flow + Autonomous:** Not typical — autonomous implies a fixed task scope
-  that Flow's drift would undermine. If combined, the agent works
-  independently on whatever the current focus is, but accepts redirections.
 
 ## What This Mode Does NOT Do
 
