@@ -70,8 +70,9 @@ If the component has neither an adapter file nor a recognized build
 system, `ws actions` prints a hint pointing at the path you'd create
 to add one.
 
-Realm commands take precedence; auto-detection only fires for
-unconfigured commands.
+For execution (`ws test`), realm-configured `commands.test` takes
+precedence over auto-detection. `ws actions` displays both configured
+and auto-detected commands for inspection.
 
 ---
 
