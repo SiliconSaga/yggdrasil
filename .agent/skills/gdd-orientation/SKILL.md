@@ -415,6 +415,30 @@ Based on mode, role, and any active concerns, briefly orient the human:
 > ws push on vordu. Two open concerns from component scan. What are we
 > working on?"
 
+#### Active arcs (when a thalami hoard is active)
+
+If the active thalamus file has a non-empty `arcs:` list, surface
+active arcs as part of the framing:
+
+> "Active arcs on this host: `thalamus-arc-dashboard` (started today,
+> next: 'lock schema'). Picking up an existing one or starting fresh?"
+
+Also grep sibling thalamus files in the active hoard for slugs
+matching the user's session-opening topic. If a sibling host has an
+active arc with a matching slug, surface the cross-host pickup:
+
+> "Loki has an active arc `gh-pages-tutorial` from 2026-04-25. Picking
+> it up here?"
+
+If the user agrees to pick it up, propose adding the same slug to
+*this* host's `arcs:` list when the first arc-shaped write happens
+later in the session. Cross-host stitching is slug-discipline: same
+`id` across hosts naturally clusters in the dashboard.
+
+If `arcs:` is empty or absent (e.g. hoard predates the arc layer),
+skip this subsection silently. No nudge to populate it — that's a
+housekeeping concern.
+
 ## During-Session Writes
 
 The orientation skill also governs when to write to Thalamus during work:

@@ -56,6 +56,35 @@ Flow mode encourages:
 - **No clear end** — Flow sessions may fade rather than conclude. That's fine.
   The Thalamus captures anything that matters for next time
 
+## Tangent handling — arcs
+
+When the human opens a thread that's clearly distinct from the current
+focus, or asks for a brain-dump into Thalamus that isn't the primary
+topic, propose logging it as an arc rather than just writing prose:
+
+> "Looks like a tangent — want me to log it as a parked arc
+> `<proposed-slug>`? You can come back to it later or promote it to
+> an issue."
+
+The proposal includes:
+
+- A kebab-case `id` slug derived from the topic
+- `status: parked` if the conversation will return to the original
+  topic shortly, `status: active` if the session is pivoting wholesale
+- A one-line `next:` pointer
+
+If the session is pivoting wholesale, also propose flipping the
+*previous* arc to `status: parked` in the same edit. Don't act
+without confirmation — same propose-not-act pattern as orientation
+nudges.
+
+If the user declines, capture the tangent as a normal Observations
+entry (the existing Flow behavior). Don't ask twice; respect "no."
+
+`arcs:` is the dashboard projection — keep `next:` short and free of
+sensitive operational detail (URLs of internal tools, credentials,
+identifying detail about people). Keep the rich context in the body.
+
 ## Multi-Agent and Multi-Workspace
 
 Flow is the natural mode for a human overseeing parallel work:

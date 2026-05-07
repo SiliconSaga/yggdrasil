@@ -56,3 +56,20 @@ avoiding generic `origin` remote names. `--push` pushes the initial
 commit so the remote isn't empty.
 
 Or any equivalent on GitLab / Gitea / etc.
+
+---
+
+## Cross-host arc dashboard
+
+This hoard ships a `dashboard.md` that renders an at-a-glance table of
+in-flight work across every machine using the workspace. Open the hoard
+folder as an Obsidian vault and install the Dataview community plugin
+to see it live.
+
+Each per-machine `<machine>-thalamus.md` carries an `arcs:` list in its
+frontmatter; Dataview reads them and produces the cross-host table. See
+`dashboard.md` itself for the schema and how-to-view instructions.
+
+The dashboard projects only frontmatter — the body of each Thalamus
+file (Observations, Concerns, Audit Log) stays put on the host that
+wrote it.

@@ -93,6 +93,31 @@ indefinitely. A short `~~item~~ DONE in PR #N` line is reasonable
 but they should age out — pruned at the next housekeeping pass
 once the PR has merged and the canonical doc is stable.
 
+### Step 2.5: Walk the arcs list
+
+If the active Thalamus has a non-empty `arcs:` list, walk it before
+moving on to Step 3:
+
+- **Stale active arcs.** Any `active` arc whose `last_touched` is more
+  than ~30 days old is a candidate to flip to `parked`. Propose the
+  flip; let the human confirm or push back ("no, still active").
+- **Closed/promoted arcs surviving previous audit.** Two-cycle grace
+  window: arcs in `closed` or `promoted` status that already survived
+  one prior audit are prunable. Check the Audit Log for prior mention
+  of the slug; if present, propose removing the entry from `arcs:`.
+- **Inconsistencies.** Body content describing work with no matching
+  `arcs:` entry, or `arcs:` entries with no body context, should be
+  flagged for the human. Don't auto-resolve — ambiguous cases are
+  judgment calls.
+
+When pruning, remove the entry from `arcs:` *and* note the slug in the
+Audit Log entry (Step 4) so cross-host context survives even after the
+arc itself is gone.
+
+For arcs promoted to issues, the body content should already be
+gone (it lives in the issue now); the `arcs:` entry survives one more
+audit so the dashboard shows the recently-closed work, then prunes.
+
 ### Step 3: Check for Pattern Accumulation
 
 After reviewing individual items, look across them:
@@ -190,6 +215,12 @@ Same convention applies to other personal hoards (Obsidian vaults, scratch hoard
    `<machine>-thalamus.md` (not just the file the session started from).
    Listing the machines in that entry makes it clear at a glance which
    files were in scope this round.
+6. For arcs specifically: identify slugs that exist on multiple hosts
+   and confirm they refer to the same work — if drift has happened (two
+   slugs for the same topic), propose a rename so the dashboard
+   collapses them into adjacent rows. Closed/promoted arcs on one host
+   but still `active` on another are common during cross-host handoff;
+   leave those alone unless the human confirms the work is done.
 
 ### Compare-only — no shared file in v1
 
