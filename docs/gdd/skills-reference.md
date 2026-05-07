@@ -34,16 +34,12 @@ See [Roles and Modes](roles-and-modes.md) for the full mental model.
 ## Roles — *what kind* of work
 
 Roles scope the agent to a specific kind of work. A session has at
-most one role active. Today only **Scribe** has dedicated skill files;
-the two entries below mirror the two paired vault hoard templates that
-ship with the workspace — `scribe` covers base Obsidian conventions,
-`scribe-claudesidian` is an auto-loaded extension when the bound vault
-has `claudesidian` flavor.
+most one role active. Today only **Scribe** has a dedicated skill
+file.
 
 | Skill | Use when |
 |---|---|
-| **scribe** | Obsidian vault conventions — PARA, frontmatter, daily notes, wikilinks, inbox capture. |
-| **scribe-claudesidian** | Extension to scribe for Claudesidian-flavored vaults; loaded automatically when bound. |
+| **scribe** | Obsidian vault conventions — PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. |
 
 ---
 

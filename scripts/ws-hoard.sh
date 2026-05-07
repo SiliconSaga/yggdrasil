@@ -24,6 +24,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"   # for ws_resolve_ecosystem
+# shellcheck source=ws-hoard-upgrade.sh
+source "$SCRIPT_DIR/ws-hoard-upgrade.sh"   # for ws_hoard_upgrade
 
 # Resolve identity.human_account from merged ecosystem config.
 # Errors with guidance if unset — used for the initial commit
@@ -152,21 +154,12 @@ ws_resolve_thalamus_path() {
 
 # Classify a hoard directory by flavor.
 # Echoes a comma-separated list of flavors, or empty if none.
-# Argument is the hoard directory path. Flavors stack — a hoard can be
-# both `obsidian` and `claudesidian`.
+# Argument is the hoard directory path. Flavors stack — a hoard can
+# carry multiple flavors.
 #
 # Detection rules:
-#   thalami      — directory name is bare `thalami` or matches `thalami-*`
-#   obsidian     — has a `.obsidian/` subdirectory
-#   claudesidian — has `.claude/` AND a top-level CLAUDE.md whose first
-#                  30 lines reference Claudesidian or PARA conventions
-#                  (case-insensitive). The `.obsidian/` co-requirement
-#                  was dropped intentionally: Claudesidian-flavored
-#                  vaults need to be operable from GDD before any
-#                  Obsidian session has materialized the `.obsidian/`
-#                  config dir on the local machine. The CLAUDE.md text
-#                  match is a strong, specific signal — false positives
-#                  are essentially zero without the `.obsidian/` AND.
+#   thalami  — directory name is bare `thalami` or matches `thalami-*`
+#   obsidian — has a `.obsidian/` subdirectory
 ws_classify_hoard() {
     local hoard_path="$1"
     local hoard_name
@@ -185,18 +178,6 @@ ws_classify_hoard() {
         flavors+=("obsidian")
     fi
 
-    # claudesidian: .claude/ + signature in CLAUDE.md
-    if [[ -d "$hoard_path/.claude" ]] && \
-       [[ -f "$hoard_path/CLAUDE.md" ]]; then
-        # Multi-signal: read first 30 lines, look for either
-        # "Claudesidian" (the kit's name) or "PARA Method" (its
-        # organizational scheme) — case-insensitive.
-        if head -n 30 "$hoard_path/CLAUDE.md" 2>/dev/null | \
-           grep -qiE 'claudesidian|PARA Method'; then
-            flavors+=("claudesidian")
-        fi
-    fi
-
     if [[ ${#flavors[@]} -eq 0 ]]; then
         echo ""
     else
@@ -208,8 +189,8 @@ ws_classify_hoard() {
 # Iterate hoards/ and emit a YAML inventory with flavor classification.
 # Optional flags:
 #   --flavor <name>   Only emit hoards containing the named flavor.
-#                     Concrete flavors: thalami, obsidian, claudesidian.
-#                     Meta-flavors: vault (matches obsidian or claudesidian).
+#                     Concrete flavors: thalami, obsidian.
+#                     Meta-flavors: vault (matches obsidian).
 #                     Meta-flavors are query-time only — they never appear
 #                     in the recorded `flavors:` array of the YAML output.
 #   --names-only      Emit just hoard names (one per line) — for shell pipelines
@@ -239,12 +220,11 @@ ws_hoard_scan() {
                 echo "Flavors detected:" >&2
                 echo "  thalami       — directory name is 'thalami' or matches thalami-*" >&2
                 echo "  obsidian      — contains .obsidian/" >&2
-                echo "  claudesidian  — contains .claude/ + Claudesidian-signed CLAUDE.md" >&2
                 echo "" >&2
                 echo "Flags:" >&2
                 echo "  --flavor <name>   Only emit hoards containing the named flavor." >&2
-                echo "                    Concrete flavors: thalami, obsidian, claudesidian." >&2
-                echo "                    Meta-flavors: vault (matches obsidian or claudesidian)." >&2
+                echo "                    Concrete flavors: thalami, obsidian." >&2
+                echo "                    Meta-flavors: vault (currently equiv to obsidian)." >&2
                 echo "  --names-only      Emit just hoard names, one per line." >&2
                 return 0
                 ;;
@@ -275,11 +255,12 @@ ws_hoard_scan() {
                     found=true
                     break
                 fi
-                # Meta-flavor: `vault` matches any concrete vault flavor
-                # (obsidian or claudesidian). Query-time only — does not
+                # Meta-flavor: `vault` currently matches just `obsidian`.
+                # Kept as an indirection in case other vault concrete
+                # flavors return later. Query-time only — does not
                 # appear in the recorded YAML `flavors:` array.
                 if [[ "$filter_flavor" == "vault" ]] && \
-                   [[ "$f" == "obsidian" || "$f" == "claudesidian" ]]; then
+                   [[ "$f" == "obsidian" ]]; then
                     found=true
                     break
                 fi
@@ -346,11 +327,14 @@ ws_hoard_help() {
     echo "  list                     Show hoards and which thalami hoard is active" >&2
     echo "  scan [--flavor <name>] [--names-only]" >&2
     echo "                           Emit a YAML inventory of hoards classified by" >&2
-    echo "                           flavor (thalami / obsidian / claudesidian)" >&2
+    echo "                           flavor (thalami / obsidian)" >&2
     echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
     echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
     echo "                           thalamus file (empty if no active hoard)" >&2
+    echo "  upgrade <hoard-name>     Re-fetch plugins and refresh configs from the" >&2
+    echo "                           hoard's template. Run after pulling a yggdrasil" >&2
+    echo "                           update or to refresh on a fresh clone." >&2
 }
 
 # Read staleness_days from a hoard's `.ws-cadence.yaml`. Defaults to 2
@@ -495,7 +479,7 @@ ws_hoard_cadence() {
 # the standard flow), or exits non-zero on actual failure.
 #
 # Args:
-#   $1 — template directory (e.g. templates/hoards/claudesidian-vault)
+#   $1 — template directory (e.g. a future templates/hoards/<name>)
 #   $2 — target hoard directory (e.g. hoards/my-vault)
 #
 # template.yaml schema:
@@ -787,6 +771,25 @@ ws_hoard_init() {
         fi
     fi
 
+    # If the template ships an .upgrade/ recipe, strip it from the
+    # target (it's template-internal, not user content) and run the
+    # upgrade phase against the freshly-copied hoard. This installs
+    # plugins, seeds plugin data.json, writes community-plugins.json,
+    # disables conflicting core plugins, and injects the README block.
+    if [[ -d "$target/.upgrade" ]]; then
+        rm -rf "$target/.upgrade"
+        # Only run if template still has .upgrade/ (the source)
+        if [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+            echo ""
+            echo "Running upgrade phase from template..."
+            _ws_hoard_upgrade_from_template "$template_dir" "$target" || {
+                echo "WARNING: upgrade phase failed; hoard is initialized but" >&2
+                echo "  plugins were not installed. Re-run \`ws hoard upgrade $hoard_name\`" >&2
+                echo "  to retry." >&2
+            }
+        fi
+    fi
+
     # git init + initial commit. Honor the user's existing git config for
     # name/email when set (so the first commit looks like the user's other
     # work). Fall back to the resolved human_account + a generic email
@@ -963,6 +966,9 @@ case "$SUBCMD" in
         # gdd-orientation skill calls this so it can probe the file
         # in one auto-approved command instead of compound shell.
         ws_resolve_thalamus_path
+        ;;
+    upgrade)
+        ws_hoard_upgrade "$@"
         ;;
     *)
         ws_hoard_clone_url "$SUBCMD" "$@"
