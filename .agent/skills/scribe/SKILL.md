@@ -113,7 +113,7 @@ Naming pattern: `YYYY-MM-DD - Topic.md`. Lives in `10_Projects/Daily/`
 or `20_Areas/Journal/` — your call, but pick one and be consistent.
 
 When the user says *"start a daily note"* or *"jot something for today"*,
-use the `60_Metadata/Templates/daily-note.md` shape if it exists,
+use the `60_Metadata/Templates/Daily Note.md` shape if it exists,
 otherwise create with this minimal frontmatter:
 
 ```yaml

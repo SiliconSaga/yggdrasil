@@ -323,9 +323,7 @@ who frequently dip into capture from multi-vault workspaces should set
 
 ### `templates/hoards/obsidian-vault/`
 
-Vendored, vanilla, no plugins. Aligned with the `00–06` PARA + supporting
-numbering for symmetry with the Claudesidian template (one set of scribe
-conventions covers both).
+Vendored, vanilla, no plugins. Aligned with the sparse `00 / 10 / 20 / 30 / 40 / 50 / 60` PARA + supporting numbering for symmetry with the Claudesidian template (one set of scribe conventions covers both). The sparse step leaves room to slot in additional folders (e.g. between Inbox and Projects) without renumbering existing ones.
 
 ```text
 templates/hoards/obsidian-vault/
@@ -350,20 +348,19 @@ templates/hoards/obsidian-vault/
 │   └── .gitkeep
 └── 60_Metadata/
     └── Templates/
-        ├── daily-note.md      # YYYY-MM-DD - Topic + sections
-        ├── project-note.md    # goal, scope, deliverable, links
-        ├── meeting-note.md    # attendees, agenda, decisions, actions
-        ├── inbox-capture.md   # blank capture w/ frontmatter
-        └── weekly-review.md   # template for the weekly review pattern
+        ├── Area Note.md         # ongoing-responsibility note
+        ├── Clipping.md          # web-clipper landing page
+        ├── Daily Note.md        # YYYY-MM-DD - Topic + sections
+        ├── Inbox Capture.md     # blank capture w/ frontmatter
+        ├── Meeting Note.md      # attendees, agenda, decisions, actions
+        ├── Monthly Review.md    # monthly review pattern
+        ├── Project Note.md      # goal, scope, deliverable, links
+        └── Weekly Review.md     # template for the weekly review pattern
 ```
 
-`README.md` covers: what this is, PARA layout reminder, optional Obsidian
-install instructions, how GDD's scribe skill operates against the vault,
-template usage, pointer to the Claudesidian variant.
+Filenames follow Obsidian's Title-Case-with-spaces convention so they appear naturally in the Templater "Insert template" dropdown. `README.md` covers: what this is, PARA layout reminder, optional Obsidian install instructions, how GDD's scribe skill operates against the vault, template usage, pointer to the Claudesidian variant.
 
-`Templates/*.md` use Obsidian's built-in template syntax (`{{date:YYYY-MM-DD}}`)
-so they work both with Obsidian's Templates plugin and with the scribe skill
-when creating notes via Claude.
+`Templates/*.md` mostly use Templater syntax (`<% tp.date.now(...) %>`); `Daily Note.md` uses Obsidian's built-in Templates syntax (`{{date:YYYY-MM-DD}}`). Both are honored by the scribe skill when creating notes via Claude — the skill reads the template and substitutes accordingly.
 
 ### `templates/hoards/claudesidian-vault/`
 
