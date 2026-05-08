@@ -1,6 +1,6 @@
 # Obsidian vault hoard
 
-The `obsidian-vault` template is the canonical PKM-flavored hoard. Init creates a PARA-laid-out Obsidian vault with a curated plugin set installed and pre-configured for daily-note capture, project tracking, and dashboard-driven review. This is paired with the "Scribe" skill and role available for your GDD agent.
+The `obsidian-vault` template is the primary PKM-flavored hoard. Init creates a PARA-laid-out Obsidian vault with a small curated plugin set installed and pre-configured for daily-note capture, project tracking, and dashboard-driven review. This is paired with the "Scribe" skill and role available for your GDD agent.
 
 ## Init
 
@@ -13,7 +13,7 @@ ws hoard init obsidian-vault --name <your-vault-name>
 What this does for you:
 
 1. Copies the template content (PARA folders, base templates, `Dashboard.md`, `README.md`, `00_Inbox/Welcome.md`) into `hoards/<your-vault-name>/`
-2. Fetches seven Obsidian community plugins from their GitHub releases at pinned versions and installs them under `.obsidian/plugins/`
+2. Fetches a few Obsidian community plugins from their GitHub releases at pinned versions and installs them under `.obsidian/plugins/`
 3. Seeds each plugin's `data.json` with sane defaults aligned to PARA layout — Templater folder mappings, Periodic Notes wiring for daily/weekly/monthly, Linter rules, etc.
 4. Disables the core daily-notes plugin (Periodic Notes supersedes it) and removes its now-redundant config file
 5. Initializes a git repo and creates the initial commit
@@ -38,8 +38,6 @@ Seven community plugins, all auto-installed on init and pinned to known-working 
 
 Plugin code (`main.js`, `styles.css`) is *committed by default* in fresh hoards so all devices — including Android via the Obsidian Git plugin, which has no `ws hoard upgrade` — get the JS via `git pull`. `manifest.json` and `data.json` are also tracked. The vault's `.gitignore` documents the opt-in path back to a minimal repo (gitignore the JS, refetch via `ws hoard upgrade` on desktop only); pick whichever fits your sync model. The single always-ignored exception is `.obsidian/plugins/obsidian-git/` — its `data.json` holds the auth Personal Access Token for mobile sync and must not enter git history.
 
-The `Minimal Theme Settings` plugin used to be in this set but isn't anymore — it's the companion plugin for the [Minimal theme](https://github.com/kepano/obsidian-minimal), inert without that theme installed. If you choose Minimal as your theme later, add it back by appending an entry in `templates/hoards/obsidian-vault/.upgrade/upgrade.yaml`.
-
 ## PARA conventions
 
 Folder roles, applied by both the human and the `scribe` skill:
@@ -58,7 +56,7 @@ The capture-process-organize loop lives in the `scribe` skill, which the agent l
 
 ## Templates and syntax
 
-Eight templates ship in `06_Metadata/Templates/`. Two different substitution syntaxes are in play depending on which plugin owns each template:
+Some templates ship in `06_Metadata/Templates/`. Two different substitution syntaxes are in play depending on which plugin owns each template:
 
 | Template | Plugin | Syntax |
 |----------|--------|--------|
@@ -131,13 +129,13 @@ Cross-platform safe (Windows / Mac / Linux):
 
 ## Refresh / upgrade
 
-`ws hoard upgrade <vault-name>` is the canonical refresh:
+`ws hoard upgrade <vault-name>` allows you to re-baseline the hoard against the template, for instance if new plugin versions have been pinned:
 
 ```bash
 ws hoard upgrade <your-vault-name>
 ```
 
-Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins, or on a fresh desktop where you want to authoritatively re-baseline the plugin set to the template's pins. By default new vaults commit plugin code, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` needing to run first; upgrade is for *intentional* re-baselines.
+Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins. By default new vaults commit plugin code, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` needing to run first; upgrade is for *intentional* re-baselines.
 
 What upgrade does:
 
@@ -164,7 +162,7 @@ The vault syncs to Android via the [Obsidian Git community plugin](https://githu
 
 ### Why git, not Obsidian Sync
 
-Obsidian Sync ($8/mo, first-party) works fine but creates a parallel sync layer alongside git, which gets awkward when you want git to be the source of truth across multiple desktops. Git-based sync via Obsidian Git keeps a single source of truth for free and integrates naturally with the workspace's existing `ws push` / `ws pull` flow on desktop.
+Obsidian Sync (first-party paid service) works fine but creates a parallel sync layer alongside git, which gets awkward when you want git to be the source of truth across multiple computers. Git-based sync via Obsidian Git keeps a single source of truth for free and integrates naturally with the workspace's existing `ws push` / `ws pull` flow on desktop.
 
 ### Plugin-code-in-git policy
 
