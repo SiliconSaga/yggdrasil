@@ -37,10 +37,10 @@ TABLE WITHOUT ID
       choice(s = "closed", "✅", "📦"))) AS "Fresh",
   choice(s = "active", "🐢 (≤10d)",
     choice(s = "parked", "🕸️ (≤10d)",
-      choice(s = "closed", "✅", "📦"))) AS "Slowing",
+      "Audited")) AS "Slowing",
   choice(s = "active", "⚠️ (>10d)",
     choice(s = "parked", "🧊 (>10d)",
-      choice(s = "closed", "✅", "📦"))) AS "Stale"
+      "Pruned")) AS "Stale"
 FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
@@ -49,9 +49,9 @@ GROUP BY s
 SORT s ASC
 ```
 
-Statuses with zero arcs won't show a row. The emoji columns describe what you'd see in the main Arcs table for that status × age combination.
+The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned").
 
-## Tags (>1 arc)
+## Tags and hosts
 
 ```dataviewjs
 const counts = {};
@@ -69,8 +69,6 @@ const out = Object.entries(counts)
   .map(([tag, n]) => `**${tag}** (${n})`);
 dv.paragraph(out.length ? out.join(" · ") : "_none_");
 ```
-
-## Per-host
 
 ```dataviewjs
 const hosts = dv.pages('""')
