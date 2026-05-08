@@ -9,7 +9,7 @@ tags: [dashboard]
 
 ```dataview
 TABLE WITHOUT ID file.link as Project, deadline as Due, (date(today) - deadline) as "Days Overdue"
-FROM "01_Projects"
+FROM "10_Projects"
 WHERE deadline <= date(today) AND status = "active"
 SORT deadline ASC
 ```
@@ -48,7 +48,7 @@ hide task count
 
 ```tasks
 not done
-path includes 01_Projects
+path includes 10_Projects
 tag does not include #priority
 (no due date) OR (due after today)
 hide backlink
@@ -64,6 +64,6 @@ hide task count
 > 3. **Organize** items into PARA folders, otherwise → Organize.
 > 4. **Date** items that must happen today (`📅 YYYY-MM-DD`) → Due.
 > 5. **Tag** important items with `#priority` or `#priority/high` → Priority.
-> 6. **Project** items go to `01_Projects/<name>/` → Projects.
+> 6. **Project** items go to `10_Projects/<name>/` → Projects.
 >
 > *If a Dataview table looks stale (e.g. after midnight), `Ctrl-P → Dataview: Force Refresh Views`. Map to F5 for convenience.*

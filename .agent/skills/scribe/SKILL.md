@@ -54,12 +54,12 @@ Folder roles in a vault scaffolded by `ws hoard init obsidian-vault`:
 | Folder | Role |
 |--------|------|
 | `00_Inbox/` | Temporary capture point. Process weekly to <20 items. |
-| `01_Projects/` | Time-bound initiatives with a clear completion criterion. Each project lives in its own subfolder. |
-| `02_Areas/` | Ongoing responsibilities without an end date. |
-| `03_Resources/` | Reference material organized by topic. |
-| `04_Archive/` | Completed projects and inactive notes. Move whole project folders here when done. |
-| `05_Attachments/` | Binary attachments (images, PDFs). |
-| `06_Metadata/Templates/` | Reusable note templates. |
+| `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project lives in its own subfolder. |
+| `20_Areas/` | Ongoing responsibilities without an end date. |
+| `30_Resources/` | Reference material organized by topic. |
+| `40_Archive/` | Completed projects and inactive notes. Move whole project folders here when done. |
+| `50_Attachments/` | Binary attachments (images, PDFs). |
+| `60_Metadata/Templates/` | Reusable note templates. |
 
 When creating notes:
 - New captures default to `00_Inbox/`
@@ -79,13 +79,13 @@ status: active   # or 'unprocessed' for inbox captures, 'archived' for done item
 ```
 
 Substitute the actual date when creating notes via Claude. The
-templates in `06_Metadata/Templates/` use two different substitution
+templates in `60_Metadata/Templates/` use two different substitution
 syntaxes depending on which plugin owns the template:
 
 - **Templater syntax** (`<% tp.date.now("YYYY-MM-DD") %>`,
   `<% tp.file.title %>`) — Project Note, Area Note, Inbox Capture,
   Meeting Note, Clipping. Auto-applied via Templater on file
-  creation in `01_Projects/` or `02_Areas/`.
+  creation in `10_Projects/` or `20_Areas/`.
 - **Core Templates / Periodic Notes syntax** (`{{date:YYYY-MM-DD}}`,
   `{{title}}`) — Daily Note, Weekly Review. Applied by Periodic
   Notes when you open today's daily note or this week's review.
@@ -109,11 +109,11 @@ note renames and Obsidian auto-updates them.
 
 ## Daily Notes
 
-Naming pattern: `YYYY-MM-DD - Topic.md`. Lives in `01_Projects/Daily/`
-or `02_Areas/Journal/` — your call, but pick one and be consistent.
+Naming pattern: `YYYY-MM-DD - Topic.md`. Lives in `10_Projects/Daily/`
+or `20_Areas/Journal/` — your call, but pick one and be consistent.
 
 When the user says *"start a daily note"* or *"jot something for today"*,
-use the `06_Metadata/Templates/daily-note.md` shape if it exists,
+use the `60_Metadata/Templates/daily-note.md` shape if it exists,
 otherwise create with this minimal frontmatter:
 
 ```yaml
@@ -159,10 +159,10 @@ Categorization rules:
 
 | Trigger | Destination |
 |---------|-------------|
-| Has deadline + specific outcome | `01_Projects/<name>/` |
-| Ongoing responsibility, no end date | `02_Areas/<area>/` |
-| Reference material / knowledge | `03_Resources/<topic>/` |
-| Old / completed / no longer active | `04_Archive/<topic>/` |
+| Has deadline + specific outcome | `10_Projects/<name>/` |
+| Ongoing responsibility, no end date | `20_Areas/<area>/` |
+| Reference material / knowledge | `30_Resources/<topic>/` |
+| Old / completed / no longer active | `40_Archive/<topic>/` |
 | Clearly noise (duplicate, expired) | delete (with confirmation) |
 | Quick capture / daily / fragment | leave in inbox |
 
@@ -201,7 +201,7 @@ structure on top of whatever the user already captured:
 Inputs to gather:
 
 - Files in the vault modified today (use vault-relative mtime)
-- Projects with activity (notes touched in `01_Projects/`)
+- Projects with activity (notes touched in `10_Projects/`)
 - Today's daily note's existing capture sections
 
 Three framing questions: *What was accomplished? What got stuck?
@@ -243,7 +243,7 @@ Synthesis moves:
 
 Side actions (offer):
 
-- Archive completed projects → `04_Archive/`
+- Archive completed projects → `40_Archive/`
 - Clean up inbox if items have aged
 - Update project statuses
 - Plan next week's 3 big rocks

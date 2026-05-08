@@ -7,12 +7,12 @@ Personal Obsidian vault, scaffolded as a hoard inside a GDD workspace. PARA-laid
 | Folder | Role |
 |--------|------|
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. |
-| `01_Projects/` | Time-bound initiatives. Templater auto-applies Project Note. |
-| `02_Areas/` | Ongoing responsibilities. Templater auto-applies Area Note. |
-| `03_Resources/` | Reference material. Includes `Clippings/` for web captures. |
-| `04_Archive/` | Completed projects and inactive notes. |
-| `05_Attachments/` | Binary attachments (images, PDFs). |
-| `06_Metadata/Templates/` | Reusable note templates. |
+| `10_Projects/` | Time-bound initiatives. Templater auto-applies Project Note. |
+| `20_Areas/` | Ongoing responsibilities. Templater auto-applies Area Note. |
+| `30_Resources/` | Reference material. Includes `Clippings/` for web captures. |
+| `40_Archive/` | Completed projects and inactive notes. |
+| `50_Attachments/` | Binary attachments (images, PDFs). |
+| `60_Metadata/Templates/` | Reusable note templates. |
 
 ## Pointers
 

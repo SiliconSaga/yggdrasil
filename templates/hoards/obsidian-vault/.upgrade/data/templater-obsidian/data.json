@@ -1,6 +1,6 @@
 {
   "command_timeout": 5,
-  "templates_folder": "06_Metadata/Templates",
+  "templates_folder": "60_Metadata/Templates",
   "templates_pairs": [
     [
       "",
@@ -15,12 +15,12 @@
   "enable_folder_templates": true,
   "folder_templates": [
     {
-      "folder": "01_Projects",
-      "template": "06_Metadata/Templates/Project Note.md"
+      "folder": "10_Projects",
+      "template": "60_Metadata/Templates/Project Note.md"
     },
     {
-      "folder": "02_Areas",
-      "template": "06_Metadata/Templates/Area Note.md"
+      "folder": "20_Areas",
+      "template": "60_Metadata/Templates/Area Note.md"
     }
   ],
   "enable_file_templates": false,

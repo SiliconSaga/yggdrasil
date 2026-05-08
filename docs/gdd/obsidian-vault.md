@@ -28,7 +28,7 @@ Seven community plugins, all auto-installed on init and pinned to known-working 
 
 | Plugin | Why |
 |--------|-----|
-| **Templater** | Folder→template auto-apply on file creation; scripted dates and titles via `<% tp.* %>`. Powers the magic where creating a note in `01_Projects/` auto-applies Project Note. |
+| **Templater** | Folder→template auto-apply on file creation; scripted dates and titles via `<% tp.* %>`. Powers the magic where creating a note in `10_Projects/` auto-applies Project Note. |
 | **Periodic Notes** | Daily / weekly / monthly notes from templates. Replaces the core daily-notes plugin (which is disabled). |
 | **Calendar** | Sidebar calendar widget; clicking a date opens-or-creates that day's daily note. Defers configuration to Periodic Notes when both are active. |
 | **Linter** | Auto-format on save — keeps frontmatter, headings, and spacing consistent so the vault stays machine-readable. |
@@ -45,18 +45,18 @@ Folder roles, applied by both the human and the `scribe` skill:
 | Folder | Role |
 |--------|------|
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. Process weekly to under 20 items. |
-| `01_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Templater auto-applies Project Note here. |
-| `02_Areas/` | Ongoing responsibilities without an end date. Templater auto-applies Area Note here. |
-| `03_Resources/` | Reference material organized by topic. Includes `Clippings/` for web captures. |
-| `04_Archive/` | Completed projects and inactive notes. |
-| `05_Attachments/` | Binary attachments (images, PDFs). |
-| `06_Metadata/Templates/` | Reusable note templates. |
+| `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Templater auto-applies Project Note here. |
+| `20_Areas/` | Ongoing responsibilities without an end date. Templater auto-applies Area Note here. |
+| `30_Resources/` | Reference material organized by topic. Includes `Clippings/` for web captures. |
+| `40_Archive/` | Completed projects and inactive notes. |
+| `50_Attachments/` | Binary attachments (images, PDFs). |
+| `60_Metadata/Templates/` | Reusable note templates. |
 
 The capture-process-organize loop lives in the `scribe` skill, which the agent loads when you say things like *"jot this in my inbox"* or *"process my inbox"*.
 
 ## Templates and syntax
 
-Some templates ship in `06_Metadata/Templates/`. Two different substitution syntaxes are in play depending on which plugin owns each template:
+Some templates ship in `60_Metadata/Templates/`. Two different substitution syntaxes are in play depending on which plugin owns each template:
 
 | Template | Plugin | Syntax |
 |----------|--------|--------|
@@ -95,7 +95,7 @@ The recommended cadence:
 
 A Dataview-driven dashboard ships at the vault root. It surfaces:
 
-- Overdue active projects (Dataview query against `01_Projects/`)
+- Overdue active projects (Dataview query against `10_Projects/`)
 - Tasks due today or before today
 - Priority-tagged tasks
 - Inbox items needing organization
@@ -107,11 +107,11 @@ To customize: edit the queries in `Dashboard.md`. Dataview and Tasks both have r
 
 ## Web clipping
 
-The Obsidian Web Clipper is a *browser* extension, not an Obsidian plugin. The vault ships with a `03_Resources/Clippings/` folder and a `Clipping.md` template, but you install the extension separately.
+The Obsidian Web Clipper is a *browser* extension, not an Obsidian plugin. The vault ships with a `30_Resources/Clippings/` folder and a `Clipping.md` template, but you install the extension separately.
 
 Conventions:
 
-- Extension destination folder: `03_Resources/Clippings/`
+- Extension destination folder: `30_Resources/Clippings/`
 - Configure highlights to *replace* page content (not append) so clippings aren't full-page noise
 
 Browser links in the `Welcome.md` first-time setup section.
@@ -120,7 +120,7 @@ Browser links in the `Welcome.md` first-time setup section.
 
 Cross-platform safe (Windows / Mac / Linux):
 
-- **Folders:** numbered + Title Case, no spaces (`00_Inbox`, `06_Metadata`)
+- **Folders:** numbered + Title Case, no spaces (`00_Inbox`, `60_Metadata`)
 - **Subfolders:** Title Case, single word or hyphenated (`Templates`, `Reference`)
 - **Note filenames:** Title Case with spaces (`Daily Note.md`, `Project Note.md`)
 - **Daily notes:** `YYYY-MM-DD.md` (rename to `YYYY-MM-DD - Topic.md` after the fact if useful)

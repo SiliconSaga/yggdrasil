@@ -169,8 +169,8 @@ Content sections (~150 lines):
    meta-flavor covers both plain Obsidian vaults and Claudesidian
    variants in a single query, including Claudesidian vaults that
    haven't been opened in Obsidian locally yet.
-3. **PARA conventions** — folder roles for `00_Inbox`/`01_Projects`/
-   `02_Areas`/`03_Resources`/`04_Archive`/`05_Attachments`/`06_Metadata`
+3. **PARA conventions** — folder roles for `00_Inbox`/`10_Projects`/
+   `20_Areas`/`30_Resources`/`40_Archive`/`50_Attachments`/`60_Metadata`
 4. **Frontmatter habits** — YAML frontmatter for new notes (created date,
    tags, status)
 5. **Wikilinks and embeds** — `[[link]]`, `![[embed]]`, alias syntax
@@ -338,17 +338,17 @@ templates/hoards/obsidian-vault/
 │                              #  templates, command-palette only
 ├── 00_Inbox/
 │   └── Welcome.md             # starter note with frontmatter + wikilinks
-├── 01_Projects/
+├── 10_Projects/
 │   └── README.md              # one-line role description
-├── 02_Areas/
+├── 20_Areas/
 │   └── README.md
-├── 03_Resources/
+├── 30_Resources/
 │   └── README.md
-├── 04_Archive/
+├── 40_Archive/
 │   └── README.md
-├── 05_Attachments/
+├── 50_Attachments/
 │   └── .gitkeep
-└── 06_Metadata/
+└── 60_Metadata/
     └── Templates/
         ├── daily-note.md      # YYYY-MM-DD - Topic + sections
         ├── project-note.md    # goal, scope, deliverable, links
