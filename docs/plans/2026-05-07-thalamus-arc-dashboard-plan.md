@@ -396,7 +396,6 @@ add:
   - .agent/skills/gdd-flow/SKILL.md
   - .agent/skills/gdd-housekeeping/SKILL.md
   - docs/gdd/hoards.md
-  - .commits/feat-thalamus-arc-dashboard.md
 ---
 
 Add an `arcs:` list to per-machine Thalamus frontmatter, plus a Dataview-rendered `ArcDashboard.md` template for the thalami hoard. Cross-host visibility into in-flight work without a CI pipeline, a Pages site, or any new infrastructure — Obsidian + Dataview, opened on each machine.
