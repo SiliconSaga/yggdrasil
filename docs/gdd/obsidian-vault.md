@@ -182,7 +182,7 @@ When you enable obsidian-git on the phone, Obsidian writes `"obsidian-git"` to `
 
 If the notice persists or you'd rather not see it at all, the cleanest workaround is a **per-clone gitignore on phone only**: edit `.git/info/exclude` inside the *phone's* cloned repo (this file is local-only, never committed) and add:
 
-```
+```gitignore
 .obsidian/community-plugins.json
 ```
 

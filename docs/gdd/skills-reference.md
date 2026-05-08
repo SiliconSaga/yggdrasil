@@ -33,9 +33,7 @@ See [Roles and Modes](roles-and-modes.md) for the full mental model.
 
 ## Roles — *what kind* of work
 
-Roles scope the agent to a specific kind of work. A session has at
-most one role active. Today only **Scribe** has a dedicated skill
-file.
+Roles scope the agent to a specific kind of work. A session has at most one role active. Today only **Scribe** has a dedicated skill file.
 
 | Skill | Use when |
 |---|---|

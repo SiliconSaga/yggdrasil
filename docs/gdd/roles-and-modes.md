@@ -17,9 +17,7 @@ behavior). A person can switch roles between sessions or even within one.
 Roles aren't skill levels. A first-time contributor and a 20-year veteran
 can both be in the Developer role — they'll just have different modes active.
 
-Today only the **Scribe** role has a dedicated skill file; the
-other roles are the assumed default and rely on mode and practice
-skills rather than a single role file.
+Today only the **Scribe** role has a dedicated skill file; the other roles are the assumed default and rely on mode and practice skills rather than a single role file.
 
 ## Modes
 

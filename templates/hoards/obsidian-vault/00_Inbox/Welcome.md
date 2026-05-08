@@ -113,7 +113,7 @@ Default phone commits look like `vault backup: 2026-05-07 15:07:50` — fine but
 
 Obsidian-Git offers a few useful template variables with `{{date}}` a good automated differentiator between commits. The `{{hostname}}` variable may not work on Android; consider just giving a name for your phone instead. Example:
 
-```
+```text
 Updates from Pixel 9 Fold at {{date}}
 ```
 

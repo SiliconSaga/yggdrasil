@@ -147,7 +147,7 @@ the inbox files, exclude obvious dailies/weekly/monthly review files
 and the Dashboard, then for each remaining item produce a **decision
 card** the user can ack/edit before applying:
 
-```
+```text
 File: <filename>
 Type: <project / area / resource / archive / delete / leave>
 Destination: <PARA folder> (or 'leave in inbox')

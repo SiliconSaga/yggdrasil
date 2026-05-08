@@ -161,8 +161,7 @@ PRs against the thalami hoard, don't request CodeRabbit/Copilot review,
 don't gate the push on anything beyond the rebase. The whole point of
 the hoard is fast personal-state sync; ceremony defeats it.
 
-Same convention applies to other personal hoards (Obsidian vaults,
-scratch hoards). PRs are a component-and-realm pattern.
+Same convention applies to other personal hoards (Obsidian vaults, scratch hoards). PRs are a component-and-realm pattern.
 
 ### When to use multi-thalami mode
 

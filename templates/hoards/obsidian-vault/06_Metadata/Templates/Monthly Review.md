@@ -27,8 +27,8 @@ tags: [review, monthly]
 
 ```tasks
 done
-done after <% startOfMonth %>
-done before <% endOfMonth %>
+done on or after <% startOfMonth %>
+done on or before <% endOfMonth %>
 sort by done date desc
 ```
 

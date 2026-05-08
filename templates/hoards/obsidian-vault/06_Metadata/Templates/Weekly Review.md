@@ -19,8 +19,8 @@ tags: [review, weekly]
 
 ```tasks
 done
-done after <% startOfWeek %>
-done before <% endOfWeek %>
+done on or after <% startOfWeek %>
+done on or before <% endOfWeek %>
 sort by done date desc
 ```
 
