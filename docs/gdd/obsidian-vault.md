@@ -36,7 +36,7 @@ Seven community plugins, all auto-installed on init and pinned to known-working 
 | **Dataview** | Query engine for live tables and dashboards. Powers `Dashboard.md`. |
 | **Tasks** | `- [ ]` query engine; supports due dates, recurring, filters. |
 
-Plugin code (`main.js`, `styles.css`) is gitignored in the vault repo. `manifest.json` and `data.json` stay in git so settings survive across machines but third-party JS isn't committed. `ws hoard upgrade` re-downloads the JS as needed.
+Plugin code (`main.js`, `styles.css`) is *committed by default* in fresh hoards so all devices — including Android via the Obsidian Git plugin, which has no `ws hoard upgrade` — get the JS via `git pull`. `manifest.json` and `data.json` are also tracked. The vault's `.gitignore` documents the opt-in path back to a minimal repo (gitignore the JS, refetch via `ws hoard upgrade` on desktop only); pick whichever fits your sync model. The single always-ignored exception is `.obsidian/plugins/obsidian-git/` — its `data.json` holds the auth Personal Access Token for mobile sync and must not enter git history.
 
 The `Minimal Theme Settings` plugin used to be in this set but isn't anymore — it's the companion plugin for the [Minimal theme](https://github.com/kepano/obsidian-minimal), inert without that theme installed. If you choose Minimal as your theme later, add it back by appending an entry in `templates/hoards/obsidian-vault/.upgrade/upgrade.yaml`.
 

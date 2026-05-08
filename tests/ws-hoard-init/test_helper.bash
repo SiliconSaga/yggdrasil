@@ -52,6 +52,13 @@ YAML
 
     # Force HOSTNAME so ws_resolve_machine_name() is deterministic.
     export HOSTNAME="testhost"
+
+    # Skip the upgrade phase that ws hoard init runs after copying a
+    # template. Upgrade hits GitHub releases for plugin downloads,
+    # which makes the standard-flow tests network-bound and flaky.
+    # The upgrade flow has its own targeted tests; init tests assert
+    # only the scaffold + git-init behavior.
+    export WS_HOARD_NO_UPGRADE=1
 }
 
 # Build a bare git repo with a single seed commit and echo its file:// URL.

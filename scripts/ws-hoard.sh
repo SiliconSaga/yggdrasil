@@ -779,7 +779,11 @@ ws_hoard_init() {
     if [[ -d "$target/.upgrade" ]]; then
         rm -rf "$target/.upgrade"
         # Only run if template still has .upgrade/ (the source)
-        if [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+        # Allow tests / offline runs / CI to opt out of the upgrade phase
+        # via WS_HOARD_NO_UPGRADE=1. Upgrade hits GitHub for plugin
+        # release downloads, which is fine for interactive use but bad
+        # for hermetic test runs.
+        if [[ -f "$template_dir/.upgrade/upgrade.yaml" && -z "${WS_HOARD_NO_UPGRADE:-}" ]]; then
             echo ""
             echo "Running upgrade phase from template..."
             _ws_hoard_upgrade_from_template "$template_dir" "$target" || {
@@ -787,6 +791,9 @@ ws_hoard_init() {
                 echo "  plugins were not installed. Re-run \`ws hoard upgrade $hoard_name\`" >&2
                 echo "  to retry." >&2
             }
+        elif [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+            echo "Skipping upgrade phase (WS_HOARD_NO_UPGRADE set). Run" >&2
+            echo "  \`ws hoard upgrade $hoard_name\` later to install plugins." >&2
         fi
     fi
 

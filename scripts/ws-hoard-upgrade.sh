@@ -3,21 +3,22 @@
 # template's upgrade.yaml.
 #
 # Templates that need an "after init" or "ongoing refresh" phase ship
-# an upgrade.yaml at templates/hoards/<flavor>/upgrade.yaml. Today
-# only obsidian-vault has one, but the discovery is generic.
+# the recipe under templates/hoards/<flavor>/.upgrade/ — specifically
+# .upgrade/upgrade.yaml plus companion data/<plugin-id>/data.json
+# overlays. Today only obsidian-vault has one, but the discovery is
+# generic.
 #
 # What an upgrade does (driven by upgrade.yaml + companion files):
 #   - Downloads pinned plugin releases from GitHub into
 #     <hoard>/.obsidian/plugins/<id>/
-#   - Copies template's data/<plugin-id>/data.json into the hoard,
-#     seeding plugin settings
+#   - Copies template's .upgrade/data/<plugin-id>/data.json into the
+#     hoard, seeding plugin settings
 #   - Writes <hoard>/.obsidian/community-plugins.json (the enabled list)
 #   - Disables conflicting core plugins in core-plugins.json
 #   - Removes redundant files (e.g. core daily-notes.json once
 #     Periodic Notes supersedes it)
-#   - Injects a marked section into the hoard's README.md from the
-#     template's vault_readme_section.md (idempotent via sentinel
-#     comments)
+#   - Refreshes a marked plugin table in the hoard's README.md
+#     between sentinel comments (idempotent on re-run)
 #
 # This is a one-shot install AND a refresh: re-running re-downloads,
 # re-overwrites data.json files, and replaces the README block.
@@ -192,10 +193,18 @@ _ws_hoard_upgrade_from_template() {
     local legacy_end="<!-- END upgrade:$marker_id -->"
     for _migrate_target in "$readme" "$hoard_dir/Welcome.md" "$hoard_dir/00_Inbox/Welcome.md"; do
         if [[ -f "$_migrate_target" ]] && grep -qF "$legacy_begin" "$_migrate_target" 2>/dev/null; then
-            sed -i \
+            # Avoid `sed -i` — its in-place flag differs between GNU
+            # (no arg) and BSD/macOS (requires an empty backup arg
+            # like `-i ''`). Write to a temp file and atomically swap
+            # via mv to stay portable across both.
+            local _migrate_tmp
+            _migrate_tmp="$(mktemp)"
+            sed \
                 -e "s|<!-- BEGIN upgrade:$marker_id -->|$begin_marker|g" \
                 -e "s|<!-- END upgrade:$marker_id -->|$end_marker|g" \
-                "$_migrate_target" 2>/dev/null || true
+                "$_migrate_target" > "$_migrate_tmp" 2>/dev/null \
+                && mv "$_migrate_tmp" "$_migrate_target" \
+                || rm -f "$_migrate_tmp"
             echo "Migrated legacy marker format in $(basename "$_migrate_target")"
         fi
     done
@@ -222,7 +231,7 @@ _ws_hoard_upgrade_from_template() {
                 p=$((p+1))
             done
             echo
-            echo "Plugin code (\`main.js\`, \`styles.css\`) is gitignored — only \`manifest.json\` and \`data.json\` are committed. \`ws hoard upgrade $(basename "$hoard_dir")\` re-fetches the JS from upstream releases at the pinned versions above."
+            echo "Versions track upstream releases at the pins above. \`ws hoard upgrade $(basename "$hoard_dir")\` re-fetches plugin code on demand — useful on a fresh clone (when \`main.js\` has been gitignored) or after bumping pins. See this vault's \`.gitignore\` for the plugin-code commit policy."
         } > "$table_tmp"
 
         # Splice the new table between the existing markers,
