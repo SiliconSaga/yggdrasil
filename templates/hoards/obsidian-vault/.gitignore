@@ -1,7 +1,26 @@
 # Obsidian local state — not vault content
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+.obsidian/hotkeys-mobile.json
 .trash/
+
+# Plugin code is COMMITTED by default so all devices (including
+# Android via Obsidian Git plugin, which has no `ws hoard upgrade`)
+# get the JS on git pull. Adds ~1.5MB to the repo — fine for
+# personal use.
+#
+# To switch to a minimal repo (plugin code refetched on demand via
+# `ws hoard upgrade <vault>` on desktop only — no mobile sync),
+# uncomment these lines and `git rm --cached .obsidian/plugins/*/main.js
+#.obsidian/plugins/*/styles.css`:
+#.obsidian/plugins/*/main.js
+#.obsidian/plugins/*/styles.css
+#.obsidian/plugins/*/data-*.json
+
+# Obsidian Git plugin: phone-only, and its data.json holds your auth
+# Personal Access Token. Always ignore the whole folder so the PAT
+# never lands in git history.
+.obsidian/plugins/obsidian-git/
 
 # Common OS / editor cruft
 .DS_Store

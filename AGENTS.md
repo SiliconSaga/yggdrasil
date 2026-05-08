@@ -93,8 +93,7 @@ Superpowers — only the `superpowers:*` plugin skills are unavailable.
 | **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
 | **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
 | **GDD Flow Mode** | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
-| **Scribe** | Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks, inbox capture. Auto-loads for `role: scribe`; other roles dip in on capture-intent keywords. | [SKILL.md](./.agent/skills/scribe/SKILL.md) |
-| **Scribe Claudesidian** | Extension for Claudesidian-flavored vaults: reads vault CLAUDE.md, surfaces command manifest, plain-text invocation of /thinking-partner / /weekly-synthesis / etc. Auto-loaded by scribe when the bound vault has `claudesidian` flavor. | [SKILL.md](./.agent/skills/scribe-claudesidian/SKILL.md) |
+| **Scribe** | Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. Auto-loads for `role: scribe`; other roles dip in on capture-intent keywords. | [SKILL.md](./.agent/skills/scribe/SKILL.md) |
 | **BDD** | Gherkin scenarios, feature authoring, planning features, runner integration, and BDD conventions | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
 | **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/bdd-pytest/SKILL.md) |
 | **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/creating-github-issues/SKILL.md) |
@@ -215,9 +214,8 @@ macOS, and Windows Git Bash). Pin a stable name with `machine: <value>`
 in `ecosystem.local.yaml` if needed.
 
 Hoard templates ship under `templates/hoards/<flavor>/`. Current flavors:
-`thalami`, `basic`, `obsidian-vault` (vanilla Obsidian), `claudesidian-vault`
-(thin wrapper around upstream
-[Claudesidian](https://github.com/heyitsnoah/claudesidian)).
+`thalami`, `basic`, `obsidian-vault` (PARA-laid-out Obsidian vault with
+auto-installed Templater + Periodic Notes + companion plugins).
 
 See [Realms and Hoards Design](docs/plans/2026-04-24-realms-and-hoards-design.md)
 for the full picture.
@@ -271,6 +269,21 @@ draft, rebase), read the **Topic Branch Workflow** skill at
 
 See [`docs/code-style.md`](docs/code-style.md) for commenting and documentation
 conventions.
+
+### Prose line wrapping
+
+**Don't hard-wrap prose at any character count.** Write each paragraph as a single line and let editors / renderers handle wrap.
+
+This applies to all prose: markdown documents, READMEs, issue bodies, CR/PR descriptions, commit message bodies, hoard notes (Obsidian vault content), Thalamus entries, design docs.
+
+It does *not* apply to:
+
+- Code blocks (use whatever wrap fits the language)
+- Tables (one row per line)
+- Lists (one bullet per line — bullets are list items, not prose)
+- YAML frontmatter
+
+**Why:** GitHub renders some hard-wrapped contexts as visible line breaks; Obsidian/markdown editors wrap automatically; reflowing after every edit is friction. Specific code or tooling may have its own wrap conventions — follow those when they exist (e.g. Mermaid diagrams have their own rules in the writing-yggdrasil-docs skill).
 
 ---
 

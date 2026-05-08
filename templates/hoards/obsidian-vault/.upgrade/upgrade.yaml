@@ -1,0 +1,78 @@
+# Upgrade recipe for obsidian-vault hoards.
+#
+# Run automatically by `ws hoard init obsidian-vault`, and re-runnable
+# any time via `ws hoard upgrade <hoard-name>` to refresh plugins on a
+# fresh clone or after bumping pins below.
+#
+# Plugins are downloaded fresh from each upstream's pinned GitHub
+# release — main.js / styles.css are NOT vendored. The companion
+# data/<id>/data.json files are copied into the hoard verbatim to
+# seed plugin settings.
+#
+# By default the hoard's .gitignore *commits* plugin code so devices
+# without `ws hoard upgrade` (notably Android via the Obsidian Git
+# plugin) receive plugin JS through `git pull`. Hoards that prefer a
+# minimal repo can flip the gitignore (commented opt-in is documented
+# in templates/hoards/obsidian-vault/.gitignore). Either way,
+# manifest.json + data.json are always tracked.
+
+description: |
+  Templater + folder→template auto-apply, Periodic Notes (daily,
+  weekly, monthly), Calendar sidebar, Linter (auto-format on save),
+  Filename Heading Sync, Dataview, Tasks. Targets vaults laid out
+  with PARA folders 00_Inbox / 01_Projects / 02_Areas / etc. and
+  templates at 06_Metadata/Templates/.
+
+# Plugins to install. Each entry:
+#   id          — plugin id (must match manifest.json's `id`)
+#   name        — display name for the README plugin table
+#   description — one-line role for the README plugin table
+#   repo        — owner/repo on GitHub
+#   pin         — release tag. Upgrade tries this verbatim first,
+#                 then v<pin> as fallback (some repos use v-prefix).
+plugins:
+  - id: templater-obsidian
+    name: Templater
+    description: Folder→template auto-apply on file creation; powers `<% tp.* %>` syntax in `01_Projects/` and `02_Areas/`.
+    repo: SilentVoid13/Templater
+    pin: "2.18.1"
+  - id: periodic-notes
+    name: Periodic Notes
+    description: Daily / weekly / monthly notes from the matching templates. Replaces core daily-notes (which is disabled).
+    repo: liamcain/obsidian-periodic-notes
+    pin: "0.0.17"
+  - id: calendar
+    name: Calendar
+    description: Sidebar calendar widget; click a date to open or create that day's note.
+    repo: liamcain/obsidian-calendar-plugin
+    pin: "1.5.10"
+  - id: dataview
+    name: Dataview
+    description: Query engine for live tables and dashboards. Powers `Dashboard.md`.
+    repo: blacksmithgu/obsidian-dataview
+    pin: "0.5.68"
+  - id: obsidian-tasks-plugin
+    name: Tasks
+    description: "`- [ ]` query engine; due dates, recurring, filters."
+    repo: obsidian-tasks-group/obsidian-tasks
+    pin: "7.22.0"
+  - id: obsidian-linter
+    name: Linter
+    description: Auto-format on save — frontmatter, headings, spacing. Keeps the vault machine-readable.
+    repo: platers/obsidian-linter
+    pin: "1.30.0"
+  - id: obsidian-filename-heading-sync
+    name: Filename Heading Sync
+    description: Keeps each note's filename and `# H1` in lockstep. Templates folder + `README.md` are excluded.
+    repo: dvcrn/obsidian-filename-heading-sync
+    pin: "1.10.3"
+
+# Core Obsidian plugins to disable (they conflict with replacements
+# installed above). Patches `.obsidian/core-plugins.json`.
+core_plugins_disable:
+  - daily-notes  # Periodic Notes supersedes; both enabled is messy
+
+# Files inside the hoard to remove after applying. Useful for
+# scrubbing now-redundant config that the base template shipped.
+files_remove:
+  - .obsidian/daily-notes.json  # core daily-notes config no longer needed

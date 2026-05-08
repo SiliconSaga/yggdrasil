@@ -1,0 +1,35 @@
+{
+  "showGettingStartedBanner": false,
+  "hasMigratedDailyNoteSettings": true,
+  "hasMigratedWeeklyNoteSettings": true,
+  "daily": {
+    "format": "YYYY-MM-DD",
+    "folder": "00_Inbox",
+    "template": "06_Metadata/Templates/Daily Note",
+    "enabled": true
+  },
+  "weekly": {
+    "format": "gggg-[W]ww",
+    "folder": "00_Inbox",
+    "template": "06_Metadata/Templates/Weekly Review",
+    "enabled": true
+  },
+  "monthly": {
+    "format": "YYYY-MM",
+    "folder": "00_Inbox",
+    "template": "06_Metadata/Templates/Monthly Review",
+    "enabled": true
+  },
+  "quarterly": {
+    "format": "",
+    "template": "",
+    "folder": "",
+    "enabled": false
+  },
+  "yearly": {
+    "format": "",
+    "template": "",
+    "folder": "",
+    "enabled": false
+  }
+}

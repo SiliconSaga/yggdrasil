@@ -3,15 +3,34 @@
 # Optional scope in parens, e.g. "fix(ws):", "feat(realm):"
 message: "type(scope): short imperative description"
 
-# Files to stage before committing. Paths are relative to the component root,
-# not the yggdrasil root. Omit if you've already staged manually (not recommended).
+# Files / directories to stage. Each entry is passed verbatim to `git add`.
+# Paths are relative to the component root (not yggdrasil root).
+#
+# What works:
+#   - new or modified files                → regular path
+#   - already-deleted-from-disk-but-tracked file → regular path
+#                                            (git add detects the deletion)
+#   - directories                          → stages new + modified files
+#                                            recursively (NOT deletions)
+#
+# What does NOT work:
+#   - a directory you've fully `rm -rf`'d  → git add errors on missing path.
+#     Pre-stage with `git add -A <dir>` before the ws commit, then list
+#     surviving (new / modified) files individually in add: below.
+#
+# add: is fail-fast: if any listed path doesn't exist on disk AND isn't a
+# tracked deletion, the commit aborts before staging anything.
 add:
   - path/to/file1.md
   - path/to/file2.java
+  - path/to/dir/
 
-# Optional — deleted files to stage for removal. Omit if no deletions.
+# Paths to delete via `git rm` (touches index AND working tree). Use only
+# for files still on disk that this commit should remove. For files
+# already removed from disk, list them in add: instead — git add stages
+# the deletion of tracked files transparently.
 # remove:
-#   - path/to/old-file.md
+#   - path/to/still-on-disk-but-should-be-deleted.md
 ---
 
 [Extended commit body — the "why" behind the change.]

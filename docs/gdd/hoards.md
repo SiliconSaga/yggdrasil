@@ -184,12 +184,7 @@ pattern.
 Hoards are intentionally generic; thalami is just the first type
 shipped. Plausible future types:
 
-- **Vault-style knowledgebase** (Obsidian-flavored or similar). Users
-  who already maintain a personal knowledge graph could land it as a
-  hoard, get the `ws push/pull` ergonomics, and the cadence-config
-  shape for keeping it synced. The
-  [Claudesidian](https://github.com/heyitsnoah/claudesidian) project
-  is the prototypical example.
+- **Vault-style knowledgebase** (Obsidian-flavored or similar). `obsidian-vault` is the canonical example: PARA folders, base templates, plugin install + config seeded automatically on init. Users land their knowledge graph as a hoard and get the `ws push/pull` ergonomics + cadence-config for keeping it synced.
 - **Scratch / experiment** spaces — short-lived hoards for spike work
   that shouldn't pollute components but you want the workspace's
   CLI ergonomics for.

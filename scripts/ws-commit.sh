@@ -40,8 +40,21 @@ commit_help() {
         echo ""
         echo "Bodyfile frontmatter (YAML between --- markers):"
         echo "  message:      Commit subject line (required)"
-        echo "  add:          List of files to stage before committing"
-        echo "  remove:       List of deleted files to stage for removal"
+        echo "  add:          Paths to stage. Each is passed to \`git add\`."
+        echo "                Accepts files (new, modified, OR already-deleted-"
+        echo "                from-disk-but-tracked) and directories (stages new"
+        echo "                + modified files within recursively)."
+        echo "                FAILS FAST if a path doesn't exist on disk AND"
+        echo "                isn't a tracked deletion."
+        echo "                NOTE: a directory you've fully \`rm -rf\`'d won't"
+        echo "                stage via add: — git add on a missing dir errors."
+        echo "                Pre-stage with \`git add -A <dir>\` (or \`git rm -r"
+        echo "                --cached <dir>\` if also tracked-only) before the"
+        echo "                ws commit, then list new + modified files in add:."
+        echo "  remove:       Paths to delete via \`git rm\` (touches index AND"
+        echo "                working tree). Use only for files still on disk;"
+        echo "                for paths already removed from disk, list them in"
+        echo "                add: so git add detects the deletion instead."
         echo "  Frontmatter is stripped from the commit body automatically."
         echo ""
         echo "See templates/commit.md for a ready-to-copy bodyfile template."
@@ -148,7 +161,11 @@ if [[ -n "$bodyfile" ]]; then
                 add_fail=0
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
-                    if [[ ! -e "$f" ]]; then
+                    # Accept if the path exists on disk OR is a tracked path
+                    # whose file has been deleted (git add stages such
+                    # deletions). Only reject when both conditions fail —
+                    # that's the real misspelled-path / phantom-entry case.
+                    if [[ ! -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
                         echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
                         add_fail=1
                     fi

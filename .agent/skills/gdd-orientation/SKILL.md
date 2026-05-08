@@ -347,14 +347,13 @@ block the session on diagnostic tooling issues.
 #### 6c: Hoard vault scan
 
 If the active thalamus frontmatter resolved in Step 0 has `role: null`,
-also call `ws hoard scan --flavor vault` to detect any Obsidian or
-Claudesidian-flavored hoards (the `vault` meta-flavor matches both).
-The output is YAML; parse the entries and surface a brief inventory
-alongside the role question:
+also call `ws hoard scan --flavor vault` to detect any Obsidian-flavored
+hoards. The output is YAML; parse the entries and surface a brief
+inventory alongside the role question:
 
-> "role is null. Detected vaults: borgr (claudesidian), nonclaudesidian
-> (obsidian). Want scribe role for vault work, or another (developer
-> / designer / reviewer)?"
+> "role is null. Detected vaults: nonclaudesidian (obsidian),
+> vault-test (obsidian). Want scribe role for vault work, or another
+> (developer / designer / reviewer)?"
 
 If no vaults are detected, stay silent on the vault angle — just ask
 the role question normally. Don't surface "no vaults found" noise.

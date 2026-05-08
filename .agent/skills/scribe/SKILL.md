@@ -5,16 +5,15 @@ description: >
   inbox capture loop. Auto-loaded for `role: scribe`. Other roles can
   dip in on keyword detection — vault, note, journal, inbox, daily note,
   obsidian, PARA, wikilink, frontmatter, capture, jot, weekly review,
-  thinking partner, weekly synthesis, research assistant — when the
-  phrase implies capture intent, not bare keyword matches.
+  weekly synthesis, daily review — when the phrase implies capture
+  intent, not bare keyword matches.
 ---
 
 # Scribe Skill
 
 Operates against Obsidian-style vaults stored as hoards under
-`hoards/<name>/`. Vendor-flavor agnostic — handles plain Obsidian
-vaults directly. If a vault is detected as Claudesidian-flavored,
-hands off to `scribe-claudesidian` for extension behavior.
+`hoards/<name>/`. Handles capture, daily/weekly notes, inbox
+processing, and PARA conventions.
 
 ## When to Load
 
@@ -33,23 +32,16 @@ hands off to `scribe-claudesidian` for extension behavior.
 ## Vault Discovery and Binding
 
 Run `ws hoard scan --flavor vault` and parse the YAML inventory. The
-`vault` meta-flavor matches any hoard whose recorded flavors include
-`obsidian` or `claudesidian` — a single query covers both plain
-Obsidian vaults and Claudesidian variants, including Claudesidian
-vaults that haven't been opened in Obsidian on this machine yet.
+`vault` meta-flavor currently maps to `obsidian` (the only vault
+flavor today; the indirection is preserved for future flavors).
 
 Apply binding rules:
 
 | Match count | Action |
 |-------------|--------|
-| 0 | Tell the user no vault-flavored hoards exist. Offer `ws hoard init obsidian-vault` or `ws hoard init claudesidian-vault`. Exit binding flow if declined. |
+| 0 | Tell the user no vault-flavored hoards exist. Offer `ws hoard init obsidian-vault`. Exit binding flow if declined. |
 | 1 | Auto-bind to the single match. In-memory pin for the session. |
 | >1 | Check Thalamus frontmatter for `active_vault: <name>`. If set and matches a scanned hoard, use it silently. Otherwise ask the user which vault for this session. |
-
-After binding, re-check the bound hoard's flavor list (from the same
-`ws hoard scan` output). If it contains `claudesidian`, also load
-`.agent/skills/scribe-claudesidian/SKILL.md` to layer on the extension
-behavior.
 
 The pin is **session-local, in-memory**. Don't write the binding to
 Thalamus unless the user explicitly says *"make it permanent"* — in
@@ -57,8 +49,7 @@ which case set `active_vault: <name>` in frontmatter.
 
 ## PARA Conventions
 
-Folder roles in a vault scaffolded by GDD's templates (`obsidian-vault`
-or `claudesidian-vault` after `/init-bootstrap`):
+Folder roles in a vault scaffolded by `ws hoard init obsidian-vault`:
 
 | Folder | Role |
 |--------|------|
@@ -87,10 +78,21 @@ status: active   # or 'unprocessed' for inbox captures, 'archived' for done item
 ---
 ```
 
-Substitute the actual date — the templates in `06_Metadata/Templates/`
-use Obsidian's `{{date:YYYY-MM-DD}}` syntax that gets replaced when
-inserted via Obsidian's Templates plugin. When creating notes via
-Claude (not Obsidian's UI), substitute the literal date.
+Substitute the actual date when creating notes via Claude. The
+templates in `06_Metadata/Templates/` use two different substitution
+syntaxes depending on which plugin owns the template:
+
+- **Templater syntax** (`<% tp.date.now("YYYY-MM-DD") %>`,
+  `<% tp.file.title %>`) — Project Note, Area Note, Inbox Capture,
+  Meeting Note, Clipping. Auto-applied via Templater on file
+  creation in `01_Projects/` or `02_Areas/`.
+- **Core Templates / Periodic Notes syntax** (`{{date:YYYY-MM-DD}}`,
+  `{{title}}`) — Daily Note, Weekly Review. Applied by Periodic
+  Notes when you open today's daily note or this week's review.
+
+When you create notes via Claude (not the Obsidian UI), substitute
+the literal date so the frontmatter is valid YAML — neither
+substitution engine runs from outside Obsidian.
 
 ## Wikilinks and Embeds
 
@@ -136,27 +138,144 @@ status: active
 The capture-process-organize loop:
 
 1. **Capture** — anything new lands in `00_Inbox/` with `status: unprocessed`
-2. **Process** — weekly (or on demand), go through inbox items:
-   - Delete only when clearly safe (obvious noise, duplicates, expired
-     captures); when in doubt, move to `04_Archive/<topic>/` instead.
-     **Never auto-delete user content silently** — uncertain items
-     always go to Archive, not the trash.
-   - Move project material to `01_Projects/<name>/`
-   - Move ongoing-responsibility notes to `02_Areas/<area>/`
-   - Move reference material to `03_Resources/<topic>/`
-   - Update each moved note's frontmatter (`status: active`, add tags)
-   - Update wikilinks if names change
+2. **Process** — weekly (or on demand), iterate inbox items
 3. **Organize** — keep `00_Inbox/` under 20 items; if it's growing,
    processing cadence is too slow
 
-## Claudesidian Extension Hand-off
+When the user says *"process my inbox"* or *"sort the inbox"*, list
+the inbox files, exclude obvious dailies/weekly/monthly review files
+and the Dashboard, then for each remaining item produce a **decision
+card** the user can ack/edit before applying:
 
-After binding to a vault, check if `claudesidian` appears in its flavor
-list (from `ws hoard scan` output). If yes, also load
-`.agent/skills/scribe-claudesidian/SKILL.md`. That skill layers
-plain-text invocation of Claudesidian commands (`/thinking-partner`,
-`/inbox-processor`, `/weekly-synthesis`, etc.) on top of the core PARA
-behavior in this skill.
+```text
+File: <filename>
+Type: <project / area / resource / archive / delete / leave>
+Destination: <PARA folder> (or 'leave in inbox')
+Reason: <why this categorization>
+Related to: <wikilinks to existing notes if any connections show up>
+```
+
+Categorization rules:
+
+| Trigger | Destination |
+|---------|-------------|
+| Has deadline + specific outcome | `01_Projects/<name>/` |
+| Ongoing responsibility, no end date | `02_Areas/<area>/` |
+| Reference material / knowledge | `03_Resources/<topic>/` |
+| Old / completed / no longer active | `04_Archive/<topic>/` |
+| Clearly noise (duplicate, expired) | delete (with confirmation) |
+| Quick capture / daily / fragment | leave in inbox |
+
+After the user reviews the cards, apply the moves:
+
+- Update each moved note's frontmatter (`status: active`, add tags)
+- Update wikilinks if names change
+- **Never auto-delete user content silently** — uncertain items
+  always go to Archive, not the trash. Confirm deletes individually.
+
+**Restraint principle:** some items *legitimately* belong in the
+Inbox (daily notes, quick captures, in-progress thoughts). Don't
+over-organize — sometimes "good enough" is perfect. Lean toward
+"leave it" when the categorization isn't obvious.
+
+**Pattern recognition:** while iterating, surface combination
+opportunities ("these three notes are about the same project, want
+to merge?") and missing connections ("this note's topic is also
+covered in [[X]] — link them?").
+
+## Daily Review
+
+When the user says *"do a daily review"* or *"end-of-day review"*,
+build out today's daily note (already created by Periodic Notes at
+`00_Inbox/YYYY-MM-DD.md`, or create it if missing) with this richer
+structure on top of whatever the user already captured:
+
+- **Accomplished** — completed items today
+- **Progress** — what advanced, by project / area
+- **Insights** — realizations, learnings, surprises
+- **Blocked / stuck** — obstacles and reasons
+- **Discovered questions** — new inquiries that emerged
+- **Tomorrow's focus** — pick three priorities, no more
+- **Open loops** — checkbox follow-ups for tomorrow
+
+Inputs to gather:
+
+- Files in the vault modified today (use vault-relative mtime)
+- Projects with activity (notes touched in `01_Projects/`)
+- Today's daily note's existing capture sections
+
+Three framing questions: *What was accomplished? What got stuck?
+What unexpected discoveries emerged?*
+
+Side actions (offer, don't do silently):
+
+- Move completed `- [x]` items in projects to their archive section
+- Update `status:` on project notes that finished today
+- Add wikilinks from today's discoveries to existing concept notes
+
+## Weekly Synthesis
+
+When the user says *"do a weekly synthesis"* or *"weekly review"*,
+either open this week's review note (Periodic Notes creates it as
+`00_Inbox/<YYYY-[W]ww>.md` from the Weekly Review template) or
+create it if missing. The template already scaffolds Wins (via
+Tasks query), Project Review checklist, Themes, Connections, and
+Next Week's 3 big rocks — fill them in.
+
+Inputs to gather:
+
+- Notes created this week (vault-relative ctime)
+- Notes modified this week
+- Projects with activity
+- Tasks completed this week (the template's Tasks query auto-fills
+  this — read it back as part of the review)
+
+Synthesis moves:
+
+- **Recurring themes** — what showed up in multiple notes this week?
+- **Common challenges** — repeated obstacle patterns
+- **Breakthrough moments** — where understanding shifted
+- **Energy patterns** — when focused vs scattered (rough; user
+  judgment)
+- **Connections made** — explicitly map relationships between
+  notes / concepts surfaced this week. This is the move that turns
+  the review from *summary* into *synthesis*.
+
+Side actions (offer):
+
+- Archive completed projects → `04_Archive/`
+- Clean up inbox if items have aged
+- Update project statuses
+- Plan next week's 3 big rocks
+
+## De-AI-ifying Text
+
+When the user says *"de-AI-ify this"*, *"strip the AI tells from
+this"*, or *"make this sound less LLM"*:
+
+1. Read the source file.
+2. Write a transformed copy at `<original-stem>-HUMAN.md`. Don't
+   overwrite the original.
+3. Generate a `<original-stem>-HUMAN.changelog.md` next to it
+   listing each substitution made.
+
+Patterns to flag and rewrite:
+
+| Category | Examples to remove or replace |
+|----------|------------------------------|
+| Empty transitions | "Moreover," "Furthermore," "Additionally," excessive "However," "Importantly," |
+| Clichés | "In today's fast-paced world," "Let's dive deep," "Unlock your potential," "It's worth noting that" |
+| Hedging | "It's important to note," vague "various / numerous / myriad" |
+| Corporate words | utilize→use, facilitate→help, optimize→improve, leverage→use, demonstrate→show |
+| Robotic structure | rhetorical-question-then-answer, rigid parallel structure ("First… Second… Third…" without need), announcements of emphasis ("Importantly,") |
+
+Style restoration goals: varied sentence lengths, conversational
+tone, direct statements, natural transitions, confident assertions
+over hedged ones, specific examples over vague generalizations.
+
+Don't strip the user's actual voice — if they wrote "however" twice
+in a 2000-word piece, that's fine. The flag is for *patterns*
+(every paragraph starts with "Furthermore"), not isolated words.
 
 ## Keyword Calibration
 
@@ -172,7 +291,7 @@ those words appear in many non-vault contexts.
 | *"capture this idea"* | *"capture group in the regex"* |
 | *"add a daily note about X"* | *"daily standups are at 10"* |
 | *"start a meeting note"* | *"meeting notes from 2025 are gone"* |
-| *"do a weekly synthesis"* (Claudesidian) | *"weekly all-hands"* |
+| *"do a weekly synthesis"* | *"weekly all-hands"* |
 
 The distinction is **capture intent** — the user wants to record
 something into a vault — versus **incidental keyword match** — the

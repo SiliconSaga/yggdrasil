@@ -5,9 +5,25 @@ description: Use when writing or editing any documentation in the Yggdrasil ecos
 
 # Writing Yggdrasil Docs
 
-Conventions for documentation written in this ecosystem. Apply these rules to every
-file you create or edit that contains Mermaid diagrams or lives in a Yggdrasil-family
-repo (yggdrasil, refr-k8s, nidavellir, mimir, heimdall, etc.).
+Conventions for documentation written in this ecosystem. Apply these rules to every file you create or edit that contains Mermaid diagrams or lives in a Yggdrasil-family repo (yggdrasil, refr-k8s, nidavellir, mimir, heimdall, etc.).
+
+## Prose Line Wrapping
+
+**Don't hard-wrap prose paragraphs.** Write each paragraph as a single line. The editor or renderer handles word wrap.
+
+Why: hard-wrapped markdown looks awkward when GitHub renders some contexts as line breaks (issue bodies, certain comment threads), and reflowing after every edit is unnecessary friction for human editors. Obsidian and most markdown editors handle wrap natively.
+
+This applies to: markdown documents, READMEs, issue/PR bodies, commit messages, hoard notes, design docs.
+
+It does *not* apply to:
+
+- Code blocks (follow the language's conventions)
+- Tables (one row per line)
+- Lists (one bullet per line — bullet points are list items, not prose paragraphs)
+- YAML frontmatter
+- Mermaid diagrams (governed by the rules below)
+
+If a file already uses hard-wrapped prose throughout, *don't* reflow it as a side-effect of unrelated edits — match the file's existing convention. New files use the don't-wrap convention.
 
 ## Mermaid Rules
 

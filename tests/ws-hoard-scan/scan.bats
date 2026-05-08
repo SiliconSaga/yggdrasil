@@ -1,13 +1,8 @@
 #!/usr/bin/env bats
 
-# Lock in `ws hoard scan` classifier behavior against synthetic fixtures.
-#
-# Each test points HOARDS_DIR at fixtures/<scenario>/hoards/ and asserts
-# the YAML inventory the classifier emits. The fixtures pin the exact
-# trigger phrases the detection regex looks for — if upstream
-# Claudesidian's CLAUDE.md template ever drops "PARA Method" or renames
-# "Claudesidian", these tests fail loudly rather than letting detection
-# silently regress.
+# Lock in `ws hoard scan` classifier behavior against synthetic
+# fixtures. Each test points HOARDS_DIR at fixtures/<scenario>/hoards/
+# and asserts the YAML inventory the classifier emits.
 
 load test_helper
 
@@ -24,25 +19,6 @@ load test_helper
     [ "$status" -eq 0 ]
     [[ "$output" == *"name: plain"* ]]
     [[ "$output" == *"flavors: [obsidian]"* ]]
-}
-
-@test "Claudesidian without .obsidian classifies as [claudesidian]" {
-    load_fixture claudesidian-no-obsidian
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: borgr"* ]]
-    [[ "$output" == *"flavors: [claudesidian]"* ]]
-    # No standalone obsidian flavor on this hoard.
-    [[ "$output" != *"flavors: [obsidian]"* ]]
-    [[ "$output" != *"flavors: [obsidian, claudesidian]"* ]]
-}
-
-@test "Claudesidian with .obsidian classifies as [obsidian, claudesidian]" {
-    load_fixture claudesidian-full
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: borgr"* ]]
-    [[ "$output" == *"flavors: [obsidian, claudesidian]"* ]]
 }
 
 @test "thalami default name (bare 'thalami') classifies as [thalami]" {
@@ -64,85 +40,29 @@ load test_helper
     [[ "$output" == *"flavors: [thalami]"* ]]
 }
 
-@test ".claude/ without CLAUDE.md does not classify" {
-    load_fixture claude-no-claude-md
+@test "hoard without recognized markers classifies as []" {
+    # The `multi` fixture's `beta` hoard has a CLAUDE.md + .claude/
+    # but no .obsidian/ and no thalami name pattern — so it carries
+    # no recognized flavor today. (Pre-sunset it classified as
+    # claudesidian; that flavor was removed.)
+    load_fixture multi
     run_scan
     [ "$status" -eq 0 ]
-    [[ "$output" == *"name: nameless"* ]]
-    [[ "$output" == *"flavors: []"* ]]
-}
-
-@test ".claude/ + CLAUDE.md without trigger words does not classify" {
-    load_fixture claude-without-trigger
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: plain"* ]]
-    [[ "$output" == *"flavors: []"* ]]
-    [[ "$output" != *"claudesidian"* ]]
-}
-
-@test "trigger word past line 30 is invisible (head -n 30 cutoff)" {
-    load_fixture claude-trigger-late
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: plain"* ]]
-    # Detection cutoff is the first 30 lines; the trigger lives past
-    # line 30 in the fixture, so the classifier must NOT pick it up.
-    [[ "$output" == *"flavors: []"* ]]
-    [[ "$output" != *"claudesidian"* ]]
-}
-
-@test "lowercase 'claudesidian' trigger is detected (case-insensitive)" {
-    load_fixture claude-trigger-lowercase
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: plain"* ]]
-    [[ "$output" == *"flavors: [claudesidian]"* ]]
-}
-
-@test "'PARA Method' alone (without 'Claudesidian') still classifies" {
-    load_fixture claude-trigger-para
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: plain"* ]]
-    [[ "$output" == *"flavors: [claudesidian]"* ]]
-}
-
-@test "lowercase 'para method' trigger is detected (case-insensitive)" {
-    # The detection regex is `-iE 'claudesidian|PARA Method'` —
-    # case-insensitive on BOTH alternatives. This pins the lowercase
-    # form of the PARA alternative; a regression that dropped the `-i`
-    # flag would fail here even if the lowercase 'claudesidian' fixture
-    # still passed (since lowercase 'claudesidian' literally matches
-    # the regex's case).
-    load_fixture claude-trigger-para-lowercase
-    run_scan
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"name: plain"* ]]
-    [[ "$output" == *"flavors: [claudesidian]"* ]]
+    [[ "$output" == *"name: beta"* ]]
+    # beta line should record empty flavors
+    [[ "$output" == *"- name: beta"*"flavors: []"* ]] || \
+        printf '%s\n' "$output" | grep -A1 'name: beta' | grep -q 'flavors: \[\]'
 }
 
 @test "--flavor obsidian filters multi-fixture to obsidian-flagged hoards" {
     load_fixture multi
     run_scan --flavor obsidian
     [ "$status" -eq 0 ]
-    # alpha (obsidian) and gamma (obsidian + claudesidian) match.
+    # alpha (obsidian) and gamma (obsidian) match.
     [[ "$output" == *"name: alpha"* ]]
     [[ "$output" == *"name: gamma"* ]]
-    # beta (claudesidian only) and thalami-host (thalami only) do not.
+    # beta (no flavor) and thalami-host (thalami only) do not.
     [[ "$output" != *"name: beta"* ]]
-    [[ "$output" != *"name: thalami-host"* ]]
-}
-
-@test "--flavor claudesidian filters to claudesidian-flagged hoards" {
-    load_fixture multi
-    run_scan --flavor claudesidian
-    [ "$status" -eq 0 ]
-    # beta (claudesidian) and gamma (obsidian + claudesidian) match.
-    [[ "$output" == *"name: beta"* ]]
-    [[ "$output" == *"name: gamma"* ]]
-    # alpha (obsidian only) and thalami-host (thalami) do not.
-    [[ "$output" != *"name: alpha"* ]]
     [[ "$output" != *"name: thalami-host"* ]]
 }
 
@@ -156,16 +76,14 @@ load test_helper
     [[ "$output" != *"name: gamma"* ]]
 }
 
-@test "--flavor vault meta-flavor matches obsidian OR claudesidian (deduped)" {
+@test "--flavor vault meta-flavor matches obsidian-flavored hoards" {
     load_fixture multi
     run_scan --flavor vault --names-only
     [ "$status" -eq 0 ]
-    # Three hoards have at least one vault-ish flavor: alpha, beta, gamma.
-    # gamma has BOTH obsidian and claudesidian — must appear once, not twice.
-    [ "${#lines[@]}" -eq 3 ]
+    # Two hoards have the obsidian flavor: alpha, gamma.
+    [ "${#lines[@]}" -eq 2 ]
     [ "${lines[0]}" = "alpha" ]
-    [ "${lines[1]}" = "beta" ]
-    [ "${lines[2]}" = "gamma" ]
+    [ "${lines[1]}" = "gamma" ]
 }
 
 @test "--flavor with no value errors out (exit 2)" {
@@ -201,10 +119,9 @@ load test_helper
     load_fixture multi
     run_scan --flavor vault --names-only
     [ "$status" -eq 0 ]
-    [ "${#lines[@]}" -eq 3 ]
+    [ "${#lines[@]}" -eq 2 ]
     [ "${lines[0]}" = "alpha" ]
-    [ "${lines[1]}" = "beta" ]
-    [ "${lines[2]}" = "gamma" ]
+    [ "${lines[1]}" = "gamma" ]
 }
 
 @test "multi-fixture YAML output is sorted by hoard name under LC_ALL=C" {
