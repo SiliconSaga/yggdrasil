@@ -61,15 +61,26 @@ Or any equivalent on GitLab / Gitea / etc.
 
 ## Cross-host arc dashboard
 
-This hoard ships a `dashboard.md` that renders an at-a-glance table of
-in-flight work across every machine using the workspace. Open the hoard
-folder as an Obsidian vault and install the Dataview community plugin
-to see it live.
+This hoard ships an `ArcDashboard.md` that renders an at-a-glance table of
+in-flight work across every machine using the workspace. Each per-machine
+`<machine>-thalamus.md` carries an `arcs:` list in its frontmatter; the
+dashboard projects only frontmatter — the body of each Thalamus file
+(Observations, Concerns, Audit Log) stays put on the host that wrote it.
+See `ArcDashboard.md` for the schema and live queries.
 
-Each per-machine `<machine>-thalamus.md` carries an `arcs:` list in its
-frontmatter; Dataview reads them and produces the cross-host table. See
-`dashboard.md` itself for the schema and how-to-view instructions.
+### Setup (one-time, per machine)
 
-The dashboard projects only frontmatter — the body of each Thalamus
-file (Observations, Concerns, Audit Log) stays put on the host that
-wrote it.
+1. **Open this folder as an Obsidian vault.** In Obsidian: `File → Open
+   vault → Open folder as vault`, point at this hoard's directory.
+2. **Install the Dataview plugin.** `Settings → Community plugins →
+   Browse`, search for *Dataview*, install, then enable. Dataview is
+   what reads the YAML frontmatter and renders the live tables.
+3. **Recommended: disable readable-line-length.** `Settings → Editor
+   → Readable line length` → toggle off. Lets the dashboard table use
+   the full window width. The vault is single-purpose (thalamus files
+   + dashboard); the prose-readability cap isn't useful here.
+4. **Open `ArcDashboard.md`.** The query blocks render as live tables.
+
+Obsidian creates a `.obsidian/` directory the first time you open the
+vault; that's gitignored by default since it's a per-machine UI
+preference store, not shared state.

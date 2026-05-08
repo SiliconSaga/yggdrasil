@@ -32,7 +32,7 @@ The following are explicitly out of scope for v1:
 - Autonomous arc bookkeeping (agent creating/updating arcs without confirmation). The propose-not-act pattern is non-negotiable in v1.
 - Compression-cycle counting, session counters, or any new instrumentation the agent must maintain. Elapsed-time signals from `started` and `last_touched` cover the same need.
 - Migration tooling for existing arc-shaped notes already in Thalamus bodies. Manual one-time pass during initial rollout.
-- Mobile-friendly bullet view in `dashboard.md`. Optional add-on noted in Future Work.
+- Mobile-friendly bullet view in `ArcDashboard.md`. Optional add-on noted in Future Work.
 
 ## Architecture
 
@@ -40,7 +40,7 @@ The following are explicitly out of scope for v1:
 hoards/thalami-<user>/
 ├── <host-a>-thalamus.md        # arcs: [...] in frontmatter (NEW)
 ├── <host-b>-thalamus.md        # arcs: [...] in frontmatter (NEW)
-├── dashboard.md                # single Dataview query (NEW)
+├── ArcDashboard.md                # single Dataview query (NEW)
 └── README.md                   # vault-opening note (UPDATE)
 ```
 
@@ -49,7 +49,7 @@ hoards/thalami-<user>/
 1. Agent on a host proposes arc-shaped edits to that host's Thalamus frontmatter, following the propose-not-act pattern from existing GDD nudges.
 2. User commits and pushes via the existing thalami cadence cycle (`ws commit` / `ws pull --rebase` / `ws push`).
 3. Other hosts pull on their next session start (existing orientation behavior).
-4. Obsidian, opened on any host with the hoard configured as a vault, runs the Dataview query in `dashboard.md` and renders the cross-host arc table live as files change.
+4. Obsidian, opened on any host with the hoard configured as a vault, runs the Dataview query in `ArcDashboard.md` and renders the cross-host arc table live as files change.
 
 The user keeps an Obsidian window parked in a visible spot on each machine for at-a-glance visibility. No round-trip to a remote service is required for any view.
 
@@ -167,7 +167,7 @@ There is no global registry, no slug authority, and no validation. Convention pl
 
 ## Dashboard query
 
-`hoards/thalami-<user>/dashboard.md` ships a single Dataview query as the v1 view:
+`hoards/thalami-<user>/ArcDashboard.md` ships a single Dataview query as the v1 view:
 
 ````markdown
 # Thalami Arc Dashboard
@@ -200,7 +200,7 @@ The default `SORT arc.status ASC` puts `active` first by alphabetical luck, foll
 **Yggdrasil repo (this PR):**
 
 - `templates/thalamus.md` — add commented `arcs: []` placeholder
-- `templates/hoards/thalami/dashboard.md` — new file with the Dataview query
+- `templates/hoards/thalami/ArcDashboard.md` — new file with the Dataview query
 - `templates/hoards/thalami/README.md` — note about opening as Obsidian vault and installing Dataview
 - `.agent/skills/gdd-orientation/SKILL.md` — arc surfacing in Step 7, sibling-slug grep
 - `.agent/skills/gdd-flow/SKILL.md` — tangent handling
@@ -211,7 +211,7 @@ The default `SORT arc.status ASC` puts `active` first by alphabetical luck, foll
 
 **Thalami hoard (separate commits, single main branch):**
 
-- `dashboard.md` — Dataview query, copied from the template
+- `ArcDashboard.md` — Dataview query, copied from the template
 - One commit each per host's `<host>-thalamus.md` frontmatter to add an initial `arcs:` list, derived by reading the existing body content on each file
 - `README.md` — note about Dataview as the rendering mechanism
 
@@ -221,7 +221,7 @@ The thalami hoard work happens after the yggdrasil PR lands, so the template and
 
 No new test infrastructure. Validation is a four-step manual pass:
 
-1. **Schema renders single-host.** Add `arcs:` to `Dionysus-thalamus.md`, point Obsidian at `hoards/thalami-Cervator/` as a vault, install Dataview, confirm `dashboard.md` renders the table correctly.
+1. **Schema renders single-host.** Add `arcs:` to `Dionysus-thalamus.md`, point Obsidian at `hoards/thalami-Cervator/` as a vault, install Dataview, confirm `ArcDashboard.md` renders the table correctly.
 2. **Schema renders cross-host.** Add `arcs:` to one other thalamus file (e.g., Loki via the prepared frontmatter additions), `ws push` from this host, `ws pull` on the other, confirm both rows appear and that any shared slug shows two adjacent rows.
 3. **Skill prose validated by use.** The orientation, flow, and housekeeping extensions earn their keep through actual session use across a few weeks. No unit tests for prose. Observe friction points and adjust.
 4. **Pruning verified once.** First housekeeping pass after rollout exercises the audit-and-prune flow on at least one closed or promoted arc to confirm the two-cycle grace window behaves as documented.
@@ -244,7 +244,7 @@ The existing `tests/ws-hoard-scan/` test directory does not need to grow — `ar
 
 - **Static-page renderer** — GitHub Action on push to the thalami repo emitting a small static HTML/JSON dashboard. Worth building only if Obsidian-only proves insufficient (e.g., user wants phone visibility, or to share with a collaborator).
 - **`ws hoard arc <subcommand>`** — CLI helpers for arc operations (`add`, `park`, `close`, `promote`, `list`). Defer until skill-driven flows show enough friction to warrant codifying.
-- **Mobile bullet view** — second Dataview block in `dashboard.md` showing only `active` arcs as a bullet list, optimized for narrow Obsidian-mobile screens.
+- **Mobile bullet view** — second Dataview block in `ArcDashboard.md` showing only `active` arcs as a bullet list, optimized for narrow Obsidian-mobile screens.
 - **Tag-based grouping queries** — once `tags:` see real use, additional Dataview blocks grouping by tag (`GROUP BY arc.tags`).
 - **Vörðu integration** — if the BDD-roadmap dashboard ever grows a "personal work" lane, the same `arcs:` shape could feed it. Speculative.
 - **Slug-rename helper** — `ws hoard arc rename <old> <new>` for cleaning up drift across hosts. Add when manual rename actually hurts.

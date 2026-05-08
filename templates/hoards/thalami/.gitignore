@@ -1,3 +1,7 @@
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Obsidian per-machine config (UI prefs, workspace state, plugin data)
+# Created when the hoard is opened as a vault for ArcDashboard.md.
+.obsidian/

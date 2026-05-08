@@ -91,7 +91,7 @@ hoard is opened as an Obsidian vault with the Dataview plugin
 installed. See [the arc dashboard
 design](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the
 schema, lifecycle, and skill integration; see the hoard's own
-`dashboard.md` for the rendered view.
+`ArcDashboard.md` for the rendered view.
 
 Why per-machine? Two reasons:
 
