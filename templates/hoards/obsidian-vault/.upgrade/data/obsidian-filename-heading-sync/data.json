@@ -1,7 +1,7 @@
 {
   "userIllegalSymbols": [],
   "ignoredFiles": {},
-  "ignoreRegex": "06_Metadata/Templates/.*|README\\.md",
+  "ignoreRegex": "60_Metadata/Templates/.*|README\\.md",
   "useFileOpenHook": false,
   "useFileSaveHook": true,
   "newHeadingStyle": "Prefix",

@@ -6,7 +6,7 @@ status: unprocessed
 
 # Welcome
 
-This is your new Obsidian vault. Process this checklist on first open, then move this note to `04_Archive/` (or just delete it) — it lives in `00_Inbox/` so it'll naturally come up during your first inbox sweep.
+This is your new Obsidian vault. Process this checklist on first open, then move this note to `40_Archive/` (or just delete it) — it lives in `00_Inbox/` so it'll naturally come up during your first inbox sweep.
 
 > **Mobile (Android)?** Skip ahead to the *Mobile setup* section below — there's a one-time chicken-and-egg dance to install the Obsidian Git plugin before the rest of the vault arrives.
 
@@ -45,7 +45,7 @@ Recommended setup is Calendar above `Dashboard.md` in the same pane (both visibl
 
 ### 5. Test the magic
 
-Create a note in `01_Projects/` (any name). Templater should auto-apply the Project Note template — frontmatter with today's date, H1 = filename. Same in `02_Areas/`.
+Create a note in `10_Projects/` (any name). Templater should auto-apply the Project Note template — frontmatter with today's date, H1 = filename. Same in `20_Areas/`.
 
 If `created:` shows up as something weird like `{"...":null}`, the Templater configuration is wrong — file an issue.
 
@@ -59,7 +59,7 @@ The Obsidian Web Clipper is a browser extension (not an Obsidian plugin). Instal
 - [Firefox](https://addons.mozilla.org/firefox/addon/web-clipper-obsidian/)
 - [Safari](https://apps.apple.com/app/obsidian-web-clipper/id6720708363)
 
-Point it at this vault, set the destination folder to `03_Resources/Clippings/`, and configure highlights to *replace* page content rather than append.
+Point it at this vault, set the destination folder to `30_Resources/Clippings/`, and configure highlights to *replace* page content rather than append.
 
 ## Mobile setup (Android)
 
@@ -125,4 +125,4 @@ That gives commits like `Updates from Pixel 9 Fold at 2026-05-07 15:07` — clea
 
 ## When you're done
 
-Move to `04_Archive/` or delete. The full reference for what's installed and how to use it lives in [[README]] and the [obsidian-vault hoard docs](https://siliconsaga.github.io/yggdrasil/gdd/obsidian-vault).
+Move to `40_Archive/` or delete. The full reference for what's installed and how to use it lives in [[README]] and the [obsidian-vault hoard docs](https://siliconsaga.github.io/yggdrasil/gdd/obsidian-vault).

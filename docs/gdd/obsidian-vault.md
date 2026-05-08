@@ -1,6 +1,6 @@
 # Obsidian vault hoard
 
-The `obsidian-vault` template is the canonical PKM-flavored hoard. Init creates a PARA-laid-out Obsidian vault with a curated plugin set installed and pre-configured for daily-note capture, project tracking, and dashboard-driven review. This is paired with the "Scribe" skill and role available for your GDD agent.
+The `obsidian-vault` template is the primary PKM-flavored hoard. Init creates a PARA-laid-out Obsidian vault with a small curated plugin set installed and pre-configured for daily-note capture, project tracking, and dashboard-driven review. This is paired with the "Scribe" skill and role available for your GDD agent.
 
 ## Init
 
@@ -28,7 +28,7 @@ Seven community plugins, all auto-installed on init and pinned to known-working 
 
 | Plugin | Why |
 |--------|-----|
-| **Templater** | Folder→template auto-apply on file creation; scripted dates and titles via `<% tp.* %>`. Powers the magic where creating a note in `01_Projects/` auto-applies Project Note. |
+| **Templater** | Folder→template auto-apply on file creation; scripted dates and titles via `<% tp.* %>`. Powers the magic where creating a note in `10_Projects/` auto-applies Project Note. |
 | **Periodic Notes** | Daily / weekly / monthly notes from templates. Replaces the core daily-notes plugin (which is disabled). |
 | **Calendar** | Sidebar calendar widget; clicking a date opens-or-creates that day's daily note. Defers configuration to Periodic Notes when both are active. |
 | **Linter** | Auto-format on save — keeps frontmatter, headings, and spacing consistent so the vault stays machine-readable. |
@@ -38,8 +38,6 @@ Seven community plugins, all auto-installed on init and pinned to known-working 
 
 Plugin code (`main.js`, `styles.css`) is *committed by default* in fresh hoards so all devices — including Android via the Obsidian Git plugin, which has no `ws hoard upgrade` — get the JS via `git pull`. `manifest.json` and `data.json` are also tracked. The vault's `.gitignore` documents the opt-in path back to a minimal repo (gitignore the JS, refetch via `ws hoard upgrade` on desktop only); pick whichever fits your sync model. The single always-ignored exception is `.obsidian/plugins/obsidian-git/` — its `data.json` holds the auth Personal Access Token for mobile sync and must not enter git history.
 
-The `Minimal Theme Settings` plugin used to be in this set but isn't anymore — it's the companion plugin for the [Minimal theme](https://github.com/kepano/obsidian-minimal), inert without that theme installed. If you choose Minimal as your theme later, add it back by appending an entry in `templates/hoards/obsidian-vault/.upgrade/upgrade.yaml`.
-
 ## PARA conventions
 
 Folder roles, applied by both the human and the `scribe` skill:
@@ -47,18 +45,18 @@ Folder roles, applied by both the human and the `scribe` skill:
 | Folder | Role |
 |--------|------|
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. Process weekly to under 20 items. |
-| `01_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Templater auto-applies Project Note here. |
-| `02_Areas/` | Ongoing responsibilities without an end date. Templater auto-applies Area Note here. |
-| `03_Resources/` | Reference material organized by topic. Includes `Clippings/` for web captures. |
-| `04_Archive/` | Completed projects and inactive notes. |
-| `05_Attachments/` | Binary attachments (images, PDFs). |
-| `06_Metadata/Templates/` | Reusable note templates. |
+| `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Templater auto-applies Project Note here. |
+| `20_Areas/` | Ongoing responsibilities without an end date. Templater auto-applies Area Note here. |
+| `30_Resources/` | Reference material organized by topic. Includes `Clippings/` for web captures. |
+| `40_Archive/` | Completed projects and inactive notes. |
+| `50_Attachments/` | Binary attachments (images, PDFs). |
+| `60_Metadata/Templates/` | Reusable note templates. |
 
 The capture-process-organize loop lives in the `scribe` skill, which the agent loads when you say things like *"jot this in my inbox"* or *"process my inbox"*.
 
 ## Templates and syntax
 
-Eight templates ship in `06_Metadata/Templates/`. Two different substitution syntaxes are in play depending on which plugin owns each template:
+Some templates ship in `60_Metadata/Templates/`. Two different substitution syntaxes are in play depending on which plugin owns each template:
 
 | Template | Plugin | Syntax |
 |----------|--------|--------|
@@ -97,7 +95,7 @@ The recommended cadence:
 
 A Dataview-driven dashboard ships at the vault root. It surfaces:
 
-- Overdue active projects (Dataview query against `01_Projects/`)
+- Overdue active projects (Dataview query against `10_Projects/`)
 - Tasks due today or before today
 - Priority-tagged tasks
 - Inbox items needing organization
@@ -109,11 +107,11 @@ To customize: edit the queries in `Dashboard.md`. Dataview and Tasks both have r
 
 ## Web clipping
 
-The Obsidian Web Clipper is a *browser* extension, not an Obsidian plugin. The vault ships with a `03_Resources/Clippings/` folder and a `Clipping.md` template, but you install the extension separately.
+The Obsidian Web Clipper is a *browser* extension, not an Obsidian plugin. The vault ships with a `30_Resources/Clippings/` folder and a `Clipping.md` template, but you install the extension separately.
 
 Conventions:
 
-- Extension destination folder: `03_Resources/Clippings/`
+- Extension destination folder: `30_Resources/Clippings/`
 - Configure highlights to *replace* page content (not append) so clippings aren't full-page noise
 
 Browser links in the `Welcome.md` first-time setup section.
@@ -122,7 +120,7 @@ Browser links in the `Welcome.md` first-time setup section.
 
 Cross-platform safe (Windows / Mac / Linux):
 
-- **Folders:** numbered + Title Case, no spaces (`00_Inbox`, `06_Metadata`)
+- **Folders:** numbered + Title Case, no spaces (`00_Inbox`, `60_Metadata`)
 - **Subfolders:** Title Case, single word or hyphenated (`Templates`, `Reference`)
 - **Note filenames:** Title Case with spaces (`Daily Note.md`, `Project Note.md`)
 - **Daily notes:** `YYYY-MM-DD.md` (rename to `YYYY-MM-DD - Topic.md` after the fact if useful)
@@ -131,13 +129,13 @@ Cross-platform safe (Windows / Mac / Linux):
 
 ## Refresh / upgrade
 
-`ws hoard upgrade <vault-name>` is the canonical refresh:
+`ws hoard upgrade <vault-name>` allows you to re-baseline the hoard against the template, for instance if new plugin versions have been pinned:
 
 ```bash
 ws hoard upgrade <your-vault-name>
 ```
 
-Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins, or on a fresh desktop where you want to authoritatively re-baseline the plugin set to the template's pins. By default new vaults commit plugin code, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` needing to run first; upgrade is for *intentional* re-baselines.
+Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins. By default new vaults commit plugin code, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` needing to run first; upgrade is for *intentional* re-baselines.
 
 What upgrade does:
 
@@ -164,7 +162,7 @@ The vault syncs to Android via the [Obsidian Git community plugin](https://githu
 
 ### Why git, not Obsidian Sync
 
-Obsidian Sync ($8/mo, first-party) works fine but creates a parallel sync layer alongside git, which gets awkward when you want git to be the source of truth across multiple desktops. Git-based sync via Obsidian Git keeps a single source of truth for free and integrates naturally with the workspace's existing `ws push` / `ws pull` flow on desktop.
+Obsidian Sync (first-party paid service) works fine but creates a parallel sync layer alongside git, which gets awkward when you want git to be the source of truth across multiple computers. Git-based sync via Obsidian Git keeps a single source of truth for free and integrates naturally with the workspace's existing `ws push` / `ws pull` flow on desktop.
 
 ### Plugin-code-in-git policy
 

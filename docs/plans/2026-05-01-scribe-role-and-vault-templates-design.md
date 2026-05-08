@@ -169,8 +169,8 @@ Content sections (~150 lines):
    meta-flavor covers both plain Obsidian vaults and Claudesidian
    variants in a single query, including Claudesidian vaults that
    haven't been opened in Obsidian locally yet.
-3. **PARA conventions** — folder roles for `00_Inbox`/`01_Projects`/
-   `02_Areas`/`03_Resources`/`04_Archive`/`05_Attachments`/`06_Metadata`
+3. **PARA conventions** — folder roles for `00_Inbox`/`10_Projects`/
+   `20_Areas`/`30_Resources`/`40_Archive`/`50_Attachments`/`60_Metadata`
 4. **Frontmatter habits** — YAML frontmatter for new notes (created date,
    tags, status)
 5. **Wikilinks and embeds** — `[[link]]`, `![[embed]]`, alias syntax
@@ -323,9 +323,7 @@ who frequently dip into capture from multi-vault workspaces should set
 
 ### `templates/hoards/obsidian-vault/`
 
-Vendored, vanilla, no plugins. Aligned with the `00–06` PARA + supporting
-numbering for symmetry with the Claudesidian template (one set of scribe
-conventions covers both).
+Vendored, vanilla, no plugins. Aligned with the sparse `00 / 10 / 20 / 30 / 40 / 50 / 60` PARA + supporting numbering for symmetry with the Claudesidian template (one set of scribe conventions covers both). The sparse step leaves room to slot in additional folders (e.g. between Inbox and Projects) without renumbering existing ones.
 
 ```text
 templates/hoards/obsidian-vault/
@@ -338,32 +336,31 @@ templates/hoards/obsidian-vault/
 │                              #  templates, command-palette only
 ├── 00_Inbox/
 │   └── Welcome.md             # starter note with frontmatter + wikilinks
-├── 01_Projects/
+├── 10_Projects/
 │   └── README.md              # one-line role description
-├── 02_Areas/
+├── 20_Areas/
 │   └── README.md
-├── 03_Resources/
+├── 30_Resources/
 │   └── README.md
-├── 04_Archive/
+├── 40_Archive/
 │   └── README.md
-├── 05_Attachments/
+├── 50_Attachments/
 │   └── .gitkeep
-└── 06_Metadata/
+└── 60_Metadata/
     └── Templates/
-        ├── daily-note.md      # YYYY-MM-DD - Topic + sections
-        ├── project-note.md    # goal, scope, deliverable, links
-        ├── meeting-note.md    # attendees, agenda, decisions, actions
-        ├── inbox-capture.md   # blank capture w/ frontmatter
-        └── weekly-review.md   # template for the weekly review pattern
+        ├── Area Note.md         # ongoing-responsibility note
+        ├── Clipping.md          # web-clipper landing page
+        ├── Daily Note.md        # YYYY-MM-DD - Topic + sections
+        ├── Inbox Capture.md     # blank capture w/ frontmatter
+        ├── Meeting Note.md      # attendees, agenda, decisions, actions
+        ├── Monthly Review.md    # monthly review pattern
+        ├── Project Note.md      # goal, scope, deliverable, links
+        └── Weekly Review.md     # template for the weekly review pattern
 ```
 
-`README.md` covers: what this is, PARA layout reminder, optional Obsidian
-install instructions, how GDD's scribe skill operates against the vault,
-template usage, pointer to the Claudesidian variant.
+Filenames follow Obsidian's Title-Case-with-spaces convention so they appear naturally in the Templater "Insert template" dropdown. `README.md` covers: what this is, PARA layout reminder, optional Obsidian install instructions, how GDD's scribe skill operates against the vault, template usage, pointer to the Claudesidian variant.
 
-`Templates/*.md` use Obsidian's built-in template syntax (`{{date:YYYY-MM-DD}}`)
-so they work both with Obsidian's Templates plugin and with the scribe skill
-when creating notes via Claude.
+`Templates/*.md` mostly use Templater syntax (`<% tp.date.now(...) %>`); `Daily Note.md` uses Obsidian's built-in Templates syntax (`{{date:YYYY-MM-DD}}`). Both are honored by the scribe skill when creating notes via Claude — the skill reads the template and substitutes accordingly.
 
 ### `templates/hoards/claudesidian-vault/`
 

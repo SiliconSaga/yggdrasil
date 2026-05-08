@@ -10,6 +10,9 @@ active_vault: null  # name of the vault-flavored hoard scribe should
                     # asked. Set when scribe is heavy use and you
                     # want session friction reduced.
 staleness_days: 14  # suggest housekeeping after this many days without audit
+arcs: []            # in-flight strands of work — see docs/plans/2026-05-07-thalamus-arc-dashboard-design.md
+                    # Each entry: id (slug), name, status (active|parked|closed|promoted),
+                    #             started, last_touched, next; optional: issue, tags
 # Note: commit-cadence threshold (the "nudge to commit" prompt) lives
 # in `<hoard-root>/.ws-cadence.yaml` — hoard-wide config, not
 # per-machine. See `docs/gdd/hoards.md` for the cadence model.
@@ -17,9 +20,7 @@ staleness_days: 14  # suggest housekeeping after this many days without audit
 
 # Thalamus
 
-Shared thinking space between one human and one local AI agent (at a time).
-Created from `templates/thalamus.md`. This file is gitignored —
-it is local to this workspace instance.
+Shared thinking space between one human and one local AI agent (at a time). Created from `templates/thalamus.md`. This file is gitignored — it is local to this workspace instance.
 
 ## Preferences
 <!-- Mode defaults, interaction style, session habits -->
