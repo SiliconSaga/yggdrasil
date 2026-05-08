@@ -44,7 +44,7 @@ Or any equivalent on GitLab / Gitea / etc.
 
 ## Cross-host arc dashboard
 
-This hoard ships an `ArcDashboard.md` that renders an at-a-glance table of in-flight work across every machine using the workspace. Each per-machine `<machine>-thalamus.md` carries an `arcs:` list in its frontmatter; the dashboard projects only frontmatter — the body of each Thalamus file (Observations, Concerns, Audit Log) stays put on the host that wrote it. See `ArcDashboard.md` for the schema and live queries.
+This hoard ships an `ArcDashboard.md` that renders an at-a-glance table of in-flight work across every machine using the workspace. Each per-machine `<machine>-thalamus.md` carries an `arcs:` list in its frontmatter; the dashboard projects only frontmatter — the body of each Thalamus file (Observations, Concerns, Audit Log) syncs via git like any other content but is never surfaced in the dashboard projection. See `ArcDashboard.md` for the schema and live queries.
 
 ### Setup (one-time, per machine)
 

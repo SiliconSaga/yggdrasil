@@ -85,13 +85,7 @@ Each per-machine file carries:
 - **Body sections**: Preferences, Observations, Concerns, Audit Log
   (per the Thalamus model — see [thalamus.md](thalamus.md)).
 
-Per-machine files also carry an `arcs:` list — short entries (slug,
-status, next step) that surface as a live cross-host table when the
-hoard is opened as an Obsidian vault with the Dataview plugin
-installed. See [the arc dashboard
-design](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the
-schema, lifecycle, and skill integration; see the hoard's own
-`ArcDashboard.md` for the rendered view.
+Per-machine files also carry an `arcs:` list — short entries (slug, status, next step) that surface as a live cross-host table when the hoard is opened as an Obsidian vault with the Dataview plugin installed. See [the arc dashboard design](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the schema, lifecycle, and skill integration; see the hoard's own `ArcDashboard.md` for the rendered view.
 
 Why per-machine? Two reasons:
 

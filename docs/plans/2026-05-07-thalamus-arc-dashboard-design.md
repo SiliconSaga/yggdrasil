@@ -180,7 +180,7 @@ TABLE WITHOUT ID
   file.name AS "Host",
   arc.last_touched AS "Touched",
   (date(today) - date(arc.started)).days AS "Days"
-FROM "."
+FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
 SORT arc.status ASC, arc.last_touched DESC

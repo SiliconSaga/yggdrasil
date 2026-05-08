@@ -20,9 +20,7 @@ arcs: []            # in-flight strands of work — see docs/plans/2026-05-07-th
 
 # Thalamus
 
-Shared thinking space between one human and one local AI agent (at a time).
-Created from `templates/thalamus.md`. This file is gitignored —
-it is local to this workspace instance.
+Shared thinking space between one human and one local AI agent (at a time). Created from `templates/thalamus.md`. This file is gitignored — it is local to this workspace instance.
 
 ## Preferences
 <!-- Mode defaults, interaction style, session habits -->

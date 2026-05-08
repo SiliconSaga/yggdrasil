@@ -13,7 +13,7 @@ ws hoard init obsidian-vault --name <your-vault-name>
 What this does for you:
 
 1. Copies the template content (PARA folders, base templates, `Dashboard.md`, `README.md`, `00_Inbox/Welcome.md`) into `hoards/<your-vault-name>/`
-2. Fetches a few Obsidian community plugins from their GitHub releases at pinned versions and installs them under `.obsidian/plugins/`
+2. Fetches seven Obsidian community plugins from their GitHub releases at pinned versions and installs them under `.obsidian/plugins/`
 3. Seeds each plugin's `data.json` with sane defaults aligned to PARA layout — Templater folder mappings, Periodic Notes wiring for daily/weekly/monthly, Linter rules, etc.
 4. Disables the core daily-notes plugin (Periodic Notes supersedes it) and removes its now-redundant config file
 5. Initializes a git repo and creates the initial commit

@@ -26,7 +26,7 @@
 **Yggdrasil repo:**
 
 - Modify: `templates/thalamus.md` — add commented `arcs: []` placeholder after `staleness_days:`
-- Create: `templates/hoards/thalami/dashboard.md` — Dataview query
+- Create: `templates/hoards/thalami/ArcDashboard.md` — Dataview query
 - Modify: `templates/hoards/thalami/README.md` — add "Opening as Obsidian vault" section
 - Modify: `.agent/skills/gdd-orientation/SKILL.md` — Step 7 arc surfacing + sibling-slug grep
 - Modify: `.agent/skills/gdd-flow/SKILL.md` — tangent → parked-arc nudge
@@ -35,12 +35,12 @@
 
 **Thalami hoard:**
 
-- Create: `dashboard.md` — copy of the template
+- Create: `ArcDashboard.md` — copy of the template
 - Modify: `Dionysus-thalamus.md` — add `arcs:` (frontmatter only)
 - Modify: `Loki-thalamus.md` — add `arcs:` (frontmatter only)
 - Modify: `FG4WWY622F-thalamus.md` — add `arcs:` (frontmatter only)
 - Modify: `rasmuss-mbp-2-thalamus.md` — add `arcs:` (frontmatter only)
-- Modify: `README.md` — short note pointing at `dashboard.md`
+- Modify: `README.md` — short note pointing at `ArcDashboard.md`
 
 ---
 
@@ -71,10 +71,10 @@ Expected: frontmatter delimiters intact (`---` open and close), `arcs:` line vis
 
 ---
 
-## Task 2: Create `templates/hoards/thalami/dashboard.md`
+## Task 2: Create `templates/hoards/thalami/ArcDashboard.md`
 
 **Files:**
-- Create: `templates/hoards/thalami/dashboard.md`
+- Create: `templates/hoards/thalami/ArcDashboard.md`
 
 - [ ] **Step 1: Write the dashboard template**
 
@@ -95,7 +95,7 @@ TABLE WITHOUT ID
   file.name AS "Host",
   arc.last_touched AS "Touched",
   (date(today) - date(arc.started)).days AS "Days"
-FROM "."
+FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
 SORT arc.status ASC, arc.last_touched DESC
@@ -129,7 +129,7 @@ See [the design doc](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/pla
 
 - [ ] **Step 2: Verify the file**
 
-Run: `head -30 templates/hoards/thalami/dashboard.md`
+Run: `head -30 templates/hoards/thalami/ArcDashboard.md`
 Expected: title, intro paragraph, opening of the Dataview block visible.
 
 ---
@@ -153,14 +153,14 @@ Add this section (with one blank line of separation before it):
 
 ## Cross-host arc dashboard
 
-This hoard ships a `dashboard.md` that renders an at-a-glance table of
+This hoard ships an `ArcDashboard.md` that renders an at-a-glance table of
 in-flight work across every machine using the workspace. Open the hoard
 folder as an Obsidian vault and install the Dataview community plugin
 to see it live.
 
 Each per-machine `<machine>-thalamus.md` carries an `arcs:` list in its
 frontmatter; Dataview reads them and produces the cross-host table. See
-`dashboard.md` itself for the schema and how-to-view instructions.
+`ArcDashboard.md` itself for the schema and how-to-view instructions.
 
 The dashboard projects only frontmatter — the body of each Thalamus
 file (Observations, Concerns, Audit Log) stays put on the host that
@@ -365,7 +365,7 @@ hoard is opened as an Obsidian vault with the Dataview plugin
 installed. See [the arc dashboard
 design](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the
 schema, lifecycle, and skill integration; see the hoard's own
-`dashboard.md` for the rendered view.
+`ArcDashboard.md` for the rendered view.
 ```
 
 - [ ] **Step 4: Verify**
@@ -390,7 +390,7 @@ message: "feat(gdd): thalamus arc dashboard — frontmatter projection rendered 
 
 add:
   - templates/thalamus.md
-  - templates/hoards/thalami/dashboard.md
+  - templates/hoards/thalami/ArcDashboard.md
   - templates/hoards/thalami/README.md
   - .agent/skills/gdd-orientation/SKILL.md
   - .agent/skills/gdd-flow/SKILL.md
@@ -399,7 +399,7 @@ add:
   - .commits/feat-thalamus-arc-dashboard.md
 ---
 
-Add an `arcs:` list to per-machine Thalamus frontmatter, plus a Dataview-rendered `dashboard.md` template for the thalami hoard. Cross-host visibility into in-flight work without a CI pipeline, a Pages site, or any new infrastructure — Obsidian + Dataview, opened on each machine.
+Add an `arcs:` list to per-machine Thalamus frontmatter, plus a Dataview-rendered `ArcDashboard.md` template for the thalami hoard. Cross-host visibility into in-flight work without a CI pipeline, a Pages site, or any new infrastructure — Obsidian + Dataview, opened on each machine.
 
 Three thin extensions to existing GDD skills carry the agent behavior:
 
@@ -591,20 +591,20 @@ Expected: empty output.
 
 ---
 
-## Task 15: Copy `dashboard.md` and update README in thalami hoard
+## Task 15: Copy `ArcDashboard.md` and update README in thalami hoard
 
 **Files:**
-- Create: `hoards/thalami-Cervator/dashboard.md` (copy of the template)
+- Create: `hoards/thalami-Cervator/ArcDashboard.md` (copy of the template)
 - Modify: `hoards/thalami-Cervator/README.md` (add a one-line pointer at the top)
 
 - [ ] **Step 1: Copy the template into the hoard**
 
-Run: `cp templates/hoards/thalami/dashboard.md hoards/thalami-Cervator/dashboard.md`
+Run: `cp templates/hoards/thalami/ArcDashboard.md hoards/thalami-Cervator/ArcDashboard.md`
 Expected: file created.
 
 - [ ] **Step 2: Verify the copy**
 
-Run: `head -20 hoards/thalami-Cervator/dashboard.md`
+Run: `head -20 hoards/thalami-Cervator/ArcDashboard.md`
 Expected: same content as the template.
 
 - [ ] **Step 3: Add a pointer line to the hoard's README.md**
@@ -613,7 +613,7 @@ Read `hoards/thalami-Cervator/README.md`, find a sensible location near the top 
 
 ```markdown
 **Dashboard:** open this folder as an Obsidian vault with the Dataview
-plugin installed; `dashboard.md` renders a live cross-host table of
+plugin installed; `ArcDashboard.md` renders a live cross-host table of
 in-flight arcs from each `<machine>-thalamus.md` frontmatter.
 ```
 
@@ -635,20 +635,20 @@ Create `.commits/thalami-add-arcs.md`:
 
 ```markdown
 ---
-message: "feat: seed arcs frontmatter across all hosts; add dashboard.md"
+message: "feat: seed arcs frontmatter across all hosts; add ArcDashboard.md"
 
 add:
   - Dionysus-thalamus.md
   - Loki-thalamus.md
   - FG4WWY622F-thalamus.md
   - rasmuss-mbp-2-thalamus.md
-  - dashboard.md
+  - ArcDashboard.md
   - README.md
 ---
 
 Initial seed of in-flight arcs across the four host thalamus files. Frontmatter-only edits — bodies untouched (sibling hosts may have unpushed body changes from concurrent workspaces).
 
-Adds `dashboard.md` rendering the cross-host table via Obsidian Dataview, plus a pointer line in the hoard README.
+Adds `ArcDashboard.md` rendering the cross-host table via Obsidian Dataview, plus a pointer line in the hoard README.
 
 Refs: yggdrasil docs/plans/2026-05-07-thalamus-arc-dashboard-design.md
 ```
@@ -682,13 +682,13 @@ Send this message:
 >
 > 1. Open `hoards/thalami-Cervator/` as an Obsidian vault (`File → Open vault`)
 > 2. Settings → Community plugins → Browse → search 'Dataview' → install + enable
-> 3. Open `dashboard.md` — the Dataview block should render a table with one row per (host, arc) pair.
+> 3. Open `ArcDashboard.md` — the Dataview block should render a table with one row per (host, arc) pair.
 >
 > If anything looks off (rows missing, columns wrong, sort order ugly), let me know and I'll iterate on the query."
 
 - [ ] **Step 2: Wait for feedback** before opening the yggdrasil PR
 
-The yggdrasil branch is not yet pushed. Hold off on `ws push yggdrasil` and `ws cr yggdrasil` until the user has confirmed the render works — if the query needs tweaking, the change lives in `templates/hoards/thalami/dashboard.md` and should ride the same PR rather than land as a follow-up.
+The yggdrasil branch is not yet pushed. Hold off on `ws push yggdrasil` and `ws cr yggdrasil` until the user has confirmed the render works — if the query needs tweaking, the change lives in `templates/hoards/thalami/ArcDashboard.md` and should ride the same PR rather than land as a follow-up.
 
 ---
 

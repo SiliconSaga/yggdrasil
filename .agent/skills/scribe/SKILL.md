@@ -315,6 +315,5 @@ frequently dip into capture from multi-vault workspaces should set
   that
 - Auto-commit the vault — vault hoards are independent git repos;
   the user commits when they want
-- Modify `00–06` numbered folder names — those are PARA structural
-  invariants
+- Modify the sparse-numbered folder prefixes (`00`, `10`, `20`, `30`, `40`, `50`, `60`) — those are PARA structural invariants
 - Force any specific filename pattern beyond the daily-note convention
