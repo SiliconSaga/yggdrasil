@@ -28,11 +28,7 @@ SORT arc.status ASC, arc.last_touched DESC
 
 ## Diagnostics
 
-<div style="display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: flex-start;">
-
-<div style="flex: 1 1 220px;">
-
-**Tags (>1 arc)**
+### Tags (>1 arc)
 
 ```dataview
 TABLE WITHOUT ID
@@ -47,11 +43,7 @@ WHERE length(rows) > 1
 SORT length(rows) DESC
 ```
 
-</div>
-
-<div style="flex: 1 1 220px;">
-
-**Vibe legend**
+### Vibe legend
 
 | Status   | Fresh        | Slowing       | Stale         |
 |----------|--------------|---------------|---------------|
@@ -60,11 +52,7 @@ SORT length(rows) DESC
 | closed   | ✅           | ✅            | ✅            |
 | promoted | 📦           | 📦            | 📦            |
 
-</div>
-
-<div style="flex: 1 1 220px;">
-
-**Status count**
+### Status count
 
 ```dataview
 TABLE WITHOUT ID
@@ -78,9 +66,7 @@ GROUP BY s
 SORT length(rows) DESC
 ```
 
-</div>
-
-</div>
+> **Tip:** if you want these three side-by-side, install the [Multi Column Markdown](https://github.com/ckRobinson/multi-column-markdown) plugin. Obsidian's native Dataview doesn't render code blocks inside HTML flex containers, so vanilla side-by-side doesn't work without that plugin.
 
 ## Per-host
 
