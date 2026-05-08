@@ -75,6 +75,10 @@ See `ArcDashboard.md` for the schema and live queries.
 2. **Install the Dataview plugin.** `Settings → Community plugins →
    Browse`, search for *Dataview*, install, then enable. Dataview is
    what reads the YAML frontmatter and renders the live tables.
+   After enabling, open `Settings → Dataview` and confirm
+   **"Enable JavaScript Queries"** is on (it usually is by default) —
+   the dashboard's per-host and tags blocks use it for compact
+   single-line summaries.
 3. **Recommended: disable readable-line-length.** `Settings → Editor
    → Readable line length` → toggle off. Lets the dashboard table use
    the full window width. The vault is single-purpose (thalamus files
