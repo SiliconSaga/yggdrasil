@@ -123,7 +123,7 @@ tags: [daily]
 status: active
 ---
 
-# YYYY-MM-DD — <Topic>
+# YYYY-MM-DD
 
 ## Today
 
@@ -132,6 +132,8 @@ status: active
 ## Links
 
 ```
+
+Templates always include a `# H1` mirroring the filename as the first line after the frontmatter. Filename Heading Sync (bundled, enabled) keeps them in sync — without a matching H1, FHS picks the first body heading and renames the file. When Claude creates a note for the user, follow the same convention.
 
 ## Inbox Processing
 

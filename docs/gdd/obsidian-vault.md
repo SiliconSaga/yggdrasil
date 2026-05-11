@@ -73,6 +73,12 @@ Some templates ship in `60_Metadata/Templates/`. Two different substitution synt
 
 When the `scribe` skill creates notes via Claude (not via Obsidian's UI), it substitutes literal dates — neither plugin runs from outside Obsidian.
 
+**Every template carries an `# H1` at the top mirroring its filename.** Filename Heading Sync (bundled, enabled) keeps filename and first heading in lockstep bidirectionally — renaming the file rewrites the H1 on save; changing the first heading renames the file on save. *Templates must therefore give FHS a matching H1 right after the frontmatter, before any body section headings*; without it, FHS picks the first body heading (e.g., `## Journal & Capture` in Daily Note) and renames the file to match. Custom framing for periodic reviews (e.g., "Weekly review for 2026-05-06 to 2026-05-12") goes in an italic body line below the H1, not in the H1 itself.
+
+The Project Note's `Untitled → prompted name` rename flow orders its prompts so the rename happens *last*, after the user answers all prompts. This closes a timing race where FHS's 1000ms post-rename debounce could fire mid-prompt, before Templater had finished writing the body, and insert a duplicate H1.
+
+When authoring a new template: include `# <% tp.file.title %>` (or the Periodic Notes equivalent `# {{date:format}}`) as the first line after the frontmatter, *before* any other heading.
+
 ## Daily / weekly / monthly cadence
 
 Periodic Notes handles file creation for all three time scales. Each scale has a configured folder, format, and template — all written into `.obsidian/plugins/periodic-notes/data.json` by the upgrade phase.
