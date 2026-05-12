@@ -9,6 +9,8 @@
 #   list              List ecosystem components (tier, repo, clone status)
 #   status [--verbose] Git status across workspace
 #   clone [comp|--all|--url <url> [--name N] [--add-eco]] Clone components
+#   clone-fork <comp>  Fork-aware clone: ensure fork exists, clone fork, wire
+#                      both remotes, sync main with upstream. Idempotent.
 #   pull [comp]       Pull all or one component
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
@@ -660,6 +662,9 @@ case "$COMMAND" in
         ;;
     clone)
         bash "$SCRIPT_DIR/ws-clone.sh" "$@"
+        ;;
+    clone-fork)
+        bash "$SCRIPT_DIR/ws-clone-fork.sh" "$@"
         ;;
     pull)
         bash "$SCRIPT_DIR/ws-pull.sh" "$@"

@@ -134,6 +134,7 @@ selection, and bodyfile-driven flows that raw tools won't.
 | Reply/resolve a review thread (web UI or `gh api graphql`) | `ws review <comp> reply <cr#> <id> "msg" [--resolve]` | Auth + thread-id resolution |
 | `gh issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` | Same bodyfile pattern + identity |
 | Raw test runners (`gradle test`, `pytest`, `make test`, …) | `ws test <comp> [args]` | Adapter dispatch via `realms/<active>/adapters/<comp>.yaml`; `ws actions <comp>` lists what's available |
+| `git clone <fork-url>` + manual `git remote add upstream …` + `git fetch` | `ws clone-fork <comp>` | Ensures fork exists (creates via API if missing); SSH transport; both remotes wired; local + fork `main` synced with upstream. Idempotent. |
 
 When in doubt: `ws help` for the full list, `ws help <subcommand>`
 (or `ws <subcommand> --help`) for per-command details. Skills and
@@ -172,6 +173,13 @@ A few commands worth knowing exist beyond the reflex table:
 - `ws diagnose <comp>` — remote URLs, provider detection, token
   coverage. Run when push/cr fails with auth errors or when
   onboarding a new component.
+- `ws clone-fork <comp>` — fork-aware clone: ensures the user's
+  personal fork exists in `identity.forkOrg` (creates via API if
+  missing), clones the fork over SSH, wires up both remotes (fork +
+  upstream), and syncs local + fork `main` with upstream. Idempotent
+  — re-runs are safe and re-sync. Use this instead of `ws clone`
+  when a release-style workflow needs fork-as-origin remotes from
+  the start.
 - `ws preflight [--soft]` — workspace prerequisites (bash, git, yq
   v4+, jq, gh/glab) with per-OS install hints.
 - `ws hoard init [template] [--name <name>]` / `ws hoard <url>` /
