@@ -70,10 +70,10 @@ setup() {
     [ -d "$HOARDS_DIR/test-obsidian" ]
     # Welcome doc + PARA folders shipped with the obsidian-vault template
     [ -f "$HOARDS_DIR/test-obsidian/00_Inbox/Welcome.md" ]
-    [ -d "$HOARDS_DIR/test-obsidian/01_Projects" ]
-    [ -d "$HOARDS_DIR/test-obsidian/02_Areas" ]
-    [ -d "$HOARDS_DIR/test-obsidian/03_Resources" ]
-    [ -d "$HOARDS_DIR/test-obsidian/04_Archive" ]
+    [ -d "$HOARDS_DIR/test-obsidian/10_Projects" ]
+    [ -d "$HOARDS_DIR/test-obsidian/20_Areas" ]
+    [ -d "$HOARDS_DIR/test-obsidian/30_Resources" ]
+    [ -d "$HOARDS_DIR/test-obsidian/40_Archive" ]
     [ -d "$HOARDS_DIR/test-obsidian/.obsidian" ]
     # ws_hoard_init's git init step ran post-copy
     [ -d "$HOARDS_DIR/test-obsidian/.git" ]

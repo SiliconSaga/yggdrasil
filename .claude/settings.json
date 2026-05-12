@@ -273,5 +273,18 @@
       "Bash(git -C * ls-tree *)",
       "Bash(git fetch *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/gdd-allowlist-bridge.sh"
+          }
+        ]
+      }
+    ]
   }
 }

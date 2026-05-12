@@ -1,0 +1,81 @@
+# Shared helpers for the PreToolUse hook bats tests.
+#
+# Each test gets an isolated $WORK directory under $BATS_TEST_TMPDIR
+# with a synthetic project-shaped .claude/ tree, plus an override of
+# $HOME pointing into the same tmp area so the hook's user-level
+# settings.json / extras lookup doesn't leak into real config.
+#
+# The hook script lives in the repo at .claude/hooks/. Tests invoke
+# it via stdin-redirected JSON, captured by bats' `run` helper —
+# which runs in a subshell off the bats interpreter, so the harness's
+# own PreToolUse rules don't apply (the harness only watches Claude
+# Code tool calls, not nested bats-spawned processes).
+
+REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+HOOK_BIN="$REPO_ROOT/.claude/hooks/gdd-allowlist-bridge.sh"
+
+# Build an isolated workspace shape:
+#   $WORK                           — tmp project root
+#   $WORK/.claude/settings.json    — synthetic permissions.allow
+#   $WORK/.claude/hooks/safe-bash-extras (optional — caller writes)
+#   $HOME = $WORK/_home             — sandbox for user-level state
+#   $HOME/.claude/hooks/safe-bash-extras (optional — caller writes)
+#
+# All envs are exported so the hook subprocess sees them.
+init_hook_env() {
+    WORK="$BATS_TEST_TMPDIR/work"
+    mkdir -p "$WORK/.claude"
+    mkdir -p "$WORK/.claude/hooks"
+    mkdir -p "$WORK/_home/.claude/hooks"
+    export HOME="$WORK/_home"
+}
+
+# Write a synthetic project .claude/settings.json with the given
+# Bash(...) allowlist entries (passed as newline-separated strings).
+write_project_settings() {
+    local entries="$1"
+    {
+        echo "{"
+        echo "  \"permissions\": {"
+        echo "    \"allow\": ["
+        local first=true
+        while IFS= read -r entry; do
+            [[ -z "$entry" ]] && continue
+            if $first; then first=false; else echo ","; fi
+            printf '      "%s"' "$entry"
+        done <<< "$entries"
+        echo ""
+        echo "    ]"
+        echo "  }"
+        echo "}"
+    } > "$WORK/.claude/settings.json"
+}
+
+# Write a project-level safe-bash-extras file with the given content.
+write_project_extras() {
+    printf '%s\n' "$1" > "$WORK/.claude/hooks/safe-bash-extras"
+}
+
+# Write a user-level safe-bash-extras file with the given content.
+write_user_extras() {
+    printf '%s\n' "$1" > "$HOME/.claude/hooks/safe-bash-extras"
+}
+
+# Build the JSON tool-call payload and pipe it into the hook. The
+# entire pipeline runs inside the bats subshell, away from the
+# harness's PreToolUse watch.
+#
+# Args: $1 = command string, $2 = cwd (defaults to $WORK)
+run_hook() {
+    local cmd="$1"
+    local cwd="${2:-$WORK}"
+    local payload
+    payload=$(jq -nc --arg cmd "$cmd" --arg cwd "$cwd" \
+        '{tool_input:{command:$cmd}, cwd:$cwd}')
+    # `timeout` catches infinite-loop regressions — the original
+    # collect_patterns bug hung forever on Windows paths until we
+    # added the prev-equals-dir guard. 10s is generous for any
+    # legitimate run, certain to fail loudly on a stall.
+    run bash -c "printf '%s' \"\$1\" | timeout 10 bash \"\$2\"" \
+        _ "$payload" "$HOOK_BIN"
+}

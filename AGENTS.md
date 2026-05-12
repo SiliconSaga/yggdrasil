@@ -285,6 +285,12 @@ It does *not* apply to:
 
 **Why:** GitHub renders some hard-wrapped contexts as visible line breaks; Obsidian/markdown editors wrap automatically; reflowing after every edit is friction. Specific code or tooling may have its own wrap conventions — follow those when they exist (e.g. Mermaid diagrams have their own rules in the writing-yggdrasil-docs skill).
 
+### Bash usage enforcement (PreToolUse hook)
+
+This workspace ships a PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh`, registered in `.claude/settings.json`. It fires on every Bash tool call and denies shell composition (`&&`, `||`, `;`, pipes, command substitution, redirects) with corrective messages that train the agent toward separate tool calls + native `ws` flags. It allows anything matching the project's `permissions.allow` patterns (symmetric normalization between bare `ws ...` and verbose `bash scripts/ws ...` forms) or a per-machine extras file.
+
+Full operational details — what each tier does, how to add personal safe-command patterns via the project or user-level `safe-bash-extras` files, how to disable the hook on a specific machine via `WS_HOOK_DISABLE=1`, what to do if a command stalls — live in [`.claude/hooks/README.md`](./.claude/hooks/README.md).
+
 ---
 
 ## Auth Setup
