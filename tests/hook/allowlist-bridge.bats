@@ -55,6 +55,37 @@ setup() {
     [[ "$output" == *"Pipes"* ]]
 }
 
+@test "deny: grep with | redirects to Grep tool (specific message)" {
+    # Common false-positive case: regex alternation contains a literal
+    # | inside the quoted pattern. The hook can't distinguish that
+    # from a shell pipe, but it CAN recognize that the right answer
+    # for any grep-with-| invocation is to use the Grep tool.
+    run_hook 'grep -E "a|b" file.txt'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Grep tool"* ]]
+    [[ "$output" != *"Pipes"* ]]
+}
+
+@test "deny: cmd | grep also redirects to Grep tool when cmd starts with grep" {
+    # This case is grep ... | something — still starts with `grep `,
+    # so the redirect arm fires (correctly, since the user should use
+    # the Grep tool here too).
+    run_hook "grep foo file | head"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Grep tool"* ]]
+}
+
+@test "deny: non-grep cmd | grep falls through to generic pipes message" {
+    # `cat file | grep pattern` starts with `cat`, not `grep`, so the
+    # grep-specific arm doesn't fire. Generic pipes deny still applies.
+    run_hook "cat file | grep pattern"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Pipes"* ]]
+}
+
 @test "deny: backticks trigger command-substitution message" {
     run_hook 'echo `date`'
     [ "$status" -eq 0 ]

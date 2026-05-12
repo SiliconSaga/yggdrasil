@@ -291,6 +291,21 @@ This workspace ships a PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh
 
 Full operational details — what each tier does, how to add personal safe-command patterns via the project or user-level `safe-bash-extras` files, how to disable the hook on a specific machine via `WS_HOOK_DISABLE=1`, what to do if a command stalls — live in [`.claude/hooks/README.md`](./.claude/hooks/README.md).
 
+### Prefer write-then-execute over inline shell scripts
+
+When you need to run anything more than a few lines (Python, JS, complex bash, anything with control flow), **write the script to `.tmp/<name>` via the Write tool first, then invoke it via Bash**. Don't pack the whole script into a `bash -c "..."` or `python -c "..."` one-liner.
+
+Why:
+
+- **Observability:** the Write tool's diff shows the full content in the transcript — easy for the human to scan before approving the execute. A long inline command is hard to read and often gets clipped.
+- **Reviewability:** the file persists in `.tmp/` (gitignored) for post-hoc inspection. An inline one-liner disappears into the command history.
+- **Hook compatibility:** non-trivial scripts almost always involve `&&`, `;`, pipes, or substitution — all of which the PreToolUse hook denies inline. The same operators inside a file body are fine; only the outer `bash <file>` invocation sees the hook, and `<file>` is one segment.
+- **Cleanup:** `ws clean` removes `.tmp/` entries alongside the other workspace draft directories — no orphaned scratch files accumulate.
+
+Inline `bash -c "..."` and `python -c "..."` are still fine for genuinely one-line workloads where inline is more readable than a file (a single `echo`, a quick math expression). Use judgment: if the inline form is longer than a sentence, it's a file.
+
+Note: write-then-execute doesn't change the security boundary — a malicious script content is still a problem regardless of the vehicle. The human reviews the Write content as the canonical safety checkpoint; the hook adds visibility, not invulnerability.
+
 ---
 
 ## Auth Setup

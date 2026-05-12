@@ -189,6 +189,21 @@ case "$cmd" in
     *"&&"*|*"||"*|*";"*)
         deny "Shell composition (\&\&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. If you need conditional behavior, check the result of one call before issuing the next."
         ;;
+    "grep "*|"grep")
+        # Specific redirect: grep with `|` (regex alternation OR a
+        # `cmd | grep ...` pipe) is a recurring false-positive case
+        # where the better answer is "use the Grep tool" anyway —
+        # which isn't a Bash call and therefore bypasses this hook.
+        # Catch the grep-with-`|` case BEFORE the generic pipe arm
+        # so the corrective message names the right substitute.
+        # (Pure `grep <pattern> <file>` with no `|` won't reach this
+        # tier — the case statement only fires when a deny-eligible
+        # operator was already in the command.)
+        case "$cmd" in
+            *"|"*)
+                deny "Use the Grep tool instead of \`grep ... | ...\` or \`grep -E 'a|b' ...\`. The Grep tool handles regex alternation correctly (no shell-pipe confusion) AND isn't a Bash invocation, so it bypasses this hook entirely. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
+        esac
+        ;;
     *"|"*)
         deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
         ;;

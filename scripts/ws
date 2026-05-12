@@ -284,13 +284,16 @@ ws_clean() {
     if [[ $# -gt 0 ]]; then
         echo "Usage: ws clean" >&2
         echo "" >&2
-        echo "Remove draft files from .issues/, .crs/, .commits/, and .outputs/ directories." >&2
+        echo "Remove draft files from .issues/, .crs/, .commits/, .outputs/," >&2
+        echo "and the workspace scratch area .tmp/." >&2
         exit 1
     fi
 
     local total=0
     # Per-dir glob: bodyfile dirs hold *.md; .outputs/ holds tool-emitted
-    # snapshots in *.txt. Each spec is `<dir>:<glob>`.
+    # snapshots in *.txt. Each spec is `<dir>:<glob>`. The shallow
+    # find pattern leaves nested directories alone — those don't
+    # exist in these directories by convention.
     local spec
     for spec in '.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt'; do
         local dir="${spec%%:*}"
@@ -306,6 +309,23 @@ ws_clean() {
             fi
         fi
     done
+
+    # .tmp/ — workspace scratch area for ad-hoc validation and
+    # write-then-execute script use. Unlike the bodyfile dirs above,
+    # contents are arbitrary and often nested (synthetic git repos,
+    # test fixtures, generated scripts), so recursive cleanup is
+    # appropriate. We blow away top-level entries and recreate
+    # nothing — the directory itself stays for next-use.
+    local tmp_dir="$ROOT_DIR/.tmp"
+    if [[ -d "$tmp_dir" ]]; then
+        local tmp_count
+        tmp_count=$(find "$tmp_dir" -mindepth 1 -maxdepth 1 | wc -l)
+        if [[ "$tmp_count" -gt 0 ]]; then
+            find "$tmp_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            echo "  .tmp/  $tmp_count entr(ies) removed"
+            total=$((total + tmp_count))
+        fi
+    fi
 
     if [[ "$total" -eq 0 ]]; then
         echo "(no draft files to clean)"
