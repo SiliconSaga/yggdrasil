@@ -169,6 +169,8 @@ GDD loop on something small enough to feel in 15 minutes.
 
 7. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your mode, and ask what you want to work on.
 
+   **Heads-up about the "scary red" output you might see early on.** In the first few tool calls of a session, you'll often see the agent get a stream of red-looking error messages — things like "Output / input redirection is disallowed" or "File-descriptor merges aren't needed". Those aren't crashes. They're the workspace's PreToolUse hook gently rejecting the agent's generic shell habits and pointing at the local way to do the same thing. The agent reads each message on its next turn and retries; after a handful of denies it has the conventions cached and the noise drops to nearly zero. Nothing was harmed (the rejected commands never ran). See [agent-training.md](../gdd/agent-training.md) for the full explanation if you're curious.
+
 8. **Ask for Mentoring mode.** This is the key for your first session:
 
    > "Let's use mentoring mode. I'm new to this workspace and want to understand how things work."

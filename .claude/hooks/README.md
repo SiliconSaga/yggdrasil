@@ -4,6 +4,8 @@ This directory contains hook scripts that fire during Claude Code sessions in th
 
 The hooks are registered in [`../settings.json`](../settings.json) under `hooks.PreToolUse`. They're meant to make agent behavior more predictable and to teach safer command patterns by giving immediate corrective feedback.
 
+**New here?** [`docs/gdd/agent-training.md`](../../docs/gdd/agent-training.md) is the user-friendly companion that covers why you'll see deny output early in a session, why the discipline doesn't double API cost, and how to handle the "this legit command got denied" case. This README is the technical spec — what each tier checks, the audit log format, registration, and troubleshooting.
+
 ## Shipped hooks
 
 ### `gdd-allowlist-bridge.sh` (PreToolUse on Bash)

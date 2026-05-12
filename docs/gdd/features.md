@@ -187,6 +187,33 @@ for adding patterns or handling "don't ask again" prompts is in the
 
 ---
 
+## Agent training — the PreToolUse hook
+
+A PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh` runs
+before every Bash tool call. It rejects shell composition (`&&`,
+`||`, `;`, pipes, redirects, command substitution, FD merges) with
+**corrective** messages — the deny is paired with a one-line
+explanation of what to do instead. The agent reads the message on
+its next turn and retries with the suggested approach, so the hook
+acts as a continuous training signal rather than a hard wall.
+
+New users often see a burst of "scary red" deny output in the
+first few tool calls of a session as the agent's generic shell
+habits collide with the workspace's one-action-per-call
+convention. That's working as intended; nothing was harmed (the
+commands never ran) and the noise drops to near zero once the
+agent has cached the local conventions.
+
+The hook is roughly free in API-token cost — splitting a
+`cmd | head 20` into two separate tool calls is still one
+assistant turn, not two API calls — and pays off in
+auditability and context hygiene. See
+[agent-training.md](agent-training.md) for the full explanation,
+including the token-cost model and what to do when a legitimate
+command gets denied.
+
+---
+
 ## Access — identities, tokens, remote operations
 
 The parallel permission system: which **remote Git operations** the
