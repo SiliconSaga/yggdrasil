@@ -59,7 +59,7 @@ The Obsidian Web Clipper is a browser extension (not an Obsidian plugin). Instal
 - [Firefox](https://addons.mozilla.org/firefox/addon/web-clipper-obsidian/)
 - [Safari](https://apps.apple.com/app/obsidian-web-clipper/id6720708363)
 
-Point it at this vault, set the destination folder to `30_Resources/Clippings/`, and configure highlights to *replace* page content rather than append.
+Point it at this vault, set the destination folder to `70_Clippings/`, and configure highlights to *replace* page content rather than append.
 
 ## Mobile setup (Android)
 

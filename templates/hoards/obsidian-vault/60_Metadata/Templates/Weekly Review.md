@@ -10,8 +10,9 @@ week: <% tp.file.title %>
 tags: [review, weekly]
 ---
 
-# Weekly Review: <% tp.file.title %>
-*<% startOfWeek %> to <% endOfWeek %>*
+# <% tp.file.title %>
+
+*Weekly review for <% startOfWeek %> to <% endOfWeek %>.*
 
 ## Wins
 

@@ -47,10 +47,11 @@ Folder roles, applied by both the human and the `scribe` skill:
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. Process weekly to under 20 items. |
 | `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Templater auto-applies Project Note here. |
 | `20_Areas/` | Ongoing responsibilities without an end date. Templater auto-applies Area Note here. |
-| `30_Resources/` | Reference material organized by topic. Includes `Clippings/` for web captures. |
+| `30_Resources/` | Reference material organized by topic. Curated, refined. |
 | `40_Archive/` | Completed projects and inactive notes. |
 | `50_Attachments/` | Binary attachments (images, PDFs). |
 | `60_Metadata/Templates/` | Reusable note templates. |
+| `70_Clippings/` | Raw imported content (web clippings, paperless dumps, transcripts). Promote to `30_Resources/` when refined. |
 
 The capture-process-organize loop lives in the `scribe` skill, which the agent loads when you say things like *"jot this in my inbox"* or *"process my inbox"*.
 
@@ -65,9 +66,7 @@ Some templates ship in `60_Metadata/Templates/`. Two different substitution synt
 | `Monthly Review.md` | Periodic Notes | Same as Weekly — Templater JS for month-range |
 | `Project Note.md` | Templater (folder template) | `<% tp.date.now() %>`, `<% tp.file.title %>` |
 | `Area Note.md` | Templater (folder template) | Same |
-| `Inbox Capture.md` | Templater (manual insert) | Same |
 | `Meeting Note.md` | Templater (manual insert) | Same |
-| `Clipping.md` | Templater (manual insert) | Same |
 
 **The two-syntax rule of thumb:** `{{...}}` for templates that Periodic Notes / core Templates plugin own; `<% ... %>` for templates that Templater owns. Mixing within a single template breaks YAML — putting `{{date:fmt}}` in a Templater-owned template produces invalid frontmatter (the curly braces parse as a YAML flow mapping).
 
@@ -113,12 +112,13 @@ To customize: edit the queries in `Dashboard.md`. Dataview and Tasks both have r
 
 ## Web clipping
 
-The Obsidian Web Clipper is a *browser* extension, not an Obsidian plugin. The vault ships with a `30_Resources/Clippings/` folder and a `Clipping.md` template, but you install the extension separately.
+The Obsidian Web Clipper is a *browser* extension, not an Obsidian plugin. The vault ships with a top-level `70_Clippings/` folder as the destination for raw imported content; you install the extension separately.
 
 Conventions:
 
-- Extension destination folder: `30_Resources/Clippings/`
+- Extension destination folder: `70_Clippings/`
 - Configure highlights to *replace* page content (not append) so clippings aren't full-page noise
+- No Templater template for clippings — Web Clipper writes its own format on paste, and manual pastes arrive raw. `70_Clippings/` is distinct from `30_Resources/`: raw imports land here, refined material lives there.
 
 Browser links in the `Welcome.md` first-time setup section.
 

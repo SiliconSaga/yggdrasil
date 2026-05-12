@@ -9,10 +9,11 @@ Personal Obsidian vault, scaffolded as a hoard inside a GDD workspace. PARA-laid
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. |
 | `10_Projects/` | Time-bound initiatives. Templater auto-applies Project Note. |
 | `20_Areas/` | Ongoing responsibilities. Templater auto-applies Area Note. |
-| `30_Resources/` | Reference material. Includes `Clippings/` for web captures. |
+| `30_Resources/` | Reference material. Curated, refined. |
 | `40_Archive/` | Completed projects and inactive notes. |
 | `50_Attachments/` | Binary attachments (images, PDFs). |
 | `60_Metadata/Templates/` | Reusable note templates. |
+| `70_Clippings/` | Raw imported content. Web clippings, paperless dumps, transcripts. Promote to `30_Resources/` when refined. |
 
 ## Pointers
 
@@ -22,6 +23,7 @@ Personal Obsidian vault, scaffolded as a hoard inside a GDD workspace. PARA-laid
 - **Refresh plugins:** `ws hoard upgrade <this-vault-name>` from the workspace root
 - **Capture / review workflows:** the `scribe` skill knows this vault — say *"jot this in my inbox"*, *"do a daily review"*, *"weekly synthesis"*, etc.
 - **Live dashboard:** [[Dashboard]] — pin it next to your Calendar view
+- **Template conventions:** templates carry an `# H1` matching their filename so Filename Heading Sync can keep them in lockstep. See the [hoard docs](https://siliconsaga.github.io/yggdrasil/gdd/obsidian-vault) for the rationale before authoring new templates.
 
 ## Installed plugins
 
