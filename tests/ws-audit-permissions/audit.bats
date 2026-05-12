@@ -29,12 +29,56 @@ Bash(git -C * status)"
     [ "$output" = "[]" ]
 }
 
+@test "glob: wildcard-only watchlist entry does NOT over-match narrow allows" {
+    # `Bash(\*)` in the watchlist must match ONLY the literal
+    # `Bash(*)` pattern in an allow list — not `Bash(ls)` or
+    # `Bash(ws status)`. This is the over-match guard for the
+    # escaped wildcard. Regression here would flag every narrow
+    # allow entry as critical.
+    write_settings project "Bash(ls)
+Bash(ws status)
+Bash(cat *)
+Bash(git -C * status)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "glob: Bash(ws exec *) watchlist entry matches concrete ws exec allow" {
+    # If the user has `Bash(ws exec npm test)` in their allow list,
+    # the audit's `Bash(ws exec *)` watchlist entry should flag it
+    # as a `high`-severity broad pattern. This is the glob-match
+    # direction that the previous quoted-pattern bug broke silently.
+    # The entry may match multiple watchlist patterns (the broader
+    # `Bash(ws exec *)` and the more-specific `Bash(ws exec * *)`
+    # for 2-arg shapes), so exit code is "at least one", not exact.
+    write_settings user "Bash(ws exec npm test)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+    [[ "$output" == *"ws exec runs arbitrary commands"* ]]
+}
+
+@test "glob: Bash(curl *) matches both verbatim and concrete entries" {
+    # Verbatim form (user clicked Always Allow on a literal
+    # wildcard pattern) AND a concrete invocation (user clicked
+    # Allow on `curl https://...`) should both be flagged. The
+    # watchlist entry `Bash(curl *)` covers both via glob.
+    write_settings user "Bash(curl *)
+Bash(curl https://example.com/api)"
+    run_audit
+    [ "$status" -eq 2 ]
+    # Both findings present in output
+    [[ "$output" == *"Bash(curl *)"* ]]
+    [[ "$output" == *"Bash(curl https://example.com/api)"* ]]
+}
+
 # ─── Critical detections ────────────────────────────────────────────
 
 @test "detect: Bash(*) wildcard-only is critical" {
     write_settings user "Bash(*)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: critical"* ]]
     [[ "$output" == *"pattern: 'Bash(*)'"* ]]
 }
@@ -42,7 +86,7 @@ Bash(git -C * status)"
 @test "detect: Bash(sudo *) is critical" {
     write_settings user "Bash(sudo *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: critical"* ]]
     [[ "$output" == *"Privilege escalation"* ]]
 }
@@ -50,7 +94,7 @@ Bash(git -C * status)"
 @test "detect: Bash(eval *) is critical" {
     write_settings project "Bash(eval *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: critical"* ]]
 }
 
@@ -59,7 +103,7 @@ Bash(git -C * status)"
 @test "detect: Bash(ws exec *) is high" {
     write_settings user "Bash(ws exec *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: high"* ]]
     [[ "$output" == *"ws exec runs arbitrary commands"* ]]
 }
@@ -67,14 +111,14 @@ Bash(git -C * status)"
 @test "detect: Bash(bash *) is high" {
     write_settings project "Bash(bash *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: high"* ]]
 }
 
 @test "detect: Bash(rm -rf *) is high" {
     write_settings user "Bash(rm -rf *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: high"* ]]
 }
 
@@ -83,14 +127,14 @@ Bash(git -C * status)"
 @test "detect: Bash(curl *) is medium" {
     write_settings user "Bash(curl *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: medium"* ]]
 }
 
 @test "detect: Bash(kubectl *) is medium" {
     write_settings project-local "Bash(kubectl *)"
     run_audit
-    [ "$status" -eq 1 ]
+    [ "$status" -gt 0 ]
     [[ "$output" == *"severity: medium"* ]]
 }
 

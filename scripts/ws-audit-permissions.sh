@@ -95,8 +95,8 @@ done
 # sorted by severity when severity tiers tie on pattern match.
 
 WATCHLIST_RAW=$(cat <<'WATCHLIST'
-Bash(*)|critical|Wildcard-only Bash auto-approves any shell command. Almost certainly a misclick on "Always Allow".
-Bash(* *)|critical|Effectively the same as Bash(*) — any command with at least one arg.
+Bash(\*)|critical|Wildcard-only Bash auto-approves any shell command. Almost certainly a misclick on "Always Allow".
+Bash(\* \*)|critical|Effectively the same as Bash(*) — any command with at least one arg.
 Bash(sudo *)|critical|Privilege escalation. Allowing this means any sudo invocation auto-approves.
 Bash(sudo)|critical|Bare sudo (interactive password prompt) is rarely useful as an allow pattern.
 Bash(eval *)|critical|Meta-execution. Allowing eval defeats the entire permission system for anything passed through.
@@ -149,10 +149,20 @@ scan_file() {
         entry="${entry%$'\r'}"
 
         # Test entry against every watchlist pattern.
+        #
+        # Pattern is UNQUOTED on the RHS — bash treats it as a glob
+        # in this position. That's deliberate: a watchlist entry like
+        # `Bash(ws exec *)` should match any allow rule of the same
+        # shape (`Bash(ws exec npm test)`, `Bash(ws exec foo bar)`,
+        # etc.), not just the literal verbatim string. The two
+        # wildcard-only watchlist entries (`Bash(\*)` and
+        # `Bash(\* \*)`) escape their `*` so they match ONLY the
+        # literal verbatim — otherwise their glob would match every
+        # Bash() entry on disk and flood the findings list.
         while IFS='|' read -r pattern severity rationale; do
             [[ -z "$pattern" ]] && continue
             # shellcheck disable=SC2053
-            if [[ "$entry" == "$pattern" ]]; then
+            if [[ "$entry" == $pattern ]]; then
                 FINDINGS+=("$scope|$file|$entry|$severity|$rationale")
                 # Don't break — an entry could match multiple watchlist
                 # rules and the user might want to see each. Cheap.

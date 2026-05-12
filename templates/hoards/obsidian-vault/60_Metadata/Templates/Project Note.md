@@ -6,9 +6,19 @@
   let title = tp.file.title
   const needsRename = title.startsWith("Untitled")
   if (needsRename) {
-    title = await tp.system.prompt("Project Name")
+    // Guard canceled / empty prompt: keep the original "Untitled-N"
+    // title rather than crashing tp.file.rename(undefined). User can
+    // rename manually later.
+    const promptedTitle = await tp.system.prompt("Project Name")
+    if (promptedTitle && promptedTitle.trim()) {
+      title = promptedTitle.trim()
+    }
   }
-  const area = await tp.system.prompt("Parent Area (e.g. Obsidian)")
+  // Guard the parent-area prompt similarly. If the user dismisses the
+  // prompt or leaves it blank, emit no area wikilink at all rather
+  // than `[[]]` (broken metadata) or a literal "undefined".
+  const promptedArea = await tp.system.prompt("Parent Area (e.g. Obsidian)")
+  const area = (promptedArea && promptedArea.trim()) ? promptedArea.trim() : ""
   if (needsRename) {
     await tp.file.rename(title)
   }
@@ -16,7 +26,7 @@ _%>
 ---
 created: <% tp.date.now("YYYY-MM-DD") %>
 status: active
-area: "[[<% area %>]]"
+area: "<% area ? `[[${area}]]` : '' %>"
 deadline:
 tags:
   - "#project/<% title.toLowerCase().replace(/ /g, "-") %>"

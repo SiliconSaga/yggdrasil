@@ -15,6 +15,35 @@ setup() {
     init_synthetic_repo
 }
 
+@test "--dry-run fails when a remove: path can't be staged" {
+    # Bodyfile lists a remove: path that doesn't exist on disk and
+    # isn't tracked either — `git rm --dry-run` errors. In real
+    # commit mode this would have been a warning, but for dry-run
+    # the whole point is "would this commit succeed?" — surfacing
+    # a non-zero exit is the correct preview.
+    cat > "$BATS_TEST_TMPDIR/body.md" <<'EOF'
+---
+message: "test: dry-run with bad remove"
+add:
+  - test.md
+remove:
+  - this-file-does-not-exist.md
+---
+
+Body.
+EOF
+    echo "modified" >> "$REPO_DIR/test.md"
+
+    head_before="$(git -C "$REPO_DIR" rev-parse HEAD)"
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ERROR: could not stage removal"* ]]
+    # HEAD didn't move, index unchanged
+    [ "$(git -C "$REPO_DIR" rev-parse HEAD)" = "$head_before" ]
+}
+
 @test "--dry-run on a clean modification: succeeds, previews, no commit" {
     echo "modified" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \

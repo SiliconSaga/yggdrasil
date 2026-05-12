@@ -376,8 +376,8 @@ Run `ws audit-permissions` to inspect `permissions.allow` entries across the thr
 If the exit code is non-zero, surface the findings in the startup summary with a clear "consider scoping or removing" framing — informational, not blocking. Example surface:
 
 > "⚠ Broad allow patterns detected:
->   - project: `Bash(ws exec *)` (high) — ws exec runs arbitrary commands in component dirs
->   - user: `Bash(curl *)` (medium) — unscoped network egress
+> - project: `Bash(ws exec *)` (high) — ws exec runs arbitrary commands in component dirs
+> - user: `Bash(curl *)` (medium) — unscoped network egress
 >
 > Consider scoping with `/permissions` or the `permissions-management` skill."
 

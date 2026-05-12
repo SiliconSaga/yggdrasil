@@ -216,6 +216,7 @@ if [[ -n "$bodyfile" ]]; then
                 else
                     echo "Staging removals from bodyfile frontmatter..."
                 fi
+                rm_fail=0
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
                     # `git rm` (no --cached) so removal applies to BOTH the
@@ -232,10 +233,23 @@ if [[ -n "$bodyfile" ]]; then
                     rm_args=()
                     $dry_run && rm_args+=("--dry-run")
                     if ! git rm "${rm_args[@]}" "$f"; then
-                        echo "WARNING: could not stage removal of $f" >&2
-                        echo "  (file may have uncommitted changes — use 'git rm -f $f' if intended)" >&2
+                        if $dry_run; then
+                            # Promote to ERROR in dry-run mode — dry-run's
+                            # whole point is "would this commit succeed?"
+                            # Returning 0 with a warning on a stageable
+                            # path the operator listed would be a
+                            # misleading preview.
+                            echo "ERROR: could not stage removal of $f (from bodyfile remove: list)" >&2
+                            rm_fail=1
+                        else
+                            echo "WARNING: could not stage removal of $f" >&2
+                            echo "  (file may have uncommitted changes — use 'git rm -f $f' if intended)" >&2
+                        fi
                     fi
                 done <<< "$remove_files"
+                if $dry_run && [[ "$rm_fail" -eq 1 ]]; then
+                    exit 1
+                fi
             fi
         fi
     else

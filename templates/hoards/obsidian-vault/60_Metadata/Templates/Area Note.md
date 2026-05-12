@@ -8,7 +8,11 @@
   if (needsRename) {
     title = await tp.system.prompt("Area Name")
   }
-  const parent = await tp.system.prompt("Parent Area (leave blank for top-level area)")
+  // Trim the prompt result so whitespace-only input is treated as
+  // "no parent" (top-level area), matching the prompt's stated
+  // semantics. Without this, a blank parent emits an empty wikilink
+  // `[[]]` into the frontmatter — broken metadata.
+  const parent = ((await tp.system.prompt("Parent Area (leave blank for top-level area)")) || "").trim()
   if (needsRename) {
     await tp.file.rename(title)
   }
@@ -16,7 +20,7 @@ _%>
 ---
 created: <% tp.date.now("YYYY-MM-DD") %>
 type: area
-area: "[[<% parent %>]]"
+area: "<% parent ? `[[${parent}]]` : '' %>"
 tags:
   - area/<% title.toLowerCase().replace(/ /g, "-") %>
 status: active

@@ -76,6 +76,9 @@ run_hook() {
     # collect_patterns bug hung forever on Windows paths until we
     # added the prev-equals-dir guard. 10s is generous for any
     # legitimate run, certain to fail loudly on a stall.
-    run bash -c "printf '%s' \"\$1\" | timeout 10 bash \"\$2\"" \
-        _ "$payload" "$HOOK_BIN"
+    #
+    # Bash herestring `<<<` feeds $payload as stdin to the hook —
+    # cleaner than wrapping in `bash -c` to pipe (which also runs
+    # afoul of the workspace's no-inline-shell-scripts convention).
+    run timeout 10 bash "$HOOK_BIN" <<< "$payload"
 }

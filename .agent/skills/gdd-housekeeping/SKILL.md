@@ -147,23 +147,13 @@ Set `last_audit` to today's date in the YAML frontmatter.
 
 ### Step 6: Workspace Tidy
 
-Run `ws status` to see dirty state across all repos — there may be
-uncommitted drafts or stale edits worth addressing while you're in
-tidy-up mode.
+Run `ws status` to see dirty state across all repos — there may be uncommitted drafts or stale edits worth addressing while you're in tidy-up mode.
 
-Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`,
-`.outputs/`, or `.tmp/` have accumulated many draft files / scratch
-entries. This is especially worth it when those directories have
-grown past a few dozen entries — old drafts obscure current work
-and bloat grep results.
+Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.tmp/` have accumulated many draft files / scratch entries. This is especially worth it when those directories have grown past a few dozen entries — old drafts obscure current work and bloat grep results.
 
 ### Step 6.5: Review the PreToolUse hook audit log
 
-`~/.claude/hook-audit.log` records every allow/deny decision the
-`gdd-allowlist-bridge.sh` hook has made since the last cleanup.
-Worth a periodic skim during housekeeping — patterns that show up
-repeatedly tell you something about agent behavior or workspace
-configuration:
+`~/.claude/hook-audit.log` records every allow/deny decision the `gdd-allowlist-bridge.sh` hook has made since the last cleanup. Worth a periodic skim during housekeeping — patterns that show up repeatedly tell you something about agent behavior or workspace configuration:
 
 - **Recurring DENY entries for the same compound pattern** → the
   agent is reflexively reaching for shell composition. Check whether
@@ -181,9 +171,7 @@ configuration:
   learned, or sessions have been light. Compare against the human's
   recollection.
 
-A quick scan: `tail -100 ~/.claude/hook-audit.log` (the hook denies
-pipes, so reach for the Read tool instead if running through Claude).
-Truncate when reviewed: `truncate -s 0 ~/.claude/hook-audit.log`.
+A quick scan: `tail -100 ~/.claude/hook-audit.log` (the hook denies pipes, so reach for the Read tool instead if running through Claude). Truncate when reviewed: `truncate -s 0 ~/.claude/hook-audit.log`.
 
 ### Step 7: Reflect on the Process
 
