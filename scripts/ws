@@ -33,6 +33,7 @@
 #   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component
 #   preflight [--soft]  Check workspace prerequisites (bash, git, yq, jq, gh/glab)
+#   audit-permissions [--names-only]  Flag broad permissions.allow patterns across all 3 scopes
 #   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
 #   help              Show this help message (or `ws help <subcommand>` for per-command help)
@@ -713,6 +714,9 @@ case "$COMMAND" in
         ;;
     preflight)
         bash "$SCRIPT_DIR/ws-preflight.sh" "$@"
+        ;;
+    audit-permissions)
+        bash "$SCRIPT_DIR/ws-audit-permissions.sh" "$@"
         ;;
     actions)
         bash "$SCRIPT_DIR/ws-realm.sh" actions "$@"

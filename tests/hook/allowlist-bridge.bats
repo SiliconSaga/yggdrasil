@@ -114,6 +114,37 @@ setup() {
     [[ "$output" == *"redirection"* ]]
 }
 
+@test "deny: 2>&1 FD merge gets specific 'not needed' message" {
+    # The Bash tool captures both stdout and stderr natively, so
+    # `2>&1` is cargo-cult shell jargon. Deny with a message that
+    # explains the redundancy — saves newbies from learning FD-merge
+    # syntax just to follow transcripts.
+    run_hook "ls 2>&1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"File-descriptor merges"* ]]
+    [[ "$output" != *"Output / input redirection"* ]]
+}
+
+@test "deny: 1>&2 FD merge gets the same message" {
+    run_hook "echo error 1>&2"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"File-descriptor merges"* ]]
+}
+
+@test "deny: combined real redirect + FD merge hits FD message first" {
+    # The FD-merge arm comes before the general redirect arm in the
+    # case statement. A command containing both (`cmd 2>&1 > file`)
+    # matches the FD-merge arm first. Either deny is fine — both
+    # are correct — but pin the order so the user always sees the
+    # more specific corrective message when both apply.
+    run_hook "cmd 2>&1 > output.log"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"File-descriptor merges"* ]]
+}
+
 # ─── Tier 2: symmetric normalization against settings.json ──────────
 
 @test "allow via settings: bare command matches verbose pattern" {

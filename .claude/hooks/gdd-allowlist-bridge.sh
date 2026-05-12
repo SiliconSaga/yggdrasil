@@ -210,6 +210,21 @@ case "$cmd" in
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
         ;;
+    *">&"[0-9]*|*"<&"[0-9]*)
+        # File-descriptor merges like `2>&1` (stderr → stdout) and
+        # `1>&2` (stdout → stderr) are common shell jargon, but they
+        # add nothing in this tool environment: the Bash tool already
+        # captures both stdout and stderr — the agent and human see
+        # both streams regardless of merge state. Every legitimate
+        # use of `2>&1` involves piping, redirecting to a file, or
+        # command substitution, ALL of which Tier 1 has already
+        # denied above. Bare `cmd 2>&1` is purely cargo-cult.
+        #
+        # Deny with a corrective message that names the redundancy
+        # explicitly — saves newbies from needing to learn FD-merge
+        # syntax to read transcripts in this workspace.
+        deny "File-descriptor merges like \`2>&1\` and \`1>&2\` aren't needed — the Bash tool already captures both stdout and stderr natively. Remove the merge; both streams will still be visible in the tool output."
+        ;;
     *">"*|*"<"*)
         deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file."
         ;;

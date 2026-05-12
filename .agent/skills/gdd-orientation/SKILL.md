@@ -369,6 +369,24 @@ The vault scan is informational at orientation time only. Actual
 binding (and any prompt for "which vault?") happens later, when the
 scribe skill loads — driven by user intent, not orientation.
 
+#### 6d: Permission breadth audit
+
+Run `ws audit-permissions` to inspect `permissions.allow` entries across the three Claude Code config scopes (user / project / project-local) for patterns that are usually too broad to safely auto-approve — wildcards-on-everything, `sudo *`, `ws exec *`, `rm -rf *`, etc. Output is YAML findings; exit code equals the number of findings.
+
+If the exit code is non-zero, surface the findings in the startup summary with a clear "consider scoping or removing" framing — informational, not blocking. Example surface:
+
+> "⚠ Broad allow patterns detected:
+>   - project: `Bash(ws exec *)` (high) — ws exec runs arbitrary commands in component dirs
+>   - user: `Bash(curl *)` (medium) — unscoped network egress
+>
+> Consider scoping with `/permissions` or the `permissions-management` skill."
+
+If the exit code is 0 (clean findings), stay silent — no need to announce the absence of findings.
+
+If `ws audit-permissions` errors or is unavailable (e.g. shell incompatibility, missing dependencies), note the failure and continue — don't block orientation on the audit.
+
+The audit is deterministic (no LLM judgement) and fast — runs on every session start. Watchlist updates happen in `scripts/ws-audit-permissions.sh`'s `WATCHLIST_RAW` block; review under code review like any other safety policy.
+
 **Trust hierarchy:**
 
 | Level | Source | Treatment |
