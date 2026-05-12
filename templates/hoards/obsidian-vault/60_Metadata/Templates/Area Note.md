@@ -6,7 +6,13 @@
   let title = tp.file.title
   const needsRename = title.startsWith("Untitled")
   if (needsRename) {
-    title = await tp.system.prompt("Area Name")
+    // Guard canceled / empty prompt: keep the original "Untitled-N"
+    // title rather than crashing tp.file.rename(undefined). User can
+    // rename manually later.
+    const promptedTitle = await tp.system.prompt("Area Name")
+    if (promptedTitle && promptedTitle.trim()) {
+      title = promptedTitle.trim()
+    }
   }
   // Trim the prompt result so whitespace-only input is treated as
   // "no parent" (top-level area), matching the prompt's stated

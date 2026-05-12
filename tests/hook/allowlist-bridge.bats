@@ -133,6 +133,31 @@ setup() {
     [[ "$output" == *"File-descriptor merges"* ]]
 }
 
+@test "deny: grep with > redirect hits redirect message, not grep arm bypass" {
+    # Regression: an earlier ordering of the Tier 1 case statement put
+    # the `grep ` arm right after the composition arm. The inner
+    # `case` inside that arm only matched `|`, so a command like
+    # `grep foo file > out` matched the outer grep arm, hit nothing
+    # inside, and silently fell through — bypassing the redirect deny.
+    # Fix was to reorder: the more-specific redirect / substitution /
+    # FD-merge arms now precede the grep arm.
+    run_hook "grep foo file > out"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"redirection"* ]]
+    [[ "$output" != *"Grep tool"* ]]
+}
+
+@test "deny: grep with backtick command substitution hits substitution message" {
+    # Same regression class as the redirect case: grep with substitution
+    # must be caught by the substitution arm, not silently pass through
+    # the grep arm.
+    run_hook 'grep `whoami` file'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Command substitution"* ]]
+}
+
 @test "deny: combined real redirect + FD merge hits FD message first" {
     # The FD-merge arm comes before the general redirect arm in the
     # case statement. A command containing both (`cmd 2>&1 > file`)
@@ -236,6 +261,21 @@ setup() {
     run_hook "cowsay moo"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+# ─── Malformed settings.json doesn't crash the hook ────────────────
+
+@test "malformed settings.json: hook continues to passthrough (no script crash)" {
+    # Regression: the script runs under `set -euo pipefail`. Before the
+    # `jq empty` parse-check guard, a corrupted .claude/settings.json
+    # would make jq exit non-zero, abort the script mid-walk, and the
+    # harness would see a hook crash on every Bash call. Now the file
+    # is skipped on parse failure; the hook keeps walking.
+    printf '%s\n' '{ this is not valid json' > "$WORK/.claude/settings.json"
+    run_hook "npm install some-package"
+    [ "$status" -eq 0 ]
+    # Passthrough — no allow/deny decision should be emitted.
+    [[ "$output" != *"permissionDecision"* ]]
 }
 
 # ─── Passthrough ────────────────────────────────────────────────────

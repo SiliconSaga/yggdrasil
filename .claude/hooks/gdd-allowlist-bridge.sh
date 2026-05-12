@@ -185,27 +185,20 @@ deny() {
 # (quoted strings, escaped operators, nested expansions) and a parse
 # bug would mean trusting an attacker-controlled mix-in. Outright
 # denial of compound forms is simpler and verifiable.
+#
+# Ordering subtlety — the `grep ` arm has to come AFTER the
+# redirect / substitution / FD-merge arms. An earlier version put it
+# right after the composition arm, but that short-circuited the
+# remaining Tier 1 checks: a command like `grep foo file > out`
+# matched the grep arm, the inner case found no `|`, and the outer
+# case completed silently — bypassing the redirect deny. By checking
+# the more-specific deniable operators first, the grep arm only
+# fires when the ONLY Tier 1 violation is `|` (regex alternation or
+# a grep-pipeline), which is the case where "use the Grep tool" is
+# the right corrective message.
 case "$cmd" in
     *"&&"*|*"||"*|*";"*)
         deny "Shell composition (\&\&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. If you need conditional behavior, check the result of one call before issuing the next."
-        ;;
-    "grep "*|"grep")
-        # Specific redirect: grep with `|` (regex alternation OR a
-        # `cmd | grep ...` pipe) is a recurring false-positive case
-        # where the better answer is "use the Grep tool" anyway —
-        # which isn't a Bash call and therefore bypasses this hook.
-        # Catch the grep-with-`|` case BEFORE the generic pipe arm
-        # so the corrective message names the right substitute.
-        # (Pure `grep <pattern> <file>` with no `|` won't reach this
-        # tier — the case statement only fires when a deny-eligible
-        # operator was already in the command.)
-        case "$cmd" in
-            *"|"*)
-                deny "Use the Grep tool instead of \`grep ... | ...\` or \`grep -E 'a|b' ...\`. The Grep tool handles regex alternation correctly (no shell-pipe confusion) AND isn't a Bash invocation, so it bypasses this hook entirely. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
-        esac
-        ;;
-    *"|"*)
-        deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
@@ -227,6 +220,23 @@ case "$cmd" in
         ;;
     *">"*|*"<"*)
         deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file."
+        ;;
+    "grep "*|"grep")
+        # Specific redirect: grep with `|` (regex alternation OR a
+        # `cmd | grep ...` pipe) is a recurring false-positive case
+        # where the better answer is "use the Grep tool" anyway —
+        # which isn't a Bash call and therefore bypasses this hook.
+        # Catch the grep-with-`|` case BEFORE the generic pipe arm
+        # so the corrective message names the right substitute.
+        # Pure `grep <pattern> <file>` (no operators at all) falls
+        # through to Tier 2 — the bare invocation is fine.
+        case "$cmd" in
+            *"|"*)
+                deny "Use the Grep tool instead of \`grep ... | ...\` or \`grep -E 'a|b' ...\`. The Grep tool handles regex alternation correctly (no shell-pipe confusion) AND isn't a Bash invocation, so it bypasses this hook entirely. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
+        esac
+        ;;
+    *"|"*)
+        deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
         ;;
 esac
 
@@ -295,17 +305,28 @@ collect_patterns() {
     # path convention). Without the prev-equals-dir guard we infinite-
     # loop on Windows-style paths where `dirname D:` returns `.`
     # and `dirname .` returns `.` again.
+    #
+    # JSON parse guard: this script runs under `set -euo pipefail`.
+    # A malformed settings.json would make jq exit non-zero and abort
+    # the script mid-walk — turning a single corrupted file into a
+    # hard hook failure. `jq empty <file>` validates parse-ability
+    # cheaply; we skip the file on failure rather than crashing the
+    # whole hook. Stderr from the validate goes to /dev/null because
+    # the user's already seen the corruption when they edited the
+    # file, and a per-invocation parse warning would be noise.
     local dir="$cwd"
     local prev=""
     while [[ "$dir" != "$prev" && "$dir" != "/" && "$dir" != "." && "$dir" != "" ]]; do
-        if [[ -f "$dir/.claude/settings.json" ]]; then
+        if [[ -f "$dir/.claude/settings.json" ]] \
+            && jq empty "$dir/.claude/settings.json" 2>/dev/null; then
             jq -r '.permissions.allow[]? | select(test("^Bash\\("))' \
                 "$dir/.claude/settings.json" 2>/dev/null
         fi
         prev="$dir"
         dir=$(dirname "$dir")
     done
-    if [[ -f "$HOME/.claude/settings.json" ]]; then
+    if [[ -f "$HOME/.claude/settings.json" ]] \
+        && jq empty "$HOME/.claude/settings.json" 2>/dev/null; then
         jq -r '.permissions.allow[]? | select(test("^Bash\\("))' \
             "$HOME/.claude/settings.json" 2>/dev/null
     fi

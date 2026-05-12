@@ -316,7 +316,11 @@ if $dry_run; then
     echo ""
     echo "DRY RUN — would commit to $comp (HEAD: $(git rev-parse --short HEAD 2>/dev/null || echo "none yet")):"
     echo ""
-    echo "$full_message" | sed 's/^/    /'
+    # printf, not echo: a message body starting with `-n` or containing
+    # backslash escapes would be interpreted as flags / escape sequences
+    # by some echo implementations, mangling the preview. printf '%s\n'
+    # treats the whole variable as literal content.
+    printf '%s\n' "$full_message" | sed 's/^/    /'
     echo ""
     echo "No changes were made to the index or working tree."
 else

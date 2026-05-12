@@ -29,7 +29,7 @@ status: active
 area: "<% area ? `[[${area}]]` : '' %>"
 deadline:
 tags:
-  - "#project/<% title.toLowerCase().replace(/ /g, "-") %>"
+  - "#project/<% title.toLowerCase().replace(/ /g, '-') %>"
 priority: Medium
 repo:
 doc_hub:
