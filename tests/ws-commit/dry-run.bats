@@ -139,6 +139,34 @@ EOF
     [ "$before" = "$after" ]
 }
 
+@test "--dry-run succeeds when index is pre-staged even with no bodyfile adds" {
+    # Regression: dry-run used to fail whenever `would_stage_any=0`,
+    # but that ignored the legitimate case of an operator who
+    # manually staged something via `git add` BEFORE invoking
+    # `ws commit --dry-run`. Real-mode would happily commit the
+    # pre-staged content; dry-run should mirror that.
+    #
+    # Set up: pre-stage a modification, then write a bodyfile with
+    # an empty add: list. Dry-run should accept the index as the
+    # source of staged changes.
+    echo "pre-staged-edit" >> "$REPO_DIR/test.md"
+    git -C "$REPO_DIR" add test.md
+    # Bodyfile with no add: entries — message only.
+    cat > "$BATS_TEST_TMPDIR/body.md" <<'EOF'
+---
+message: "test: pre-staged via manual git add"
+---
+
+Body.
+EOF
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DRY RUN"* ]]
+    [[ "$output" == *"test: pre-staged via manual git add"* ]]
+}
+
 @test "--dry-run fails when add: lists only unchanged files (fidelity with real-mode)" {
     # Real-mode catches "no staged changes" after the add: loop runs
     # against unchanged files (git add produces nothing, the cached-

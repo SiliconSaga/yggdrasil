@@ -308,10 +308,18 @@ fi
 # would fail with "No staged changes" — surface that in the preview so
 # dry-run fidelity matches real-commit behavior.
 if $dry_run; then
-    if [[ "${would_stage_any:-0}" -eq 0 ]]; then
+    # Mirror real-mode's "is the index actually committable?" gate.
+    # Dry-run fails only if BOTH (a) the bodyfile's add:/remove: list
+    # produced no would-be-staged changes AND (b) the index has no
+    # pre-staged changes from the operator's own `git add` ahead of
+    # `ws commit --dry-run`. The pre-staged case is legitimate — the
+    # operator may have manually staged something and is using the
+    # bodyfile just for the message + trailer; real-mode happily
+    # commits that, so dry-run should preview happily too.
+    if [[ "${would_stage_any:-0}" -eq 0 ]] && git diff --cached --quiet 2>/dev/null; then
         echo "ERROR: dry-run found no stageable changes for this bodyfile." >&2
         echo "  The real commit would fail with 'No staged changes to commit'." >&2
-        echo "  Likely cause: every add: path is unchanged from HEAD and no remove: entry stages." >&2
+        echo "  Likely cause: every add: path is unchanged from HEAD AND nothing is pre-staged." >&2
         exit 1
     fi
 else
