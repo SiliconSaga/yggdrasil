@@ -170,13 +170,26 @@ three escalating options:
    point at a specific better path (`Grep` tool, `--output` flag,
    `Read` with offset+limit). 90% of the time the substitute works
    and the friction goes away.
-2. **Add the command to a `safe-bash-extras` file.** If the command
-   is one you trust on this machine but doesn't belong in the
-   committed `settings.json`, the per-machine extras file at
-   `<project>/.claude/hooks/safe-bash-extras` or
-   `~/.claude/hooks/safe-bash-extras` lists glob patterns the hook
-   should allow. See [hook README](../../.claude/hooks/README.md)
-   § "Adding a safe command".
+2. **Opt into a `safe-bash-extras` file.** If the command is one
+   you trust on this machine but doesn't belong in the committed
+   `settings.json`, list it as a glob pattern in a per-machine
+   extras file the hook reads. A starter template ships at
+   `.claude/hooks/safe-bash-extras.example` — copy it to activate:
+
+   ```bash
+   cp .claude/hooks/safe-bash-extras.example .claude/hooks/safe-bash-extras
+   ```
+
+   The committed `.example` is a template (with annotated entries
+   for `mkdir`, `touch`, read-only `git` forms, and a niche-
+   utilities section); the live `safe-bash-extras` is gitignored
+   and per-machine. Uncomment the entries you want, or add your
+   own — each line is a bash glob matched against the full
+   command string. You can also use the user-level location
+   `~/.claude/hooks/safe-bash-extras` for patterns that should
+   apply across every workspace on this machine. See the
+   [hook README](../../.claude/hooks/README.md) § "Adding a safe
+   command" for the full format spec.
 3. **Disable the hook for this session.** Set
    `WS_HOOK_DISABLE=1` in your shell or `.env` and the hook
    becomes a passthrough. Use sparingly — you give up the audit
