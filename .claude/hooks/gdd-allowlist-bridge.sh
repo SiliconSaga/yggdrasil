@@ -172,14 +172,19 @@ mkdir -p "$(dirname "$audit_log")"
 # allow() — emit the JSON the harness expects to skip its own prompt.
 # The minimal allow object: hookEventName + permissionDecision: allow.
 # Logged with the reason so the audit trail shows which rule fired.
-# audit_safe() — flatten embedded newlines / carriage returns in $cmd
-# to their literal `\n` / `\r` escape sequences. Without this, a
-# command containing newlines (e.g., a heredoc or a multi-line shell
-# string parsed from the JSON payload) would split a single audit
-# entry across multiple lines — corrupting the log's one-entry-per-
-# line shape and making `tail -100` or grep behave unpredictably.
-# `reason` is hard-coded by the hook itself (no untrusted input), so
-# only $cmd needs sanitizing.
+# audit_safe() — flatten embedded newlines / carriage returns to
+# their literal `\n` / `\r` escape sequences. Without this, an input
+# containing newlines would split a single audit entry across
+# multiple lines — corrupting the log's one-entry-per-line shape and
+# making `tail -100` or grep behave unpredictably.
+#
+# Applied to BOTH $cmd and $reason: while $cmd comes through jq from
+# the agent's tool call (clearly user-controlled), $reason isn't
+# fully hard-coded either — `allow "settings.json: $raw"` and
+# `allow "extras ${file}: $line"` embed user-controlled pattern
+# strings. In practice `read -r` already strips embedded newlines
+# from those sources, but the defense-in-depth costs nothing and
+# the comment now matches the actual call surface.
 audit_safe() {
     local s="$1"
     s="${s//$'\n'/\\n}"
@@ -189,7 +194,7 @@ audit_safe() {
 
 allow() {
     local reason="$1"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALLOW ($reason): $(audit_safe "$cmd")" >> "$audit_log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALLOW ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
     printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     exit 0
 }
@@ -201,7 +206,7 @@ allow() {
 # correct future behavior — defeating the point of an enforcing hook.
 deny() {
     local reason="$1"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DENY ($reason): $(audit_safe "$cmd")" >> "$audit_log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DENY ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
     jq -nc --arg reason "$reason" '{
       hookSpecificOutput: {
         hookEventName: "PreToolUse",

@@ -38,9 +38,14 @@ init_synthetic_repo() {
     # Minimal ecosystem stubs. Trailer-builder calls ws_resolve_ecosystem;
     # that function expects an ecosystem.yaml-like file to exist.
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    # `components` is a mapping in the real schema (scripts do
+    # `yq '.components | keys | .[]'` and `.components.<name>.repo`).
+    # Use `{}` here even though ws-commit doesn't traverse it — keeps
+    # the stub schema-faithful so a future refactor that DOES read
+    # .components fails loudly rather than mysteriously.
     cat > "$ECOSYSTEM" <<'YAML'
 identity: {}
-components: []
+components: {}
 YAML
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/ecosystem.local.yaml"
     cat > "$ECOSYSTEM_LOCAL" <<'YAML'
