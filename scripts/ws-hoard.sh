@@ -943,7 +943,7 @@ shift 2>/dev/null || true
 # first probes the agent runs and shouldn't error before the operator
 # has even seen `ws preflight`'s install hints.
 case "$SUBCMD" in
-    ""|--help|-h|thalamus-path|scan) ;;
+    ""|help|--help|-h|thalamus-path|scan) ;;
     *)
         if ! command -v yq &>/dev/null; then
             echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
@@ -953,7 +953,7 @@ case "$SUBCMD" in
 esac
 
 case "$SUBCMD" in
-    ""|--help|-h)
+    ""|help|--help|-h)
         ws_hoard_help
         ;;
     init)

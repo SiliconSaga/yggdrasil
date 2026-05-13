@@ -84,6 +84,7 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 - [The Thalamus](thalamus.md) — shared thinking space between human and AI
 - [Trust and Safety](trust-and-safety.md) — trust hierarchy, black-box pattern, community responsibility
 - [Permissions](permissions.md) — `.claude/settings.json` reference and the two-layer defense model (local shell commands)
+- [Agent Training](agent-training.md) — the PreToolUse hook, the "scary red" deny output new users see early in a session, why one-action-per-call doesn't double API cost
 - [Access](access.md) — identities, tokens, and remote Git operations (the companion to Permissions)
 - [The Self-Improving Loop](self-improving-loop.md) — how the framework evolves through use
 

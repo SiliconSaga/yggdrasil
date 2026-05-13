@@ -1,0 +1,19 @@
+# Vault syncs across Windows / Mac / Linux / Android via git — force LF
+# line endings for text files so the repo bytes stay identical across
+# platforms and checkouts don't fight Windows' core.autocrlf (which would
+# otherwise produce spurious "M" dirty states on files whose only diff
+# vs the LF-normalized index is line endings).
+* text=auto eol=lf
+
+# Binary attachments — never touch line endings or do text-based diffs
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.webm binary

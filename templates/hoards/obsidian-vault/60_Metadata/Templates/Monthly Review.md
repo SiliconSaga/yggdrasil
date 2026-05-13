@@ -1,5 +1,7 @@
 <%*
-  // Compute month range from the file title (YYYY-MM format)
+  // Friendly month label (e.g. "May 2026") from the file title (YYYY-MM format).
+  const monthLabel = tp.date.now("MMMM YYYY", 0, tp.file.title, "YYYY-MM")
+  // Month start/end retained for the Tasks query below (needs YYYY-MM-DD bounds).
   const startOfMonth = tp.date.now("YYYY-MM-DD", 0, tp.file.title, "YYYY-MM")
   // Last day of month: first of next month minus 1
   const endOfMonth = tp.date.now("YYYY-MM-DD", -1, tp.date.now("YYYY-MM", "P1M", tp.file.title, "YYYY-MM") + "-01", "YYYY-MM-DD")
@@ -11,8 +13,9 @@ month: <% tp.file.title %>
 tags: [review, monthly]
 ---
 
-# Monthly Review: <% tp.file.title %>
-*<% startOfMonth %> to <% endOfMonth %>*
+# <% tp.file.title %>
+
+*Monthly review for <% monthLabel %>.*
 
 > First time using this template? Take a few minutes to fill in
 > what *you* want a monthly review to capture, then delete this

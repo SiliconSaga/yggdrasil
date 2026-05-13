@@ -1,22 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "deny": [
-      "Bash(bash scripts/ws exec *)",
-      "Bash(bash scripts/ws exec * *)",
-      "Bash(bash scripts/ws exec * * *)",
-      "Bash(bash scripts/ws exec * * * *)",
-      "Bash(bash scripts/ws exec * * * * *)",
-      "Bash(bash scripts/ws exec * * * * * *)",
-      "Bash(bash scripts/ws exec * * * * * * *)",
-      "Bash(ws exec *)",
-      "Bash(ws exec * *)",
-      "Bash(ws exec * * *)",
-      "Bash(ws exec * * * *)",
-      "Bash(ws exec * * * * *)",
-      "Bash(ws exec * * * * * *)",
-      "Bash(ws exec * * * * * * *)"
-    ],
+    "deny": [],
     "allow": [
       "Bash(bash scripts/ws help)",
       "Bash(bash scripts/ws help *)",
@@ -272,6 +257,19 @@
       "Bash(git -C * branch --show-current)",
       "Bash(git -C * ls-tree *)",
       "Bash(git fetch *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-allowlist-bridge.sh\""
+          }
+        ]
+      }
     ]
   }
 }

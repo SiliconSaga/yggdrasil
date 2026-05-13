@@ -109,12 +109,9 @@ note renames and Obsidian auto-updates them.
 
 ## Daily Notes
 
-Naming pattern: `YYYY-MM-DD - Topic.md`. Lives in `10_Projects/Daily/`
-or `20_Areas/Journal/` — your call, but pick one and be consistent.
+Naming pattern: `YYYY-MM-DD.md` (the Periodic Notes plugin's default; matches the H1 template entry below so Filename Heading Sync stays happy). Lives in `00_Inbox/` per the obsidian-vault template's Periodic Notes config, unless the user has reconfigured. The `YYYY-MM-DD - Topic.md` longer form is still fine when capture-with-topic is more useful — just rename after the fact, and accept that Filename Heading Sync will adjust the H1 to match.
 
-When the user says *"start a daily note"* or *"jot something for today"*,
-use the `60_Metadata/Templates/Daily Note.md` shape if it exists,
-otherwise create with this minimal frontmatter:
+When the user says *"start a daily note"* or *"jot something for today"*, use the `60_Metadata/Templates/Daily Note.md` shape if it exists, otherwise create with this minimal frontmatter:
 
 ```yaml
 ---
@@ -123,7 +120,7 @@ tags: [daily]
 status: active
 ---
 
-# YYYY-MM-DD — <Topic>
+# YYYY-MM-DD
 
 ## Today
 
@@ -132,6 +129,8 @@ status: active
 ## Links
 
 ```
+
+Templates always include a `# H1` mirroring the filename as the first line after the frontmatter. Filename Heading Sync (bundled, enabled) keeps them in sync — without a matching H1, FHS picks the first body heading and renames the file. When Claude creates a note for the user, follow the same convention.
 
 ## Inbox Processing
 

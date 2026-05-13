@@ -147,14 +147,69 @@ Set `last_audit` to today's date in the YAML frontmatter.
 
 ### Step 6: Workspace Tidy
 
-Run `ws status` to see dirty state across all repos — there may be
-uncommitted drafts or stale edits worth addressing while you're in
-tidy-up mode.
+Run `ws status` to see dirty state across all repos — there may be uncommitted drafts or stale edits worth addressing while you're in tidy-up mode.
 
-Also suggest `ws clean` if `.commits/`, `.issues/`, or `.crs/` have
-accumulated many draft files. This is especially worth it when those
-directories have grown past a few dozen entries — old drafts obscure
-current work and bloat grep results.
+Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.tmp/` have accumulated many draft files / scratch entries. This is especially worth it when those directories have grown past a few dozen entries — old drafts obscure current work and bloat grep results.
+
+### Step 6.5: Review the PreToolUse hook audit log
+
+`~/.claude/hook-audit.log` records every allow/deny decision the `gdd-allowlist-bridge.sh` hook has made since the last cleanup. Worth a periodic skim during housekeeping — patterns that show up repeatedly tell you something about agent behavior or workspace configuration:
+
+- **Recurring DENY entries for the same compound pattern** → the
+  agent is reflexively reaching for shell composition. Check whether
+  AGENTS.md or CLAUDE.md needs a more emphatic callout for the
+  specific verb, or whether the ws CLI is missing a native flag the
+  agent would prefer to use.
+- **Recurring DENY entries from grep-with-`|`** → the agent isn't
+  defaulting to the Grep tool. Cross-check the redirect message is
+  reaching the agent; consider a Thalamus note if it persists.
+- **Recurring ALLOW entries from the same extras-file pattern** →
+  that pattern is earning its place; consider whether it belongs in
+  the project's `.claude/settings.json` instead of a personal
+  extras file (so all collaborators benefit).
+- **No DENY entries since last review** → either the agent has
+  learned, or sessions have been light. Compare against the human's
+  recollection.
+
+The hook log captures decisions the hook made; it does NOT capture
+commands that went to passthrough and then prompted the user. The
+companion data for "commands the user approved a lot through the
+harness prompt" lives in `.claude/settings.local.json`'s
+`permissions.allow` — every entry there is something the user
+clicked "don't ask again" on at some point. Walk both during
+housekeeping:
+
+- **Recurring commands the user remembers approving** (or new
+  entries in `.claude/settings.local.json`'s `permissions.allow`
+  since the last audit) → propose a home for each one:
+
+  > "`tree` was approved repeatedly last session. A general
+  > assessment suggests it's safe to auto-allow on this machine —
+  > want to add it to your `safe-bash-extras` so future sessions
+  > skip the prompt?"
+
+  Three possible homes once the human confirms:
+
+  | Home | When | Trade-off |
+  |---|---|---|
+  | Project `.claude/settings.json` | The pattern is workspace-relevant and other contributors would benefit | Committed to the repo; visible in PR review |
+  | `~/.claude/hooks/safe-bash-extras` (user-level) | A personal tool you trust across every workspace (e.g., `tree`, `bat`, your jq invocations) | Per-user, per-machine; not shared |
+  | `<project>/.claude/hooks/safe-bash-extras` (project-local) | A trusted command specific to this workspace but not policy-worthy | Per-machine; not shared via git |
+  | Leave in `.claude/settings.local.json` | The decision was correct as recorded (don't-ask-again at the harness level) | No change needed |
+
+  For the doc-driven path (project `.claude/settings.json`), invoke
+  the `permissions-management` skill for the full add-and-document
+  flow. For the extras-file paths, just append the bash glob
+  pattern to the live file — no Tier 2 / Tier 3 distinction matters
+  here, the live file is the live file regardless of name.
+
+  Cross-reference: `ws audit-permissions` covers the opposite
+  direction (patterns already in `permissions.allow` that look too
+  broad and might be candidates for narrowing). The two tools meet
+  in the middle: audit-permissions narrows what's there;
+  housekeeping promotes what's missing.
+
+A quick scan: `tail -100 ~/.claude/hook-audit.log` (the hook denies pipes, so reach for the Read tool instead if running through Claude). Truncate when reviewed: `truncate -s 0 ~/.claude/hook-audit.log`.
 
 ### Step 7: Reflect on the Process
 

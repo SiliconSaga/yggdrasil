@@ -59,9 +59,16 @@ commit_help() {
         echo ""
         echo "See templates/commit.md for a ready-to-copy bodyfile template."
         echo ""
+        echo "Flags:"
+        echo "  --dry-run    Validate the bodyfile, simulate staging via"
+        echo "               \`git add --dry-run\`, print the full commit"
+        echo "               message that would land — but DO NOT touch"
+        echo "               the index, working tree, or git history."
+        echo ""
         echo "Examples:"
         echo "  ws commit yggdrasil .commits/fix-store-race.md"
         echo "  ws commit mimir .commits/race-fix.md"
+        echo "  ws commit yggdrasil --dry-run .commits/preview-me.md"
     } >&"$stream"
 }
 
@@ -71,6 +78,19 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     commit_help 1
     exit 0
 fi
+
+# Scan for --dry-run anywhere in args (positional-friendly). Collect
+# the remaining positionals; their meaning is fixed (component +
+# bodyfile) regardless of where the flag appeared.
+dry_run=false
+_positional=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run) dry_run=true; shift ;;
+        *)         _positional+=("$1"); shift ;;
+    esac
+done
+set -- "${_positional[@]}"
 
 if [[ $# -ne 2 ]]; then
     commit_help 2
@@ -115,8 +135,14 @@ fi
 co_authored_by="${co_authored_by%%$'\n'*}"
 trailer="Co-Authored-By: $co_authored_by <noreply@anthropic.com>"
 
-# Ensure .commits/ exists (may be first use on a fresh clone)
-mkdir -p "$ROOT_DIR/.commits"
+# Ensure .commits/ exists for the normal-commit path (first use on a
+# fresh clone may not have it yet). Skip in dry-run mode — dry-run
+# promises not to touch the working tree, and creating an untracked
+# directory (even one that's gitignored) is still a working-tree
+# change a user might be surprised by on a brand-new clone.
+if ! $dry_run; then
+    mkdir -p "$ROOT_DIR/.commits"
+fi
 
 ws_validate_component "$comp"
 cd "$COMPONENT_DIR"
@@ -156,13 +182,25 @@ if [[ -n "$bodyfile" ]]; then
             # Parse remove: list (for deleted files)
             remove_files="$(echo "$frontmatter" | yq -r '.remove // [] | .[]' 2>/dev/null)"
 
+            # Track whether ANY add: or remove: entry would actually
+            # change the index. Dry-run uses this to surface the
+            # "no staged changes" case the real-commit path already
+            # catches at line ~287 — without this, dry-run would
+            # happily print a successful preview for a bodyfile that
+            # references only unchanged files, which the real commit
+            # would then reject with "No staged changes to commit."
+            would_stage_any=0
             if [[ -n "$add_files" ]]; then
-                echo "Staging files from bodyfile frontmatter..."
+                if $dry_run; then
+                    echo "DRY RUN — would stage files from bodyfile frontmatter:"
+                else
+                    echo "Staging files from bodyfile frontmatter..."
+                fi
                 add_fail=0
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
                     # Accept if the path exists on disk OR is a tracked path
-                    # whose file has been deleted (git add stages such
+                    # whose file has been deleted (git add -A stages such
                     # deletions). Only reject when both conditions fail —
                     # that's the real misspelled-path / phantom-entry case.
                     if [[ ! -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
@@ -175,13 +213,38 @@ if [[ -n "$bodyfile" ]]; then
                 fi
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
-                    git add "$f"
+                    # `-A` so a tracked-but-deleted path stages as a
+                    # deletion. Plain `git add <path>` errors on a
+                    # missing file with "pathspec did not match any
+                    # files" — which under `set -e` would abort the
+                    # dry-run preview before the user sees what else
+                    # was in the bodyfile. With `-A`, the same
+                    # invocation handles modifications, new files,
+                    # AND tracked-deleted uniformly.
+                    if $dry_run; then
+                        # --dry-run reports what git WOULD do without
+                        # touching the index. Capture the output so we
+                        # can both display it AND detect whether any
+                        # actual staging would occur — `git add
+                        # --dry-run` is silent for unchanged paths.
+                        add_output=$(git add --dry-run -A "$f")
+                        [[ -n "$add_output" ]] && printf '%s\n' "$add_output"
+                        [[ -n "$add_output" ]] && would_stage_any=1
+                    else
+                        git add -A "$f"
+                        would_stage_any=1
+                    fi
                 done <<< "$add_files"
             fi
 
             # Stage deleted files from remove: list
             if [[ -n "$remove_files" ]]; then
-                echo "Staging removals from bodyfile frontmatter..."
+                if $dry_run; then
+                    echo "DRY RUN — would remove files from bodyfile frontmatter:"
+                else
+                    echo "Staging removals from bodyfile frontmatter..."
+                fi
+                rm_fail=0
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
                     # `git rm` (no --cached) so removal applies to BOTH the
@@ -191,11 +254,33 @@ if [[ -n "$bodyfile" ]]; then
                     # changes, git refuses — we surface the error rather
                     # than swallowing it, so the operator can decide whether
                     # `git rm -f` was actually intended.
-                    if ! git rm "$f"; then
-                        echo "WARNING: could not stage removal of $f" >&2
-                        echo "  (file may have uncommitted changes — use 'git rm -f $f' if intended)" >&2
+                    #
+                    # Dry-run uses `git rm --dry-run` which validates the
+                    # path (same error surface) but doesn't modify the
+                    # index or working tree.
+                    rm_args=()
+                    $dry_run && rm_args+=("--dry-run")
+                    if ! git rm "${rm_args[@]}" "$f"; then
+                        if $dry_run; then
+                            # Promote to ERROR in dry-run mode — dry-run's
+                            # whole point is "would this commit succeed?"
+                            # Returning 0 with a warning on a stageable
+                            # path the operator listed would be a
+                            # misleading preview.
+                            echo "ERROR: could not stage removal of $f (from bodyfile remove: list)" >&2
+                            rm_fail=1
+                        else
+                            echo "WARNING: could not stage removal of $f" >&2
+                            echo "  (file may have uncommitted changes — use 'git rm -f $f' if intended)" >&2
+                        fi
+                    else
+                        # rm succeeded — index would change.
+                        would_stage_any=1
                     fi
                 done <<< "$remove_files"
+                if $dry_run && [[ "$rm_fail" -eq 1 ]]; then
+                    exit 1
+                fi
             fi
         fi
     else
@@ -216,10 +301,33 @@ fi
 # In bodyfile mode the add: list does the staging, so this check usually
 # passes. Failure means the bodyfile had no add: list and the workspace
 # had no pre-staged changes — point the user at the canonical fix.
-if git diff --cached --quiet 2>/dev/null; then
-    echo "ERROR: No staged changes to commit in $comp." >&2
-    echo "  Add files to the bodyfile's 'add:' frontmatter list." >&2
-    exit 1
+#
+# Dry-run uses a different signal: $would_stage_any was set whenever an
+# add: or remove: entry produced actual `git add --dry-run` output OR a
+# successful `git rm --dry-run`. If neither happened, the real commit
+# would fail with "No staged changes" — surface that in the preview so
+# dry-run fidelity matches real-commit behavior.
+if $dry_run; then
+    # Mirror real-mode's "is the index actually committable?" gate.
+    # Dry-run fails only if BOTH (a) the bodyfile's add:/remove: list
+    # produced no would-be-staged changes AND (b) the index has no
+    # pre-staged changes from the operator's own `git add` ahead of
+    # `ws commit --dry-run`. The pre-staged case is legitimate — the
+    # operator may have manually staged something and is using the
+    # bodyfile just for the message + trailer; real-mode happily
+    # commits that, so dry-run should preview happily too.
+    if [[ "${would_stage_any:-0}" -eq 0 ]] && git diff --cached --quiet 2>/dev/null; then
+        echo "ERROR: dry-run found no stageable changes for this bodyfile." >&2
+        echo "  The real commit would fail with 'No staged changes to commit'." >&2
+        echo "  Likely cause: every add: path is unchanged from HEAD AND nothing is pre-staged." >&2
+        exit 1
+    fi
+else
+    if git diff --cached --quiet 2>/dev/null; then
+        echo "ERROR: No staged changes to commit in $comp." >&2
+        echo "  Add files to the bodyfile's 'add:' frontmatter list." >&2
+        exit 1
+    fi
 fi
 
 # Trim leading and trailing blank lines from the body (portable awk).
@@ -234,14 +342,37 @@ if [[ -n "$body_content" ]]; then
     ')"
 fi
 
-# Build and execute the commit
+# Build the final commit message — used for the real commit OR for
+# the dry-run preview. Same shape either way so the user previews
+# exactly what would land.
 if [[ -n "$body_content" ]]; then
     full_message="$message
 
 $body_content
 
 $trailer"
-    git commit -m "$full_message"
 else
-    git commit -m "$message" -m "$trailer"
+    full_message="$message
+
+$trailer"
+fi
+
+if $dry_run; then
+    # Dry-run preview: print the commit message that WOULD land, plus
+    # a marker so it's unambiguous that nothing happened. The earlier
+    # `git add --dry-run` / `git rm --dry-run` invocations have already
+    # surfaced any staging issues; reach this block only when the
+    # bodyfile is internally consistent.
+    echo ""
+    echo "DRY RUN — would commit to $comp (HEAD: $(git rev-parse --short HEAD 2>/dev/null || echo "none yet")):"
+    echo ""
+    # printf, not echo: a message body starting with `-n` or containing
+    # backslash escapes would be interpreted as flags / escape sequences
+    # by some echo implementations, mangling the preview. printf '%s\n'
+    # treats the whole variable as literal content.
+    printf '%s\n' "$full_message" | sed 's/^/    /'
+    echo ""
+    echo "No changes were made to the index or working tree."
+else
+    git commit -m "$full_message"
 fi

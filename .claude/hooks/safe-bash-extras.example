@@ -1,0 +1,97 @@
+# safe-bash-extras.example — copy to safe-bash-extras and edit
+#
+# This file is COMMITTED in the repo as a template. The live version
+# (without `.example`) is gitignored — it's per-machine personal
+# config, not project policy.
+#
+# To use:
+#   1. Copy this file:  cp safe-bash-extras.example safe-bash-extras
+#   2. Uncomment / add patterns you want auto-allowed on this machine
+#   3. Run a quick smoke test in a Claude session — try a matching
+#      command and check ~/.claude/hook-audit.log for an ALLOW entry
+#
+# Each pattern is bash-glob-evaluated against the FULL command string.
+# `*` matches any substring including spaces. Patterns are NOT wrapped
+# in `Bash(...)` — just the bare pattern as you'd write it informally.
+
+# ─── Format ─────────────────────────────────────────────────────────
+#
+# One pattern per line. Lines starting with `#` are comments. Blank
+# lines are ignored. The hook strips trailing whitespace and trailing
+# `\r` (CRLF tolerance) before testing the pattern.
+#
+# Examples:
+#   ls            # exact match: bare command, no args
+#   ls *          # the command with any args (note the space + star)
+#   git status    # exact "git status" with no args
+#   git status *  # "git status" with any args
+#
+# ─── Why these patterns are safe enough ─────────────────────────────
+#
+# Every pattern below assumes the hook's Tier 1 (shell composition
+# deny) is still active. With Tier 1 ON, none of these can be
+# weaponized via `&&`, pipes, `$()`, or redirects — those forms are
+# rejected before this file is consulted. If you disable Tier 1 OR
+# remove the hook, re-evaluate every entry below against your threat
+# model before re-enabling.
+
+# ─── Directory + file creation ──────────────────────────────────────
+# Empty directories and empty files are not destructive — they can't
+# overwrite existing data, and the dangerous follow-ups (redirecting
+# into them, chaining install commands) are blocked at Tier 1.
+
+mkdir *
+mkdir -p *
+touch *
+
+# ─── Read-only inspection ───────────────────────────────────────────
+# These tools READ filesystem state but don't modify it. Safe to
+# auto-allow as long as they're invoked without redirects (which
+# Tier 1 catches anyway).
+
+# ls *
+# pwd
+# cat *
+# head *
+# tail *
+# wc *
+# file *
+# stat *
+# tree
+# tree *
+
+# ─── Git read-only operations ───────────────────────────────────────
+# These match a subset of what's likely already in the project
+# settings.json. Listed here as examples; uncomment only if your
+# project's .claude/settings.json doesn't already cover them.
+
+# git status
+# git status *
+# git log
+# git log *
+# git diff
+# git diff *
+# git show *
+# git branch
+# git branch *
+
+# ─── Niche utilities ────────────────────────────────────────────────
+# Things you might use occasionally that aren't covered by typical
+# project allowlists. Add as you find prompts you're tired of clicking.
+
+# figlet *           # ASCII banner generator
+# cowsay *           # cow-says-things
+# rev *              # reverse each line of input
+# jq *               # JSON processor
+# yq *               # YAML / structured-data processor
+
+# ─── Cleanup reminders ──────────────────────────────────────────────
+#
+# - Remove patterns you no longer use; the file is read on every Bash
+#   tool call, and noise here is friction during audits.
+# - When in doubt, leave a pattern OFF this list. Claude's default
+#   prompt-and-confirm flow is the right backstop for anything
+#   you're not sure about.
+# - The audit log at ~/.claude/hook-audit.log records every match
+#   from this file as "extras file: <path>: <pattern>" — useful for
+#   spotting drift over time.

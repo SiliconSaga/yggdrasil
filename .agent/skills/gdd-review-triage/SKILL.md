@@ -98,6 +98,24 @@ appear as top-level notes, not inline comments. The default `ws review <comp>
 | **Copilot** | Manually resolve with `--resolve-all` after each re-review — Copilot re-files stale findings and does not self-resolve. |
 | **Human reviewer** | Never resolve via automation. Only the author or the reviewer should resolve human threads. |
 
+**When to reply per-thread vs resolve silently.** Per-thread replies
+are friction — both for the author writing them and for anyone
+scanning the PR conversation later. Reserve them for cases where the
+reply carries information the resolution alone doesn't:
+
+| Situation | Reply individually? | Why |
+|---|---|---|
+| Standard fix matching the reviewer's suggestion | No — resolve silently | The commit hash already documents what changed; a "fixed in abc123" comment adds no information past what the diff shows. |
+| Disagreeing with the finding ("won't fix") | **Yes** | The reasoning needs to live next to the thread so a future re-review (or a human) can see why this was a conscious decision. |
+| Fix is substantially different from the suggested approach | **Yes** | Reviewers (especially bots) may otherwise re-file the original suggestion. A short "addressed differently: <reason>" prevents that. |
+| Large fix-set covering many threads | Optional: one batched comment | A single top-level summary comment listing what each commit addressed is friendlier than per-thread chatter. Keep individual replies for the disagreement / different-approach cases above. |
+| Nit you intentionally aren't fixing | **Yes** | Without the reply the reviewer's tool will re-flag it next round. A one-line "skipping — out of scope" prevents the loop. |
+
+Default: **resolve silently** and let the commit message do the
+narration. The commit body that explains *what* each fix addresses is
+the durable record; per-thread replies should add information that
+isn't already there.
+
 ## Triage Process
 
 For each finding from any reviewer:

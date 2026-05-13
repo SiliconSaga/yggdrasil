@@ -36,6 +36,19 @@ A command is checked against `deny` first; if it matches, it's blocked
 regardless of `allow`. Otherwise, if it matches any `allow`, it's
 auto-approved. Otherwise the user is prompted.
 
+### Managed-config layer (corporate / enterprise environments)
+
+Some environments layer additional permission rules on top of the workspace's `.claude/settings.json` via enterprise managed config — typically pushed via the OS-level managed-preferences mechanism (MDM, Group Policy, etc.) and sitting at the top of the precedence stack. These overrides can change which rules apply in either direction: auto-approving things the workspace would prompt on, or forcing prompts the workspace would auto-approve.
+
+If you see a permission behavior that doesn't match what `.claude/settings.json` declares — same workspace, same git tree, different outcome between machines — suspect a managed config in your environment.
+
+The PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh` was designed in part to restore the workspace's "auto-approve this declared-safe pattern" behavior on machines whose managed config forces every Bash call to prompt: the hook's Tier 2 allow fires BEFORE the harness consults its merged permission state, so a pattern declared in `.claude/settings.json` skips the prompt even when the managed default would otherwise force one. Two caveats are worth knowing:
+
+- A managed-config `deny` rule still wins over the hook's allow — the hook can widen, not override, a higher-precedence deny.
+- If the managed config disables `PreToolUse` hooks entirely (rare but possible), the hook can't fire and the workspace's allowlist effectively goes ignored. `WS_HOOK_DISABLE=1` is the opt-OUT, not an opt-IN; it wouldn't help in that scenario.
+
+See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec.
+
 ---
 
 ## 2. Pattern shapes

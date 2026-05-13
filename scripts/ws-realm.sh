@@ -463,7 +463,7 @@ SUBCMD="${1:-}"
 shift 2>/dev/null || true
 
 case "$SUBCMD" in
-    ""|--help|-h)
+    ""|help|--help|-h)
         ws_realm_help
         ;;
     init)
