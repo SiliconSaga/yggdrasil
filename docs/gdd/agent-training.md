@@ -221,6 +221,16 @@ a dedicated step for this):
 The hook doesn't rotate the log. Use `truncate -s 0
 ~/.claude/hook-audit.log` to reset it after a review.
 
+The audit log captures the hook's *decisions* — it doesn't see
+commands that went to passthrough and then prompted you through
+the harness's own permission flow. If you find yourself clicking
+"yes, run it" on the same command session after session, that's
+the cue to add it to a `safe-bash-extras` file (or to project
+`.claude/settings.json` for ones collaborators would also want
+auto-approved). The housekeeping skill prompts the agent to
+surface candidates during audit cycles — you don't have to track
+the count yourself.
+
 ---
 
 ## Related reading
