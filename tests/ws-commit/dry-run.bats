@@ -139,6 +139,26 @@ EOF
     [ "$before" = "$after" ]
 }
 
+@test "--dry-run does not create .commits/ directory on a fresh clone" {
+    # Regression: dry-run's contract is "DO NOT touch the index, working
+    # tree, or git history." Earlier versions ran an unconditional
+    # `mkdir -p $ROOT_DIR/.commits` before the dry_run branch, which
+    # created an untracked directory on disk during a preview — a
+    # working-tree change a user might be surprised by on a brand-new
+    # clone. The fix gates the mkdir behind `if ! $dry_run`. The
+    # synthetic repo here doesn't pre-create .commits/, so its
+    # absence after the dry-run proves the gate works.
+    [ ! -e "$REPO_DIR/.commits" ]
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: no mkdir in dry-run" "test.md"
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$REPO_DIR/.commits" ]
+}
+
 @test "--dry-run prints the Co-Authored-By trailer in the preview" {
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \

@@ -116,6 +116,27 @@ set -euo pipefail
 # We need .tool_input.command to match patterns against, and .cwd
 # to anchor the upward walk for project-scoped settings.json files.
 input=$(cat)
+
+# ─── jq prerequisite check ──────────────────────────────────────────
+#
+# The hook parses its JSON payload with jq and emits deny decisions
+# as JSON via jq. Without jq on PATH, every jq invocation below
+# would fail under `set -e` and the hook would crash on every Bash
+# tool call — including the user trying to run `ws preflight` to
+# diagnose what's missing. Chicken-and-egg trap.
+#
+# Stdin is already drained above (line 118), so exiting now doesn't
+# leave the harness writing into a closed pipe. Fall back to
+# passthrough so the harness's own permission flow still applies.
+# Log a single warning to the audit file so a confused user has
+# somewhere to look for the cause.
+if ! command -v jq >/dev/null; then
+    audit_log="$HOME/.claude/hook-audit.log"
+    mkdir -p "$(dirname "$audit_log")"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PASSTHROUGH (jq not on PATH): hook cannot function without jq. Install jq and re-run 'ws preflight' to verify." >> "$audit_log"
+    exit 0
+fi
+
 cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 
 # Fall back to the script's own pwd if the harness didn't supply

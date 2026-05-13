@@ -35,6 +35,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
+# ─── Prerequisites ──────────────────────────────────────────────────
+#
+# This script parses settings.json files with jq. Without jq, the
+# scan loop crashes with a terse "command not found" + exit 127.
+# Surface the missing-dep case explicitly so the user gets a clear
+# pointer rather than a stack trace.
+if ! command -v jq >/dev/null; then
+    echo "ERROR: jq is required but not found on PATH." >&2
+    echo "  Run 'ws preflight' for per-OS install hints." >&2
+    exit 1
+fi
+
 # ─── Help ───────────────────────────────────────────────────────────
 
 audit_help() {
@@ -185,8 +197,16 @@ if $names_only; then
         echo "$pattern"
     done
 else
-    # YAML, sorted by severity (alphabetical works because critical <
-    # high < medium under simple sort — convenient).
+    # YAML emission. Findings are in insertion order: scope (user →
+    # project → project-local) × allow-entry × watchlist-pattern.
+    # Since the watchlist itself is declared critical → high → medium,
+    # findings within a single scope/entry naturally appear in
+    # severity order, but there's no GLOBAL severity sort — a medium
+    # finding from the user scope can precede a critical finding from
+    # the project scope. Callers that need a strict severity order
+    # should pipe through `yq` or `sort` themselves. Insertion order
+    # is preserved on purpose so the reader can follow each settings
+    # file top-to-bottom.
     if [[ ${#FINDINGS[@]} -eq 0 ]]; then
         echo "[]"
     else

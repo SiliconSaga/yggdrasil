@@ -135,8 +135,14 @@ fi
 co_authored_by="${co_authored_by%%$'\n'*}"
 trailer="Co-Authored-By: $co_authored_by <noreply@anthropic.com>"
 
-# Ensure .commits/ exists (may be first use on a fresh clone)
-mkdir -p "$ROOT_DIR/.commits"
+# Ensure .commits/ exists for the normal-commit path (first use on a
+# fresh clone may not have it yet). Skip in dry-run mode — dry-run
+# promises not to touch the working tree, and creating an untracked
+# directory (even one that's gitignored) is still a working-tree
+# change a user might be surprised by on a brand-new clone.
+if ! $dry_run; then
+    mkdir -p "$ROOT_DIR/.commits"
+fi
 
 ws_validate_component "$comp"
 cd "$COMPONENT_DIR"
