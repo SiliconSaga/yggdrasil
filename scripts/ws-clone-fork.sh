@@ -253,6 +253,11 @@ if FORK_DETAILS=$(api_call "$FORK_TOKEN_VAR" "projects/$FORK_ENCODED" 2>/dev/nul
     else
         FORK_DETAILS=""
     fi
+else
+    # glab api returns non-zero on HTTP error but still writes the error body
+    # to stdout; the command-substitution assignment captures it. Clear it
+    # so the "fork does not exist — creating" branch below can fire.
+    FORK_DETAILS=""
 fi
 
 if [[ -z "$FORK_DETAILS" ]]; then
