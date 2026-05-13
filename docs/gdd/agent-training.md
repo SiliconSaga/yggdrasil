@@ -57,7 +57,9 @@ before every Bash tool call. It rejects shell composition (`&&`,
 commands matching `.claude/settings.json` patterns or a per-user
 `safe-bash-extras` file. Everything else passes through to the
 normal Claude Code prompt. The audit log at
-`~/.claude/hook-audit.log` records every decision.
+`~/.claude/hook-audit.log` records every ALLOW / DENY decision
+(passthroughs are intentionally not logged — they'd balloon the
+log under normal use).
 
 For the deny taxonomy, allow-pattern shape, opt-out, and the
 malformed-JSON / Windows-path edge cases, read the

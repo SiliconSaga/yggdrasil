@@ -139,6 +139,53 @@ EOF
     [ "$before" = "$after" ]
 }
 
+@test "--dry-run fails when add: lists only unchanged files (fidelity with real-mode)" {
+    # Real-mode catches "no staged changes" after the add: loop runs
+    # against unchanged files (git add produces nothing, the cached-
+    # diff check fires). Dry-run used to skip that check entirely
+    # and report a successful preview anyway — false positive that
+    # the user would only discover by trying the real commit.
+    #
+    # Fix: track whether `git add --dry-run -A` produced any output
+    # (silent on unchanged paths) and fail dry-run if nothing would
+    # be staged.
+    #
+    # test.md is committed at "hello"; bodyfile lists it without
+    # any modification, so the add would no-op.
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: dry-run of unchanged" "test.md"
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no stageable changes"* ]] \
+        || [[ "$output" == *"No staged changes"* ]]
+}
+
+@test "--dry-run handles tracked-deleted file in add: list via git add -A" {
+    # Bodyfile validation accepts a tracked-but-deleted path in
+    # add: (the user deleted from disk and listed in add: meaning
+    # "stage the deletion this way"). Previously the underlying
+    # `git add <path>` errored with "pathspec did not match any
+    # files" because plain git-add doesn't stage deletions by path —
+    # `-A` does. Under `set -e` that error aborted the dry-run
+    # preview before the user saw what else was in the bodyfile.
+    #
+    # The fix is `git add -A "$f"` (and the same for --dry-run).
+    # This test exercises the dry-run path with a tracked-deleted
+    # entry and expects it to succeed.
+    rm "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: deletion via add:" "test.md"
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DRY RUN"* ]]
+    # Working tree still has test.md deleted (dry-run doesn't restore)
+    [ ! -e "$REPO_DIR/test.md" ]
+}
+
 @test "--dry-run does not create .commits/ directory on a fresh clone" {
     # Regression: dry-run's contract is "DO NOT touch the index, working
     # tree, or git history." Earlier versions ran an unconditional

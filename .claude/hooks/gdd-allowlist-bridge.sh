@@ -154,7 +154,12 @@ cwd=$(echo "$input" | jq -r '.cwd // empty')
 #
 # Stdin is already drained above, so exiting now doesn't leave the
 # harness writing into a closed pipe.
-if [[ -n "${WS_HOOK_DISABLE:-}" ]]; then
+#
+# Compare to literal "1" — NOT a non-empty check. The non-empty form
+# would treat `WS_HOOK_DISABLE=0` as "disable", which is the opposite
+# of every other env-var-flag convention. Documentation already says
+# "set WS_HOOK_DISABLE=1", so users expect 1-means-on.
+if [[ "${WS_HOOK_DISABLE:-0}" == "1" ]]; then
     exit 0
 fi
 
@@ -167,9 +172,24 @@ mkdir -p "$(dirname "$audit_log")"
 # allow() — emit the JSON the harness expects to skip its own prompt.
 # The minimal allow object: hookEventName + permissionDecision: allow.
 # Logged with the reason so the audit trail shows which rule fired.
+# audit_safe() — flatten embedded newlines / carriage returns in $cmd
+# to their literal `\n` / `\r` escape sequences. Without this, a
+# command containing newlines (e.g., a heredoc or a multi-line shell
+# string parsed from the JSON payload) would split a single audit
+# entry across multiple lines — corrupting the log's one-entry-per-
+# line shape and making `tail -100` or grep behave unpredictably.
+# `reason` is hard-coded by the hook itself (no untrusted input), so
+# only $cmd needs sanitizing.
+audit_safe() {
+    local s="$1"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    printf '%s' "$s"
+}
+
 allow() {
     local reason="$1"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALLOW ($reason): $cmd" >> "$audit_log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALLOW ($reason): $(audit_safe "$cmd")" >> "$audit_log"
     printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     exit 0
 }
@@ -181,7 +201,7 @@ allow() {
 # correct future behavior — defeating the point of an enforcing hook.
 deny() {
     local reason="$1"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DENY ($reason): $cmd" >> "$audit_log"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DENY ($reason): $(audit_safe "$cmd")" >> "$audit_log"
     jq -nc --arg reason "$reason" '{
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -218,8 +238,17 @@ deny() {
 # a grep-pipeline), which is the case where "use the Grep tool" is
 # the right corrective message.
 case "$cmd" in
+    *$'\n'*|*$'\r'*)
+        # Embedded newline / CR — bash treats either as a command
+        # separator (a literal newline in a string runs whatever
+        # follows as a fresh command). Same threat as `;` / `&&`,
+        # but easier to miss because it doesn't look like an
+        # operator. Catch early so it can't sneak past the other
+        # arms via creative whitespace.
+        deny "Newline-separated command lists are disallowed — each line after the first runs as a fresh command, hidden from per-call audit. Issue one command per tool call."
+        ;;
     *"&&"*|*"||"*|*";"*)
-        deny "Shell composition (\&\&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. If you need conditional behavior, check the result of one call before issuing the next."
+        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. If you need conditional behavior, check the result of one call before issuing the next."
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
@@ -241,6 +270,16 @@ case "$cmd" in
         ;;
     *">"*|*"<"*)
         deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file."
+        ;;
+    *"&"*)
+        # Background / command-list separator. By this point `&&` is
+        # already handled (composition arm above), `>&N`/`<&N` are
+        # caught by the FD-merge arm, and `>&`/`<&` without a digit
+        # would have hit the redirect arm. The remaining `&` here is
+        # the dangerous bare form: `cmd1 & cmd2` runs cmd1 in
+        # background and cmd2 right after, both invisible to per-call
+        # audit. Deny.
+        deny "Background separator (\`&\`) is disallowed — the trailing command runs immediately after the backgrounded one, both invisible to per-call audit. Issue one command per tool call; if you need true background work, surface the request first."
         ;;
     "grep "*|"grep")
         # Specific redirect: grep with `|` (regex alternation OR a

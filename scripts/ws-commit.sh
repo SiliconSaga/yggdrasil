@@ -182,6 +182,14 @@ if [[ -n "$bodyfile" ]]; then
             # Parse remove: list (for deleted files)
             remove_files="$(echo "$frontmatter" | yq -r '.remove // [] | .[]' 2>/dev/null)"
 
+            # Track whether ANY add: or remove: entry would actually
+            # change the index. Dry-run uses this to surface the
+            # "no staged changes" case the real-commit path already
+            # catches at line ~287 — without this, dry-run would
+            # happily print a successful preview for a bodyfile that
+            # references only unchanged files, which the real commit
+            # would then reject with "No staged changes to commit."
+            would_stage_any=0
             if [[ -n "$add_files" ]]; then
                 if $dry_run; then
                     echo "DRY RUN — would stage files from bodyfile frontmatter:"
@@ -192,7 +200,7 @@ if [[ -n "$bodyfile" ]]; then
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
                     # Accept if the path exists on disk OR is a tracked path
-                    # whose file has been deleted (git add stages such
+                    # whose file has been deleted (git add -A stages such
                     # deletions). Only reject when both conditions fail —
                     # that's the real misspelled-path / phantom-entry case.
                     if [[ ! -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
@@ -205,12 +213,26 @@ if [[ -n "$bodyfile" ]]; then
                 fi
                 while IFS= read -r f; do
                     [[ -z "$f" ]] && continue
+                    # `-A` so a tracked-but-deleted path stages as a
+                    # deletion. Plain `git add <path>` errors on a
+                    # missing file with "pathspec did not match any
+                    # files" — which under `set -e` would abort the
+                    # dry-run preview before the user sees what else
+                    # was in the bodyfile. With `-A`, the same
+                    # invocation handles modifications, new files,
+                    # AND tracked-deleted uniformly.
                     if $dry_run; then
-                        # --dry-run validates the path and reports what
-                        # git WOULD do without touching the index.
-                        git add --dry-run "$f"
+                        # --dry-run reports what git WOULD do without
+                        # touching the index. Capture the output so we
+                        # can both display it AND detect whether any
+                        # actual staging would occur — `git add
+                        # --dry-run` is silent for unchanged paths.
+                        add_output=$(git add --dry-run -A "$f")
+                        [[ -n "$add_output" ]] && printf '%s\n' "$add_output"
+                        [[ -n "$add_output" ]] && would_stage_any=1
                     else
-                        git add "$f"
+                        git add -A "$f"
+                        would_stage_any=1
                     fi
                 done <<< "$add_files"
             fi
@@ -251,6 +273,9 @@ if [[ -n "$bodyfile" ]]; then
                             echo "WARNING: could not stage removal of $f" >&2
                             echo "  (file may have uncommitted changes — use 'git rm -f $f' if intended)" >&2
                         fi
+                    else
+                        # rm succeeded — index would change.
+                        would_stage_any=1
                     fi
                 done <<< "$remove_files"
                 if $dry_run && [[ "$rm_fail" -eq 1 ]]; then
@@ -276,9 +301,20 @@ fi
 # In bodyfile mode the add: list does the staging, so this check usually
 # passes. Failure means the bodyfile had no add: list and the workspace
 # had no pre-staged changes — point the user at the canonical fix.
-# Skip this check in dry-run mode: nothing is staged (by design), so a
-# clean index is the expected state and shouldn't be flagged as an error.
-if ! $dry_run; then
+#
+# Dry-run uses a different signal: $would_stage_any was set whenever an
+# add: or remove: entry produced actual `git add --dry-run` output OR a
+# successful `git rm --dry-run`. If neither happened, the real commit
+# would fail with "No staged changes" — surface that in the preview so
+# dry-run fidelity matches real-commit behavior.
+if $dry_run; then
+    if [[ "${would_stage_any:-0}" -eq 0 ]]; then
+        echo "ERROR: dry-run found no stageable changes for this bodyfile." >&2
+        echo "  The real commit would fail with 'No staged changes to commit'." >&2
+        echo "  Likely cause: every add: path is unchanged from HEAD and no remove: entry stages." >&2
+        exit 1
+    fi
+else
     if git diff --cached --quiet 2>/dev/null; then
         echo "ERROR: No staged changes to commit in $comp." >&2
         echo "  Add files to the bodyfile's 'add:' frontmatter list." >&2

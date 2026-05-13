@@ -193,6 +193,30 @@ Bash(curl *)"
     [ -z "$output" ]
 }
 
+# ─── YAML output safety ─────────────────────────────────────────────
+
+@test "YAML escape: pattern with single quotes produces valid YAML" {
+    # Allow entries can contain single quotes (e.g., `Bash(echo 'hi')`).
+    # Without escaping, the YAML emission would produce
+    # `pattern: 'Bash(echo 'hi')'` — invalid YAML where the inner `'`
+    # closes the string early. Fix doubles inner `'` to `''`, which
+    # is the YAML-correct way to literal-escape a single quote inside
+    # a single-quoted string.
+    #
+    # Pattern matches the wildcard-bash watchlist entry so the audit
+    # has something to emit. The `echo` part is irrelevant to the
+    # match — we just need ANY quote in the allow string.
+    write_settings project "Bash(bash 'unsafe' *)"
+    run_audit
+    # Findings include this entry (matches `bash *` watchlist).
+    [ "$status" -gt 0 ]
+    # Doubled inner quotes — YAML-correct escape.
+    [[ "$output" == *"'Bash(bash ''unsafe'' *)'"* ]]
+    # Final YAML parses cleanly via yq (round-trip check).
+    parsed_pattern="$(echo "$output" | yq -r '.[0].pattern' 2>/dev/null)"
+    [ "$parsed_pattern" = "Bash(bash 'unsafe' *)" ]
+}
+
 # ─── Robustness ─────────────────────────────────────────────────────
 
 @test "malformed JSON: warns to stderr, continues" {

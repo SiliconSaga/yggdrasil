@@ -212,13 +212,23 @@ else
     else
         for f in "${FINDINGS[@]}"; do
             IFS='|' read -r scope file pattern severity rationale <<< "$f"
-            # Quote string values defensively — patterns may contain
-            # characters that YAML would otherwise mis-parse.
+            # Escape values for the YAML quote style being used:
+            #   - single-quoted string: ' → ''
+            #   - double-quoted string: \ → \\, " → \"
+            # Real-world allow entries like `Bash(echo 'hi')` would
+            # otherwise produce `pattern: 'Bash(echo 'hi')'` — invalid
+            # YAML where the inner `'` closes the string early.
+            # Rationales are author-controlled (no quotes in the
+            # current watchlist) but the same escape applies if
+            # someone adds a quote-containing entry later.
+            escaped_pattern="${pattern//\'/\'\'}"
+            escaped_rationale="${rationale//\\/\\\\}"
+            escaped_rationale="${escaped_rationale//\"/\\\"}"
             echo "- scope: $scope"
             echo "  file: $file"
-            echo "  pattern: '$pattern'"
+            echo "  pattern: '$escaped_pattern'"
             echo "  severity: $severity"
-            echo "  rationale: \"$rationale\""
+            echo "  rationale: \"$escaped_rationale\""
         done
     fi
 fi

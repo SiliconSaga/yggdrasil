@@ -158,6 +158,40 @@ setup() {
     [[ "$output" == *"Command substitution"* ]]
 }
 
+@test "deny: newline-separated commands trigger newline-list message" {
+    # Embedded \n is a command separator in bash (a literal newline
+    # in a command string runs whatever follows as a fresh command).
+    # Same threat as `;`, but visually invisible — caught here so it
+    # can't slip past the other Tier 1 arms via creative whitespace.
+    run_hook $'ls\npwd'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Newline-separated"* ]]
+}
+
+@test "deny: single & background separator triggers background-separator message" {
+    # `cmd1 & cmd2` runs cmd1 in background and cmd2 right after.
+    # Two commands per invocation, both invisible to per-call audit.
+    # The arm sits after `>&N` (FD merge) so `2>&1` still hits the
+    # more-specific FD-merge message, but bare `&` is denied.
+    run_hook "sleep 1 & echo done"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Background separator"* ]]
+}
+
+@test "deny: shell-composition message does NOT contain literal backslash escapes" {
+    # An earlier version wrote `\&\&` inside the double-quoted deny
+    # string, which appeared verbatim to the agent (the backslash
+    # isn't an escape for `&` in bash double-quoted strings).
+    # Make sure the message reads naturally now.
+    run_hook "ls && pwd"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\\&\\&"* ]]
+    [[ "$output" == *"(&&,"* ]]
+}
+
 @test "deny: combined real redirect + FD merge hits FD message first" {
     # The FD-merge arm comes before the general redirect arm in the
     # case statement. A command containing both (`cmd 2>&1 > file`)
@@ -278,6 +312,35 @@ setup() {
     [[ "$output" != *"permissionDecision"* ]]
 }
 
+# ─── Audit-log injection safety ─────────────────────────────────────
+
+@test "audit log: command with embedded newline does NOT split entry across lines" {
+    # Regression: without the audit_safe newline-escape, a command
+    # containing $'\n' would split a single audit entry across
+    # multiple lines, breaking the one-entry-per-line shape that
+    # `tail -100`, grep, and the housekeeping skill assume.
+    #
+    # Test the safety property (single-line integrity + content
+    # preserved), not the exact escape sequence — the latter is an
+    # implementation detail that bash pattern-matching makes
+    # awkward to assert anyway (a `\` inside `[[ ... == *pat* ]]`
+    # is treated as a glob escape and silently consumed).
+    run_hook $'ls\npwd'
+    [ "$status" -eq 0 ]
+    log="$HOME/.claude/hook-audit.log"
+    [ -f "$log" ]
+    # Exactly one log line. Without escape this would be 2 (the
+    # embedded newline would start a new awk record mid-entry).
+    line_count="$(awk 'END{print NR}' "$log")"
+    [ "$line_count" = "1" ]
+    # Both halves of the original command appear in the single
+    # entry — the escape doesn't drop content, just flattens the
+    # separator.
+    log_content="$(cat "$log")"
+    [[ "$log_content" == *ls* ]]
+    [[ "$log_content" == *pwd* ]]
+}
+
 # ─── Passthrough ────────────────────────────────────────────────────
 
 @test "passthrough: unmatched command yields no decision" {
@@ -296,6 +359,25 @@ setup() {
     WS_HOOK_DISABLE=1 run_hook "ls && pwd"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "WS_HOOK_DISABLE=0 does NOT bypass (treats as opt-in, not boolean)" {
+    # An earlier version used a non-empty check that meant
+    # WS_HOOK_DISABLE=0 also disabled the hook — the opposite of
+    # every other env-var-flag convention and a foot-gun for users
+    # exporting WS_HOOK_DISABLE=0 thinking they're explicitly
+    # turning it off. The fix is an explicit `== "1"` comparison.
+    WS_HOOK_DISABLE=0 run_hook "ls && pwd"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "WS_HOOK_DISABLE='' does NOT bypass" {
+    # Empty string from `export WS_HOOK_DISABLE=` should NOT bypass —
+    # only an explicit `=1` opts out.
+    WS_HOOK_DISABLE='' run_hook "ls && pwd"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
 }
 
 # ─── Timeout-safe upward walk ───────────────────────────────────────
