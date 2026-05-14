@@ -206,6 +206,39 @@ ws_resolve_ecosystem() {
 
 trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 
+# Resolve the gitTokens env-var name for a normalized "host/path" target.
+#
+# Walks .defaults.gitTokens in the merged ecosystem config looking for
+# the longest-prefix match against $1, and prints the configured env
+# var name on stdout. Prints nothing (and exits 0) if no entry matches —
+# callers branch on $? or on output emptiness.
+#
+# Args:
+#   $1  Normalized path-like target: "<host>/<group>[/<sub-group>...]/<repo>"
+#       — no scheme prefix, no credentials, no port, no .git suffix.
+#       Callers that have a raw git URL should normalize it first (see
+#       the sed pipeline in ws_diagnose for a reference normalization).
+#
+# Used by ws_diagnose (token coverage per remote) and ws-clone-fork.sh
+# (upstream-read + fork-write token resolution).
+ws_resolve_token_var() {
+    local target="$1"
+    local eco
+    eco="$(ws_resolve_ecosystem)" || return 0
+    [[ -f "$eco" ]] || return 0
+    local best_key="" best_len=0
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        local key_len=${#key}
+        if [[ ( "$target" == "${key}/"* || "$target" == "$key" ) && $key_len -gt $best_len ]]; then
+            best_len=$key_len
+            best_key="$key"
+        fi
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    [[ -z "$best_key" ]] && return 0
+    KEY="$best_key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco" 2>/dev/null
+}
+
 # ---------------------------------------------------------------------------
 # Subcommands — only run when called directly (not when sourced)
 # ---------------------------------------------------------------------------

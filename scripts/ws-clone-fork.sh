@@ -172,28 +172,11 @@ fi
 FORK_NAMESPACE="$(dirname "$FORK_PATH")"  # destination namespace for project creation
 
 # --- token resolution (longest-prefix match) --------------------------------
-# Returns the env var name (or empty) for the gitTokens entry covering
-# the given path on the upstream host.
-resolve_token_var() {
-    local target_path="$1"
-    local target_host="$UPSTREAM_HOST"
-    local best_key="" best_len=0
-    while IFS= read -r key; do
-        [[ -z "$key" || "$key" == "null" ]] && continue
-        [[ "$key" != "$target_host/"* ]] && continue
-        local key_path="${key#${target_host}/}"
-        local key_len=${#key_path}
-        if [[ ( "$target_path" == "${key_path}/"* || "$target_path" == "$key_path" ) && $key_len -gt $best_len ]]; then
-            best_len=$key_len
-            best_key="$key"
-        fi
-    done < <(yq '.defaults.gitTokens | keys | .[]' "$ECO" 2>/dev/null)
-    [[ -z "$best_key" ]] && return 0
-    KEY="$best_key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$ECO" 2>/dev/null
-}
+# Token-walk lives in ws-realm.sh as `ws_resolve_token_var`. We pass the
+# full "host/path" target (which the shared helper expects).
 
-UPSTREAM_TOKEN_VAR=$(resolve_token_var "$UPSTREAM_PATH")
-FORK_TOKEN_VAR=$(resolve_token_var "$FORK_PATH")
+UPSTREAM_TOKEN_VAR=$(ws_resolve_token_var "$UPSTREAM_HOST/$UPSTREAM_PATH")
+FORK_TOKEN_VAR=$(ws_resolve_token_var "$UPSTREAM_HOST/$FORK_PATH")
 
 # Helper: source .env from workspace root if a needed var isn't loaded.
 # (ws dispatcher already sources .env, but ws-clone-fork.sh may be invoked
