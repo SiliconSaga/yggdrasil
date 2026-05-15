@@ -372,6 +372,34 @@ setup() {
     [[ "$output" != *"permissionDecision"* ]]
 }
 
+@test "Edit/Write: a symlink dir escaping a scratch dir does not auto-allow" {
+    # `.tmp/evil` is a symlink to a dir OUTSIDE the project. A write
+    # to `.tmp/evil/passwd` has a literal path under `.tmp/`, but its
+    # physical resolution lands outside — the symlink guard catches it.
+    #
+    # Verify the link with `-L`, not `ln -s`'s exit code: Git Bash on
+    # Windows returns 0 from `ln -s` but silently creates a real copy
+    # when symlink privileges are absent. Skip cleanly in that case.
+    mkdir -p "$WORK/.tmp"
+    mkdir -p "$BATS_TEST_TMPDIR/outside"
+    ln -s "$BATS_TEST_TMPDIR/outside" "$WORK/.tmp/evil" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/evil" ]] || skip "real symlinks not supported on this platform"
+    run_hook_write "Write" ".tmp/evil/passwd"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "Edit/Write: a symlinked target file in a scratch dir does not auto-allow" {
+    # The target itself is a symlink — a write follows it wherever it
+    # points. The `-L` check rejects it before the prefix match.
+    mkdir -p "$WORK/.tmp"
+    ln -s "$BATS_TEST_TMPDIR/secret.txt" "$WORK/.tmp/sneaky.txt" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/sneaky.txt" ]] || skip "real symlinks not supported on this platform"
+    run_hook_write "Write" ".tmp/sneaky.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"permissionDecision"* ]]
+}
+
 # ─── Passthrough ────────────────────────────────────────────────────
 
 @test "passthrough: unmatched command yields no decision" {

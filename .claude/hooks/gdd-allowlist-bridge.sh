@@ -301,6 +301,36 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         *)  abs_path="$project_dir/$file_path" ;;
     esac
 
+    # Symlink guard. The `..` guard above stops textual traversal, but
+    # a symlink INSIDE a scratch dir defeats a textual prefix match a
+    # different way: `.tmp/evil` → `/etc` still has a literal path
+    # starting with `$project_dir/.tmp/`, yet a write through it lands
+    # outside the project. Two checks close this:
+    #
+    #   1. If the target itself is a symlink, passthrough — a write
+    #      follows the link to wherever it points.
+    #   2. Resolve the deepest existing directory ancestor of the
+    #      target with `cd … && pwd -P` (physical path, symlinks
+    #      resolved) and confirm it is still under the *resolved*
+    #      project root. Resolving BOTH sides also handles the case
+    #      where the whole project is reached via a symlinked path.
+    #
+    # `cd`/`pwd -P` is POSIX and needs no `realpath` (which varies
+    # across OSes). Any failure → passthrough, never a false allow.
+    if [[ -L "$abs_path" ]]; then
+        exit 0  # target is a symlink — let the harness prompt
+    fi
+    sym_probe="${abs_path%/*}"
+    while [[ ! -d "$sym_probe" && "$sym_probe" == */* ]]; do
+        sym_probe="${sym_probe%/*}"
+    done
+    real_probe="$(cd "$sym_probe" 2>/dev/null && pwd -P)" || exit 0
+    real_project="$(cd "$project_dir" 2>/dev/null && pwd -P)" || exit 0
+    case "$real_probe/" in
+        "$real_project/"*) : ;;   # resolves inside the project — OK
+        *) exit 0 ;;              # resolves outside — passthrough
+    esac
+
     # Scratch dirs that auto-allow Edit / Write. Mirrors the
     # "Workspace-local scratch" section of the project's .gitignore —
     # the two lists should stay in lockstep so anything safe to commit

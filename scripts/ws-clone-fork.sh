@@ -300,13 +300,18 @@ if [[ -z "$FORK_DETAILS" ]]; then
     rm -f "$fork_create_err"
     FORK_DETAILS="$fork_create_result"
 
-    # Poll import_status until "finished"
+    # Poll import_status until "finished". Default is 10 × 2s = 20s,
+    # which covers normal-size repos; heavier upstreams may need more.
+    # WS_CLONE_FORK_POLL_ITERATIONS overrides the count without a code
+    # change. A non-positive or non-numeric value falls back to 10.
+    poll_max="${WS_CLONE_FORK_POLL_ITERATIONS:-10}"
+    [[ "$poll_max" =~ ^[1-9][0-9]*$ ]] || poll_max=10
     echo "         Fork created; waiting for import to finish..."
-    for i in 1 2 3 4 5 6 7 8 9 10; do
+    for ((i = 1; i <= poll_max; i++)); do
         sleep 2
         status_json=$(api_call "$FORK_TOKEN_VAR" "projects/$FORK_ENCODED" 2>/dev/null || echo '{}')
         status=$(echo "$status_json" | jq -r '.import_status // "unknown"')
-        echo "         attempt $i: import_status = $status"
+        echo "         attempt $i/$poll_max: import_status = $status"
         if [[ "$status" == "finished" ]]; then
             FORK_DETAILS="$status_json"
             break
@@ -317,7 +322,9 @@ if [[ -z "$FORK_DETAILS" ]]; then
         fi
     done
     if [[ "$status" != "finished" ]]; then
-        echo "ERROR: Fork import did not finish after 20s. Re-run ws clone-fork; the import may complete in the background." >&2
+        echo "ERROR: Fork import did not finish after $((poll_max * 2))s." >&2
+        echo "  Re-run ws clone-fork — the import may complete in the background." >&2
+        echo "  For a consistently slow upstream, raise WS_CLONE_FORK_POLL_ITERATIONS." >&2
         exit 1
     fi
 fi
