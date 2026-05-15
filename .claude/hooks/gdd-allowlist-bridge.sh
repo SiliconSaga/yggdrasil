@@ -144,6 +144,20 @@ cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 cwd=$(echo "$input" | jq -r '.cwd // empty')
 [[ -z "$cwd" ]] && cwd=$(pwd)
 
+# Which hook event are we firing on? The same script supports both
+# PreToolUse and PermissionRequest — the output JSON shape and the
+# allowed decision values differ between events, so we branch on this
+# in allow() / deny(). Default to PreToolUse when the field is missing
+# (e.g., a manual `bash hook.sh < payload.json` test that omits it).
+event=$(echo "$input" | jq -r '.hook_event_name // "PreToolUse"')
+
+# Which tool is being invoked? The script handles a small set:
+# Bash (the main case, with command-pattern allowlists) and the
+# file-editing tools Edit/Write (path-based scratch-dir allowlist).
+# The tool routing block (after the helpers) short-circuits non-Bash
+# tools before the Bash-only tier logic runs.
+tool_name=$(echo "$input" | jq -r '.tool_name // ""')
+
 # ─── Opt-out escape hatch ───────────────────────────────────────────
 # A user can disable this hook entirely on their own machine without
 # editing the committed settings.json. Set WS_HOOK_DISABLE=1 in your
@@ -192,10 +206,21 @@ audit_safe() {
     printf '%s' "$s"
 }
 
+#
+# Output shape differs per event:
+#   PreToolUse       → hookSpecificOutput.permissionDecision = "allow"
+#   PermissionRequest → hookSpecificOutput.decision.behavior  = "allow"
+# Both bypass the prompt for that event. PermissionRequest has no
+# "defer"/"ask" — passthrough (no JSON, exit 0) is the only way to
+# yield to other hooks or the default prompt for that event.
 allow() {
     local reason="$1"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALLOW ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
-    printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ALLOW [$event] ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
+    if [[ "$event" == "PermissionRequest" ]]; then
+        printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+    else
+        printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+    fi
     exit 0
 }
 
@@ -204,18 +229,82 @@ allow() {
 # composing the agent-visible block message. Without a reason field
 # the agent sees only "blocked" with no guidance, which doesn't
 # correct future behavior — defeating the point of an enforcing hook.
+#
+# Output shape differs per event:
+#   PreToolUse       → hookSpecificOutput.permissionDecision = "deny"
+#                       + permissionDecisionReason (agent-visible)
+#   PermissionRequest → hookSpecificOutput.decision.behavior  = "deny"
+#                       (no documented reason field; corrective text
+#                       still appears in the audit log)
 deny() {
     local reason="$1"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DENY ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
-    jq -nc --arg reason "$reason" '{
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: $reason
-      }
-    }'
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DENY [$event] ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
+    if [[ "$event" == "PermissionRequest" ]]; then
+        jq -nc '{
+          hookSpecificOutput: {
+            hookEventName: "PermissionRequest",
+            decision: { behavior: "deny" }
+          }
+        }'
+    else
+        jq -nc --arg reason "$reason" '{
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: "deny",
+            permissionDecisionReason: $reason
+          }
+        }'
+    fi
     exit 0
 }
+
+# ─── Tool routing: non-Bash branch (Edit / Write) ──────────────────
+#
+# Edit and Write decisions are path-based, not command-pattern-based.
+# Paths under any configured scratch directory auto-allow; everything
+# else falls through to the harness's normal prompt flow. Scratch
+# dirs are anchored to $CLAUDE_PROJECT_DIR (with a $cwd fallback for
+# manual test invocations).
+#
+# Why hardcode the list here? It's short, project-stable, and lives
+# next to the decision logic that uses it. If it ever grows past a
+# handful of entries, lifting it into a `safe-write-paths` extras
+# file parallel to `safe-bash-extras` is the natural next step —
+# until then, hardcoding is the simpler, more auditable form.
+#
+# Defense-in-depth: tools not handled here (Read, MCP, WebFetch, etc.)
+# shouldn't reach this script because the matcher in settings.json
+# names the supported tools explicitly. If one slips through anyway,
+# the fall-through `exit 0` at the bottom of the branch means
+# passthrough — the harness's normal flow handles it.
+if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
+    project_dir="${CLAUDE_PROJECT_DIR:-$cwd}"
+    file_path=$(echo "$input" | jq -r '.tool_input.file_path // ""')
+
+    # Anchor relative paths to the project root before comparing.
+    case "$file_path" in
+        /*) abs_path="$file_path" ;;
+        *)  abs_path="$project_dir/$file_path" ;;
+    esac
+
+    # Scratch dirs that auto-allow Edit / Write. Mirrors the
+    # "Workspace-local scratch" section of the project's .gitignore —
+    # the two lists should stay in lockstep so anything safe to commit
+    # nothing-for is also safe to edit without prompting. Order by
+    # frequency-of-use so the first match (most common) is cheapest.
+    for prefix in ".tmp/" ".commits/" ".crs/" ".issues/" ".outputs/"; do
+        if [[ "$abs_path" == "$project_dir/$prefix"* ]]; then
+            # cmd is empty for Edit/Write — re-purpose it so the
+            # audit-log entry names the tool + path instead of
+            # silently logging a blank command.
+            cmd="$tool_name $file_path"
+            allow "scratch-dir: $prefix"
+        fi
+    done
+
+    # No scratch-dir match → passthrough so the harness prompts.
+    exit 0
+fi
 
 # ─── Tier 1: Deny shell composition with corrective messages ────────
 #
@@ -240,8 +329,8 @@ deny() {
 # case completed silently — bypassing the redirect deny. By checking
 # the more-specific deniable operators first, the grep arm only
 # fires when the ONLY Tier 1 violation is `|` (regex alternation or
-# a grep-pipeline), which is the case where "use the Grep tool" is
-# the right corrective message.
+# a grep-pipeline), which is where the corrective message about the
+# Grep tool / pipe-free grep is the right substitute.
 case "$cmd" in
     *$'\n'*|*$'\r'*)
         # Embedded newline / CR — bash treats either as a command
@@ -289,15 +378,17 @@ case "$cmd" in
     "grep "*|"grep")
         # Specific redirect: grep with `|` (regex alternation OR a
         # `cmd | grep ...` pipe) is a recurring false-positive case
-        # where the better answer is "use the Grep tool" anyway —
-        # which isn't a Bash call and therefore bypasses this hook.
-        # Catch the grep-with-`|` case BEFORE the generic pipe arm
-        # so the corrective message names the right substitute.
-        # Pure `grep <pattern> <file>` (no operators at all) falls
-        # through to Tier 2 — the bare invocation is fine.
+        # where the Grep tool is the cleaner substitute when it's
+        # available — but in some Claude Code setups (e.g., partner
+        # / managed deployments) Grep isn't exposed. The deny message
+        # below names both paths so the agent can recover either way.
+        # Catch the grep-with-`|` case BEFORE the generic pipe arm so
+        # the corrective text is the more-specific one. Pure
+        # `grep <pattern> <file>` (no operators) falls through to
+        # Tier 2 — the bare invocation is fine.
         case "$cmd" in
             *"|"*)
-                deny "Use the Grep tool instead of \`grep ... | ...\` or \`grep -E 'a|b' ...\`. The Grep tool handles regex alternation correctly (no shell-pipe confusion) AND isn't a Bash invocation, so it bypasses this hook entirely. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
+                deny "Prefer the Grep tool over \`grep ... | ...\` or \`grep -E 'a|b' ...\` when available — it handles regex alternation cleanly and bypasses this hook. If the Grep tool isn't exposed in this Claude Code setup, plain \`grep\` is fine — just avoid \`|\`: drop the pipe, narrow the source files, or use \`grep -E '<alt>'\` without a pipeline. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
         esac
         ;;
     *"|"*)

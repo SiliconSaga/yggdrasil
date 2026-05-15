@@ -1,9 +1,5 @@
-# Environment and drafts
+# Environment
 .env
-.issues/
-.crs/
-.commits/
-.outputs/
 .DS_Store
 
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
@@ -25,10 +21,16 @@ ecosystem.local.yaml
 # Generated ArgoCD manifests from ws-resolve.sh
 /.generated/
 
-# Workspace-local scratch / temp area — synthetic git repos used by
-# manual command testing and ad-hoc validation. Use this instead of
-# /tmp on Windows where Git Bash maps it to an unpredictable location.
+# Workspace-local scratch / temp area — agent and human edits land
+# here without prompting via the PreToolUse / PermissionRequest hooks
+# (see .claude/hooks/gdd-allowlist-bridge.sh). Includes synthetic git
+# repos for manual command testing, draft commit / CR / issue bodies,
+# and capture buckets for tool output. Use these instead of /tmp
 /.tmp/
+/.commits/
+/.crs/
+/.issues/
+/.outputs/
 
 # External / fetched templates (future marketplace) — gitignored payloads,
 # only the .gitkeep is tracked.
