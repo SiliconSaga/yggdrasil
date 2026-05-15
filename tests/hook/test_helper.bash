@@ -61,6 +61,22 @@ write_user_extras() {
     printf '%s\n' "$1" > "$HOME/.claude/hooks/safe-bash-extras"
 }
 
+# Build an Edit/Write tool-call payload and pipe it into the hook.
+# The hook's non-Bash branch decides on the file_path, not a command.
+# project_dir falls back to cwd when CLAUDE_PROJECT_DIR is unset, so
+# the cwd arg anchors the scratch-dir comparison.
+#
+# Args: $1 = tool name (Edit|Write), $2 = file_path, $3 = cwd (default $WORK)
+run_hook_write() {
+    local tool="$1"
+    local file_path="$2"
+    local cwd="${3:-$WORK}"
+    local payload
+    payload=$(jq -nc --arg t "$tool" --arg fp "$file_path" --arg cwd "$cwd" \
+        '{tool_name:$t, tool_input:{file_path:$fp}, cwd:$cwd}')
+    run timeout 10 bash "$HOOK_BIN" <<< "$payload"
+}
+
 # Build the JSON tool-call payload and pipe it into the hook. The
 # entire pipeline runs inside the bats subshell, away from the
 # harness's PreToolUse watch.

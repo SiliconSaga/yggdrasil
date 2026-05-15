@@ -7,7 +7,9 @@
 # To use:
 #   1. Copy this file:  cp safe-bash-extras.example safe-bash-extras
 #   2. Uncomment / add patterns you want auto-allowed on this machine
-#   3. Remove / drop down any trailing comment to not cause trouble
+#   3. On any line you uncomment, delete its trailing `# ...` comment
+#      too — the hook matches the WHOLE line, so an inline comment
+#      becomes part of the pattern and breaks the match
 #   4. Run a quick smoke test in a Claude session — try a matching
 #      command and check ~/.claude/hook-audit.log for an ALLOW entry
 #

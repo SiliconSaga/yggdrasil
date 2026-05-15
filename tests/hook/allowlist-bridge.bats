@@ -341,6 +341,37 @@ setup() {
     [[ "$log_content" == *pwd* ]]
 }
 
+# ─── Edit/Write scratch-dir branch ──────────────────────────────────
+
+@test "Edit/Write: write into a scratch dir auto-allows" {
+    run_hook_write "Write" ".tmp/draft.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "Edit/Write: write outside scratch dirs passes through" {
+    run_hook_write "Write" "src/main.rs"
+    [ "$status" -eq 0 ]
+    # No scratch-dir match → passthrough, harness prompts.
+    [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "Edit/Write: path traversal out of a scratch dir does NOT auto-allow" {
+    # Regression: the scratch-dir test is a textual prefix match, so
+    # `.tmp/../../escape` still STARTS WITH `<project>/.tmp/` and
+    # would wrongly auto-allow a write that RESOLVES outside the
+    # project. The `..`-segment guard rejects it to passthrough.
+    run_hook_write "Write" ".tmp/../../escape.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "Edit/Write: a bare .. component does not auto-allow" {
+    run_hook_write "Edit" "../outside.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"permissionDecision"* ]]
+}
+
 # ─── Passthrough ────────────────────────────────────────────────────
 
 @test "passthrough: unmatched command yields no decision" {

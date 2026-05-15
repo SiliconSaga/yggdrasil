@@ -19,7 +19,7 @@
 #
 # Realm-level convention (defaults.forkConvention):
 #   nested  — insert forkOrg before the repo name (default; e.g.
-#             gni-cis/gdd/<repo> + forkOrg=alice → gni-cis/gdd/alice/<repo>)
+#             acme/team/<repo> + forkOrg=alice → acme/team/alice/<repo>)
 #   flat    — replace the first segment with forkOrg (GitHub-style:
 #             org/<repo> + forkOrg=alice → alice/<repo>)
 
@@ -87,6 +87,14 @@ done
 
 ECO="$(ws_resolve_ecosystem)"
 
+# Scratch file for capturing glab stderr. Workspace convention is
+# .tmp/ over /tmp — Git Bash maps /tmp to an unpredictable location
+# on Windows. .tmp/ is gitignored. Per-PID suffix avoids collisions;
+# each `2>` redirect truncates, so the file is reused safely and the
+# inline `rm -f` calls clean it up after each consumer.
+ERR_TMP="$ROOT_DIR/.tmp/ws-clone-fork-err.$$"
+mkdir -p "$ROOT_DIR/.tmp"
+
 # --- read component config --------------------------------------------------
 UPSTREAM_URL=$(COMP="$COMPONENT" yq '.components[strenv(COMP)].repo // ""' "$ECO" 2>/dev/null)
 if [[ -z "$UPSTREAM_URL" || "$UPSTREAM_URL" == "null" ]]; then
@@ -116,7 +124,7 @@ FORK_CONVENTION=$(yq '.defaults.forkConvention // "nested"' "$ECO" 2>/dev/null)
 [[ "$FORK_CONVENTION" == "null" ]] && FORK_CONVENTION="nested"
 
 # --- parse upstream URL -----------------------------------------------------
-# Returns host and path (no .git suffix). Path is e.g. "gni-cis/gdd/cis-operations-mock".
+# Returns host and path (no .git suffix). Path is e.g. "acme/team/widget".
 parse_git_url() {
     local url="$1"
     local host path
@@ -138,13 +146,20 @@ parse_git_url() {
 }
 
 read -r UPSTREAM_HOST UPSTREAM_PATH < <(parse_git_url "$UPSTREAM_URL")
-UPSTREAM_LEAF_GROUP="$(dirname "$UPSTREAM_PATH")"        # e.g. "gni-cis/gdd"
-UPSTREAM_REPO_NAME="$(basename "$UPSTREAM_PATH")"        # e.g. "cis-operations-mock"
+UPSTREAM_LEAF_GROUP="$(dirname "$UPSTREAM_PATH")"        # e.g. "acme/team"
+UPSTREAM_REPO_NAME="$(basename "$UPSTREAM_PATH")"        # e.g. "widget"
 # Remote name for upstream: last segment of the parent group, or "upstream" if path is flat.
 if [[ "$UPSTREAM_LEAF_GROUP" == "." || -z "$UPSTREAM_LEAF_GROUP" ]]; then
     UPSTREAM_REMOTE_NAME="upstream"
 else
     UPSTREAM_REMOTE_NAME="$(basename "$UPSTREAM_LEAF_GROUP")"
+fi
+# The fork remote is named after $FORK_ORG. If the upstream group's
+# leaf segment happens to equal $FORK_ORG, the two `git remote add`
+# calls would collide — the second clobbers or fails. Fall back to
+# the literal "upstream" so the two remotes always have distinct names.
+if [[ "$UPSTREAM_REMOTE_NAME" == "$FORK_ORG" ]]; then
+    UPSTREAM_REMOTE_NAME="upstream"
 fi
 
 # --- derive fork path -------------------------------------------------------
@@ -211,12 +226,17 @@ urlencode() {
 # Call glab api with a specific token (via GITLAB_TOKEN env override).
 # Returns stdout-only on success (callers capture); stderr passes through
 # so glab's "new version available" notices don't pollute the JSON.
-# Callers that want the error body on failure should use `2>&1` at the
-# call site explicitly.
+# Callers that want the error body on failure capture stderr to a file
+# at the call site (see $ERR_TMP usage below).
+#
+# --hostname is pinned to the upstream host explicitly. Without it,
+# glab picks the instance from its own config or the cwd's git remote
+# — which for a script targeting a specific upstream could silently
+# hit the wrong GitLab (e.g. gitlab.com instead of a corporate one).
 api_call() {
     local token_var="$1"; shift
     local token="${!token_var}"
-    GITLAB_TOKEN="$token" glab api "$@"
+    GITLAB_TOKEN="$token" glab api --hostname "$UPSTREAM_HOST" "$@"
 }
 
 # --- ensure fork exists -----------------------------------------------------
@@ -248,12 +268,12 @@ if [[ -z "$FORK_DETAILS" ]]; then
 
     # Get upstream project ID (needed for fork API)
     local_upstream_details=""
-    if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>/tmp/ws-clone-fork-err.$$); then
+    if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
         echo "ERROR: Failed to fetch upstream project details." >&2
-        cat /tmp/ws-clone-fork-err.$$ >&2; rm -f /tmp/ws-clone-fork-err.$$
+        cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
         exit 1
     fi
-    rm -f /tmp/ws-clone-fork-err.$$
+    rm -f "$ERR_TMP"
     UPSTREAM_ID=$(echo "$local_upstream_details" | jq -r '.id')
     if [[ -z "$UPSTREAM_ID" || "$UPSTREAM_ID" == "null" ]]; then
         echo "ERROR: Could not determine upstream project ID." >&2
@@ -263,7 +283,7 @@ if [[ -z "$FORK_DETAILS" ]]; then
 
     # POST /projects/:id/fork with namespace_path
     fork_create_result=""
-    fork_create_err="/tmp/ws-clone-fork-err.$$"
+    fork_create_err="$ERR_TMP"
     if ! fork_create_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ID/fork" -X POST -f "namespace_path=$FORK_NAMESPACE" 2>"$fork_create_err"); then
         echo "ERROR: Fork creation failed." >&2
         cat "$fork_create_err" >&2
@@ -306,12 +326,12 @@ FORK_SSH_URL=$(echo "$FORK_DETAILS" | jq -r '.ssh_url_to_repo')
 
 # Need upstream SSH URL too. Re-fetch upstream if we didn't already.
 if [[ -z "${local_upstream_details:-}" ]]; then
-    if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>/tmp/ws-clone-fork-err.$$); then
+    if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
         echo "ERROR: Failed to fetch upstream project details." >&2
-        cat /tmp/ws-clone-fork-err.$$ >&2; rm -f /tmp/ws-clone-fork-err.$$
+        cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
         exit 1
     fi
-    rm -f /tmp/ws-clone-fork-err.$$
+    rm -f "$ERR_TMP"
 fi
 UPSTREAM_SSH_URL=$(echo "$local_upstream_details" | jq -r '.ssh_url_to_repo')
 
@@ -320,11 +340,20 @@ TARGET="$COMPONENTS_DIR/$COMPONENT"
 echo ""
 echo "  Step 2: prepare local clone at $TARGET ..."
 
-# Detect stub directory (e.g., empty dir left behind by IDE watchers)
-if [[ -d "$TARGET" && ! -f "$TARGET/.git/config" && ! -d "$TARGET/.git/objects" ]]; then
-    if [[ -z "$(ls -A "$TARGET" 2>/dev/null)" ]] || [[ ! -d "$TARGET/.git" ]]; then
-        # Empty or no .git at all — safe to remove
-        rm -rf "$TARGET"
+# A leftover directory at $TARGET that is NOT a usable git clone
+# blocks the clone step below. Only auto-remove it when it is
+# genuinely EMPTY (e.g., an empty stub left by an IDE file-watcher).
+# A non-empty directory without a .git — the user's own work parked
+# under components/, or a half-broken clone — must NOT be rm -rf'd.
+# Stop and let the user decide rather than risk silent data loss.
+if [[ -d "$TARGET" && ! -d "$TARGET/.git" ]]; then
+    if [[ -z "$(ls -A "$TARGET" 2>/dev/null)" ]]; then
+        rmdir "$TARGET"
+    else
+        echo "ERROR: $TARGET exists, is not empty, and is not a git clone." >&2
+        echo "  Refusing to delete it — it may contain untracked work." >&2
+        echo "  Move or remove it yourself, then re-run ws clone-fork." >&2
+        exit 1
     fi
 fi
 
@@ -436,7 +465,6 @@ echo "  Step 4: push synced $DEFAULT_BRANCH to fork ..."
 if git -C "$TARGET" push "$FORK_ORG" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1 | sed 's/^/         /'; then
     echo "         ✓ fork $DEFAULT_BRANCH now matches upstream"
 else
-    rc=$?
     echo "         (push to fork $DEFAULT_BRANCH did not fast-forward — leaving fork main as is; clone retry will sync on next run)"
     # Don't fail the whole run on this; the local checkout is good.
 fi

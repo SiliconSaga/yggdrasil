@@ -180,8 +180,8 @@ user gets asked before execution). The two-layer defense
 model (subcommand-level safety + matcher-level scoping) keeps the
 allowlist trustworthy even if Claude Code's matcher behavior shifts.
 
-Adding a new pattern? Read [permissions.md](permissions.md) § 5
-("When to widen vs narrow patterns") first. Operational guidance
+Adding a new pattern? Read [permissions.md](permissions.md) —
+the **When to widen vs narrow patterns** section — first. Operational guidance
 for adding patterns or handling "don't ask again" prompts is in the
 `permissions-management` skill.
 

@@ -281,6 +281,20 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     project_dir="${CLAUDE_PROJECT_DIR:-$cwd}"
     file_path=$(echo "$input" | jq -r '.tool_input.file_path // ""')
 
+    # Path-traversal guard. The scratch-dir test below is a textual
+    # prefix match, so a path like `.tmp/../../etc/whatever` would
+    # still START WITH `$project_dir/.tmp/` and wrongly auto-allow a
+    # write that RESOLVES outside the project. Reject any path
+    # containing a `..` segment up front and fall through to the
+    # harness prompt — a legitimate scratch-dir write never needs
+    # `..`, so this costs nothing real and closes the bypass without
+    # depending on a `realpath`/`readlink` that varies across OSes.
+    case "$file_path" in
+        ..|../*|*/..|*/../*)
+            exit 0  # passthrough — let the harness prompt
+            ;;
+    esac
+
     # Anchor relative paths to the project root before comparing.
     case "$file_path" in
         /*) abs_path="$file_path" ;;

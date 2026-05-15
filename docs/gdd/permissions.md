@@ -44,7 +44,7 @@ If you see a permission behavior that doesn't match what `.claude/settings.json`
 
 ### Claude Hook Options
 
-The hook script at at `.claude/hooks/gdd-allowlist-bridge.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
+The hook script at `.claude/hooks/gdd-allowlist-bridge.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
 
 A secondary effect is that it can sometimes re-map the workspace's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
 
@@ -95,7 +95,7 @@ Full tool names, no wildcard. MCP names are already specific enough.
 
 ---
 
-## 3. The two-layer defense
+## The two-layer defense
 
 Every allow pattern in `.claude/settings.json` should be safe even if a
 single layer fails. We rely on two:
@@ -146,7 +146,7 @@ automated regression testing tracked at issue #46.
 
 ---
 
-## 4. Empirical matcher findings
+## Empirical matcher findings
 
 Verified in interactive testing. Each row is a (pattern, attempted
 command, expected outcome) triple:
@@ -181,7 +181,7 @@ matcher behavior change.
 
 ---
 
-## 5. When to widen vs narrow patterns
+## When to widen vs narrow patterns
 
 A decision tree for adding a new `Bash(...)` pattern:
 
@@ -208,11 +208,12 @@ wide form).
 
 ---
 
-## 6. Cross-reference rule
+## Cross-reference rule
 
 When you modify `.claude/settings.json`'s `permissions.allow` (or
-`permissions.deny`), also update §4 above to reflect the new pattern
-with at least one positive and one negative case.
+`permissions.deny`), also update the **Empirical matcher findings**
+section above to reflect the new pattern with at least one positive
+and one negative case.
 
 The two artifacts are paired:
 - `.claude/settings.json` is what Claude Code enforces.
@@ -230,7 +231,7 @@ part of the same change.
 
 ---
 
-## 7. Future Directions
+## Future Directions
 
 - **Cross-framework porting.** Other agent frameworks (Codex, Gemini
   CLI, Cursor, etc.) have their own permission-style configs. The
@@ -241,7 +242,8 @@ part of the same change.
   at this thread but doesn't carry the porting guidance in v1.
 
 - **Automated regression testing** (issue #46). Today the empirical
-  findings table in §4 is the source of truth, but there's no test
+  findings table in **Empirical matcher findings** is the source of
+  truth, but there's no test
   harness that re-asserts those findings against new Claude Code
   versions. The future regression suite will execute each (pattern,
   command, expected) triple and flag matcher-behavior changes.
