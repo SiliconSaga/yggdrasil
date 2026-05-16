@@ -469,7 +469,20 @@ echo ""
 echo "  Step 4: push synced $DEFAULT_BRANCH to fork ..."
 # Push the local default branch ref to fork's same branch.
 # Use refspec form to avoid checkout dependency. Regular push (no --force).
-if git -C "$TARGET" push "$FORK_ORG" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1 | sed 's/^/         /'; then
+#
+# Capture the push result explicitly rather than `git push | sed`.
+# In a pipeline, the `if` tests the LAST stage (sed), not git —
+# `pipefail` currently propagates git's failure so the test is
+# correct today, but relying on that for an if-condition pipeline is
+# subtle and a future edit could silently break it. Capture output
+# and status, then stream the output and branch on the real status.
+if push_output=$(git -C "$TARGET" push "$FORK_ORG" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
+    push_ok=true
+else
+    push_ok=false
+fi
+printf '%s\n' "$push_output" | sed 's/^/         /'
+if $push_ok; then
     echo "         ✓ fork $DEFAULT_BRANCH now matches upstream"
 else
     echo "         (push to fork $DEFAULT_BRANCH did not fast-forward — leaving fork main as is; clone retry will sync on next run)"
