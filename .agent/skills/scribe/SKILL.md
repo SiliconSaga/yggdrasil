@@ -74,7 +74,7 @@ Every new note opens with YAML frontmatter:
 ---
 created: YYYY-MM-DD
 tags: [...]
-status: active   # or 'unprocessed' for inbox captures, 'archived' for done items
+status: active   # project notes use the five-tier schema below; inbox captures use 'unprocessed'
 ---
 ```
 
@@ -93,6 +93,38 @@ syntaxes depending on which plugin owns the template:
 When you create notes via Claude (not the Obsidian UI), substitute
 the literal date so the frontmatter is valid YAML — neither
 substitution engine runs from outside Obsidian.
+
+## Project Status Schema
+
+Project notes in `10_Projects/` (and dormant ones in `40_Archive/Backlog/`) carry a five-tier `status:` value. This is distinct from the capture-state `unprocessed` used by raw inbox items — capture-state and project-status are different axes.
+
+| Status | Meaning | Folder |
+|--------|---------|--------|
+| `active` | Currently moving; touched recently | `10_Projects/` |
+| `next` | Top-of-mind, picking up next | `10_Projects/` |
+| `soon` | Committed, queued behind `next` | `10_Projects/` |
+| `waiting` | Blocked or future-scheduled — not low-energy | `10_Projects/` |
+| `someday` | Wishful, no commitment | `40_Archive/Backlog/` |
+| `done` | Finished successfully | `40_Archive/Projects/` |
+| `cancelled` | Abandoned deliberately | `40_Archive/Projects/` |
+
+### Decay catalog
+
+A project untouched long enough is a candidate for a status flip. When you spot one during any ceremony (see Ceremony Layers below), **propose** the flip — never apply it silently. A flip to `someday` also moves the file to `40_Archive/Backlog/`; a flip to `done`/`cancelled` moves it to `40_Archive/Projects/`.
+
+| Transition | Threshold (days untouched) |
+|------------|----------------------------|
+| `active` → `next` | 14 |
+| `next` → `soon` | 28 |
+| `soon` → `someday` (+ move to `40_Archive/Backlog/`) | 42 |
+| `someday` → propose full archive | 84 |
+| `waiting` → poke ("still waiting on X?", no status change) | 30 |
+
+`waiting` is **not** on the decay path — blocked work is parked deliberately and must not auto-drift. Surface stale `waiting` items but let the user decide.
+
+These thresholds are the v1 defaults baked into this skill. A vault may tune them later via a per-vault config; until then, use these numbers.
+
+Not every vault adopts this schema — it ships with vaults scaffolded by the `obsidian-vault` template (look for `30_Resources/PKM/Status Schema.md`). If a vault has no such file and its project notes use only `active`/`archived`, treat the schema as absent and don't impose it; just follow the vault's existing convention.
 
 ## Wikilinks and Embeds
 
@@ -246,6 +278,36 @@ Side actions (offer):
 - Clean up inbox if items have aged
 - Update project statuses
 - Plan next week's 3 big rocks
+
+## Ceremony Layers
+
+Vaults using the five-tier status schema (see Project Status Schema above) have a layered review cadence. All layers are **propose-then-confirm** — surface a decision, let the user choose, then write. Never flip a status or move a file without an explicit yes.
+
+### Micro ceremony — the 30-second floor
+
+When the user asks *"one item"*, *"what should I look at?"*, or similar, run the micro-ceremony:
+
+1. Gather decay candidates: `active` projects untouched >14d, `next` >28d, `soon` >42d, `someday` >84d, `waiting` >30d, plus unprocessed inbox items.
+2. Pick **one** by priority: oldest stale `active` first, then stale `next`, then `waiting` >30d, then oldest unprocessed inbox item.
+3. Surface it as a single plain-English decision — no Dataview tables, no markdown tables in the response. Status names in backticks, file names in plain text, choices enumerated. Example: *"`Garden Planning` is `active` but untouched 21 days. Push to `next`, keep `active`, or set `waiting`?"*
+4. Apply the user's one-line answer: flip the frontmatter `status:`, and move the file if the new status changes its folder.
+5. Offer *"another one?"* — loop if they want.
+
+If nothing is stale and the inbox is clear, say so plainly (*"nothing stale — all clear"*). That visible all-clear is the point: skipped weeks just surface more candidates next time.
+
+This micro-ceremony is designed to work from a phone (e.g. Claude RC) with the vault open in Obsidian mobile — keep responses short and chat-shaped.
+
+### Weekly sweep
+
+On *"weekly sweep"* / *"weekly synthesis"*, in addition to the existing Weekly Synthesis workflow: walk `active` projects (still moving? else propose `next`), `next` projects (promote 1-3 to `active`?), `waiting` items older than a week (propose a follow-up), and offer the oldest few `someday` items for possible refresh.
+
+### Monthly
+
+On the monthly review, in addition to the template's prompts: review projects that drifted to `someday` over the month (offer one refresh-back chance), and flag any Area with zero `active` or `next` projects.
+
+### Waiting-room surface
+
+`WaitingRoom.md` (a second dashboard at the vault root, alongside `Dashboard.md`) lists every `waiting`-status project. During any ceremony, call out `waiting` items older than 30 days — *"still waiting on X?"* — and propose either a concrete follow-up or a status flip back to `active`/`next`. Because `waiting` never decays automatically, this poke is the only thing keeping blocked work from rotting silently.
 
 ## De-AI-ifying Text
 
