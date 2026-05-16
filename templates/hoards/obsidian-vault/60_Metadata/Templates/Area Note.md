@@ -50,10 +50,37 @@ What does "good" look like here? Cadence, quality bar, definition of done for ro
 ## Active Projects
 
 ```dataview
-TABLE status, deadline, area
+TABLE WITHOUT ID
+  file.link AS "Project",
+  status AS "Status",
+  deadline AS "Due"
 FROM "10_Projects"
 WHERE area = this.file.link OR area.area = this.file.link
-SORT status ASC, deadline ASC
+SORT
+  choice(status = "active", 0,
+  choice(status = "next", 1,
+  choice(status = "soon", 2,
+  choice(status = "waiting", 3, 4)))) ASC,
+  deadline ASC
+```
+
+## Backlog Micro-items
+
+*Small scraps that don't deserve their own file yet. Promote a row to a `someday` project note in `40_Archive/Backlog/` when it accumulates real context.*
+
+| Item | Notes | Added |
+|---|---|---|
+|  |  |  |
+
+## Someday Projects
+
+```dataview
+TABLE WITHOUT ID
+  file.link AS "Project",
+  (date(today) - file.mtime).days AS "Days idle"
+FROM "40_Archive/Backlog"
+WHERE area = this.file.link OR area.area = this.file.link
+SORT file.mtime DESC
 ```
 
 ## Recurring Responsibilities

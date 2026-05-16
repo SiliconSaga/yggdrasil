@@ -25,7 +25,7 @@
 _%>
 ---
 created: <% tp.date.now("YYYY-MM-DD") %>
-status: active
+status: active        # active | next | soon | waiting | someday — see [[Status Schema]]
 area: "<% area ? `[[${area}]]` : '' %>"
 deadline:
 tags:

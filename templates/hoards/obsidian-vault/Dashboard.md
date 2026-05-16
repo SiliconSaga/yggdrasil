@@ -5,6 +5,30 @@ tags: [dashboard]
 
 # Dashboard
 
+## Next Up
+
+```dataview
+TABLE WITHOUT ID
+  file.link AS "Project",
+  deadline AS "Due",
+  area AS "Area"
+FROM "10_Projects"
+WHERE status = "next"
+SORT deadline ASC, file.mtime DESC
+```
+
+## Active Now
+
+```dataview
+TABLE WITHOUT ID
+  file.link AS "Project",
+  deadline AS "Due",
+  area AS "Area"
+FROM "10_Projects"
+WHERE status = "active"
+SORT deadline ASC, file.mtime DESC
+```
+
 ## Due
 
 ```dataview
