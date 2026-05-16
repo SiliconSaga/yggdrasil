@@ -102,11 +102,14 @@ The recommended cadence:
 
 A Dataview-driven dashboard ships at the vault root. It surfaces:
 
+- `next`-status projects (Next Up) and `active`-status projects (Active Now) — the status-tier view
 - Overdue active projects (Dataview query against `10_Projects/`)
 - Tasks due today or before today
 - Priority-tagged tasks
 - Inbox items needing organization
 - Project tasks grouped by folder
+
+A second root-level dashboard, `WaitingRoom.md`, surfaces `waiting`-status projects — see the status-schema section below.
 
 Pin it as a tab somewhere stable so a glance gives you the day's reality. Pairs naturally with the Calendar view — typical layout is Calendar above Dashboard in the same pane group, both pinned.
 

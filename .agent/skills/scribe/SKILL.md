@@ -57,7 +57,7 @@ Folder roles in a vault scaffolded by `ws hoard init obsidian-vault`:
 | `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project lives in its own subfolder. |
 | `20_Areas/` | Ongoing responsibilities without an end date. |
 | `30_Resources/` | Reference material organized by topic. |
-| `40_Archive/` | Completed projects and inactive notes. Move whole project folders here when done. |
+| `40_Archive/` | Completed projects and inactive notes. Move whole project folders here when done. Vaults using the status schema split this into `Projects/` (done/cancelled), `Backlog/` (someday), and `Daily/` (aged-out dailies) — see Project Status Schema below. |
 | `50_Attachments/` | Binary attachments (images, PDFs). |
 | `60_Metadata/Templates/` | Reusable note templates. |
 
