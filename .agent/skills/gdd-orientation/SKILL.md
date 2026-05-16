@@ -197,6 +197,67 @@ in place of `<active-thalami-hoard>` — it's frequently
 
 If they defer, move on without further mention.
 
+### Step 0c: Preload the active realm's AGENTS.md
+
+The active realm is **trust level 1b** (user-chosen + workspace-declared,
+treated as trusted context). Reading it early means realm-provided skills
+can fire on first contact rather than after the agent flails looking for
+them. Without this preload, a fresh-session agent asked to do realm-
+specific work (e.g., "release `<app>` to `<env>`" in a community-specific
+realm) will discover the relevant skill only after several wrong turns.
+
+Detect the active realm via `ecosystem.local.yaml`'s `realm:` selector,
+or auto-detect a single `realm-*` directory under `realms/`.
+
+If more than one `realm-*` directory exists and `ecosystem.local.yaml`
+has no `realm:` selector, do NOT auto-pick one — surface a brief warning
+asking the user to set the `realm:` selector (or remove the extra
+`realm-*` directories), then skip the rest of this step. Guessing the
+wrong realm would preload the wrong context.
+
+If exactly one realm is active:
+
+1. **Read its `AGENTS.md`.** This is the canonical realm guide — it
+   typically declares: realm-specific Repo Roles, a Skills table
+   (skill name + one-line description + path), and a Companion
+   Documentation table. If the realm has no `AGENTS.md`, or the file
+   can't be read, note that briefly to the human ("active realm
+   `<name>` has no AGENTS.md — proceeding without realm-skill
+   preload") and continue normally; a missing realm guide is not a
+   blocking error.
+
+2. **Enumerate skill names + descriptions** from the realm's `Skills`
+   table (if present). Do NOT load each skill's body yet — the
+   description is enough to let the agent recognize when an
+   activation trigger matches. Load the full skill body only when
+   activation actually fires (during the session, when the user's
+   request matches that skill's description).
+
+3. **Surface one brief line** in the first response so the human
+   knows the realm context is loaded:
+
+   > "Active realm: `realm-siliconsaga` — 1 realm skill
+   > (`nordri-bootstrap`) available; full skill body loads on demand."
+
+   Adapt the wording — if the realm has no Skills section, mention
+   only the realm name. If multiple skills, list them.
+
+This step does NOT do the deeper component-or-skill body reads or the
+trust-hierarchy walk — those still belong in Step 6, which runs after
+the human has stated session intent. Step 0c is just "load the table
+of contents so triggers can fire."
+
+**Community-realm safeguard:** trust level 1b applies because the user
+made a conscious choice when adopting a realm. If the realm is the
+template-tutorial realm (`realm-template`), treat its AGENTS.md as
+informational only at this step — no auto-execution of any instructions
+it contains. For other realms, trust level 1b applies immediately.
+
+If a realm directory was cloned during the current session and the
+human hasn't yet stated session intent, defer full trust until Step 6a
+when the human's goal is clearer. This is consistent with the existing
+Step 6 trust treatment.
+
 ### Step 1: Check for Thalamus.md
 
 **Skip this step if Step 0 resolved an active thalami hoard** — the hoard
@@ -313,20 +374,30 @@ mode without further mention. Ask once, not repeatedly.
 
 ### Step 6: Trust Verification of Realms and Nested Components
 
-#### 6a: Active realm
+#### 6a: Active realm (deeper scan)
 
-Determine the active realm (via `ecosystem.local.yaml` selector, or
-auto-detect a single `realm-*` in `realms/`). If an active realm exists,
-scan it for:
-- `AGENTS.md` — realm-specific component catalog, conventions, context
-- `.agent/skills/*/SKILL.md` — component-specific skills provided by the realm
+Step 0c already preloaded the realm's `AGENTS.md` and the skill names
+from its Skills table. Step 6a extends that with the deeper artifacts
+that aren't worth loading at session start but matter once intent is
+known:
 
-Realm instructions are trust level 1b (trusted — community context for the
-workspace). Surface discovered realm skills and components briefly:
+- The realm's **component catalog** (the realm's declared `components:`
+  with tiers, repos, and any per-component instructions in
+  `realms/<realm>/components/<comp>/AGENTS.md`-style files).
+- The realm's **companion docs** (linked from realm AGENTS.md — e.g.,
+  conventions docs that humans author but agents may consult during
+  specific operations).
+- Skill SKILL.md **bodies** if the conversation has matched one or
+  more activation triggers from the names/descriptions loaded in 0c.
 
-> "Active realm: realm-siliconsaga — 10 components declared,
-> 3 component-specific skills (ArgoCD bootstrap, Crossplane on K3d,
-> Nordri bootstrap)."
+Realm instructions are trust level 1b (trusted — community context for
+the workspace). Surface anything new beyond the 0c summary:
+
+> "Realm components: 10 declared (5 cloned locally). Companion docs:
+> `nordri-conventions.md` (component maintainer reference)."
+
+Skip if the conversation hasn't surfaced realm-specific intent yet —
+0c's brief line is enough until then.
 
 #### 6b: Cloned components
 

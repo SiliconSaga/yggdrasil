@@ -33,8 +33,8 @@ patterns at once), invoke `fewer-permission-prompts` instead.
 
 ## Pattern-form decision tree
 
-The full decision tree is in `docs/gdd/permissions.md` § 5
-("When to widen vs narrow patterns"). Read that for the full
+The full decision tree is in `docs/gdd/permissions.md`, the
+**When to widen vs narrow patterns** section. Read that for the full
 reasoning before adding any non-trivial pattern.
 
 Operational shortcuts when you've already read the doc:
@@ -78,10 +78,11 @@ Before committing any new pattern:
   command's semantics? (Almost never; the matcher rejects substitution
   and validates compound commands per-segment, but corner cases exist.)
 - [ ] Is there an existing auto-allowed form that covers this without
-  a custom pattern? (See `docs/gdd/permissions.md` § 5.)
-- [ ] Does the pattern align with `docs/gdd/permissions.md` § 5
-  (when-to-widen-vs-narrow)? If you're departing from the doc's
-  guidance, document the reason in the commit body.
+  a custom pattern? (See `docs/gdd/permissions.md`, the
+  **When to widen vs narrow patterns** section.)
+- [ ] Does the pattern align with the **When to widen vs narrow
+  patterns** section of `docs/gdd/permissions.md`? If you're departing
+  from the doc's guidance, document the reason in the commit body.
 
 ## Cross-reference rule
 
@@ -89,7 +90,8 @@ When you modify `.claude/settings.json`'s `permissions.allow` (or
 `permissions.deny`):
 
 1. **Add the pattern.**
-2. **Add empirical test cases to `docs/gdd/permissions.md` § 4.**
+2. **Add empirical test cases to the `docs/gdd/permissions.md`
+   Empirical matcher findings table.**
    Minimum: one positive case (matches → allowed) and one negative
    case (close-but-not-quite → prompts).
 3. **Commit both files together.** A commit that touches the allowlist

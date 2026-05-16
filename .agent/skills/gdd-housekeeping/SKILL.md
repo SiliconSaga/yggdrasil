@@ -47,7 +47,7 @@ completes, the housekeeping flow resumes:
 
 - **Pattern added.** The decision is durably recorded across the
   paired artifacts `.claude/settings.json` (the rule itself) and
-  `docs/gdd/permissions.md` § 4 (the empirical-findings table per
+  `docs/gdd/permissions.md`'s Empirical matcher findings table (per
   the cross-reference rule). The original Thalamus item is typically
   Prune-able once both updates are in place.
 - **Pattern declined.** No artifact captures a decline by default —
