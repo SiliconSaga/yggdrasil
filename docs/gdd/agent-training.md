@@ -28,9 +28,25 @@ If you're new and the deny stream worries you, watch what happens on the next ag
 
 ## What the hook does (in one paragraph)
 
-The PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh` runs before every Bash tool call. It rejects shell composition (`&&`, `||`, `;`, `|`, backticks, `$(...)`, `>`, `<`, FD merges like `2>&1`) with command-specific corrective messages. It allows commands matching `.claude/settings.json` patterns or a per-user `safe-bash-extras` file. Everything else passes through to the normal Claude Code prompt. The audit log at `~/.claude/hook-audit.log` records every ALLOW / DENY decision (passthroughs are intentionally not logged — they'd balloon the log under normal use).
+The PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh` runs before every Bash tool call. It rejects shell composition (`&&`, `||`, `;`, `|`, backticks, `$(...)`, `>`, `<`, FD merges like `2>&1`) with command-specific corrective messages. It forces a permission prompt (ask-tier) for destructive commands like `rm -rf` and `git reset --hard`, even in `acceptEdits` mode. It allows commands matching `.claude/settings.json` patterns or the `[allow-extras]` section of the per-machine `hook-rules.local` file. Everything else passes through to the normal Claude Code prompt. The audit log at `~/.claude/hook-audit.log` records every ALLOW / ASK / DENY decision (passthroughs are intentionally not logged — they'd balloon the log under normal use).
 
 For the deny taxonomy, allow-pattern shape, opt-out, and the malformed-JSON / Windows-path edge cases, read the [hook README](../../.claude/hooks/README.md). The rest of this doc is about *why* the hook exists and what it costs.
+
+---
+
+## The ask-tier — destructive commands always prompt
+
+Some commands — `rm -rf`, `git reset --hard`, `git clean -f`, and similar — are on the hook's ask-list. When the agent tries to run one of these, the hook doesn't deny it; instead it forces a permission prompt that surfaces to you regardless of what permission mode the session is in. That includes `acceptEdits`, which would otherwise auto-approve Bash mutations on workspace paths without showing you anything.
+
+This is deliberate: the hook is acting as a confirmation checkpoint, not a gatekeeper. The pattern is: agent proposes → human reviews → human approves → command runs. If you approve, the command executes normally. If you decline, the agent is told to find another approach.
+
+What you'll see when an ask-tier command fires:
+
+- A permission prompt in the Claude Code UI with the exact command
+- No red deny message — the prompt is the whole interaction
+- The audit log records the hook's decision as `ASK` — the hook fires once when the command is intercepted, not again when you respond to the prompt.
+
+The ask-list is defined in `.claude/hooks/hook-rules` (committed baseline) and can be extended — never shortened — in `hook-rules.local`. If you find yourself declining the same destructive command repeatedly, that's a signal to revisit whether the agent should be reaching for that command at all.
 
 ---
 
@@ -103,13 +119,13 @@ When you find yourself reaching for a shell pipe inside a `ws` command and the h
 The hook is conservative on purpose, but it's not always right. When a command you genuinely want to run gets denied, you have three escalating options:
 
 1. **Use the substitute the deny message suggests.** Most denies point at a specific better path (`Grep` tool, `--output` flag, `Read` with offset+limit). 90% of the time the substitute works and the friction goes away.
-2. **Opt into a `safe-bash-extras` file.** If the command is one you trust on this machine but doesn't belong in the committed `settings.json`, list it as a glob pattern in a per-machine extras file the hook reads. A starter template ships at `.claude/hooks/safe-bash-extras.example` — copy it to activate:
+2. **Add the command to `hook-rules.local`.** If the command is one you trust on this machine but doesn't belong in the committed `settings.json`, list it as a glob pattern in the `[allow-extras]` section of your per-machine `hook-rules.local` (`hook-rules.local` is project-scoped; unlike the old `safe-bash-extras` there is no cross-workspace user-level location). A starter template ships at `.claude/hooks/hook-rules.local.example` — copy it to activate:
 
    ```bash
-   cp .claude/hooks/safe-bash-extras.example .claude/hooks/safe-bash-extras
+   cp .claude/hooks/hook-rules.local.example .claude/hooks/hook-rules.local
    ```
 
-   The committed `.example` is a template (with annotated entries for `mkdir`, `touch`, read-only `git` forms, and a niche-utilities section); the live `safe-bash-extras` is gitignored and per-machine. Uncomment the entries you want, or add your own — each line is a bash glob matched against the full command string. You can also use the user-level location `~/.claude/hooks/safe-bash-extras` for patterns that should apply across every workspace on this machine. See the [hook README](../../.claude/hooks/README.md) § "Adding a safe command" for the full format spec.
+   The live `hook-rules.local` is gitignored and per-machine. Uncomment the entries you want, or add your own under `[allow-extras]` — each line is a bash glob matched against the full command string. See the [hook README](../../.claude/hooks/README.md) § "Hook rules configuration" for the full format spec.
 3. **Disable the hook for this session.** Set `WS_HOOK_DISABLE=1` in your shell or `.env` and the hook becomes a passthrough. Use sparingly — you give up the audit log and the corrective feedback loop for the session.
 
 The right escalation level depends on whether the deny is a single-session annoyance (option 1), a recurring pattern (option 2), or a fundamental disagreement with the hook's rules (option 3 — and probably file an issue too).
@@ -126,13 +142,13 @@ The right escalation level depends on whether the deny is a single-session annoy
 
 The hook doesn't rotate the log. Use `truncate -s 0 ~/.claude/hook-audit.log` to reset it after a review.
 
-The audit log captures the hook's *decisions* — it doesn't see commands that went to passthrough and then prompted you through the harness's own permission flow. If you find yourself clicking "yes, run it" on the same command session after session, that's the cue to add it to a `safe-bash-extras` file (or to project `.claude/settings.json` for ones collaborators would also want auto-approved). The housekeeping skill prompts the agent to surface candidates during audit cycles — you don't have to track the count yourself.
+The audit log captures the hook's *decisions* — it doesn't see commands that went to passthrough and then prompted you through the harness's own permission flow. If you find yourself clicking "yes, run it" on the same command session after session, that's the cue to add it to `hook-rules.local` under `[allow-extras]` (or to project `.claude/settings.json` for ones collaborators would also want auto-approved). The housekeeping skill prompts the agent to surface candidates during audit cycles — you don't have to track the count yourself.
 
 ---
 
 ## Related reading
 
-- [Hook README](../../.claude/hooks/README.md) — the technical spec: tier-by-tier deny rules, extras-file format, registration, troubleshooting.
+- [Hook README](../../.claude/hooks/README.md) — the technical spec: tier-by-tier decision rules, `hook-rules` config format, registration, troubleshooting.
 - [Permissions reference](permissions.md) — `.claude/settings.json` patterns and the two-layer defense model that allow rules rely on.
 - [GDD trust & safety](trust-and-safety.md) — where the hook fits in the broader trust hierarchy.
 - [`permissions-management` skill](../../.agent/skills/permissions-management/SKILL.md) — operational guide for adding or narrowing allow patterns.
