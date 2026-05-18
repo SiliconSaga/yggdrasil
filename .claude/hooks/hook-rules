@@ -22,7 +22,7 @@
 rm -rf*
 rm -fr*
 rm -r *
-git reset --hard*
-git clean -f*
-git clean -d*
+git*reset --hard*
+git*clean -f*
+git*clean -d*
 find * -delete*

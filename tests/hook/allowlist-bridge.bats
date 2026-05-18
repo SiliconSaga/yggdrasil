@@ -554,3 +554,37 @@ sl *"
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
+
+@test "ask: git -C <path> reset --hard matches the broadened git ask-pattern" {
+    write_project_hook_rules "[ask-commands]
+git*reset --hard*"
+    run_hook "git -C /some/repo reset --hard HEAD"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+# ─── Drift detection ────────────────────────────────────────────────
+
+@test "drift: hook-rules [scratch-dirs] stays in sync with .gitignore" {
+    # Scratch entries declared in .gitignore, between the sentinel
+    # markers, with the leading '/' stripped, sorted.
+    local gitignore_dirs
+    gitignore_dirs=$(awk '/^# >>> scratch-dirs/{f=1; next} /^# <<< scratch-dirs/{f=0} f' \
+        "$REPO_ROOT/.gitignore" | sed 's:^/::' | sort)
+
+    # Scratch entries declared in hook-rules [scratch-dirs], comments
+    # and blank lines dropped, sorted.
+    local hookrules_dirs
+    hookrules_dirs=$(awk '/^\[scratch-dirs\]/{f=1; next} /^\[/{f=0} f' \
+        "$REPO_ROOT/.claude/hooks/hook-rules" \
+        | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | sort)
+
+    if [ "$gitignore_dirs" != "$hookrules_dirs" ]; then
+        echo "scratch-dir drift between .gitignore and hook-rules:"
+        echo "--- .gitignore ---"
+        echo "$gitignore_dirs"
+        echo "--- hook-rules [scratch-dirs] ---"
+        echo "$hookrules_dirs"
+        return 1
+    fi
+}

@@ -26,11 +26,13 @@ ecosystem.local.yaml
 # (see .claude/hooks/gdd-allowlist-bridge.sh). Includes synthetic git
 # repos for manual command testing, draft commit / CR / issue bodies,
 # and capture buckets for tool output. Use these instead of /tmp
+# >>> scratch-dirs (keep in sync with .claude/hooks/hook-rules [scratch-dirs])
 /.tmp/
 /.commits/
 /.crs/
 /.issues/
 /.outputs/
+# <<< scratch-dirs
 
 # External / fetched templates (future marketplace) — gitignored payloads,
 # only the .gitkeep is tracked.
