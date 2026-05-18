@@ -132,7 +132,7 @@ A new `ask()` decision helper joins `allow()` and `deny()`:
 
 After Tier 1, the hook glob-matches the command against the merged `[ask-commands]`. On a match it calls `ask()`.
 
-**Reason text:** a generic line — *"This command is on the GDD hook's ask-list — destructive or hard to undo. Confirm before proceeding."* — plus, when the command's first word is an `rm` variant, an appended caution: *"Caution: if any path here is a symlink, deleting it can affect targets outside the workspace."* No path resolution is performed; the caution is unconditional for `rm`-family matches.
+**Reason text:** a generic line — *"This command is on the GDD hook's ask-list — destructive or hard to undo. Confirm before proceeding."* — plus, when the command's first word is an `rm` variant, a brief appended caution: *"Caution: symlinks here could delete outside the workspace."* No path resolution is performed; the caution is unconditional for `rm`-family matches.
 
 ### Scratch-dir consumption
 
@@ -148,7 +148,17 @@ The hook's header comment block and every inline `Tier N` reference update to th
 2. If a live `safe-bash-extras` exists in the working tree, its active patterns are migrated into the developer's `hook-rules.local` `[allow-extras]` as part of rollout (documented in the README; the live file is per-machine so this is a local step, not a repo change).
 3. Delete `safe-bash-extras` and `safe-bash-extras.example` from the repo.
 4. `.gitignore`: add `/.claude/hooks/hook-rules.local`, remove the `safe-bash-extras` entry.
-5. `.claude/hooks/README.md`: document `hook-rules` / `hook-rules.local` / `.example`, the ask-tier, and the renumbered tiers; drop the `safe-bash-extras` section.
+## Documentation updates
+
+The ask-tier is a new behavior and the renumbered tiers invalidate existing tier descriptions. The hook's documentation set is GDD's written account of the agent-human permission workflow, so it is updated as part of this work — it must not drift from the hook:
+
+- **`.claude/hooks/README.md`** — the hook's technical spec. Renumbered tiers; the new ask-tier; the `hook-rules` / `hook-rules.local` / `.example` config; drop the retired `safe-bash-extras` section.
+- **`docs/gdd/permissions.md`** — add `ask` as a third hook decision alongside allow / deny, and note it forces a prompt regardless of permission mode.
+- **`docs/gdd/agent-training.md`** — the user-facing hook companion. Explain that destructive commands now always prompt (the ask-tier), why, and that the prompt is a deliberate agent-human confirmation checkpoint, not a failure.
+- **`docs/gdd/trust-and-safety.md`** — record the ask-tier as the destructive-command safety floor and note the `acceptEdits` auto-approve gap it closes.
+- **`docs/gdd/roles-and-modes.md`** — accuracy review: `acceptEdits` no longer silently runs destructive Bash, since the ask-tier intercepts first.
+
+The implementation plan specifies the exact per-file edits after reading each.
 
 ## Testing
 
@@ -194,7 +204,7 @@ Branch `feat/hook-ask-tier` is created off `main`; the `WS_HOOK_DEBUG` opt-in pa
 5. Delete `safe-bash-extras` + `safe-bash-extras.example`.
 6. bats tests per above.
 7. `tests/hook/interactive-acceptance.md`.
-8. `.claude/hooks/README.md` refresh.
+8. Documentation updates — `.claude/hooks/README.md`, `docs/gdd/permissions.md`, `docs/gdd/agent-training.md`, `docs/gdd/trust-and-safety.md`, plus a `docs/gdd/roles-and-modes.md` accuracy check (see Documentation updates).
 9. Run bats; then the interactive acceptance script with the user as the final gate.
 
 ## Success criteria
