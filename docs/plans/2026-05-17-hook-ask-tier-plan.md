@@ -4,7 +4,7 @@
 
 **Goal:** Add an `ask`-tier to the PreToolUse hook — destructive commands emit `permissionDecision: "ask"` and prompt in any permission mode — and externalize the hook's scratch-dir list and allowlist-extras into a single transparent layered config (`hook-rules` + `hook-rules.local`), retiring `safe-bash-extras`.
 
-**Architecture:** One security-critical bash script (`.claude/hooks/gdd-allowlist-bridge.sh`) is extended: a flat-file config parser (pure bash, no new dependency), a new `ask()` decision helper, a new Tier 2 ask-tier, the existing tiers renumbered to 3/4, scratch-dirs and allow-extras sourced from config. Plus two new config files, bats coverage, an interactive acceptance script, and updates to five hook-related docs.
+**Architecture:** One security-critical bash script (`.claude/hooks/gdd-permission-hook.sh`) is extended: a flat-file config parser (pure bash, no new dependency), a new `ask()` decision helper, a new Tier 2 ask-tier, the existing tiers renumbered to 3/4, scratch-dirs and allow-extras sourced from config. Plus two new config files, bats coverage, an interactive acceptance script, and updates to five hook-related docs.
 
 **Tech Stack:** Bash (the hook + parser); `jq` (already a hook dependency — JSON payload + decision output); bats (`tests/vendor/bats-core`, existing `tests/hook/` suite); flat sectioned text config.
 
@@ -29,10 +29,10 @@
 - `tests/hook/interactive-acceptance.md` — scripted live acceptance test
 
 **Modify:**
-- `.claude/hooks/gdd-allowlist-bridge.sh` — the hook (Tasks 5-8)
+- `.claude/hooks/gdd-permission-hook.sh` — the hook (Tasks 5-8)
 - `.gitignore` — add `hook-rules.local`, drop `safe-bash-extras`
 - `tests/hook/test_helper.bash` — new helpers
-- `tests/hook/allowlist-bridge.bats` — new tests + migrate invalidated ones
+- `tests/hook/gdd-permission-hook.bats` — new tests + migrate invalidated ones
 - `.claude/hooks/README.md`, `docs/gdd/permissions.md`, `docs/gdd/agent-training.md`, `docs/gdd/trust-and-safety.md`, `docs/gdd/roles-and-modes.md` — doc updates
 
 **Delete:**
@@ -52,7 +52,7 @@ Create `.claude/hooks/hook-rules` with exactly this content:
 ```text
 # GDD hook rules — committed baseline.
 #
-# Read by .claude/hooks/gdd-allowlist-bridge.sh. Per-machine overrides
+# Read by .claude/hooks/gdd-permission-hook.sh. Per-machine overrides
 # go in hook-rules.local (copy hook-rules.local.example). Format: flat
 # sectioned text — [section] headers, one entry per line, '#' comments,
 # blank lines ignored.
@@ -217,14 +217,14 @@ Expected: `2` or more.
 ## Task 5: Hook — config parser, `ask()` helper, Tier 2 ask-tier
 
 **Files:**
-- Modify: `.claude/hooks/gdd-allowlist-bridge.sh`
-- Test: `tests/hook/allowlist-bridge.bats`
+- Modify: `.claude/hooks/gdd-permission-hook.sh`
+- Test: `tests/hook/gdd-permission-hook.bats`
 
 This task adds the config-parsing block, the `ask()` decision helper, and the Tier 2 ask-tier. It is TDD: write the bats tests first.
 
 - [ ] **Step 1: Write the failing bats tests**
 
-Append these tests to `tests/hook/allowlist-bridge.bats`:
+Append these tests to `tests/hook/gdd-permission-hook.bats`:
 
 ```bash
 # ─── Tier 2: ask-list ───────────────────────────────────────────────
@@ -286,12 +286,12 @@ rm -rf*"
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: the seven new `ask:` tests FAIL (the hook does not yet emit `ask`).
 
 - [ ] **Step 3: Add the `ask()` helper**
 
-In `.claude/hooks/gdd-allowlist-bridge.sh`, immediately after the `deny()` function's closing `}` (line 259) and before the `# ─── Tool routing` comment (line 261), insert:
+In `.claude/hooks/gdd-permission-hook.sh`, immediately after the `deny()` function's closing `}` (line 259) and before the `# ─── Tool routing` comment (line 261), insert:
 
 ```bash
 
@@ -422,7 +422,7 @@ done
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: all tests PASS, including the seven new `ask:` tests and every pre-existing test (Tier 1 deny, etc. — untouched).
 
 - [ ] **Step 7: Commit**
@@ -434,8 +434,8 @@ Write `.commits/hook-ask-tier-core.md`:
 message: "feat(hook): config parser, ask() helper, Tier 2 ask-list"
 
 add:
-  - .claude/hooks/gdd-allowlist-bridge.sh
-  - tests/hook/allowlist-bridge.bats
+  - .claude/hooks/gdd-permission-hook.sh
+  - tests/hook/gdd-permission-hook.bats
   - tests/hook/test_helper.bash
 ---
 
@@ -454,14 +454,14 @@ Run: `bash scripts/ws commit yggdrasil .commits/hook-ask-tier-core.md`
 ## Task 6: Hook — scratch-dirs from config
 
 **Files:**
-- Modify: `.claude/hooks/gdd-allowlist-bridge.sh` (the Edit/Write branch, lines 334-347)
-- Test: `tests/hook/allowlist-bridge.bats`
+- Modify: `.claude/hooks/gdd-permission-hook.sh` (the Edit/Write branch, lines 334-347)
+- Test: `tests/hook/gdd-permission-hook.bats`
 
 The Edit/Write branch currently iterates a hardcoded scratch-dir list. Switch it to the parsed `[scratch-dirs]` config. The config-parsing block from Task 5 runs before the Edit/Write branch, so `scratch_dirs` is populated.
 
 - [ ] **Step 1: Migrate the existing Edit/Write bats tests**
 
-Run: `grep -n "run_hook_write\|scratch" tests/hook/allowlist-bridge.bats`
+Run: `grep -n "run_hook_write\|scratch" tests/hook/gdd-permission-hook.bats`
 to find the existing Edit/Write scratch-dir tests. Each currently relies on the hardcoded list. For every existing test that calls `run_hook_write` and expects a scratch-dir allow, add a `write_project_hook_rules` call at the top of the test body seeding the standard dirs:
 
 ```bash
@@ -477,7 +477,7 @@ Tests that expect Edit/Write to *passthrough* (non-scratch path) need no rules f
 
 - [ ] **Step 2: Add a test proving scratch-dirs come from config**
 
-Append to `tests/hook/allowlist-bridge.bats`:
+Append to `tests/hook/gdd-permission-hook.bats`:
 
 ```bash
 @test "scratch: a config-only scratch dir auto-allows Edit" {
@@ -499,7 +499,7 @@ Append to `tests/hook/allowlist-bridge.bats`:
 
 - [ ] **Step 3: Run the tests to verify the new ones fail**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: the two new `scratch:` tests FAIL (hook still uses the hardcoded list, so `.myscratch/` is not recognized).
 
 - [ ] **Step 4: Replace the hardcoded scratch loop**
@@ -544,7 +544,7 @@ with:
 
 - [ ] **Step 5: Run the full suite**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: all tests PASS — the two new `scratch:` tests and the migrated Edit/Write tests.
 
 - [ ] **Step 6: Commit**
@@ -556,8 +556,8 @@ Write `.commits/hook-scratch-from-config.md`:
 message: "feat(hook): source scratch-dirs from hook-rules config"
 
 add:
-  - .claude/hooks/gdd-allowlist-bridge.sh
-  - tests/hook/allowlist-bridge.bats
+  - .claude/hooks/gdd-permission-hook.sh
+  - tests/hook/gdd-permission-hook.bats
 ---
 
 The Edit/Write branch's scratch-dir list moves from a hardcoded array
@@ -574,14 +574,14 @@ Run: `bash scripts/ws commit yggdrasil .commits/hook-scratch-from-config.md`
 ## Task 7: Hook — renumber Tier 2→3, retire `safe-bash-extras`, add Tier 4 allow-extras
 
 **Files:**
-- Modify: `.claude/hooks/gdd-allowlist-bridge.sh` (the old Tier 2 + Tier 3 blocks, lines 489-627)
-- Test: `tests/hook/allowlist-bridge.bats`
+- Modify: `.claude/hooks/gdd-permission-hook.sh` (the old Tier 2 + Tier 3 blocks, lines 489-627)
+- Test: `tests/hook/gdd-permission-hook.bats`
 
 The settings.json allowlist becomes Tier 3 (rename only — logic unchanged). The `safe-bash-extras` extras tier (old Tier 3) becomes Tier 4 and reads `[allow-extras]` from the parsed config instead.
 
 - [ ] **Step 1: Migrate the existing `safe-bash-extras` bats tests**
 
-Run: `grep -n "extras\|safe-bash" tests/hook/allowlist-bridge.bats`
+Run: `grep -n "extras\|safe-bash" tests/hook/gdd-permission-hook.bats`
 to find the existing Tier 3 extras tests. They use `write_project_extras` / `write_user_extras`. Rewrite each to use `write_local_hook_rules` with an `[allow-extras]` section instead. For example, a test that did:
 
 ```bash
@@ -601,7 +601,7 @@ Delete any test that specifically asserts *user-level* `safe-bash-extras` behavi
 
 - [ ] **Step 2: Add a test proving safe-bash-extras is no longer consulted**
 
-Append to `tests/hook/allowlist-bridge.bats`:
+Append to `tests/hook/gdd-permission-hook.bats`:
 
 ```bash
 @test "allow-extras: a hook-rules.local [allow-extras] pattern allows" {
@@ -622,12 +622,12 @@ sl *"
 
 - [ ] **Step 3: Run the tests to verify the new ones fail**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: the two new `allow-extras:` tests FAIL (the hook still reads `safe-bash-extras`, not `[allow-extras]`).
 
 - [ ] **Step 4: Rename the settings.json tier header to Tier 3**
 
-In `.claude/hooks/gdd-allowlist-bridge.sh`, find the line (489):
+In `.claude/hooks/gdd-permission-hook.sh`, find the line (489):
 
 ```bash
 # ─── Tier 2: Match against settings.json `permissions.allow` ────────
@@ -667,7 +667,7 @@ This deletes `collect_extras_files()` and the extras `while` loop — `safe-bash
 
 - [ ] **Step 6: Run the full suite**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: all tests PASS — the new `allow-extras:` tests, the migrated extras tests, and every untouched test.
 
 - [ ] **Step 7: Commit**
@@ -679,8 +679,8 @@ Write `.commits/hook-tier4-allow-extras.md`:
 message: "feat(hook): renumber tiers, retire safe-bash-extras for [allow-extras]"
 
 add:
-  - .claude/hooks/gdd-allowlist-bridge.sh
-  - tests/hook/allowlist-bridge.bats
+  - .claude/hooks/gdd-permission-hook.sh
+  - tests/hook/gdd-permission-hook.bats
 ---
 
 Renumber the settings.json allowlist to Tier 3 (logic unchanged) and
@@ -698,7 +698,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/hook-tier4-allow-extras.md`
 ## Task 8: Hook — renumber the header comment block
 
 **Files:**
-- Modify: `.claude/hooks/gdd-allowlist-bridge.sh` (header comment, lines 40-104)
+- Modify: `.claude/hooks/gdd-permission-hook.sh` (header comment, lines 40-104)
 
 The header's `DECISION TIERS` section and surrounding comments still describe the old 1-2-3 scheme and `safe-bash-extras`. No code; verification is read-back.
 
@@ -764,12 +764,12 @@ with:
 
 - [ ] **Step 4: Verify**
 
-Run: `grep -n "Tier 4\|safe-bash-extras\|hook-rules" .claude/hooks/gdd-allowlist-bridge.sh`
+Run: `grep -n "Tier 4\|safe-bash-extras\|hook-rules" .claude/hooks/gdd-permission-hook.sh`
 Expected: `Tier 4` and `hook-rules` references present; **zero** `safe-bash-extras` matches anywhere in the script.
 
 - [ ] **Step 5: Run the full suite (no behavior change expected)**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: all tests PASS.
 
 - [ ] **Step 6: Commit**
@@ -781,7 +781,7 @@ Write `.commits/hook-header-renumber.md`:
 message: "docs(hook): renumber header comment tiers, drop safe-bash-extras refs"
 
 add:
-  - .claude/hooks/gdd-allowlist-bridge.sh
+  - .claude/hooks/gdd-permission-hook.sh
 ---
 
 Update the hook's header comment block for the 1-2-3-4 tier scheme and
@@ -801,7 +801,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/hook-header-renumber.md`
 - [ ] **Step 1: Confirm nothing reads them**
 
 Run: `grep -rn "safe-bash-extras" .claude/ docs/ scripts/ tests/`
-Expected: only `tests/hook/test_helper.bash` (the `write_project_extras` / `write_user_extras` helpers, kept so the "legacy file ignored" test in Task 7 still works) and possibly `tests/hook/allowlist-bridge.bats` (that one test). No references in the hook script or docs. If a doc still references it, that is fixed in Task 11 — note it but proceed.
+Expected: only `tests/hook/test_helper.bash` (the `write_project_extras` / `write_user_extras` helpers, kept so the "legacy file ignored" test in Task 7 still works) and possibly `tests/hook/gdd-permission-hook.bats` (that one test). No references in the hook script or docs. If a doc still references it, that is fixed in Task 11 — note it but proceed.
 
 - [ ] **Step 2: Delete the files**
 
@@ -812,11 +812,11 @@ Run: `git rm ".claude/hooks/safe-bash-extras" ".claude/hooks/safe-bash-extras.ex
 - [ ] **Step 3: Verify**
 
 Run: `ls .claude/hooks/`
-Expected: `README.md`, `gdd-allowlist-bridge.sh`, `hook-rules`, `hook-rules.local.example` — no `safe-bash-extras*`.
+Expected: `README.md`, `gdd-permission-hook.sh`, `hook-rules`, `hook-rules.local.example` — no `safe-bash-extras*`.
 
 - [ ] **Step 4: Run the full suite**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: all PASS (the "legacy file ignored" test writes its own throwaway `safe-bash-extras` into the bats tmp tree — unaffected by the repo deletion).
 
 - [ ] **Step 5: Commit**
@@ -854,7 +854,7 @@ Create `tests/hook/interactive-acceptance.md` with exactly this content:
 ````markdown
 # Hook ask-tier — interactive acceptance script
 
-bats (`allowlist-bridge.bats`) verifies the hook's *output*. It cannot
+bats (`gdd-permission-hook.bats`) verifies the hook's *output*. It cannot
 verify the *prompt the human sees*. This script is the gap-filler: the
 agent runs it live, the human watches the prompts.
 
@@ -929,7 +929,7 @@ Each step: read the file, make the described change. No tests — verification i
 
 - [ ] **Step 1: `.claude/hooks/README.md`**
 
-Read the file. Update the `gdd-allowlist-bridge.sh` tier description from three tiers to four: Tier 1 deny-composition, **Tier 2 ask-list (new)**, Tier 3 settings.json allow, Tier 4 `[allow-extras]` allow. Replace the "Adding a safe command (per-machine extras)" section's `safe-bash-extras` content with the `hook-rules` / `hook-rules.local` / `hook-rules.local.example` model (committed baseline + gitignored per-machine override, copy the `.example`). Document the `[scratch-dirs]` / `[ask-commands]` / `[allow-extras]` sections and that `[ask-commands]` is additive-only. Keep the `WS_HOOK_DISABLE` and `WS_HOOK_DEBUG` sections. Remove every `safe-bash-extras` mention.
+Read the file. Update the `gdd-permission-hook.sh` tier description from three tiers to four: Tier 1 deny-composition, **Tier 2 ask-list (new)**, Tier 3 settings.json allow, Tier 4 `[allow-extras]` allow. Replace the "Adding a safe command (per-machine extras)" section's `safe-bash-extras` content with the `hook-rules` / `hook-rules.local` / `hook-rules.local.example` model (committed baseline + gitignored per-machine override, copy the `.example`). Document the `[scratch-dirs]` / `[ask-commands]` / `[allow-extras]` sections and that `[ask-commands]` is additive-only. Keep the `WS_HOOK_DISABLE` and `WS_HOOK_DEBUG` sections. Remove every `safe-bash-extras` mention.
 
 Verify: `grep -c "safe-bash-extras" .claude/hooks/README.md` → `0`; `grep -c "Tier 4\|hook-rules" .claude/hooks/README.md` → non-zero.
 
@@ -986,7 +986,7 @@ Run: `bash scripts/ws commit yggdrasil .commits/hook-doc-updates.md`
 
 - [ ] **Step 1: Run the full hook bats suite**
 
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/allowlist-bridge.bats`
+Run: `bash tests/vendor/bats-core/bin/bats tests/hook/gdd-permission-hook.bats`
 Expected: all tests PASS.
 
 - [ ] **Step 2: Run the broader bats suites the hook could affect**
@@ -996,7 +996,7 @@ Expected: PASS (this suite includes hook-timeout assertions).
 
 - [ ] **Step 3: Confirm no stray references**
 
-Run: `grep -rn "safe-bash-extras" .claude/hooks/gdd-allowlist-bridge.sh .claude/hooks/README.md docs/gdd/`
+Run: `grep -rn "safe-bash-extras" .claude/hooks/gdd-permission-hook.sh .claude/hooks/README.md docs/gdd/`
 Expected: empty.
 
 - [ ] **Step 4: Run the interactive acceptance script with the user**

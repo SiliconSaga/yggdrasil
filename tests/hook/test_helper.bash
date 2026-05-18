@@ -12,7 +12,7 @@
 # Code tool calls, not nested bats-spawned processes).
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-HOOK_BIN="$REPO_ROOT/.claude/hooks/gdd-allowlist-bridge.sh"
+HOOK_BIN="$REPO_ROOT/.claude/hooks/gdd-permission-hook.sh"
 
 # Build an isolated workspace shape:
 #   $WORK                           — tmp project root

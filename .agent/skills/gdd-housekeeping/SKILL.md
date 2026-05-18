@@ -153,7 +153,7 @@ Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.t
 
 ### Step 6.5: Review the PreToolUse hook audit log
 
-`~/.claude/hook-audit.log` records every allow/deny decision the `gdd-allowlist-bridge.sh` hook has made since the last cleanup. Worth a periodic skim during housekeeping — patterns that show up repeatedly tell you something about agent behavior or workspace configuration:
+`~/.claude/hook-audit.log` records every allow/deny decision the `gdd-permission-hook.sh` hook has made since the last cleanup. Worth a periodic skim during housekeeping — patterns that show up repeatedly tell you something about agent behavior or workspace configuration:
 
 - **Recurring DENY entries for the same compound pattern** → the
   agent is reflexively reaching for shell composition. Check whether

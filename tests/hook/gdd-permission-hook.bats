@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for the PreToolUse hook at .claude/hooks/gdd-allowlist-bridge.sh.
+# Tests for the PreToolUse hook at .claude/hooks/gdd-permission-hook.sh.
 #
 # Coverage:
 #   - Tier 1: deny shell composition (each operator) with specific reason
@@ -608,4 +608,12 @@ git*reset --hard*"
         echo "$hookrules_dirs"
         return 1
     fi
+}
+
+@test "ask: find -exec matches the broadened find ask-pattern" {
+    write_project_hook_rules "[ask-commands]
+find*-exec*"
+    run_hook "find . -type f -exec rm {} +"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }

@@ -1,6 +1,6 @@
 # Hook ask-tier — interactive acceptance script
 
-bats (`allowlist-bridge.bats`) verifies the hook's *output*. It cannot verify the *prompt the human sees*. This script is the gap-filler: the agent runs it live, the human watches the prompts.
+bats (`gdd-permission-hook.bats`) verifies the hook's *output*. It cannot verify the *prompt the human sees*. This script is the gap-filler: the agent runs it live, the human watches the prompts.
 
 **How to run:** ask the agent to "run the hook acceptance script." The agent announces the batch, runs each command in order, and you confirm each prompt matches the expected shape.
 

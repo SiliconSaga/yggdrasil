@@ -8,7 +8,7 @@ The hooks are registered in [`../settings.json`](../settings.json) under `hooks.
 
 ## Shipped hooks
 
-### `gdd-allowlist-bridge.sh` (PreToolUse on Bash, by default)
+### `gdd-permission-hook.sh` (PreToolUse on Bash, by default)
 
 Fires before every Bash tool call. Four tiers of decision:
 
@@ -19,7 +19,7 @@ Fires before every Bash tool call. Four tiers of decision:
 
 Logs allow/deny/ask decisions to `~/.claude/hook-audit.log` with timestamps so you can review what the hook is doing. Passthroughs are not logged.
 
-The script itself also understands the `PermissionRequest` event and the `Edit` / `Write` tools — those code paths are dormant under the default registration and activate only when you wire them up. See [Optional: PermissionRequest extension](#optional-permissionrequest-extension) below.
+The tool-permission hook also understands the `PermissionRequest` event and the `Edit` / `Write` tools — those code paths are dormant under the default registration and activate only when you wire them up. See [Optional: PermissionRequest extension](#optional-permissionrequest-extension) below.
 
 ## Hook rules configuration
 
@@ -52,7 +52,7 @@ Then edit `hook-rules.local`. The example file is annotated with common entries.
 
 ## Optional: PermissionRequest extension
 
-Power-user opt-in. Wires the same `gdd-allowlist-bridge.sh` script to a second hook event — `PermissionRequest` — and broadens its matcher to also cover the `Edit` and `Write` tools. Net effect:
+Power-user opt-in. Wires the same `gdd-permission-hook.sh` script to a second hook event — `PermissionRequest` — and broadens its matcher to also cover the `Edit` and `Write` tools. Net effect:
 
 - **Scratch-dir writes stop prompting.** Edits and writes under `.tmp/`, `.commits/`, `.crs/`, `.issues/`, and `.outputs/` (the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore)) auto-allow. Useful when you're drafting commit bodies, CR templates, and capture files all day — those routine flows otherwise can generate a steady drip of approve prompts.
 - **Bash allowlist matches double-cover at the prompt layer.** Anything your `settings.json` `allow` or `hook-rules.local` `[allow-extras]` would have allowed at `PreToolUse` also gets approved at `PermissionRequest`, which can help in some configurations — largely intended to let the GDD extensions be good citizens in otherwise constrained settings.
@@ -74,7 +74,7 @@ Add this block to your `.claude/settings.local.json` (per-user, gitignored) alon
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-allowlist-bridge.sh\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh\""
           }
         ]
       }
@@ -105,7 +105,7 @@ This bypass is per-user / per-machine and doesn't require editing the committed 
 
 ## What if a Bash call stalls?
 
-Earlier versions of this hook had an infinite-loop bug on Windows-style paths (the upward-walk for `.claude/settings.json` didn't terminate when `dirname` started returning `.` repeatedly). The current script has a `prev == dir` guard that ensures the loop exits at the filesystem root regardless of platform. Both `tests/hook/allowlist-bridge.bats` and `tests/ws-smoke/read-only.bats` include timeout assertions that fail loudly if a regression introduces a hang.
+Earlier versions of this hook had an infinite-loop bug on Windows-style paths (the upward-walk for `.claude/settings.json` didn't terminate when `dirname` started returning `.` repeatedly). The current script has a `prev == dir` guard that ensures the loop exits at the filesystem root regardless of platform. Both `tests/hook/gdd-permission-hook.bats` and `tests/ws-smoke/read-only.bats` include timeout assertions that fail loudly if a regression introduces a hang.
 
 If you encounter a stall anyway:
 

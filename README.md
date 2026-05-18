@@ -25,7 +25,7 @@ Agent skills can be installed in various ways and custom ones added at `.agent/s
 
 #### Shipped Claude Code hook
 
-This repo ships a PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh` (registered in `.claude/settings.json`). When a Claude Code session is started in this workspace, the hook fires on every Bash tool call the agent attempts and:
+This repo ships a PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` (registered in `.claude/settings.json`). When a Claude Code session is started in this workspace, the hook fires on every Bash tool call the agent attempts and:
 
 * **Rejects shell composition** (`&&`, `||`, `;`, pipes, redirects, command substitution) with a corrective message telling the agent to use separate tool calls or native `ws` flags. Keeps commands single-purpose and easier for newer users to follow.
 * **Auto-allows** anything matching the project's `permissions.allow` patterns or per-machine allow patterns in `.claude/hooks/hook-rules.local`.

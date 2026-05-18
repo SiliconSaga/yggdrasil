@@ -42,3 +42,9 @@
 # grep *
 # jq *
 # yq *
+# find for searching/listing is read-only and safe to allow broadly.
+# The destructive find forms (-delete, -exec) are on the ask-list in
+# hook-rules; Tier 2 (ask) runs before Tier 4 (allow-extras), so
+# allowing `find *` here does NOT weaken anything — `find ... -delete`
+# and `find ... -exec` still hit the ask-tier and prompt.
+# find *

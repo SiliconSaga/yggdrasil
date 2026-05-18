@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────
-# gdd-allowlist-bridge.sh — Claude Code PreToolUse hook for Bash
+# gdd-permission-hook.sh — Claude Code tool-permission hook (GDD)
 # ─────────────────────────────────────────────────────────────────────
 #
 # PURPOSE
-# Fires before every Bash tool call the agent attempts. Inspects the
-# command text and emits one of four outcomes:
+# Fires on PreToolUse for Bash (four-tier deny/ask/allow logic) and for
+# Edit/Write (scratch-dir auto-allow). Has dormant PermissionRequest
+# support wired in but not registered by default. Inspects the tool
+# input and emits one of four outcomes:
 #
 #   1. ALLOW   → emit JSON instructing the harness to skip its prompt
 #                and run the command. The hook becomes the trust
@@ -96,7 +98,7 @@
 #           "matcher": "Bash",
 #           "hooks": [
 #             { "type": "command",
-#               "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/gdd-allowlist-bridge.sh" }
+#               "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh" }
 #           ]
 #         }
 #       ]

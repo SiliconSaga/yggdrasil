@@ -1,6 +1,6 @@
 # GDD hook rules — committed baseline.
 #
-# Read by .claude/hooks/gdd-allowlist-bridge.sh. Per-machine overrides
+# Read by .claude/hooks/gdd-permission-hook.sh. Per-machine overrides
 # go in hook-rules.local (copy hook-rules.local.example). Format: flat
 # sectioned text — [section] headers, one entry per line, '#' comments,
 # blank lines ignored.
@@ -26,3 +26,5 @@ git*reset --hard*
 git*clean -f*
 git*clean -d*
 find * -delete*
+find*-exec*
+find*-execdir*

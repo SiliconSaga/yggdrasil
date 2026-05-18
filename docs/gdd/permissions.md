@@ -44,7 +44,7 @@ If you see a permission behavior that doesn't match what `.claude/settings.json`
 
 ### Claude Hook Options
 
-The hook script at `.claude/hooks/gdd-allowlist-bridge.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
+The hook script at `.claude/hooks/gdd-permission-hook.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
 
 The hook produces three possible decisions for a Bash command:
 

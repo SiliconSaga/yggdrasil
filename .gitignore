@@ -23,7 +23,7 @@ ecosystem.local.yaml
 
 # Workspace-local scratch / temp area — agent and human edits land
 # here without prompting via the PreToolUse / PermissionRequest hooks
-# (see .claude/hooks/gdd-allowlist-bridge.sh). Includes synthetic git
+# (see .claude/hooks/gdd-permission-hook.sh). Includes synthetic git
 # repos for manual command testing, draft commit / CR / issue bodies,
 # and capture buckets for tool output. Use these instead of /tmp
 # >>> scratch-dirs (keep in sync with .claude/hooks/hook-rules [scratch-dirs])

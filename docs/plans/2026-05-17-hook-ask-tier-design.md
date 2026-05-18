@@ -5,13 +5,13 @@
 **Owner:** Rasmus Praestholm
 **Related:**
 
-- `.claude/hooks/gdd-allowlist-bridge.sh` and `.claude/hooks/README.md` — the hook this design extends
+- `.claude/hooks/gdd-permission-hook.sh` and `.claude/hooks/README.md` — the hook this design extends
 - [`docs/gdd/agent-training.md`](../gdd/agent-training.md) — the user-facing companion to the hook
 - PR #61 / #62 — prior hook work (registration, PermissionRequest event, scratch-dir Edit/Write)
 
 ## Overview
 
-The PreToolUse hook `gdd-allowlist-bridge.sh` today does two things: it **denies** shell composition (`&&`, `|`, `;`, redirects, …) and it **allows** commands matching `.claude/settings.json` or `safe-bash-extras`. It has no guard against individually destructive *single* commands.
+The PreToolUse hook `gdd-permission-hook.sh` today does two things: it **denies** shell composition (`&&`, `|`, `;`, redirects, …) and it **allows** commands matching `.claude/settings.json` or `safe-bash-extras`. It has no guard against individually destructive *single* commands.
 
 An investigation on 2026-05-16 confirmed the gap: in `acceptEdits` permission mode, the harness auto-approves Bash file-mutations — including `rm -rf` — on workspace paths with no prompt. The hook is not at fault: it correctly passes through (verified with `WS_HOOK_DEBUG=1` passthrough logging — every `rm -rf` test logged `[PreToolUse] PASSTHROUGH`). The harness's own `acceptEdits` logic classifies a Bash file-mutation on a workspace path as an auto-acceptable "edit". The hook's deny logic only polices command *composition*, never command *danger*.
 
@@ -41,7 +41,6 @@ Explicitly out of scope for this design:
 - **A `[defaults]` config section** — with the session-toggle deferred, there is nothing for it to hold in v1.
 - **User-level (`~/.claude/`) hook config** — the workspace directive is "everything hook-related in the workspace". Both config files live under `.claude/hooks/`.
 - **Per-ask-pattern custom messages** — v1 uses one generic ask message plus an `rm`-family symlink addendum. Per-pattern messages are a possible future refinement.
-- **Renaming the hook script** — `gdd-allowlist-bridge.sh` keeps its name despite the broadened role; renaming touches the settings.json registration, README, and tests for no functional gain.
 
 ## Architecture — decision flow
 
