@@ -43,10 +43,10 @@ ecosystem.local.yaml
 # Claude Code runtime state — scheduled-task lock file, recreated on demand
 .claude/scheduled_tasks.lock
 
-# Project-level safe-bash-extras for the PreToolUse hook — personal
+# Project-level hook-rules.local for the PreToolUse hook — personal
 # per-machine config, not project policy. The `.example` template
 # IS tracked; the live file is opt-in and stays local.
-.claude/hooks/safe-bash-extras
+/.claude/hooks/hook-rules.local
 
 # Claude Code MCP server config — generated per-user by ws mcp-setup, never committed
 # (content is realm-specific; regenerate with: bash scripts/ws mcp-setup)

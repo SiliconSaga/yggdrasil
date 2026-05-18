@@ -1,0 +1,29 @@
+# GDD hook rules — committed baseline.
+#
+# Read by .claude/hooks/gdd-allowlist-bridge.sh. Per-machine overrides
+# go in hook-rules.local (copy hook-rules.local.example). Format: flat
+# sectioned text — [section] headers, one entry per line, '#' comments,
+# blank lines ignored.
+
+[scratch-dirs]
+# Edit/Write tool calls under these workspace-relative paths auto-allow.
+# Mirror the "Workspace-local scratch" section of .gitignore.
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/
+
+[ask-commands]
+# Glob patterns. A match makes the hook emit permissionDecision: "ask" —
+# a forced permission prompt in any mode, NOT a block. The agent still
+# runs the command once the human approves. Patterns match the full
+# command string; '*' matches any substring.
+rm -rf*
+rm -fr*
+rm -r *
+rm -r-*
+git reset --hard*
+git clean -f*
+git clean -d*
+find * -delete*

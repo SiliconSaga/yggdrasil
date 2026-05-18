@@ -61,6 +61,16 @@ write_user_extras() {
     printf '%s\n' "$1" > "$HOME/.claude/hooks/safe-bash-extras"
 }
 
+# Write a project-level hook-rules file with the given content.
+write_project_hook_rules() {
+    printf '%s\n' "$1" > "$WORK/.claude/hooks/hook-rules"
+}
+
+# Write a project-level hook-rules.local file with the given content.
+write_local_hook_rules() {
+    printf '%s\n' "$1" > "$WORK/.claude/hooks/hook-rules.local"
+}
+
 # Build an Edit/Write tool-call payload and pipe it into the hook.
 # The hook's non-Bash branch decides on the file_path, not a command.
 # project_dir falls back to cwd when CLAUDE_PROJECT_DIR is unset, so

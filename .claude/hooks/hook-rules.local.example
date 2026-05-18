@@ -1,0 +1,44 @@
+# hook-rules.local.example — copy to hook-rules.local and edit.
+#
+# This file is COMMITTED as a template. The live hook-rules.local is
+# gitignored — per-machine, not project policy. The hook reads it after
+# the committed hook-rules and merges:
+#
+#   [scratch-dirs]   — entries ADD to the baseline
+#   [ask-commands]   — entries ADD to the baseline (additive-only:
+#                      you can make MORE commands prompt, never fewer —
+#                      removing a baseline ask-command is not supported)
+#   [allow-extras]   — personal allow-patterns; only valid here, never
+#                      in the committed baseline
+#
+# To use:
+#   1. cp hook-rules.local.example hook-rules.local
+#   2. Uncomment / add entries below
+#   3. On any line you uncomment, delete its trailing '# ...' comment —
+#      the hook matches the WHOLE line, so an inline comment becomes
+#      part of the pattern and breaks the match
+
+[scratch-dirs]
+# Extra scratch dirs to auto-allow Edit/Write under, on this machine.
+# (none by default)
+
+[ask-commands]
+# Extra destructive commands to force a prompt for, on this machine.
+# (none by default)
+
+[allow-extras]
+# Bash glob patterns auto-allowed on this machine without prompting.
+# Safe only while the hook's Tier 1 composition deny is active.
+# Uncomment the ones you're tired of approving.
+# ls *
+# pwd
+# cat *
+# head *
+# tail *
+# wc *
+# stat *
+# tree
+# tree *
+# grep *
+# jq *
+# yq *
