@@ -4,13 +4,13 @@
 #
 # Coverage:
 #   - Tier 1: deny shell composition (each operator) with specific reason
-#   - Tier 2: allow via project .claude/settings.json
+#   - Tier 3: allow via project .claude/settings.json
 #       - bare command vs verbose pattern (symmetric normalization)
 #       - verbose command vs bare pattern (symmetric normalization)
 #       - CRLF line endings in settings.json don't break matching
-#   - Tier 3: allow via project-level safe-bash-extras
-#   - Tier 3: allow via user-level safe-bash-extras
-#   - Tier 3: project-level takes precedence (or coexists) with user-level
+#   - Tier 3: allow via settings.json `permissions.allow` (unchanged logic)
+#   - Tier 4: allow via [allow-extras] section of hook-rules.local
+#   - Tier 4: legacy safe-bash-extras file is ignored (no longer consulted)
 #   - Passthrough: no match → exit 0 with no JSON
 #   - WS_HOOK_DISABLE bypass
 #   - Timeout safety: no infinite loops on Windows-style absolute paths
@@ -247,52 +247,24 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# ─── Tier 3: project-level safe-bash-extras ─────────────────────────
+# ─── Tier 4: [allow-extras] from hook-rules.local ───────────────────
 
-@test "allow via project extras: pattern from project file matches" {
-    write_project_extras 'figlet *'
+@test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {
+    write_project_hook_rules ""
+    write_local_hook_rules "[allow-extras]
+figlet *"
     run_hook "figlet hello"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "allow via project extras: walks up from a nested cwd" {
-    # Put extras at the project root, run with cwd nested inside.
-    write_project_extras 'figlet *'
+@test "allow via allow-extras: hook-rules.local walks up from a nested cwd" {
+    # Put hook-rules.local at the project root, run with cwd nested inside.
+    write_project_hook_rules ""
+    write_local_hook_rules "[allow-extras]
+figlet *"
     mkdir -p "$WORK/subdir/deeper"
     run_hook "figlet hello" "$WORK/subdir/deeper"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-# ─── Tier 3: user-level safe-bash-extras ────────────────────────────
-
-@test "allow via user extras: pattern from \$HOME file matches" {
-    write_user_extras 'cowsay *'
-    run_hook "cowsay moo"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-@test "allow via user extras: works without a project extras file" {
-    # Only user-level extras exists. Project tree has no .claude/hooks/.
-    write_user_extras 'figlet *'
-    run_hook "figlet hello"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-# ─── Tier 3: project + user coexist ─────────────────────────────────
-
-@test "both extras files contribute: pattern in either allows" {
-    write_project_extras 'figlet *'
-    write_user_extras 'cowsay *'
-
-    run_hook "figlet hello"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-
-    run_hook "cowsay moo"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
@@ -562,4 +534,22 @@ rm -rf*"
     run_hook "rm -rf build/"
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
+# ─── Tier 4 vs legacy safe-bash-extras ──────────────────────────────
+
+@test "allow-extras: a hook-rules.local [allow-extras] pattern allows" {
+    write_project_hook_rules ""
+    write_local_hook_rules "[allow-extras]
+sl *"
+    run_hook "sl -e"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow-extras: a legacy safe-bash-extras file is ignored" {
+    write_project_extras "sl *"
+    run_hook "sl -e"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }

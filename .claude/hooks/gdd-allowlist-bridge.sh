@@ -47,16 +47,19 @@
 #   per action and to prefer native flags (--limit, --output) over
 #   shell pipelines.
 #
-# Tier 2 — Per-project allowlist from .claude/settings.json (ALLOW)
+# Tier 2 — Ask-list from hook-rules [ask-commands] (ASK)
+#   Destructive commands that should always prompt, even under
+#   acceptEdits. Any match → ask.
+#
+# Tier 3 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
 #   too. Glob-match each pattern against the command. Any match → allow.
 #
-# Tier 3 — User-supplied extras file (ALLOW, optional)
-#   If $HOME/.claude/hooks/safe-bash-extras exists, treat each line as
-#   a glob pattern to test against the command. Useful for personal
-#   utilities the user trusts on this specific machine. Silently
-#   skipped if the file is absent.
+# Tier 4 — [allow-extras] from hook-rules.local (ALLOW, optional)
+#   Personal per-machine glob patterns declared in hook-rules.local's
+#   [allow-extras] section. Parsed into allow_extras above. Any
+#   match → allow. Silently absent if hook-rules.local has no section.
 #
 # Default — Passthrough
 #   Exit 0 with no JSON. Harness handles as normal.
@@ -98,9 +101,9 @@
 # Invoking via `bash <script>` avoids needing chmod +x on Windows
 # (where the executable bit doesn't carry through Git Bash uniformly).
 #
-# The Tier 3 extras file ($HOME/.claude/hooks/safe-bash-extras) is
-# per-user / per-machine, NOT shipped in the repo. Each developer
-# manages their own extras alongside the shared hook.
+# The hook-rules.local file (.claude/hooks/hook-rules.local) is
+# per-machine / gitignored, NOT shipped in the repo. Each developer
+# manages their own local overrides alongside the shared hook-rules.
 # ─────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -595,7 +598,7 @@ normalize_for_match() {
 }
 match_cmd="$(normalize_for_match "$cmd")"
 
-# ─── Tier 2: Match against settings.json `permissions.allow` ────────
+# ─── Tier 3: Match against settings.json `permissions.allow` ────────
 #
 # Walk up from $cwd looking for .claude/settings.json files. Closer
 # files (project-specific) come first; the user-level file at
@@ -668,72 +671,20 @@ while IFS= read -r raw; do
     fi
 done < <(collect_patterns)
 
-# ─── Tier 3: Extras files (optional, layered) ───────────────────────
+# ─── Tier 4: Allow via [allow-extras] from hook-rules.local ─────────
 #
-# Free-form lists of glob patterns the user trusts on this machine
-# but doesn't want to commit to a project's settings.json. The hook
-# checks two locations, both optional:
-#
-#   1. Project-level — walk up from $cwd looking for
-#      <project>/.claude/hooks/safe-bash-extras. Per-project
-#      machine-local; should be gitignored (the live file IS, the
-#      `.example` template IS committed for discoverability).
-#   2. User-level — $HOME/.claude/hooks/safe-bash-extras.
-#      Per-user / cross-project; useful for tools you trust
-#      regardless of which workspace you're in.
-#
-# Both files share the same format:
-#   - One glob pattern per line
-#   - Lines starting with `#` are comments
-#   - Empty / whitespace-only lines are skipped
-#   - No `Bash(...)` wrapper; just the bare pattern
-#
-# Either file is silently skipped if absent. Order doesn't matter —
-# any match in either file → ALLOW.
-#
-# A function builds the list of candidate files so the same parsing
-# loop handles both. Walking up from $cwd uses the same prev-equals-
-# dir guard as collect_patterns (Tier 2) — otherwise infinite-loops
-# on Windows-style paths where `dirname D:` returns `.`.
-collect_extras_files() {
-    local dir="$cwd"
-    local prev=""
-    while [[ "$dir" != "$prev" && "$dir" != "/" && "$dir" != "." && "$dir" != "" ]]; do
-        if [[ -f "$dir/.claude/hooks/safe-bash-extras" ]]; then
-            printf '%s\n' "$dir/.claude/hooks/safe-bash-extras"
-        fi
-        prev="$dir"
-        dir=$(dirname "$dir")
-    done
-    if [[ -f "$HOME/.claude/hooks/safe-bash-extras" ]]; then
-        printf '%s\n' "$HOME/.claude/hooks/safe-bash-extras"
+# Personal allow-patterns the user trusts on this machine — declared
+# in the [allow-extras] section of hook-rules.local (gitignored,
+# per-machine). Parsed into `allow_extras` above. Each entry is a
+# bash glob matched against the normalized command; any match → allow.
+# Empty if hook-rules.local is absent or has no [allow-extras] section.
+for _extra in ${allow_extras[@]+"${allow_extras[@]}"}; do
+    match_extra="$(normalize_for_match "$_extra")"
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $match_extra ]]; then
+        allow "hook-rules.local [allow-extras]: $_extra"
     fi
-}
-
-while IFS= read -r extras_file; do
-    [[ -z "$extras_file" ]] && continue
-    while IFS= read -r line; do
-        # Strip trailing CR for cross-platform robustness (see the
-        # Tier 2 read loop for the full reasoning).
-        line="${line%$'\r'}"
-        # Trim leading + trailing whitespace via parameter expansion.
-        # Cheap, no subshell.
-        line="${line#"${line%%[![:space:]]*}"}"
-        line="${line%"${line##*[![:space:]]}"}"
-        # Skip blanks and comments.
-        [[ -z "$line" || "$line" == "#"* ]] && continue
-        # Symmetric normalization — same as Tier 2. Extras patterns
-        # match against both bare and verbose invocation styles
-        # regardless of how the pattern itself is written.
-        match_line="$(normalize_for_match "$line")"
-        # shellcheck disable=SC2053
-        if [[ "$match_cmd" == $match_line ]]; then
-            # Audit reason names both the file and the pattern so
-            # project-vs-user origin is visible at a glance.
-            allow "extras ${extras_file/#$HOME/~}: $line"
-        fi
-    done < "$extras_file"
-done < <(collect_extras_files)
+done
 
 # ─── Default: exit 0 with no JSON decision (passthrough) ────────────
 #
