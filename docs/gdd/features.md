@@ -213,12 +213,11 @@ including the token-cost model and what to do when a legitimate
 command gets denied.
 
 Per-machine extras (opt-in): if a command you trust keeps getting
-denied, copy `.claude/hooks/safe-bash-extras.example` to
-`safe-bash-extras` (drop the `.example`) and uncomment / add bash
-glob patterns. The live file is gitignored — patterns stay
-per-machine and don't leak into project policy. A user-level
-location at `~/.claude/hooks/safe-bash-extras` covers patterns you
-trust across every workspace.
+denied, copy `.claude/hooks/hook-rules.local.example` to
+`hook-rules.local` (in the same directory) and add bash glob
+patterns under the `[allow-extras]` section. The live file is
+gitignored — patterns stay per-machine and don't leak into project
+policy.
 
 ---
 

@@ -22,7 +22,6 @@
 rm -rf*
 rm -fr*
 rm -r *
-rm -r-*
 git reset --hard*
 git clean -f*
 git clean -d*

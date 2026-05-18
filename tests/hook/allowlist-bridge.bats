@@ -4,6 +4,7 @@
 #
 # Coverage:
 #   - Tier 1: deny shell composition (each operator) with specific reason
+#   - Tier 2: ask-tier — destructive commands matching [ask-commands]
 #   - Tier 3: allow via project .claude/settings.json
 #       - bare command vs verbose pattern (symmetric normalization)
 #       - verbose command vs bare pattern (symmetric normalization)
@@ -204,7 +205,7 @@ setup() {
     [[ "$output" == *"File-descriptor merges"* ]]
 }
 
-# ─── Tier 2: symmetric normalization against settings.json ──────────
+# ─── Tier 3: symmetric normalization against settings.json ──────────
 
 @test "allow via settings: bare command matches verbose pattern" {
     write_project_settings 'Bash(bash scripts/ws status)'

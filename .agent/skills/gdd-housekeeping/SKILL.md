@@ -185,23 +185,23 @@ housekeeping:
 
   > "`tree` was approved repeatedly last session. A general
   > assessment suggests it's safe to auto-allow on this machine —
-  > want to add it to your `safe-bash-extras` so future sessions
+  > want to add it to `hook-rules.local` so future sessions
   > skip the prompt?"
 
-  Three possible homes once the human confirms:
+  Two possible homes once the human confirms:
 
   | Home | When | Trade-off |
   |---|---|---|
   | Project `.claude/settings.json` | The pattern is workspace-relevant and other contributors would benefit | Committed to the repo; visible in PR review |
-  | `~/.claude/hooks/safe-bash-extras` (user-level) | A personal tool you trust across every workspace (e.g., `tree`, `bat`, your jq invocations) | Per-user, per-machine; not shared |
-  | `<project>/.claude/hooks/safe-bash-extras` (project-local) | A trusted command specific to this workspace but not policy-worthy | Per-machine; not shared via git |
+  | `.claude/hooks/hook-rules.local` `[allow-extras]` (project-local) | A trusted command specific to this workspace but not policy-worthy | Per-machine; gitignored, not shared via git |
   | Leave in `.claude/settings.local.json` | The decision was correct as recorded (don't-ask-again at the harness level) | No change needed |
 
   For the doc-driven path (project `.claude/settings.json`), invoke
   the `permissions-management` skill for the full add-and-document
-  flow. For the extras-file paths, just append the bash glob
-  pattern to the live file — no Tier 2 / Tier 3 distinction matters
-  here, the live file is the live file regardless of name.
+  flow. For the `hook-rules.local` path, copy
+  `.claude/hooks/hook-rules.local.example` to `hook-rules.local`
+  (if it doesn't exist) and append the bash glob pattern under the
+  `[allow-extras]` section.
 
   Cross-reference: `ws audit-permissions` covers the opposite
   direction (patterns already in `permissions.allow` that look too
