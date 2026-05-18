@@ -455,3 +455,59 @@ setup() {
     # The key assertion is that we DIDN'T hit the timeout.
     [ "$status" -ne 124 ]
 }
+
+# ─── Tier 2: ask-list ───────────────────────────────────────────────
+
+@test "ask: rm -rf matches the baseline ask-list and emits ask" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    run_hook "rm -rf build/"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: rm-family ask reason carries the symlink caution" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    run_hook "rm -rf build/"
+    [[ "$output" == *"symlinks"* ]]
+}
+
+@test "ask: non-rm ask reason has no symlink caution" {
+    write_project_hook_rules "[ask-commands]
+git reset --hard*"
+    run_hook "git reset --hard HEAD~1"
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" != *"symlinks"* ]]
+}
+
+@test "ask: Tier 1 composition denies before the ask-tier is reached" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    run_hook "rm -rf build/ && echo done"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: hook-rules.local ask-command is additive (also asks)" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    write_local_hook_rules "[ask-commands]
+shutdown*"
+    run_hook "shutdown now"
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: a malformed hook-rules (entry before any section) degrades, no crash" {
+    write_project_hook_rules "rm -rf*
+[ask-commands]
+rm -rf*"
+    run_hook "ls"
+    [ "$status" -eq 0 ]
+}
+
+@test "ask: no hook-rules file present → no ask, passthrough still works" {
+    run_hook "rm -rf build/"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}

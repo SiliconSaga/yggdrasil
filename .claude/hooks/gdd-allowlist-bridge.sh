@@ -258,6 +258,100 @@ deny() {
     exit 0
 }
 
+# ask() — force a permission prompt without blocking. Used by the
+# Tier 2 ask-list for destructive-but-sometimes-legitimate commands.
+# Unlike deny(), the agent can still run the command once the human
+# approves; unlike allow(), it never auto-runs. The `ask` decision
+# overrides the harness's permission mode — it prompts even under
+# acceptEdits / bypassPermissions.
+#
+# PermissionRequest has no "ask" behavior; for that event the hook
+# passes through (exit 0, no JSON), which yields to the default
+# prompt — the same net effect. (PermissionRequest is dormant in this
+# workspace; this branch is parity-only.)
+ask() {
+    local reason="$1"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ASK [$event] ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
+    if [[ "$event" == "PermissionRequest" ]]; then
+        exit 0
+    fi
+    jq -nc --arg reason "$reason" '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "ask",
+        permissionDecisionReason: $reason
+      }
+    }'
+    exit 0
+}
+
+# ─── Hook rules config ──────────────────────────────────────────────
+#
+# Flat sectioned text at .claude/hooks/hook-rules (committed baseline)
+# and .claude/hooks/hook-rules.local (gitignored per-machine override).
+# Parsed by pure bash — no yq/jq dependency for config. Three sections:
+#   [scratch-dirs]  — Edit/Write auto-allow path prefixes (Tier consumer)
+#   [ask-commands]  — Tier 2 ask-list glob patterns
+#   [allow-extras]  — Tier 4 allow glob patterns (hook-rules.local only)
+# hook-rules.local entries ADD to the baseline (additive merge).
+scratch_dirs=()
+ask_commands=()
+allow_extras=()
+
+# Parse one rules file, appending entries to the section arrays. A
+# content line before any [section] header is a file error: log a
+# warning and skip the rest of that file (degrade to whatever's
+# already parsed — never crash the hook).
+_parse_rules_file() {
+    local file="$1"
+    local section="" line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" || "$line" == "#"* ]] && continue
+        case "$line" in
+            "["*"]")
+                section="${line#\[}"
+                section="${section%\]}"
+                ;;
+            *)
+                case "$section" in
+                    scratch-dirs) scratch_dirs+=("$line") ;;
+                    ask-commands) ask_commands+=("$line") ;;
+                    allow-extras) allow_extras+=("$line") ;;
+                    *)
+                        if [[ -z "$section" ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: content before any [section] header, file skipped): $file" >> "$audit_log"
+                        else
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: unknown section [$section], file skipped): $file" >> "$audit_log"
+                        fi
+                        return
+                        ;;
+                esac
+                ;;
+        esac
+    done < "$file"
+}
+
+# Locate .claude/hooks/hook-rules by walking up from $cwd (closest
+# wins), same upward-walk + prev-equals-dir guard as collect_patterns.
+_rules_dir=""
+_rd="$cwd"
+_rp=""
+while [[ "$_rd" != "$_rp" && "$_rd" != "/" && "$_rd" != "." && "$_rd" != "" ]]; do
+    if [[ -f "$_rd/.claude/hooks/hook-rules" ]]; then
+        _rules_dir="$_rd/.claude/hooks"
+        break
+    fi
+    _rp="$_rd"
+    _rd=$(dirname "$_rd")
+done
+if [[ -n "$_rules_dir" ]]; then
+    _parse_rules_file "$_rules_dir/hook-rules"
+    [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local"
+fi
+
 # ─── Tool routing: non-Bash branch (Edit / Write) ──────────────────
 #
 # Edit and Write decisions are path-based, not command-pattern-based.
@@ -439,6 +533,26 @@ case "$cmd" in
         deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
         ;;
 esac
+
+# ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
+#
+# A match emits `ask`: the harness prompts regardless of permission
+# mode (acceptEdits included), but the agent may still run the command
+# once the human approves. The ask-list is a safety FLOOR — it is
+# checked before the Tier 3/4 allow logic, so a destructive command
+# prompts even if some allowlist entry would otherwise pass it.
+for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
+    # shellcheck disable=SC2053
+    if [[ "$cmd" == $_ask ]]; then
+        _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo. Confirm before proceeding."
+        case "$cmd" in
+            rm|rm\ *)
+                _ask_reason="$_ask_reason Caution: symlinks here could delete outside the workspace."
+                ;;
+        esac
+        ask "$_ask_reason"
+    fi
+done
 
 # ─── Normalization for matching (applied to BOTH cmd and pattern) ───
 #
