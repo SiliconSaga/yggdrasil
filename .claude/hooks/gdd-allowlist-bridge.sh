@@ -357,14 +357,9 @@ fi
 # Edit and Write decisions are path-based, not command-pattern-based.
 # Paths under any configured scratch directory auto-allow; everything
 # else falls through to the harness's normal prompt flow. Scratch
-# dirs are anchored to $CLAUDE_PROJECT_DIR (with a $cwd fallback for
-# manual test invocations).
-#
-# Why hardcode the list here? It's short, project-stable, and lives
-# next to the decision logic that uses it. If it ever grows past a
-# handful of entries, lifting it into a `safe-write-paths` extras
-# file parallel to `safe-bash-extras` is the natural next step —
-# until then, hardcoding is the simpler, more auditable form.
+# dirs come from the [scratch-dirs] section of hook-rules (parsed
+# above) and are anchored to $CLAUDE_PROJECT_DIR (with a $cwd
+# fallback for manual test invocations).
 #
 # Defense-in-depth: tools not handled here (Read, MCP, WebFetch, etc.)
 # shouldn't reach this script because the matcher in settings.json
@@ -425,12 +420,12 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         *) exit 0 ;;              # resolves outside — passthrough
     esac
 
-    # Scratch dirs that auto-allow Edit / Write. Mirrors the
-    # "Workspace-local scratch" section of the project's .gitignore —
-    # the two lists should stay in lockstep so anything safe to commit
-    # nothing-for is also safe to edit without prompting. Order by
-    # frequency-of-use so the first match (most common) is cheapest.
-    for prefix in ".tmp/" ".commits/" ".crs/" ".issues/" ".outputs/"; do
+    # Scratch dirs that auto-allow Edit / Write come from the
+    # [scratch-dirs] section of hook-rules (parsed above). The baseline
+    # mirrors the "Workspace-local scratch" section of .gitignore;
+    # hook-rules.local may add more. If no hook-rules file was found,
+    # scratch_dirs is empty and every Edit/Write passes through.
+    for prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
         if [[ "$abs_path" == "$project_dir/$prefix"* ]]; then
             # cmd is empty for Edit/Write — re-purpose it so the
             # audit-log entry names the tool + path instead of

@@ -344,12 +344,24 @@ setup() {
 # ─── Edit/Write scratch-dir branch ──────────────────────────────────
 
 @test "Edit/Write: write into a scratch dir auto-allows" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Write" ".tmp/draft.md"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
 @test "Edit/Write: write outside scratch dirs passes through" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Write" "src/main.rs"
     [ "$status" -eq 0 ]
     # No scratch-dir match → passthrough, harness prompts.
@@ -361,12 +373,24 @@ setup() {
     # `.tmp/../../escape` still STARTS WITH `<project>/.tmp/` and
     # would wrongly auto-allow a write that RESOLVES outside the
     # project. The `..`-segment guard rejects it to passthrough.
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Write" ".tmp/../../escape.txt"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
 }
 
 @test "Edit/Write: a bare .. component does not auto-allow" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Edit" "../outside.txt"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
@@ -380,6 +404,12 @@ setup() {
     # Verify the link with `-L`, not `ln -s`'s exit code: Git Bash on
     # Windows returns 0 from `ln -s` but silently creates a real copy
     # when symlink privileges are absent. Skip cleanly in that case.
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     mkdir -p "$WORK/.tmp"
     mkdir -p "$BATS_TEST_TMPDIR/outside"
     ln -s "$BATS_TEST_TMPDIR/outside" "$WORK/.tmp/evil" 2>/dev/null || true
@@ -392,12 +422,34 @@ setup() {
 @test "Edit/Write: a symlinked target file in a scratch dir does not auto-allow" {
     # The target itself is a symlink — a write follows it wherever it
     # points. The `-L` check rejects it before the prefix match.
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     mkdir -p "$WORK/.tmp"
     ln -s "$BATS_TEST_TMPDIR/secret.txt" "$WORK/.tmp/sneaky.txt" 2>/dev/null || true
     [[ -L "$WORK/.tmp/sneaky.txt" ]] || skip "real symlinks not supported on this platform"
     run_hook_write "Write" ".tmp/sneaky.txt"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "scratch: a config-only scratch dir auto-allows Edit" {
+    write_project_hook_rules "[scratch-dirs]
+.myscratch/"
+    run_hook_write "Edit" ".myscratch/note.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "scratch: a dir NOT in config does not auto-allow" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/"
+    run_hook_write "Edit" ".notscratch/note.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
 # ─── Passthrough ────────────────────────────────────────────────────
