@@ -5,7 +5,7 @@
 #
 # PURPOSE
 # Fires before every Bash tool call the agent attempts. Inspects the
-# command text and emits one of three outcomes:
+# command text and emits one of four outcomes:
 #
 #   1. ALLOW   → emit JSON instructing the harness to skip its prompt
 #                and run the command. The hook becomes the trust
@@ -14,7 +14,11 @@
 #                AND attach a human-readable reason that the agent
 #                sees on the next turn. The reason is the corrective
 #                feedback loop — vague denies don't teach.
-#   3. (none)  → exit 0 with no JSON. Harness treats this as "no
+#   3. ASK     → emit JSON telling the harness to prompt the user for
+#                this call regardless of permission mode (acceptEdits
+#                included). Unlike DENY it does not block — the agent
+#                runs the command once the human approves.
+#   4. (none)  → exit 0 with no JSON. Harness treats this as "no
 #                opinion" and falls back to its normal flow (consult
 #                its own permissions.allow, then prompt the user if
 #                no static match).
@@ -34,7 +38,7 @@
 # This script is security-sensitive: a permissive pattern here lets
 # the agent skip user confirmation for commands matching that pattern.
 # Keep deny logic conservative (Tier 1 below) and allow logic narrow
-# (Tiers 2-3). When uncertain, default to passthrough — the harness's
+# (Tiers 3-4). When uncertain, default to passthrough — the harness's
 # own prompt is the safety net, not a fallback to be eliminated.
 #
 # ─── DECISION TIERS (in order) ──────────────────────────────────────
@@ -63,6 +67,11 @@
 #
 # Default — Passthrough
 #   Exit 0 with no JSON. Harness handles as normal.
+#
+# Config: the scratch-dir and ask-command lists live in
+# .claude/hooks/hook-rules (committed baseline); per-machine additions
+# and [allow-extras] live in hook-rules.local (gitignored). See
+# .claude/hooks/README.md.
 #
 # ─── AUDIT LOG ──────────────────────────────────────────────────────
 #
