@@ -304,18 +304,24 @@ ask() {
 # Parsed by pure bash — no yq/jq dependency for config. Three sections:
 #   [scratch-dirs]  — Edit/Write auto-allow path prefixes (Tier consumer)
 #   [ask-commands]  — Tier 2 ask-list glob patterns
-#   [allow-extras]  — Tier 4 allow glob patterns (hook-rules.local only)
+#   [allow-extras]  — Tier 4 allow glob patterns (hook-rules.local ONLY;
+#                     an [allow-extras] section in the committed hook-rules
+#                     is silently inert — only per-machine local files may
+#                     grant Tier 4 allows)
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
 allow_extras=()
 
-# Parse one rules file, appending entries to the section arrays. A
-# content line before any [section] header is a file error: log a
+# Parse one rules file, appending entries to the section arrays.
+# $1 = file path; $2 = non-empty when parsing hook-rules.local (local).
+# [allow-extras] entries are honored ONLY when $2 is non-empty.
+# A content line before any [section] header is a file error: log a
 # warning and skip the rest of that file (degrade to whatever's
 # already parsed — never crash the hook).
 _parse_rules_file() {
     local file="$1"
+    local is_local="${2:-}"
     local section="" line
     while IFS= read -r line || [[ -n "$line" ]]; do
         line="${line%$'\r'}"
@@ -331,7 +337,13 @@ _parse_rules_file() {
                 case "$section" in
                     scratch-dirs) scratch_dirs+=("$line") ;;
                     ask-commands) ask_commands+=("$line") ;;
-                    allow-extras) allow_extras+=("$line") ;;
+                    allow-extras)
+                        # Only honored from hook-rules.local (is_local non-empty).
+                        # In the committed hook-rules this section is silently inert.
+                        if [[ -n "$is_local" ]]; then
+                            allow_extras+=("$line")
+                        fi
+                        ;;
                     *)
                         if [[ -z "$section" ]]; then
                             echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: content before any [section] header, file skipped): $file" >> "$audit_log"
@@ -361,7 +373,7 @@ while [[ "$_rd" != "$_rp" && "$_rd" != "/" && "$_rd" != "." && "$_rd" != "" ]]; 
 done
 if [[ -n "$_rules_dir" ]]; then
     _parse_rules_file "$_rules_dir/hook-rules"
-    [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local"
+    [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local" local
 fi
 
 # ─── Tool routing: non-Bash branch (Edit / Write) ──────────────────
@@ -541,26 +553,6 @@ case "$cmd" in
         ;;
 esac
 
-# ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
-#
-# A match emits `ask`: the harness prompts regardless of permission
-# mode (acceptEdits included), but the agent may still run the command
-# once the human approves. The ask-list is a safety FLOOR — it is
-# checked before the Tier 3/4 allow logic, so a destructive command
-# prompts even if some allowlist entry would otherwise pass it.
-for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
-    # shellcheck disable=SC2053
-    if [[ "$cmd" == $_ask ]]; then
-        _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo. Confirm before proceeding."
-        case "$cmd" in
-            rm|rm\ *)
-                _ask_reason="$_ask_reason Caution: symlinks here could delete outside the workspace."
-                ;;
-        esac
-        ask "$_ask_reason"
-    fi
-done
-
 # ─── Normalization for matching (applied to BOTH cmd and pattern) ───
 #
 # Some agents reach for the bare command (`ws hoard upgrade borgr`)
@@ -606,6 +598,26 @@ normalize_for_match() {
     esac
 }
 match_cmd="$(normalize_for_match "$cmd")"
+
+# ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
+#
+# A match emits `ask`: the harness prompts regardless of permission
+# mode (acceptEdits included), but the agent may still run the command
+# once the human approves. The ask-list is a safety FLOOR — it is
+# checked before the Tier 3/4 allow logic, so a destructive command
+# prompts even if some allowlist entry would otherwise pass it.
+for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $_ask ]]; then
+        _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo."
+        case "$match_cmd" in
+            rm|rm\ *)
+                _ask_reason="$_ask_reason Caution: symlinks here could delete outside the workspace."
+                ;;
+        esac
+        ask "$_ask_reason"
+    fi
+done
 
 # ─── Tier 3: Match against settings.json `permissions.allow` ────────
 #

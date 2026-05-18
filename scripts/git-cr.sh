@@ -88,6 +88,7 @@ mkdir -p "$REPO_ROOT/.crs"
 
 if [[ -z "$TITLE" || -z "$BODYFILE" ]]; then
   echo "Usage: $0 [--upstream] TITLE BODYFILE" >&2
+  echo "  See templates/change.md for a ready-to-copy bodyfile template. CR bodyfiles conventionally live in .crs/." >&2
   exit 1
 fi
 

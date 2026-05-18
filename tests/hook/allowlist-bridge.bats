@@ -495,6 +495,7 @@ rm -rf*"
     write_project_hook_rules "[ask-commands]
 rm -rf*"
     run_hook "rm -rf build/"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"symlinks"* ]]
 }
 
@@ -502,6 +503,7 @@ rm -rf*"
     write_project_hook_rules "[ask-commands]
 git reset --hard*"
     run_hook "git reset --hard HEAD~1"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
     [[ "$output" != *"symlinks"* ]]
 }
@@ -510,6 +512,7 @@ git reset --hard*"
     write_project_hook_rules "[ask-commands]
 rm -rf*"
     run_hook "rm -rf build/ && echo done"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
 }
@@ -520,6 +523,7 @@ rm -rf*"
     write_local_hook_rules "[ask-commands]
 shutdown*"
     run_hook "shutdown now"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
 
@@ -555,6 +559,14 @@ sl *"
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "allow-extras: an [allow-extras] section in the committed hook-rules is ignored" {
+    write_project_hook_rules "[allow-extras]
+sl *"
+    run_hook "sl -e"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
 @test "ask: git -C <path> reset --hard matches the broadened git ask-pattern" {
     write_project_hook_rules "[ask-commands]
 git*reset --hard*"
@@ -578,6 +590,15 @@ git*reset --hard*"
     hookrules_dirs=$(awk '/^\[scratch-dirs\]/{f=1; next} /^\[/{f=0} f' \
         "$REPO_ROOT/.claude/hooks/hook-rules" \
         | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | sort)
+
+    if [ -z "$gitignore_dirs" ]; then
+        echo "drift test: extracted no scratch-dirs from .gitignore — sentinel markers missing or renamed?"
+        return 1
+    fi
+    if [ -z "$hookrules_dirs" ]; then
+        echo "drift test: extracted no entries from hook-rules [scratch-dirs] — section header missing or renamed?"
+        return 1
+    fi
 
     if [ "$gitignore_dirs" != "$hookrules_dirs" ]; then
         echo "scratch-dir drift between .gitignore and hook-rules:"
