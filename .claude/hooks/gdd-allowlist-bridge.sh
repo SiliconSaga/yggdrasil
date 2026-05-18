@@ -633,4 +633,15 @@ done < <(collect_extras_files)
 # the user otherwise. We don't log passthroughs — that file would
 # balloon to gigabytes during normal sessions. The audit log focuses
 # on the things this hook actively decided.
+#
+# Passthrough logging — opt-in via WS_HOOK_DEBUG=1. Off by default:
+# passthroughs are the common case and would balloon the audit log.
+# Enable when investigating "did the hook see this command, and what
+# did it decide?" — e.g. tracing whether a no-prompt run was a hook
+# decision or a harness-side (permission-mode) one. Matches the
+# WS_HOOK_DISABLE convention: compared to literal "1", so
+# WS_HOOK_DEBUG=0 is off, not "non-empty means on".
+if [[ "${WS_HOOK_DEBUG:-0}" == "1" ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PASSTHROUGH [$event] (tool=$tool_name): $(audit_safe "$cmd")" >> "$audit_log"
+fi
 exit 0
