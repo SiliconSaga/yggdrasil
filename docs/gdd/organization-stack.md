@@ -8,12 +8,14 @@ The stack is read as audience/purpose tiers, not a simple durability ladder. Dur
 
 | Tier | Artifact(s) | Audience / purpose | Horizon |
 |------|-------------|--------------------|---------|
-| **Vault** (`borgr`) | daily notes, project notes, area notes | You — and your agent during the scribe ceremony. Life organization, every topic: personal, GDD, work | daily: hours; project: weeks–months; area: permanent |
+| **Vault** | daily notes, project notes, area notes | You — and your agent during the scribe ceremony. Life organization, every topic: personal, GDD, work | daily: hours; project: weeks–months; area: permanent |
 | **Thalami** (the thalami hoard) | per-machine `*-thalamus.md` (observations + arcs), `Intake.md`, `ArcDashboard.md` | You + your agents. GDD working memory, in-flight work | weeks–months, pruned in housekeeping |
 | **Docs** (`<component>/docs/`) | repo README + docs index + topic files | Anyone reading the repo. Durable reference knowledge | permanent, versioned |
 | **GitHub** | issues, PRs, the companion Project board | Collaborators / public. Trackable, durable, dynamic work | long-lived, edited live |
 
 Both the Vault and the Thalami hoard are already git-synced across machines — neither tier is machine-specific. The distinction between them is audience: the Vault is human-facing life organization; the Thalami hoard is agent-facing GDD working memory.
+
+Any Obsidian hoard scaffolded from the `obsidian-vault` template (`ws hoard init obsidian-vault`) plays the Vault role. Examples below name **`borgr`** — the maintainer's personal vault — as the concrete instance; the model works the same with any vault produced by the template, under any name.
 
 ## The two ceremonies
 
