@@ -118,6 +118,17 @@ For arcs promoted to issues, the body content should already be
 gone (it lives in the issue now); the `arcs:` entry survives one more
 audit so the dashboard shows the recently-closed work, then prunes.
 
+### Step 2.6: Drain the Intake
+
+If the active thalami hoard has an `Intake.md` with a non-empty `## Items` section, walk it with the human before Step 3. Each item is pre-arc GDD work the scribe bridge handed off — staging, not a tracker. For each item, propose one of:
+
+- **Promote to an arc** — the item is real, scoped GDD work. Add an `arcs:` entry to the appropriate host's `*-thalamus.md` (usually this host; ask if another machine is the better home), then remove the item from `Intake.md`.
+- **Fold into an existing arc** — the item is part of work already tracked. Note it on that arc's `next` or body context, then remove it from `Intake.md`.
+- **Route without an arc** — the item is a one-off (a quick fix, a doc tweak) that does not justify an arc. Do it now or note it where it belongs, then remove it from `Intake.md`.
+- **Leave** — not yet actionable; keep it in `Intake.md` for the next pass.
+
+`Intake.md` is meant to stay short. If it keeps growing audit-over-audit, the GDD ceremony is not draining often enough — surface that to the human as a process observation.
+
 ### Step 3: Check for Pattern Accumulation
 
 After reviewing individual items, look across them:
