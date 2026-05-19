@@ -16,7 +16,7 @@ bats (`gdd-permission-hook.bats`) verifies the hook's *output*. It cannot verify
 |---|---------|-----------------|
 | 1 | `rm -rf .tmp/acceptance-probe` | `ask` prompt — reason mentions the ask-list **and** carries the symlink caution |
 | 2 | `git -C .tmp/acceptance-repo reset --hard HEAD` | `ask` prompt — reason mentions the ask-list, **no** symlink caution |
-| 3 | `ls -la` | no ask prompt (Tier 4 `[allow-extras]` if `ls *` is enabled locally; otherwise a normal harness prompt) |
+| 3 | `ls -la` | check your `hook-rules.local`: if `ls *` is present under `[allow-extras]`, expect a silent auto-allow (Tier 4) — otherwise a normal harness prompt. Either way, **not** an ask prompt |
 | 4 | `echo hi && echo bye` | composition **deny** — blocked with the shell-composition message, NOT an ask |
 | 5 | `rm -rf .tmp/acceptance-probe-2` | `ask` prompt **still appears** despite `acceptEdits` mode — the core regression check |
 

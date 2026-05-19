@@ -533,6 +533,9 @@ shutdown*"
 rm -rf*"
     run_hook "ls"
     [ "$status" -eq 0 ]
+    # Degraded: the malformed file is skipped, so no rules load and the
+    # unrelated command gets no hook decision at all (passthrough).
+    [[ "$output" != *"permissionDecision"* ]]
 }
 
 @test "ask: no hook-rules file present → no ask, passthrough still works" {

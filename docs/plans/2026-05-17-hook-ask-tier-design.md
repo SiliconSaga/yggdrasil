@@ -147,6 +147,7 @@ The hook's header comment block and every inline `Tier N` reference update to th
 2. If a live `safe-bash-extras` exists in the working tree, its active patterns are migrated into the developer's `hook-rules.local` `[allow-extras]` as part of rollout (documented in the README; the live file is per-machine so this is a local step, not a repo change).
 3. Delete `safe-bash-extras` and `safe-bash-extras.example` from the repo.
 4. `.gitignore`: add `/.claude/hooks/hook-rules.local`, remove the `safe-bash-extras` entry.
+
 ## Documentation updates
 
 The ask-tier is a new behavior and the renumbered tiers invalidate existing tier descriptions. The hook's documentation set is GDD's written account of the agent-human permission workflow, so it is updated as part of this work — it must not drift from the hook:
