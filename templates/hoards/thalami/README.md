@@ -54,3 +54,11 @@ This hoard ships an `ArcDashboard.md` that renders an at-a-glance table of in-fl
 4. **Open `ArcDashboard.md`.** The query blocks render as live tables.
 
 Obsidian creates a `.obsidian/` directory the first time you open the vault; that's gitignored by default since it's a per-machine UI preference store, not shared state.
+
+---
+
+## Intake — the GDD bridge
+
+This hoard also carries an `Intake.md` at its root: machine-agnostic staging for pre-arc GDD work. The scribe ceremony moves `#gdd`-tagged items out of a vault daily note and into this file; the GDD ceremony (orientation surfaces it, housekeeping drains it) routes each item to a machine and promotes it to an arc when the work justifies one.
+
+`Intake.md` is staging, not a tracker — it is meant to stay short. New hoards are scaffolded with it; existing hoards get one created on demand the first time the scribe bridge fires.
