@@ -288,7 +288,7 @@ Vaults using the five-tier status schema (see Project Status Schema above) have 
 When the user asks *"one item"*, *"what should I look at?"*, or similar, run the micro-ceremony:
 
 1. Gather decay candidates: `active` projects untouched >14d, `next` >28d, `soon` >42d, `someday` >84d, `waiting` >30d, plus unprocessed inbox items.
-2. Pick **one** by priority: oldest stale `active` first, then stale `next`, then `waiting` >30d, then oldest unprocessed inbox item.
+2. Pick **one** by priority: oldest stale `active` first, then stale `next`, then stale `soon`, then stale `someday`, then `waiting` >30d, then oldest unprocessed inbox item.
 3. Surface it as a single plain-English decision — no Dataview tables, no markdown tables in the response. Status names in backticks, file names in plain text, choices enumerated. Example: *"`Garden Planning` is `active` but untouched 21 days. Push to `next`, keep `active`, or set `waiting`?"*
 4. Apply the user's one-line answer: flip the frontmatter `status:`, and move the file if the new status changes its folder.
 5. Offer *"another one?"* — loop if they want.
@@ -299,7 +299,7 @@ This micro-ceremony is designed to work from a phone (e.g. Claude RC) with the v
 
 ### Weekly sweep
 
-On *"weekly sweep"* / *"weekly synthesis"*, in addition to the existing Weekly Synthesis workflow: walk `active` projects (still moving? else propose `next`), `next` projects (promote 1-3 to `active`?), `waiting` items older than a week (propose a follow-up), and offer the oldest few `someday` items for possible refresh.
+On *"weekly sweep"* / *"weekly synthesis"*, in addition to the existing Weekly Synthesis workflow: walk `active` projects (still moving? else propose `next`), `next` projects (promote 1-3 to `active`?), `waiting` items older than 30 days (propose a follow-up — matching the poke threshold in the decay catalog), and offer the oldest few `someday` items for possible refresh.
 
 ### Monthly
 
