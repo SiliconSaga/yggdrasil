@@ -309,6 +309,32 @@ On the monthly review, in addition to the template's prompts: review projects th
 
 `WaitingRoom.md` (a second dashboard at the vault root, alongside `Dashboard.md`) lists every `waiting`-status project. During any ceremony, call out `waiting` items older than 30 days — *"still waiting on X?"* — and propose either a concrete follow-up or a status flip back to `active`/`next`. Because `waiting` never decays automatically, this poke is the only thing keeping blocked work from rotting silently.
 
+## The GDD Bridge
+
+GDD-bound work captured in the vault — anything tagged `#gdd` in a daily note — does not belong in the vault long-term. It belongs in GDD-land: a per-machine Thalamus, and ultimately an arc. The **bridge** is the scribe ceremony's hand-off of those items into the thalami hoard's `Intake.md`, a machine-agnostic staging file the GDD ceremony later drains.
+
+The scribe skill only *moves items across* the bridge — it never decides whether something becomes an arc. That judgment belongs to the GDD ceremony (orientation surfaces the Intake; housekeeping drains it). See @gdd-housekeeping Step 2.6.
+
+### When the bridge fires
+
+During the daily review, inbox processing, or a weekly sweep, watch for daily-note bullets tagged `#gdd`. For each one, propose moving it to the active thalami hoard's `Intake.md`:
+
+> "`Test the updated GDD hook on the Nvidia laptop` is tagged `#gdd` — move it to the thalami-hoard Intake so the GDD ceremony can route it?"
+
+This is propose-then-confirm like every other ceremony move — never shift an item silently.
+
+### Locating and creating Intake.md
+
+`Intake.md` lives at the root of the active thalami hoard, beside `ArcDashboard.md` — the same directory as the per-machine `*-thalamus.md` files. Resolve the hoard with `ws hoard thalamus-path` and take the sibling `Intake.md`. If no thalami hoard is active, tell the user the bridge has nowhere to go and leave the item in the daily note. If the hoard is active but `Intake.md` does not exist yet, create it from the `templates/hoards/thalami/Intake.md` shape before adding the first item.
+
+### Applying a move
+
+When the user confirms, append a bullet to the `## Items` section of `Intake.md`:
+
+`- <item text> (from: <host or vault>, captured: YYYY-MM-DD)`
+
+Then check off or remove the originating daily-note bullet per the vault's normal task convention. The thalami hoard is a separate git repo — the move commits with the hoard's normal commit cadence (see @gdd-orientation Step 0a), not a forced commit.
+
 ## De-AI-ifying Text
 
 When the user says *"de-AI-ify this"*, *"strip the AI tells from
