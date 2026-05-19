@@ -281,7 +281,7 @@ Side actions (offer):
 
 ## Ceremony Layers
 
-Vaults using the five-tier status schema (see Project Status Schema above) have a layered review cadence. All layers are **propose-then-confirm** — surface a decision, let the user choose, then write. Never flip a status or move a file without an explicit yes.
+Vaults using the five-tier status schema (see Project Status Schema above) have a layered review cadence. All layers are **propose-then-confirm** — surface a decision, let the user choose, then write. Never flip a status or move a project folder without an explicit yes.
 
 ### Micro ceremony — the 30-second floor
 
