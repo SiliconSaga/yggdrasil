@@ -520,11 +520,11 @@ If `arcs:` is empty or absent (e.g. hoard predates the arc layer), skip this sub
 
 #### Unclaimed intake items (when a thalami hoard is active)
 
-The thalami hoard may carry an `Intake.md` at its root — machine-agnostic staging for pre-arc GDD work the scribe bridge has handed off. At session framing, if `Intake.md` exists and its `## Items` section is non-empty, surface a one-liner:
+The thalami hoard may carry an `Intake.md` at its root — machine-agnostic staging for pre-arc GDD work the scribe bridge has handed off. At session framing, if `Intake.md` exists and its `## Items` section contains at least one bullet item (`- ...`) after ignoring HTML comments and blank lines, surface a one-liner:
 
 > "3 unclaimed items in the thalami Intake. Drain them into arcs as part of this session, or leave for housekeeping?"
 
-This is advisory, not a gate. Draining the Intake is the GDD housekeeping skill's job (see @gdd-housekeeping Step 2.6); orientation only makes the items visible so they are not forgotten. If `Intake.md` is absent or its `## Items` section is empty, stay silent — no "intake is empty" noise.
+This is advisory, not a gate. Draining the Intake is the GDD housekeeping skill's job (see @gdd-housekeeping Step 2.6); orientation only makes the items visible so they are not forgotten. If `Intake.md` is absent or has no bullet items in `## Items`, stay silent — no "intake is empty" noise.
 
 ## During-Session Writes
 

@@ -96,7 +96,7 @@ once the PR has merged and the canonical doc is stable.
 ### Step 2.5: Walk the arcs list
 
 If the active Thalamus has a non-empty `arcs:` list, walk it before
-moving on to Step 3:
+moving on:
 
 - **Stale active arcs.** Any `active` arc whose `last_touched` is more
   than ~30 days old is a candidate to flip to `parked`. Propose the
@@ -120,7 +120,7 @@ audit so the dashboard shows the recently-closed work, then prunes.
 
 ### Step 2.6: Drain the Intake
 
-If the active thalami hoard has an `Intake.md` with a non-empty `## Items` section, walk it with the human before Step 3. Each item is pre-arc GDD work the scribe bridge handed off — staging, not a tracker. For each item, propose one of:
+If the active thalami hoard has an `Intake.md` whose `## Items` section contains at least one bullet item (`- ...`) after ignoring HTML comments and blank lines, walk it with the human before Step 3. Each item is pre-arc GDD work the scribe bridge handed off — staging, not a tracker. For each item, propose one of:
 
 - **Promote to an arc** — the item is real, scoped GDD work. Add an `arcs:` entry to the appropriate host's `*-thalamus.md` (usually this host; ask if another machine is the better home), then remove the item from `Intake.md`.
 - **Fold into an existing arc** — the item is part of work already tracked. Note it on that arc's `next` or body context, then remove it from `Intake.md`.

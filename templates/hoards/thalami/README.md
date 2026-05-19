@@ -9,6 +9,8 @@ thalami/                    # default name (ws hoard init thalami).
                             # Override with --name; legacy `thalami-<username>`
                             # form still supported for existing hoards.
   README.md
+  ArcDashboard.md           # cross-host in-flight arcs (Dataview-rendered)
+  Intake.md                 # machine-agnostic pre-arc GDD staging (the bridge)
   <machine>-thalamus.md     # one per machine; e.g. win10-desktop-thalamus.md
   <machine>-thalamus.md
   ...
