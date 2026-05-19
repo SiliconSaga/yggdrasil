@@ -23,6 +23,7 @@ Personal Obsidian vault, scaffolded as a hoard inside a GDD workspace. PARA-laid
 - **Refresh plugins:** `ws hoard upgrade <this-vault-name>` from the workspace root
 - **Capture / review workflows:** the `scribe` skill knows this vault — say *"jot this in my inbox"*, *"do a daily review"*, *"weekly synthesis"*, etc.
 - **Live dashboard:** [[Dashboard]] — pin it next to your Calendar view
+- **Methodology:** [[PKM/README|PKM methodology]] — the five-tier project status schema, decay, and the micro/weekly/monthly review cadence. [[WaitingRoom]] is a second dashboard for blocked work.
 - **Template conventions:** templates carry an `# H1` matching their filename so Filename Heading Sync can keep them in lockstep. See the [hoard docs](https://siliconsaga.github.io/yggdrasil/gdd/obsidian-vault) for the rationale before authoring new templates.
 
 ## Installed plugins

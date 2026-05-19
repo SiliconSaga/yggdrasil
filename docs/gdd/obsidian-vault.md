@@ -53,6 +53,8 @@ Folder roles, applied by both the human and the `scribe` skill:
 | `60_Metadata/Templates/` | Reusable note templates. |
 | `70_Clippings/` | Raw imported content (web clippings, paperless dumps, transcripts). Promote to `30_Resources/` when refined. |
 
+Three `40_Archive/` sub-folders carry the project lifecycle: `40_Archive/Projects/` (`done` and `cancelled` projects), `40_Archive/Backlog/` (`someday`-tier projects that may be revived), and `40_Archive/Daily/` (historical daily notes). A `30_Resources/PKM/` folder holds the methodology references — see the status-schema section below.
+
 The capture-process-organize loop lives in the `scribe` skill, which the agent loads when you say things like *"jot this in my inbox"* or *"process my inbox"*.
 
 ## Templates and syntax
@@ -100,15 +102,35 @@ The recommended cadence:
 
 A Dataview-driven dashboard ships at the vault root. It surfaces:
 
+- `next`-status projects (Next Up) and `active`-status projects (Active Now) — the status-tier view
 - Overdue active projects (Dataview query against `10_Projects/`)
 - Tasks due today or before today
 - Priority-tagged tasks
 - Inbox items needing organization
 - Project tasks grouped by folder
 
+A second root-level dashboard, `WaitingRoom.md`, surfaces `waiting`-status projects — see the status-schema section below.
+
 Pin it as a tab somewhere stable so a glance gives you the day's reality. Pairs naturally with the Calendar view — typical layout is Calendar above Dashboard in the same pane group, both pinned.
 
 To customize: edit the queries in `Dashboard.md`. Dataview and Tasks both have rich query languages — see [Dataview docs](https://blacksmithgu.github.io/obsidian-dataview/) and [Tasks docs](https://publish.obsidian.md/tasks/).
+
+## Status schema and review cadence
+
+Vaults scaffolded by this template use a five-tier project status schema beyond plain `active`/`archived`:
+
+| Status | Meaning | Folder |
+|--------|---------|--------|
+| `active` | Currently moving | `10_Projects/` |
+| `next` | Picking up next | `10_Projects/` |
+| `soon` | Committed, queued | `10_Projects/` |
+| `waiting` | Blocked or scheduled | `10_Projects/` |
+| `someday` | Wishful, no commitment | `40_Archive/Backlog/` |
+| `done` / `cancelled` | Finished | `40_Archive/Projects/` |
+
+Projects decay through the tiers when untouched (14 / 28 / 42 / 84 days); `waiting` is exempt. The `scribe` skill proposes decay flips during review — it never applies them silently.
+
+The review cadence has four layers: a **micro** ceremony (ask the agent *"one item"* for a single 30-second decision, mobile-friendly), an optional **weekly** sweep, a **monthly** review, and the daily note as pure capture. `WaitingRoom.md` is a second root-level dashboard surfacing blocked work. Full reference: `30_Resources/PKM/Status Schema.md` and `30_Resources/PKM/Ceremony Layers.md` inside any scaffolded vault.
 
 ## Web clipping
 
