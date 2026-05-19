@@ -272,6 +272,18 @@ See [self-improving-loop.md](self-improving-loop.md).
 
 ---
 
+## The organization stack — capture to durable knowledge
+
+Work in this ecosystem moves through four tiers: the **Vault** (a personal Obsidian hoard for life organization), the **Thalami** hoard (the Thalamus and in-flight arcs), component **Docs**, and **GitHub** (issues, PRs, the companion Project board). The *organization stack* is the model that names these tiers and the promotion paths between them, so nothing captured gets lost in a seam.
+
+Two propose-then-confirm ceremonies move items across the tiers. The **scribe ceremony** triages the vault and hands GDD-bound items to a machine-agnostic `Intake.md` — the *bridge*. The **GDD ceremony** drains that intake into arcs, and graduates a closing arc's lasting value out to component docs and GitHub. A cadence ladder (daily / weekly / monthly) keeps each tier reviewed.
+
+The model is adopt-as-you-grow: the Vault and scribe ceremony are a complete system on their own; the Thalami bridge, then the Docs and GitHub seams, layer on when the work calls for them.
+
+Full reference: [organization-stack.md](organization-stack.md). Design and rationale: [the design doc](../plans/2026-05-19-organization-stack-design.md).
+
+---
+
 ## Next steps
 
 - Brand new? [Getting Started](../getting-started/index.md) walks

@@ -87,6 +87,7 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 - [Agent Training](agent-training.md) — the PreToolUse hook, the "scary red" deny output new users see early in a session, why one-action-per-call doesn't double API cost
 - [Access](access.md) — identities, tokens, and remote Git operations (the companion to Permissions)
 - [The Self-Improving Loop](self-improving-loop.md) — how the framework evolves through use
+- [Organization Stack](organization-stack.md) — four-tier capture model (Vault → Thalami → Docs → GitHub), the scribe and GDD ceremonies, and the Intake bridge
 
 **Design archive:**
 
