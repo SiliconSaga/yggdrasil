@@ -110,7 +110,7 @@ Project notes in `10_Projects/` (and dormant ones in `40_Archive/Backlog/`) carr
 
 ### Decay catalog
 
-A project untouched long enough is a candidate for a status flip. When you spot one during any ceremony (see Ceremony Layers below), **propose** the flip — never apply it silently. A flip to `someday` also moves the file to `40_Archive/Backlog/`; a flip to `done`/`cancelled` moves it to `40_Archive/Projects/`.
+A project untouched long enough is a candidate for a status flip. When you spot one during any ceremony (see Ceremony Layers below), **propose** the flip — never apply it silently. A flip to `someday` also moves the whole project folder to `40_Archive/Backlog/`; a flip to `done`/`cancelled` moves it to `40_Archive/Projects/`. The unit of motion is the project's subfolder (see PARA Structure above — "Each project lives in its own subfolder"), not just the note file.
 
 | Transition | Threshold (days untouched) |
 |------------|----------------------------|
@@ -290,7 +290,7 @@ When the user asks *"one item"*, *"what should I look at?"*, or similar, run the
 1. Gather decay candidates: `active` projects untouched >14d, `next` >28d, `soon` >42d, `someday` >84d, `waiting` >30d, plus unprocessed inbox items.
 2. Pick **one** by priority: oldest stale `active` first, then stale `next`, then stale `soon`, then stale `someday`, then `waiting` >30d, then oldest unprocessed inbox item.
 3. Surface it as a single plain-English decision — no Dataview tables, no markdown tables in the response. Status names in backticks, file names in plain text, choices enumerated. Example: *"`Garden Planning` is `active` but untouched 21 days. Push to `next`, keep `active`, or set `waiting`?"*
-4. Apply the user's one-line answer: flip the frontmatter `status:`, and move the file if the new status changes its folder.
+4. Apply the user's one-line answer: flip the frontmatter `status:`, and move the whole project folder if the new status changes its location.
 5. Offer *"another one?"* — loop if they want.
 
 If nothing is stale and the inbox is clear, say so plainly (*"nothing stale — all clear"*). That visible all-clear is the point: skipped weeks just surface more candidates next time.
