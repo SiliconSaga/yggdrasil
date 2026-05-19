@@ -313,7 +313,7 @@ Expected: `## Purpose`, `## Standards`, `## Active Projects`, `## Recurring Resp
 
 Find the block that runs from the `## Active Projects` heading through the closing ` ``` ` of its `dataview` block. The current block is:
 
-```
+````
 ## Active Projects
 
 ```dataview
@@ -322,7 +322,7 @@ FROM "10_Projects"
 WHERE area = this.file.link OR area.area = this.file.link
 SORT status ASC, deadline ASC
 ```
-```
+````
 
 Replace that entire block with this expanded content (the outer four-backtick fence is the prompt wrapper — write the inner content):
 
@@ -677,7 +677,7 @@ Three `40_Archive/` sub-folders carry the project lifecycle: `40_Archive/Project
 
 - [ ] **Step 3: Add a new section after `## Dashboard.md`**
 
-The `## Dashboard.md` section ends with a line about Dataview/Tasks query docs. Immediately before the next `## ` heading (`## Web clipping`), insert this new section:
+The `## Dashboard.md` section ends with a line about Dataview/Tasks query docs. Immediately before the next `##` heading (`## Web clipping`), insert this new section:
 
 ```markdown
 ## Status schema and review cadence
@@ -712,7 +712,7 @@ Expected: at least two lines (the PARA note and the new section table).
 ## Task 11: Commit and open the PR
 
 **Files:**
-- Create: `.commits/feat-pkm-scribe-vault-template.md`
+- Create: `.commits/pkm-template.md`, `.commits/pkm-scribe.md`, `.commits/pkm-docs.md` — one bodyfile per commit
 
 Three commits keep the diff legible — template content, scribe skill, docs — then one PR.
 
