@@ -1,16 +1,17 @@
 #!/usr/bin/env bats
 
-# Tests for the PreToolUse hook at .claude/hooks/gdd-allowlist-bridge.sh.
+# Tests for the PreToolUse hook at .claude/hooks/gdd-permission-hook.sh.
 #
 # Coverage:
 #   - Tier 1: deny shell composition (each operator) with specific reason
-#   - Tier 2: allow via project .claude/settings.json
+#   - Tier 2: ask-tier — destructive commands matching [ask-commands]
+#   - Tier 3: allow via project .claude/settings.json
 #       - bare command vs verbose pattern (symmetric normalization)
 #       - verbose command vs bare pattern (symmetric normalization)
 #       - CRLF line endings in settings.json don't break matching
-#   - Tier 3: allow via project-level safe-bash-extras
-#   - Tier 3: allow via user-level safe-bash-extras
-#   - Tier 3: project-level takes precedence (or coexists) with user-level
+#   - Tier 3: allow via settings.json `permissions.allow` (unchanged logic)
+#   - Tier 4: allow via [allow-extras] section of hook-rules.local
+#   - Tier 4: legacy safe-bash-extras file is ignored (no longer consulted)
 #   - Passthrough: no match → exit 0 with no JSON
 #   - WS_HOOK_DISABLE bypass
 #   - Timeout safety: no infinite loops on Windows-style absolute paths
@@ -204,7 +205,7 @@ setup() {
     [[ "$output" == *"File-descriptor merges"* ]]
 }
 
-# ─── Tier 2: symmetric normalization against settings.json ──────────
+# ─── Tier 3: symmetric normalization against settings.json ──────────
 
 @test "allow via settings: bare command matches verbose pattern" {
     write_project_settings 'Bash(bash scripts/ws status)'
@@ -247,52 +248,24 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# ─── Tier 3: project-level safe-bash-extras ─────────────────────────
+# ─── Tier 4: [allow-extras] from hook-rules.local ───────────────────
 
-@test "allow via project extras: pattern from project file matches" {
-    write_project_extras 'figlet *'
+@test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {
+    write_project_hook_rules ""
+    write_local_hook_rules "[allow-extras]
+figlet *"
     run_hook "figlet hello"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "allow via project extras: walks up from a nested cwd" {
-    # Put extras at the project root, run with cwd nested inside.
-    write_project_extras 'figlet *'
+@test "allow via allow-extras: hook-rules.local walks up from a nested cwd" {
+    # Put hook-rules.local at the project root, run with cwd nested inside.
+    write_project_hook_rules ""
+    write_local_hook_rules "[allow-extras]
+figlet *"
     mkdir -p "$WORK/subdir/deeper"
     run_hook "figlet hello" "$WORK/subdir/deeper"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-# ─── Tier 3: user-level safe-bash-extras ────────────────────────────
-
-@test "allow via user extras: pattern from \$HOME file matches" {
-    write_user_extras 'cowsay *'
-    run_hook "cowsay moo"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-@test "allow via user extras: works without a project extras file" {
-    # Only user-level extras exists. Project tree has no .claude/hooks/.
-    write_user_extras 'figlet *'
-    run_hook "figlet hello"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-# ─── Tier 3: project + user coexist ─────────────────────────────────
-
-@test "both extras files contribute: pattern in either allows" {
-    write_project_extras 'figlet *'
-    write_user_extras 'cowsay *'
-
-    run_hook "figlet hello"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-
-    run_hook "cowsay moo"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
@@ -344,12 +317,24 @@ setup() {
 # ─── Edit/Write scratch-dir branch ──────────────────────────────────
 
 @test "Edit/Write: write into a scratch dir auto-allows" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Write" ".tmp/draft.md"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
 @test "Edit/Write: write outside scratch dirs passes through" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Write" "src/main.rs"
     [ "$status" -eq 0 ]
     # No scratch-dir match → passthrough, harness prompts.
@@ -361,12 +346,24 @@ setup() {
     # `.tmp/../../escape` still STARTS WITH `<project>/.tmp/` and
     # would wrongly auto-allow a write that RESOLVES outside the
     # project. The `..`-segment guard rejects it to passthrough.
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Write" ".tmp/../../escape.txt"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
 }
 
 @test "Edit/Write: a bare .. component does not auto-allow" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     run_hook_write "Edit" "../outside.txt"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
@@ -380,6 +377,12 @@ setup() {
     # Verify the link with `-L`, not `ln -s`'s exit code: Git Bash on
     # Windows returns 0 from `ln -s` but silently creates a real copy
     # when symlink privileges are absent. Skip cleanly in that case.
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     mkdir -p "$WORK/.tmp"
     mkdir -p "$BATS_TEST_TMPDIR/outside"
     ln -s "$BATS_TEST_TMPDIR/outside" "$WORK/.tmp/evil" 2>/dev/null || true
@@ -392,12 +395,34 @@ setup() {
 @test "Edit/Write: a symlinked target file in a scratch dir does not auto-allow" {
     # The target itself is a symlink — a write follows it wherever it
     # points. The `-L` check rejects it before the prefix match.
+    write_project_hook_rules "[scratch-dirs]
+.tmp/
+.commits/
+.crs/
+.issues/
+.outputs/"
     mkdir -p "$WORK/.tmp"
     ln -s "$BATS_TEST_TMPDIR/secret.txt" "$WORK/.tmp/sneaky.txt" 2>/dev/null || true
     [[ -L "$WORK/.tmp/sneaky.txt" ]] || skip "real symlinks not supported on this platform"
     run_hook_write "Write" ".tmp/sneaky.txt"
     [ "$status" -eq 0 ]
     [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "scratch: a config-only scratch dir auto-allows Edit" {
+    write_project_hook_rules "[scratch-dirs]
+.myscratch/"
+    run_hook_write "Edit" ".myscratch/note.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "scratch: a dir NOT in config does not auto-allow" {
+    write_project_hook_rules "[scratch-dirs]
+.tmp/"
+    run_hook_write "Edit" ".notscratch/note.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
 # ─── Passthrough ────────────────────────────────────────────────────
@@ -454,4 +479,144 @@ setup() {
     # on whether the Windows path actually exists as a project root.
     # The key assertion is that we DIDN'T hit the timeout.
     [ "$status" -ne 124 ]
+}
+
+# ─── Tier 2: ask-list ───────────────────────────────────────────────
+
+@test "ask: rm -rf matches the baseline ask-list and emits ask" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    run_hook "rm -rf build/"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: rm-family ask reason carries the symlink caution" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    run_hook "rm -rf build/"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"symlinks"* ]]
+}
+
+@test "ask: non-rm ask reason has no symlink caution" {
+    write_project_hook_rules "[ask-commands]
+git reset --hard*"
+    run_hook "git reset --hard HEAD~1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" != *"symlinks"* ]]
+}
+
+@test "ask: Tier 1 composition denies before the ask-tier is reached" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    run_hook "rm -rf build/ && echo done"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: hook-rules.local ask-command is additive (also asks)" {
+    write_project_hook_rules "[ask-commands]
+rm -rf*"
+    write_local_hook_rules "[ask-commands]
+shutdown*"
+    run_hook "shutdown now"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: a malformed hook-rules (entry before any section) degrades, no crash" {
+    write_project_hook_rules "rm -rf*
+[ask-commands]
+rm -rf*"
+    run_hook "ls"
+    [ "$status" -eq 0 ]
+    # Degraded: the malformed file is skipped, so no rules load and the
+    # unrelated command gets no hook decision at all (passthrough).
+    [[ "$output" != *"permissionDecision"* ]]
+}
+
+@test "ask: no hook-rules file present → no ask, passthrough still works" {
+    run_hook "rm -rf build/"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
+# ─── Tier 4 vs legacy safe-bash-extras ──────────────────────────────
+
+@test "allow-extras: a hook-rules.local [allow-extras] pattern allows" {
+    write_project_hook_rules ""
+    write_local_hook_rules "[allow-extras]
+sl *"
+    run_hook "sl -e"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow-extras: a legacy safe-bash-extras file is ignored" {
+    write_project_extras "sl *"
+    run_hook "sl -e"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow-extras: an [allow-extras] section in the committed hook-rules is ignored" {
+    write_project_hook_rules "[allow-extras]
+sl *"
+    run_hook "sl -e"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "ask: git -C <path> reset --hard matches the broadened git ask-pattern" {
+    write_project_hook_rules "[ask-commands]
+git*reset --hard*"
+    run_hook "git -C /some/repo reset --hard HEAD"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+# ─── Drift detection ────────────────────────────────────────────────
+
+@test "drift: hook-rules [scratch-dirs] stays in sync with .gitignore" {
+    # Scratch entries declared in .gitignore, between the sentinel
+    # markers, with the leading '/' stripped, sorted.
+    local gitignore_dirs
+    gitignore_dirs=$(awk '/^# >>> scratch-dirs/{f=1; next} /^# <<< scratch-dirs/{f=0} f' \
+        "$REPO_ROOT/.gitignore" | sed 's:^/::' | sort)
+
+    # Scratch entries declared in hook-rules [scratch-dirs], comments
+    # and blank lines dropped, sorted.
+    local hookrules_dirs
+    hookrules_dirs=$(awk '/^\[scratch-dirs\]/{f=1; next} /^\[/{f=0} f' \
+        "$REPO_ROOT/.claude/hooks/hook-rules" \
+        | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$' | sort)
+
+    if [ -z "$gitignore_dirs" ]; then
+        echo "drift test: extracted no scratch-dirs from .gitignore — sentinel markers missing or renamed?"
+        return 1
+    fi
+    if [ -z "$hookrules_dirs" ]; then
+        echo "drift test: extracted no entries from hook-rules [scratch-dirs] — section header missing or renamed?"
+        return 1
+    fi
+
+    if [ "$gitignore_dirs" != "$hookrules_dirs" ]; then
+        echo "scratch-dir drift between .gitignore and hook-rules:"
+        echo "--- .gitignore ---"
+        echo "$gitignore_dirs"
+        echo "--- hook-rules [scratch-dirs] ---"
+        echo "$hookrules_dirs"
+        return 1
+    fi
+}
+
+@test "ask: find -exec matches the broadened find ask-pattern" {
+    write_project_hook_rules "[ask-commands]
+find*-exec*"
+    run_hook "find . -type f -exec rm {} +"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }

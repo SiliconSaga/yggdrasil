@@ -44,11 +44,17 @@ If you see a permission behavior that doesn't match what `.claude/settings.json`
 
 ### Claude Hook Options
 
-The hook script at `.claude/hooks/gdd-allowlist-bridge.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
+The hook script at `.claude/hooks/gdd-permission-hook.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
 
-A secondary effect is that it can sometimes re-map the workspace's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
+The hook produces three possible decisions for a Bash command:
 
-See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `safe-bash-extras` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
+- **deny** — shell composition or other forbidden patterns. The command is blocked and the agent receives a corrective message.
+- **ask** — the command matches the `[ask-commands]` glob list in `hook-rules` (or `hook-rules.local`). The hook emits `permissionDecision: "ask"`, forcing a human-facing permission prompt regardless of the session permission mode. This overrides `acceptEdits` and `bypassPermissions` — the prompt always surfaces. The command is NOT blocked; once the human approves, it runs normally. Destructive commands like `rm -rf` and `git reset --hard` live here.
+- **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 3) or an `[allow-extras]` glob in `hook-rules.local` (Tier 4). It proceeds without a prompt.
+
+A secondary effect of the hook is that it can sometimes re-map GDD's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
+
+See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `hook-rules.local` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
 
 ## Pattern shapes
 

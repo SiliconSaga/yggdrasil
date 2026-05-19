@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────
-# gdd-allowlist-bridge.sh — Claude Code PreToolUse hook for Bash
+# gdd-permission-hook.sh — Claude Code tool-permission hook (GDD)
 # ─────────────────────────────────────────────────────────────────────
 #
 # PURPOSE
-# Fires before every Bash tool call the agent attempts. Inspects the
-# command text and emits one of three outcomes:
+# Fires on PreToolUse for Bash (four-tier deny/ask/allow logic) and for
+# Edit/Write (scratch-dir auto-allow). Has dormant PermissionRequest
+# support wired in but not registered by default. Inspects the tool
+# input and emits one of four outcomes:
 #
 #   1. ALLOW   → emit JSON instructing the harness to skip its prompt
 #                and run the command. The hook becomes the trust
@@ -14,7 +16,11 @@
 #                AND attach a human-readable reason that the agent
 #                sees on the next turn. The reason is the corrective
 #                feedback loop — vague denies don't teach.
-#   3. (none)  → exit 0 with no JSON. Harness treats this as "no
+#   3. ASK     → emit JSON telling the harness to prompt the user for
+#                this call regardless of permission mode (acceptEdits
+#                included). Unlike DENY it does not block — the agent
+#                runs the command once the human approves.
+#   4. (none)  → exit 0 with no JSON. Harness treats this as "no
 #                opinion" and falls back to its normal flow (consult
 #                its own permissions.allow, then prompt the user if
 #                no static match).
@@ -34,7 +40,7 @@
 # This script is security-sensitive: a permissive pattern here lets
 # the agent skip user confirmation for commands matching that pattern.
 # Keep deny logic conservative (Tier 1 below) and allow logic narrow
-# (Tiers 2-3). When uncertain, default to passthrough — the harness's
+# (Tiers 3-4). When uncertain, default to passthrough — the harness's
 # own prompt is the safety net, not a fallback to be eliminated.
 #
 # ─── DECISION TIERS (in order) ──────────────────────────────────────
@@ -47,19 +53,27 @@
 #   per action and to prefer native flags (--limit, --output) over
 #   shell pipelines.
 #
-# Tier 2 — Per-project allowlist from .claude/settings.json (ALLOW)
+# Tier 2 — Ask-list from hook-rules [ask-commands] (ASK)
+#   Destructive commands that should always prompt, even under
+#   acceptEdits. Any match → ask.
+#
+# Tier 3 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
 #   too. Glob-match each pattern against the command. Any match → allow.
 #
-# Tier 3 — User-supplied extras file (ALLOW, optional)
-#   If $HOME/.claude/hooks/safe-bash-extras exists, treat each line as
-#   a glob pattern to test against the command. Useful for personal
-#   utilities the user trusts on this specific machine. Silently
-#   skipped if the file is absent.
+# Tier 4 — [allow-extras] from hook-rules.local (ALLOW, optional)
+#   Personal per-machine glob patterns declared in hook-rules.local's
+#   [allow-extras] section. Parsed into allow_extras above. Any
+#   match → allow. Silently absent if hook-rules.local has no section.
 #
 # Default — Passthrough
 #   Exit 0 with no JSON. Harness handles as normal.
+#
+# Config: the scratch-dir and ask-command lists live in
+# .claude/hooks/hook-rules (committed baseline); per-machine additions
+# and [allow-extras] live in hook-rules.local (gitignored). See
+# .claude/hooks/README.md.
 #
 # ─── AUDIT LOG ──────────────────────────────────────────────────────
 #
@@ -84,7 +98,7 @@
 #           "matcher": "Bash",
 #           "hooks": [
 #             { "type": "command",
-#               "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/gdd-allowlist-bridge.sh" }
+#               "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh" }
 #           ]
 #         }
 #       ]
@@ -98,9 +112,9 @@
 # Invoking via `bash <script>` avoids needing chmod +x on Windows
 # (where the executable bit doesn't carry through Git Bash uniformly).
 #
-# The Tier 3 extras file ($HOME/.claude/hooks/safe-bash-extras) is
-# per-user / per-machine, NOT shipped in the repo. Each developer
-# manages their own extras alongside the shared hook.
+# The hook-rules.local file (.claude/hooks/hook-rules.local) is
+# per-machine / gitignored, NOT shipped in the repo. Each developer
+# manages their own local overrides alongside the shared hook-rules.
 # ─────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -258,19 +272,120 @@ deny() {
     exit 0
 }
 
+# ask() — force a permission prompt without blocking. Used by the
+# Tier 2 ask-list for destructive-but-sometimes-legitimate commands.
+# Unlike deny(), the agent can still run the command once the human
+# approves; unlike allow(), it never auto-runs. The `ask` decision
+# overrides the harness's permission mode — it prompts even under
+# acceptEdits / bypassPermissions.
+#
+# PermissionRequest has no "ask" behavior; for that event the hook
+# passes through (exit 0, no JSON), which yields to the default
+# prompt — the same net effect. (PermissionRequest is dormant in this
+# workspace; this branch is parity-only.)
+ask() {
+    local reason="$1"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ASK [$event] ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
+    if [[ "$event" == "PermissionRequest" ]]; then
+        exit 0
+    fi
+    jq -nc --arg reason "$reason" '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "ask",
+        permissionDecisionReason: $reason
+      }
+    }'
+    exit 0
+}
+
+# ─── Hook rules config ──────────────────────────────────────────────
+#
+# Flat sectioned text at .claude/hooks/hook-rules (committed baseline)
+# and .claude/hooks/hook-rules.local (gitignored per-machine override).
+# Parsed by pure bash — no yq/jq dependency for config. Three sections:
+#   [scratch-dirs]  — Edit/Write auto-allow path prefixes (Tier consumer)
+#   [ask-commands]  — Tier 2 ask-list glob patterns
+#   [allow-extras]  — Tier 4 allow glob patterns (hook-rules.local ONLY;
+#                     an [allow-extras] section in the committed hook-rules
+#                     is silently inert — only per-machine local files may
+#                     grant Tier 4 allows)
+# hook-rules.local entries ADD to the baseline (additive merge).
+scratch_dirs=()
+ask_commands=()
+allow_extras=()
+
+# Parse one rules file, appending entries to the section arrays.
+# $1 = file path; $2 = non-empty when parsing hook-rules.local (local).
+# [allow-extras] entries are honored ONLY when $2 is non-empty.
+# A content line before any [section] header is a file error: log a
+# warning and skip the rest of that file (degrade to whatever's
+# already parsed — never crash the hook).
+_parse_rules_file() {
+    local file="$1"
+    local is_local="${2:-}"
+    local section="" line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" || "$line" == "#"* ]] && continue
+        case "$line" in
+            "["*"]")
+                section="${line#\[}"
+                section="${section%\]}"
+                ;;
+            *)
+                case "$section" in
+                    scratch-dirs) scratch_dirs+=("$line") ;;
+                    ask-commands) ask_commands+=("$line") ;;
+                    allow-extras)
+                        # Only honored from hook-rules.local (is_local non-empty).
+                        # In the committed hook-rules this section is silently inert.
+                        if [[ -n "$is_local" ]]; then
+                            allow_extras+=("$line")
+                        fi
+                        ;;
+                    *)
+                        if [[ -z "$section" ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: content before any [section] header, file skipped): $file" >> "$audit_log"
+                        else
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: unknown section [$section], file skipped): $file" >> "$audit_log"
+                        fi
+                        return
+                        ;;
+                esac
+                ;;
+        esac
+    done < "$file"
+}
+
+# Locate .claude/hooks/hook-rules by walking up from $cwd (closest
+# wins), same upward-walk + prev-equals-dir guard as collect_patterns.
+_rules_dir=""
+_rd="$cwd"
+_rp=""
+while [[ "$_rd" != "$_rp" && "$_rd" != "/" && "$_rd" != "." && "$_rd" != "" ]]; do
+    if [[ -f "$_rd/.claude/hooks/hook-rules" ]]; then
+        _rules_dir="$_rd/.claude/hooks"
+        break
+    fi
+    _rp="$_rd"
+    _rd=$(dirname "$_rd")
+done
+if [[ -n "$_rules_dir" ]]; then
+    _parse_rules_file "$_rules_dir/hook-rules"
+    [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local" local
+fi
+
 # ─── Tool routing: non-Bash branch (Edit / Write) ──────────────────
 #
 # Edit and Write decisions are path-based, not command-pattern-based.
 # Paths under any configured scratch directory auto-allow; everything
 # else falls through to the harness's normal prompt flow. Scratch
-# dirs are anchored to $CLAUDE_PROJECT_DIR (with a $cwd fallback for
-# manual test invocations).
-#
-# Why hardcode the list here? It's short, project-stable, and lives
-# next to the decision logic that uses it. If it ever grows past a
-# handful of entries, lifting it into a `safe-write-paths` extras
-# file parallel to `safe-bash-extras` is the natural next step —
-# until then, hardcoding is the simpler, more auditable form.
+# dirs come from the [scratch-dirs] section of hook-rules (parsed
+# above) and are anchored to $CLAUDE_PROJECT_DIR (with a $cwd
+# fallback for manual test invocations).
 #
 # Defense-in-depth: tools not handled here (Read, MCP, WebFetch, etc.)
 # shouldn't reach this script because the matcher in settings.json
@@ -331,12 +446,12 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         *) exit 0 ;;              # resolves outside — passthrough
     esac
 
-    # Scratch dirs that auto-allow Edit / Write. Mirrors the
-    # "Workspace-local scratch" section of the project's .gitignore —
-    # the two lists should stay in lockstep so anything safe to commit
-    # nothing-for is also safe to edit without prompting. Order by
-    # frequency-of-use so the first match (most common) is cheapest.
-    for prefix in ".tmp/" ".commits/" ".crs/" ".issues/" ".outputs/"; do
+    # Scratch dirs that auto-allow Edit / Write come from the
+    # [scratch-dirs] section of hook-rules (parsed above). The baseline
+    # mirrors the "Workspace-local scratch" section of .gitignore;
+    # hook-rules.local may add more. If no hook-rules file was found,
+    # scratch_dirs is empty and every Edit/Write passes through.
+    for prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
         if [[ "$abs_path" == "$project_dir/$prefix"* ]]; then
             # cmd is empty for Edit/Write — re-purpose it so the
             # audit-log entry names the tool + path instead of
@@ -486,7 +601,27 @@ normalize_for_match() {
 }
 match_cmd="$(normalize_for_match "$cmd")"
 
-# ─── Tier 2: Match against settings.json `permissions.allow` ────────
+# ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
+#
+# A match emits `ask`: the harness prompts regardless of permission
+# mode (acceptEdits included), but the agent may still run the command
+# once the human approves. The ask-list is a safety FLOOR — it is
+# checked before the Tier 3/4 allow logic, so a destructive command
+# prompts even if some allowlist entry would otherwise pass it.
+for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $_ask ]]; then
+        _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo."
+        case "$match_cmd" in
+            rm|rm\ *)
+                _ask_reason="$_ask_reason Caution: symlinks here could delete outside the workspace."
+                ;;
+        esac
+        ask "$_ask_reason"
+    fi
+done
+
+# ─── Tier 3: Match against settings.json `permissions.allow` ────────
 #
 # Walk up from $cwd looking for .claude/settings.json files. Closer
 # files (project-specific) come first; the user-level file at
@@ -559,72 +694,20 @@ while IFS= read -r raw; do
     fi
 done < <(collect_patterns)
 
-# ─── Tier 3: Extras files (optional, layered) ───────────────────────
+# ─── Tier 4: Allow via [allow-extras] from hook-rules.local ─────────
 #
-# Free-form lists of glob patterns the user trusts on this machine
-# but doesn't want to commit to a project's settings.json. The hook
-# checks two locations, both optional:
-#
-#   1. Project-level — walk up from $cwd looking for
-#      <project>/.claude/hooks/safe-bash-extras. Per-project
-#      machine-local; should be gitignored (the live file IS, the
-#      `.example` template IS committed for discoverability).
-#   2. User-level — $HOME/.claude/hooks/safe-bash-extras.
-#      Per-user / cross-project; useful for tools you trust
-#      regardless of which workspace you're in.
-#
-# Both files share the same format:
-#   - One glob pattern per line
-#   - Lines starting with `#` are comments
-#   - Empty / whitespace-only lines are skipped
-#   - No `Bash(...)` wrapper; just the bare pattern
-#
-# Either file is silently skipped if absent. Order doesn't matter —
-# any match in either file → ALLOW.
-#
-# A function builds the list of candidate files so the same parsing
-# loop handles both. Walking up from $cwd uses the same prev-equals-
-# dir guard as collect_patterns (Tier 2) — otherwise infinite-loops
-# on Windows-style paths where `dirname D:` returns `.`.
-collect_extras_files() {
-    local dir="$cwd"
-    local prev=""
-    while [[ "$dir" != "$prev" && "$dir" != "/" && "$dir" != "." && "$dir" != "" ]]; do
-        if [[ -f "$dir/.claude/hooks/safe-bash-extras" ]]; then
-            printf '%s\n' "$dir/.claude/hooks/safe-bash-extras"
-        fi
-        prev="$dir"
-        dir=$(dirname "$dir")
-    done
-    if [[ -f "$HOME/.claude/hooks/safe-bash-extras" ]]; then
-        printf '%s\n' "$HOME/.claude/hooks/safe-bash-extras"
+# Personal allow-patterns the user trusts on this machine — declared
+# in the [allow-extras] section of hook-rules.local (gitignored,
+# per-machine). Parsed into `allow_extras` above. Each entry is a
+# bash glob matched against the normalized command; any match → allow.
+# Empty if hook-rules.local is absent or has no [allow-extras] section.
+for _extra in ${allow_extras[@]+"${allow_extras[@]}"}; do
+    match_extra="$(normalize_for_match "$_extra")"
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $match_extra ]]; then
+        allow "hook-rules.local [allow-extras]: $_extra"
     fi
-}
-
-while IFS= read -r extras_file; do
-    [[ -z "$extras_file" ]] && continue
-    while IFS= read -r line; do
-        # Strip trailing CR for cross-platform robustness (see the
-        # Tier 2 read loop for the full reasoning).
-        line="${line%$'\r'}"
-        # Trim leading + trailing whitespace via parameter expansion.
-        # Cheap, no subshell.
-        line="${line#"${line%%[![:space:]]*}"}"
-        line="${line%"${line##*[![:space:]]}"}"
-        # Skip blanks and comments.
-        [[ -z "$line" || "$line" == "#"* ]] && continue
-        # Symmetric normalization — same as Tier 2. Extras patterns
-        # match against both bare and verbose invocation styles
-        # regardless of how the pattern itself is written.
-        match_line="$(normalize_for_match "$line")"
-        # shellcheck disable=SC2053
-        if [[ "$match_cmd" == $match_line ]]; then
-            # Audit reason names both the file and the pattern so
-            # project-vs-user origin is visible at a glance.
-            allow "extras ${extras_file/#$HOME/~}: $line"
-        fi
-    done < "$extras_file"
-done < <(collect_extras_files)
+done
 
 # ─── Default: exit 0 with no JSON decision (passthrough) ────────────
 #
@@ -633,4 +716,15 @@ done < <(collect_extras_files)
 # the user otherwise. We don't log passthroughs — that file would
 # balloon to gigabytes during normal sessions. The audit log focuses
 # on the things this hook actively decided.
+#
+# Passthrough logging — opt-in via WS_HOOK_DEBUG=1. Off by default:
+# passthroughs are the common case and would balloon the audit log.
+# Enable when investigating "did the hook see this command, and what
+# did it decide?" — e.g. tracing whether a no-prompt run was a hook
+# decision or a harness-side (permission-mode) one. Matches the
+# WS_HOOK_DISABLE convention: compared to literal "1", so
+# WS_HOOK_DEBUG=0 is off, not "non-empty means on".
+if [[ "${WS_HOOK_DEBUG:-0}" == "1" ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PASSTHROUGH [$event] (tool=$tool_name): $(audit_safe "$cmd")" >> "$audit_log"
+fi
 exit 0

@@ -189,7 +189,7 @@ for adding patterns or handling "don't ask again" prompts is in the
 
 ## Agent training — the PreToolUse hook
 
-A PreToolUse hook at `.claude/hooks/gdd-allowlist-bridge.sh` runs
+A PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs
 before every Bash tool call. It rejects shell composition (`&&`,
 `||`, `;`, pipes, redirects, command substitution, FD merges) with
 **corrective** messages — the deny is paired with a one-line
@@ -213,12 +213,11 @@ including the token-cost model and what to do when a legitimate
 command gets denied.
 
 Per-machine extras (opt-in): if a command you trust keeps getting
-denied, copy `.claude/hooks/safe-bash-extras.example` to
-`safe-bash-extras` (drop the `.example`) and uncomment / add bash
-glob patterns. The live file is gitignored — patterns stay
-per-machine and don't leak into project policy. A user-level
-location at `~/.claude/hooks/safe-bash-extras` covers patterns you
-trust across every workspace.
+denied, copy `.claude/hooks/hook-rules.local.example` to
+`hook-rules.local` (in the same directory) and add bash glob
+patterns under the `[allow-extras]` section. The live file is
+gitignored — patterns stay per-machine and don't leak into project
+policy.
 
 ---
 
