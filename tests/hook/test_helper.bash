@@ -14,6 +14,21 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 HOOK_BIN="$REPO_ROOT/.claude/hooks/gdd-permission-hook.sh"
 
+# Resolve a `timeout`-style command. GNU coreutils ships `timeout` on
+# Linux and Git Bash, but macOS only has it under the `g`-prefixed
+# Homebrew coreutils install (`gtimeout`). Tests need one or the other
+# — see tests/README.md for the install hint.
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="gtimeout"
+else
+    echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
+    echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2
+    echo "  See tests/README.md." >&2
+    exit 1
+fi
+
 # Build an isolated workspace shape:
 #   $WORK                           — tmp project root
 #   $WORK/.claude/settings.json    — synthetic permissions.allow
@@ -84,7 +99,7 @@ run_hook_write() {
     local payload
     payload=$(jq -nc --arg t "$tool" --arg fp "$file_path" --arg cwd "$cwd" \
         '{tool_name:$t, tool_input:{file_path:$fp}, cwd:$cwd}')
-    run timeout 10 bash "$HOOK_BIN" <<< "$payload"
+    run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
 
 # Build the JSON tool-call payload and pipe it into the hook. The
@@ -106,5 +121,5 @@ run_hook() {
     # Bash herestring `<<<` feeds $payload as stdin to the hook —
     # cleaner than wrapping in `bash -c` to pipe (which also runs
     # afoul of the workspace's no-inline-shell-scripts convention).
-    run timeout 10 bash "$HOOK_BIN" <<< "$payload"
+    run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
