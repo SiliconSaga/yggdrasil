@@ -349,8 +349,8 @@ Suggested mapping (illustrative, not binding):
 
 | Arc `impact:` × `urgency:` | → Project `priority:` |
 |---|---|
-| any × `asap`, or high × `next` | `high` |
-| high × soon/later, or medium × asap/next | `medium` |
+| any × `asap`, or `high` × `next` | `high` |
+| `high` × `soon`/`later`, or `medium` × `asap`/`next` | `medium` |
 | otherwise | `low` |
 
 The same proposal can come from the other direction during GDD housekeeping (@gdd-housekeeping Step 2.5). Either ceremony surfaces the move when convenient; drift between them is fine and gets reconciled on the next touch — the Thalamus's own posture, applied to a smaller artifact.

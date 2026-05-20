@@ -22,7 +22,7 @@ Touchpoints:
 - `templates/thalamus.md` — `arcs:` frontmatter comment
 - `.agent/skills/gdd-orientation/SKILL.md` — any prose listing statuses
 - `.agent/skills/gdd-housekeeping/SKILL.md` — same
-- ArcDashboard Dataview queries do not need updating — they already render any `status:` value without a hardcoded enum
+- ArcDashboard Dataview status-rendering (the `Status` column itself) does not need updating to display `review` — it renders any `status:` value as-is. The icon column's `choice()` chain *does* enumerate statuses and gets an entry for `review` (👀 ≤10d, 😪 >10d) — see the dashboard-columns section below.
 
 ## Impact and Urgency
 

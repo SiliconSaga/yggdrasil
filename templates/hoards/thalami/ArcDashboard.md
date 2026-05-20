@@ -81,7 +81,7 @@ dv.paragraph(out.length ? out.join(" · ") : "_none_");
 const hosts = dv.pages('""')
   .where(p => p.arcs && p.arcs.length > 0)
   .sort(p => p.arcs.length, "desc")
-  .map(p => `**${p.file.name}** (${p.arcs.length})`);
+  .map(p => `**${p.file.name.replace(/-thalamus$/, "")}** (${p.arcs.length})`);
 dv.paragraph(hosts.length ? hosts.join(" · ") : "_no arcs yet_");
 ```
 
