@@ -419,7 +419,7 @@ Expected: commit created.
 
 Use the Edit tool. Find the last line of the existing `README.md`:
 
-```
+```text
 * OpenBAO: Secrets Storage
 ```
 
