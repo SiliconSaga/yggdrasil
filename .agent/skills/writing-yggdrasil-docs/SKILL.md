@@ -83,6 +83,58 @@ Read each node label and check:
 - Does it use a `style X fill:` line? → Remove it
 - Is it a hierarchy diagram? → Use `graph BT`
 
+## Component Documentation Convention
+
+Component narrative content scales through four shapes. A component picks the shape that fits its current content volume; graduation is propose-then-confirm during ceremony, never automated.
+
+| Shape | Structure | When |
+|---|---|---|
+| **1. Loose root Markdown** | `README.md` (required) + optional root companions: `AGENTS.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, etc. No `docs/`. | Brand new through small-but-focused — everything fits in a handful of root files. |
+| **2. Plainly structured `/docs`** | Shape 1 + `docs/README.md` as the index + topic files at `docs/<topic>.md`. Plain CommonMark + GitHub-flavored extensions. No site config. | Real documentation needs — multiple distinct topics warrant their own files. |
+| **3. Themed docs site** | Shape 2 + a site config (`mkdocs.yml` / `_config.yml` / equivalent) + theme + nav. Deploys to GitHub Pages. | Navigation and search become useful; audience extends beyond developers reading on GitHub. Includes site-flavored components whose purpose is the site itself. |
+| **4. Custom site** *(sketched, future)* | Beyond MkDocs/Jekyll — Zensical or a hand-rolled framework. | When the standard frameworks hit their limits. Named only so the ladder is finite. |
+
+### Shape 2 — the convention
+
+Shape 2 is the new middle that this skill defines. Shape 1 needs no convention beyond "have a README"; Shape 3 inherits its conventions from its chosen framework.
+
+Required structure:
+
+```text
+<component-root>/
+  README.md                       # independent intro — purpose, tech stack, entry points
+  ...optional root companions (AGENTS.md, CONTRIBUTING.md, etc.)
+  docs/
+    README.md                     # the docs index — first stop when browsing docs/
+    <topic-1>.md
+    <topic-2>.md
+```
+
+**Root `README.md` once `/docs` exists** is the *independent intro*, not the doc site's front door. It carries the component's purpose, a tech-stack overview, top-level entry points (install, run, contribute), a one-line pointer into `docs/README.md`, and optionally a "For contributors / agents" footer with links to higher-level workspace docs.
+
+**`docs/README.md` (the index)** is the first stop on GitHub (GitHub auto-renders `README.md` at directory level). Contains a short orientation paragraph + a list of topic files with one-line descriptions + an optional "where to start" recommendation.
+
+**Topic files (`docs/<topic>.md`)** — one focused concept per file. First heading is `# Topic Title` matching the slugified filename. Cross-reference other topic files with relative links; cross-reference ecosystem docs by absolute URL. Plain CommonMark + GitHub-flavored extensions only (no mkdocs/Jekyll-specific syntax). If a topic file grows to cover multiple distinct concepts, that is the signal to split it.
+
+### Graduation triggers
+
+Driven by content needs, propose-then-confirm during ceremony:
+
+- Shape 1 → 2: a single root file holds multiple distinct concepts, *or* arc-graduated knowledge would otherwise pile into the root README.
+- Shape 2 → 3: roughly ~10+ topic files, or the audience extends beyond developers reading on GitHub.
+- Shape 3 → 4: MkDocs/Jekyll hit a wall on layout, theming, or build behavior. Most components will not reach this.
+
+### Anti-patterns to avoid in Shape 2
+
+- A single file holding multiple distinct concepts that should each have their own page.
+- No index — a user landing in `docs/` sees a flat directory listing of filenames with no orientation.
+- Hard-wrapped prose — the no-hard-wrap rule above applies to component docs the same as everywhere; component docs render in two distinct contexts (directly on GitHub and via Shape 3+ site renderers) where hard wraps render inconsistently.
+
+### What this convention does NOT dictate
+
+- Shape 3 toolchain choice (mkdocs vs. Jekyll vs. Just-the-Docs — per-component decision).
+- The presence or content of root-level agent-context files (`AGENTS.md`, `CLAUDE.md`). Those are separate workspace conventions — but they must not hold general developer content that belongs in `/docs`.
+
 ## Terminology
 
 ### Bootstrap Layers vs Platform Tiers
