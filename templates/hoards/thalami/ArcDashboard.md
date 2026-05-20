@@ -14,10 +14,13 @@ TABLE WITHOUT ID
   choice(arc.status = "parked",
     choice((date(today) - date(arc.last_touched)).days <= 5, "🚗",
       choice((date(today) - date(arc.last_touched)).days <= 10, "🕸️", "🧊")),
-  choice(arc.status = "closed", "✅", "📦"))) AS "",
+  choice(arc.status = "review", "👀",
+  choice(arc.status = "closed", "✅", "📦")))) AS "",
   arc.id AS "Arc",
   arc.status AS "Status",
   arc.next AS "Next",
+  arc.impact AS "Impact",
+  arc.urgency AS "Urgency",
   file.name AS "Host",
   (date(today) - date(arc.started)).days AS "Days"
 FROM ""
@@ -34,13 +37,16 @@ TABLE WITHOUT ID
   s AS "Status",
   choice(s = "active", "🔥 (≤2d)",
     choice(s = "parked", "🚗 (≤5d)",
-      choice(s = "closed", "✅", "📦"))) AS "Fresh",
+      choice(s = "review", "👀 (in review)",
+        choice(s = "closed", "✅", "📦")))) AS "Fresh",
   choice(s = "active", "🐢 (≤10d)",
     choice(s = "parked", "🕸️ (≤10d)",
-      "Audited")) AS "Slowing",
+      choice(s = "review", "👀 (in review)",
+        "Audited"))) AS "Slowing",
   choice(s = "active", "⚠️ (>10d)",
     choice(s = "parked", "🧊 (>10d)",
-      "Pruned")) AS "Stale"
+      choice(s = "review", "👀 (stalled?)",
+        "Pruned"))) AS "Stale"
 FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
@@ -49,7 +55,7 @@ GROUP BY s
 SORT s ASC
 ```
 
-The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned").
+The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned"). `review` arcs (PR open, awaiting third-party review) sit outside the decay model — they show the same 👀 marker across all three columns; if a `review` arc lingers, that is a poke to chase the review, not a decay signal.
 
 ## Tags and hosts
 
@@ -86,13 +92,16 @@ Frontmatter shape per arc entry:
 arcs:
   - id: <kebab-case-slug>          # stable across hosts; same slug = same arc
     name: <short human label>
-    status: active                 # active | parked | closed | promoted
+    status: active                 # active | review | parked | closed | promoted
     started: 2026-05-07
     last_touched: 2026-05-07
     next: "<one-line next step>"
     # optional:
     # issue: https://github.com/<org>/<repo>/issues/<n>
+    # impact: high | medium | low          # Eisenhower-lite priority axis (see SP-A)
+    # urgency: asap | next | soon | later  # paired with impact for the act-order ceremony
+    # project: "[[Vault Project Name]]"    # cross-repo link to an Obsidian vault project note
     # tags: [tag-a, tag-b]
 ```
 
-See [the design doc](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-07-thalamus-arc-dashboard-design.md) for full lifecycle and skill-integration details.
+See [the original design](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-07-thalamus-arc-dashboard-design.md) for full lifecycle and skill-integration details, and [the SP-A design](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-19-arc-dashboard-qol-design.md) for the Impact/Urgency columns, the `review` status, the act-order ceremony, and the arc → project `priority` collapse.

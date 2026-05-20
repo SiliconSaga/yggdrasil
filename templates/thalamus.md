@@ -11,8 +11,11 @@ active_vault: null  # name of the vault-flavored hoard scribe should
                     # want session friction reduced.
 staleness_days: 14  # suggest housekeeping after this many days without audit
 arcs: []            # in-flight strands of work — see docs/plans/2026-05-07-thalamus-arc-dashboard-design.md
-                    # Each entry: id (slug), name, status (active|parked|closed|promoted),
-                    #             started, last_touched, next; optional: issue, tags
+                    # and docs/plans/2026-05-19-arc-dashboard-qol-design.md (SP-A: Impact/Urgency, review status)
+                    # Each entry: id (slug), name, status (active|review|parked|closed|promoted),
+                    #             started, last_touched, next;
+                    #   optional: issue, tags, impact (high|medium|low),
+                    #             urgency (asap|next|soon|later), project (vault wikilink)
 # Note: commit-cadence threshold (the "nudge to commit" prompt) lives
 # in `<hoard-root>/.ws-cadence.yaml` — hoard-wide config, not
 # per-machine. See `docs/gdd/hoards.md` for the cadence model.
