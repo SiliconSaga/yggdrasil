@@ -13,6 +13,19 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_BIN="$REPO_ROOT/scripts/ws"
 
+# Resolve `timeout` (Linux/Git Bash) or `gtimeout` (macOS Homebrew
+# coreutils). See tests/README.md for the install hint.
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_BIN="gtimeout"
+else
+    echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
+    echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2
+    echo "  See tests/README.md." >&2
+    exit 1
+fi
+
 init_workspace() {
     WORK="$BATS_TEST_TMPDIR/work"
     mkdir -p "$WORK/components" "$WORK/realms" "$WORK/hoards"
@@ -43,5 +56,5 @@ run_ws() {
     # infinite-loop / blocking regressions early. Read-only commands
     # should complete in milliseconds; anything approaching the
     # timeout is the regression we want to surface.
-    run timeout 10 bash "$WS_BIN" "$@"
+    run "$TIMEOUT_BIN" 10 bash "$WS_BIN" "$@"
 }

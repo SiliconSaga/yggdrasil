@@ -16,13 +16,21 @@ bats (`gdd-permission-hook.bats`) verifies the hook's *output*. It cannot verify
 |---|---------|-----------------|
 | 1 | `rm -rf .tmp/acceptance-probe` | `ask` prompt — reason mentions the ask-list **and** carries the symlink caution |
 | 2 | `git -C .tmp/acceptance-repo reset --hard HEAD` | `ask` prompt — reason mentions the ask-list, **no** symlink caution |
-| 3 | `ls -la` | check your `hook-rules.local`: if `ls *` is present under `[allow-extras]`, expect a silent auto-allow (Tier 4) — otherwise a normal harness prompt. Either way, **not** an ask prompt |
+| 3 | `ls -la` | **not** an ask prompt. Three valid paths: Tier 4 silent auto-allow (if `ls *` is in `[allow-extras]`), normal harness prompt, or silent allow from Claude Code's session-scoped read trust if the harness has already accepted reads against the directory. The shape of the user-facing response varies; the invariant to verify is in the audit log — see "Confirmation" below. |
 | 4 | `echo hi && echo bye` | composition **deny** — blocked with the shell-composition message, NOT an ask |
 | 5 | `rm -rf .tmp/acceptance-probe-2` | `ask` prompt **still appears** despite `acceptEdits` mode — the core regression check |
 
 ## Confirmation
 
-For each step the human confirms: did the prompt appear, and did its shape match the table? Step 5 is the pass/fail gate — if it does not prompt, the ask-tier is not overriding `acceptEdits` and the fix is incomplete.
+For each step the human confirms: did the prompt appear (where one is expected), and did its shape match the table? Step 5 is the pass/fail gate — if it does not prompt, the ask-tier is not overriding `acceptEdits` and the fix is incomplete.
+
+After step 5, also skim the audit log to verify each step's *recorded* decision matches the table. This is the deterministic check that survives Claude Code's session-scoped trust (which can silently swallow step 3's prompt without involving the hook):
+
+```bash
+tail -10 ~/.claude/hook-audit.log
+```
+
+Expected entries: step 1 `ASK` with `symlinks` caution, step 2 `ASK` without it, step 3 **no entry** (passthrough is not logged) OR an `ALLOW` from `[allow-extras]`, step 4 `DENY` with the composition message, step 5 `ASK` with the `symlinks` caution. Any `ASK` against step 3's `ls -la` would be a regression — the ask-list is matching too broadly.
 
 ## Teardown
 
