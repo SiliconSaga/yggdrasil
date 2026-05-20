@@ -14,14 +14,15 @@ TABLE WITHOUT ID
   choice(arc.status = "parked",
     choice((date(today) - date(arc.last_touched)).days <= 5, "🚗",
       choice((date(today) - date(arc.last_touched)).days <= 10, "🕸️", "🧊")),
-  choice(arc.status = "review", "👀",
+  choice(arc.status = "review",
+    choice((date(today) - date(arc.last_touched)).days <= 10, "👀", "😪"),
   choice(arc.status = "closed", "✅", "📦")))) AS "",
   arc.id AS "Arc",
   arc.status AS "Status",
   arc.next AS "Next",
   arc.impact AS "Impact",
   arc.urgency AS "Urgency",
-  file.name AS "Host",
+  regexreplace(file.name, "-thalamus$", "") AS "Host",
   (date(today) - date(arc.started)).days AS "Days"
 FROM ""
 WHERE arcs
@@ -37,15 +38,15 @@ TABLE WITHOUT ID
   s AS "Status",
   choice(s = "active", "🔥 (≤2d)",
     choice(s = "parked", "🚗 (≤5d)",
-      choice(s = "review", "👀 (in review)",
+      choice(s = "review", "👀 (≤10d)",
         choice(s = "closed", "✅", "📦")))) AS "Fresh",
   choice(s = "active", "🐢 (≤10d)",
     choice(s = "parked", "🕸️ (≤10d)",
-      choice(s = "review", "👀 (in review)",
+      choice(s = "review", "😪 (>10d)",
         "Audited"))) AS "Slowing",
   choice(s = "active", "⚠️ (>10d)",
     choice(s = "parked", "🧊 (>10d)",
-      choice(s = "review", "👀 (stalled?)",
+      choice(s = "review", "😪 (chase!)",
         "Pruned"))) AS "Stale"
 FROM ""
 WHERE arcs
@@ -55,7 +56,7 @@ GROUP BY s
 SORT s ASC
 ```
 
-The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned"). `review` arcs (PR open, awaiting third-party review) sit outside the decay model — they show the same 👀 marker across all three columns; if a `review` arc lingers, that is a poke to chase the review, not a decay signal.
+The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned"). `review` arcs (PR open, awaiting third-party review) sit outside the decay model; they shift from 👀 (≤10 days) to 😪 (>10 days) — the drowsier eyes are a poke to chase the review, not a decay signal.
 
 ## Tags and hosts
 
