@@ -23,7 +23,9 @@ It does *not* apply to:
 - YAML frontmatter
 - Mermaid diagrams (governed by the rules below)
 
-If a file already uses hard-wrapped prose throughout, *don't* reflow it as a side-effect of unrelated edits — match the file's existing convention. New files use the don't-wrap convention.
+"One bullet per line" means literally one line per bullet — the bullet's text is not internally wrapped across multiple lines. A bullet whose text breaks across several physical lines counts as hard-wrapped prose and is to be avoided in new content for the same reason.
+
+If a file already uses hard-wrapped prose throughout, the existing wrapped content stays wrapped — don't reflow it as a side-effect of unrelated edits. But **new content added to such a file still uses the don't-wrap convention** — write new paragraphs and new bullets as single lines, even when the surrounding existing prose is wrapped. The "match the file" guidance is about *not touching unrelated wrapped paragraphs*, not about *adopting hard wrap for new content*. New files always use the don't-wrap convention.
 
 ## Mermaid Rules
 

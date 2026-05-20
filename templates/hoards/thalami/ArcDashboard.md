@@ -14,11 +14,15 @@ TABLE WITHOUT ID
   choice(arc.status = "parked",
     choice((date(today) - date(arc.last_touched)).days <= 5, "🚗",
       choice((date(today) - date(arc.last_touched)).days <= 10, "🕸️", "🧊")),
-  choice(arc.status = "closed", "✅", "📦"))) AS "",
+  choice(arc.status = "review",
+    choice((date(today) - date(arc.last_touched)).days <= 10, "👀", "😪"),
+  choice(arc.status = "closed", "✅", "📦")))) AS "",
   arc.id AS "Arc",
   arc.status AS "Status",
   arc.next AS "Next",
-  file.name AS "Host",
+  arc.impact AS "Impact",
+  arc.urgency AS "Urgency",
+  regexreplace(file.name, "-thalamus$", "") AS "Host",
   (date(today) - date(arc.started)).days AS "Days"
 FROM ""
 WHERE arcs
@@ -34,13 +38,16 @@ TABLE WITHOUT ID
   s AS "Status",
   choice(s = "active", "🔥 (≤2d)",
     choice(s = "parked", "🚗 (≤5d)",
-      choice(s = "closed", "✅", "📦"))) AS "Fresh",
+      choice(s = "review", "👀 (≤10d)",
+        choice(s = "closed", "✅", "📦")))) AS "Fresh",
   choice(s = "active", "🐢 (≤10d)",
     choice(s = "parked", "🕸️ (≤10d)",
-      "Audited")) AS "Slowing",
+      choice(s = "review", "😪 (>10d)",
+        "Audited"))) AS "Slowing",
   choice(s = "active", "⚠️ (>10d)",
     choice(s = "parked", "🧊 (>10d)",
-      "Pruned")) AS "Stale"
+      choice(s = "review", "😪 (chase!)",
+        "Pruned"))) AS "Stale"
 FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
@@ -49,7 +56,7 @@ GROUP BY s
 SORT s ASC
 ```
 
-The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned").
+The Slowing and Stale columns for `closed` / `promoted` are lifecycle markers, not icons — terminal-state arcs survive one housekeeping audit (Slowing = "Audited") then prune on the next (Stale = "Pruned"). `review` arcs (PR open, awaiting third-party review) sit outside the decay model; they shift from 👀 (≤10 days) to 😪 (>10 days) — the drowsier eyes are a poke to chase the review, not a decay signal.
 
 ## Tags and hosts
 
@@ -74,7 +81,7 @@ dv.paragraph(out.length ? out.join(" · ") : "_none_");
 const hosts = dv.pages('""')
   .where(p => p.arcs && p.arcs.length > 0)
   .sort(p => p.arcs.length, "desc")
-  .map(p => `**${p.file.name}** (${p.arcs.length})`);
+  .map(p => `**${p.file.name.replace(/-thalamus$/, "")}** (${p.arcs.length})`);
 dv.paragraph(hosts.length ? hosts.join(" · ") : "_no arcs yet_");
 ```
 
@@ -86,12 +93,15 @@ Frontmatter shape per arc entry:
 arcs:
   - id: <kebab-case-slug>          # stable across hosts; same slug = same arc
     name: <short human label>
-    status: active                 # active | parked | closed | promoted
+    status: active                 # active | review | parked | closed | promoted
     started: 2026-05-07
     last_touched: 2026-05-07
     next: "<one-line next step>"
     # optional:
     # issue: https://github.com/<org>/<repo>/issues/<n>
+    # impact: high | medium | low          # Eisenhower-lite priority axis
+    # urgency: asap | next | soon | later  # paired with impact for the act-order ceremony
+    # project: "[[Vault Project Name]]"    # cross-repo link to an Obsidian vault project note
     # tags: [tag-a, tag-b]
 ```
 
