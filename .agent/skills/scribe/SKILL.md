@@ -335,6 +335,28 @@ When the user confirms, append a bullet to the `## Items` section of `Intake.md`
 
 Then check off or remove the originating daily-note bullet per the vault's normal task convention. The thalami hoard is a separate git repo — the move commits with the hoard's normal commit cadence (see @gdd-orientation Step 0a), not a forced commit.
 
+## Arc-linked Project Priority
+
+When a vault project note is linked to a GDD arc (the arc's optional `project:` field names the project — see the [SP-A design](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-19-arc-dashboard-qol-design.md)), the project's lightweight `priority:` field can be hand-set from the arc's richer `impact:` × `urgency:` read.
+
+The collapse is **drift-tolerant** — no mechanical sync, no live binding. It surfaces only at ceremony touch, propose-then-confirm:
+
+During any scribe ceremony (micro, daily review, weekly sweep), if a project note is being touched and the agent can see a linked arc with `impact:` / `urgency:` set, check whether the project's current `priority:` looks out of step with the arc's read. If it does, propose an update:
+
+> "`Garden Planning` has `priority: low`, but its linked arc is `impact: high, urgency: next` — bump to `high`?"
+
+Suggested mapping (illustrative, not binding):
+
+| Arc `impact:` × `urgency:` | → Project `priority:` |
+|---|---|
+| any × `asap`, or high × `next` | `high` |
+| high × soon/later, or medium × asap/next | `medium` |
+| otherwise | `low` |
+
+The same proposal can come from the other direction during GDD housekeeping (@gdd-housekeeping Step 2.5). Either ceremony surfaces the move when convenient; drift between them is fine and gets reconciled on the next touch — the Thalamus's own posture, applied to a smaller artifact.
+
+If the linked arc has no `impact:` or `urgency:` set, stay silent. If the arc's `project:` link names a note that does not exist in the active vault, mention it once for the human's attention rather than acting silently.
+
 ## De-AI-ifying Text
 
 When the user says *"de-AI-ify this"*, *"strip the AI tells from
