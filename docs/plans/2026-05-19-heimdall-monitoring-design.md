@@ -82,11 +82,12 @@ Asymmetric by design: homelab endpoints aren't publicly reachable, so the GKE �
 | Rule set scope (v1) | PVC fill (Prometheus, Loki, Tempo), Prometheus restart-storm, TSDB corruption | Covers the May-15 class; broader app/runtime alerting deferred |
 | Retention default | `retentionDays: 7` (was 15) | Stopgap until S3 backend; matches typical homelab observability window |
 | Retention scope | Single `retentionDays` parameter drives Loki + Tempo; Prometheus retention is its own Helm value, set to match | One knob in the claim; composition fans out to the three stacks |
-| Kuma deployment | Provider-Helm Release of the community `uptime-kuma` chart (`oci://registry-1.docker.io/bitnamicharts/uptime-kuma` or `https://dirsigler.github.io/uptime-kuma-helm`) | Avoids reinventing a Deployment+Service+PVC; matches the Provider-Helm pattern already used for LGTM |
+| Kuma deployment | Provider-Helm Release of a community `uptime-kuma` chart (specific chart picked during implementation — see Open Question #1) | Avoids reinventing a Deployment+Service+PVC; matches the Provider-Helm pattern already used for LGTM |
 | Kuma placement in composition | **Outside** the `HeimdallStack` XR | Composition wedge ≠ Kuma wedge; Kuma's lifecycle (UI-driven config, single-replica) is unlike the LGTM stack; sibling Helm Release keeps them independent |
 | Kuma config flow | Per-env `monitors.yaml` in git → ConfigMap → post-install Job → Kuma REST API | "Build/rebuild from scratch from pure config in git" requirement; no UI-driven snowflake state |
 | Kuma API client | [`uptime-kuma-api`](https://github.com/lucasheld/uptime-kuma-api) Python library in the Job container | Kuma's native API is socket.io, not REST; this library is the de facto declarative client |
-| Reconcile trigger | ConfigMap hash annotation on the Job pod template | ArgoCD re-applies Job when config changes → Job re-seeds; no operator, no controller |
+| Reconcile trigger | ConfigMap hash annotation on the Job pod template; ArgoCD `Replace=true` sync option on the Job | A Job's pod template is effectively immutable post-creation, so a hash change must trigger ArgoCD to delete + recreate the Job rather than patch it. `ttlSecondsAfterFinished` keeps finished Job history bounded. No operator, no controller |
+| Seed Job reconcile mode | Two-phase: apply-only-additions during Phases 3–4 rollout; full reconciliation (delete-on-removal) flips on by Phase 5 | Resolves the tension between the "reproducible from scratch" goal and the "a buggy commit nukes prod monitors" risk; the trust gate is the validation cycle. Phase 5 validation explicitly requires exact reproduction, so deletion-on-removal must be live by then |
 | Kuma admin creds | Plain k8s Secret (`kuma-admin-credentials`), generated at first install if absent | Same pattern as `gitea-admin-credentials`/`forgejo-admin-credentials`; OpenBAO can sync into it later |
 | Kuma storage | Small PVC for SQLite (cluster default StorageClass) | State continuity across restarts; config recoverable from git regardless |
 | Kuma ingress | Per-route Certificate via cert-manager (`kuma.cmdbee.org` on GKE, `kuma.localhost` on homelab) | Matches existing patterns; wildcard cert will fold in when that arc lands |
@@ -101,7 +102,7 @@ Asymmetric by design: homelab endpoints aren't publicly reachable, so the GKE �
 | 2 | Uptime Kuma sibling — Helm Release, Secret, PVC, ingress, admin creds bootstrap; deploy without monitor config |
 | 3 | Kuma seed Job — `uptime-kuma-api`-based, ConfigMap-driven, idempotent; verify monitors appear after install on a fresh cluster |
 | 4 | Per-env monitor configs in git — homelab and GKE `monitors.yaml`; homelab → GKE cross-probe is live |
-| 5 | Validation gates green: PrometheusRules visible in Prometheus `/rules`, simulated PVC-fill fires the alert, Kuma status page shows expected probes, fresh-cluster rebuild reproduces the same Kuma state |
+| 5 | Seed Job flips from apply-only to full reconciliation (delete-on-removal); validation gates green: PrometheusRules visible in Prometheus `/rules`, simulated PVC-fill fires the alert, Kuma status page shows expected probes, fresh-cluster rebuild reproduces the same Kuma state exactly |
 
 GKE → homelab cross-probe direction is **deferred** to a follow-up arc that picks the network-link mechanism (Tailscale subnet router, ZeroTier, WireGuard-on-Crossplane, ngrok tunnel, etc.).
 
@@ -112,7 +113,7 @@ Acceptance criteria for closing the arc:
 - **PrometheusRules:**
   - `kubectl get prometheusrule -n heimdall heimdall-self-health` exists
   - Each rule shows up under Prometheus's `/rules` endpoint with `state: inactive` (none firing in a healthy cluster)
-  - Simulated PVC fill (e.g., `dd if=/dev/zero of=/prometheus/test.bin bs=1M count=18000` in a Prometheus pod) flips `PrometheusPVCFillingUp` to `firing` within the rule's `for:` window
+  - Simulated PVC fill flips `PrometheusPVCFillingUp` to `firing` within the rule's `for:` window. Validate via one of: (a) a disposable k3d cluster with a small Prometheus PVC, (b) a dedicated test PVC mounted at a non-data path inside a debug pod, or (c) — if testing on a live Prometheus PVC — a `dd` count well below the WAL/TSDB headroom (e.g., enough to cross the alert's 80% threshold but leave Prometheus itself room to keep writing). Option (a) is the preferred path for Phase 5 acceptance; the validating engineer documents which option was used
 - **Retention:**
   - Loki config in the running pod shows `limits_config.retention_period: 168h`
   - Tempo config shows matching retention
@@ -134,7 +135,7 @@ These are not blockers for the design — they get resolved during plan/implemen
 1. **Helm chart choice for Kuma.** Two viable charts: `dirsigler/uptime-kuma` (long-running community chart) vs `bitnamicharts/uptime-kuma` (newer Bitnami inclusion). Decide in plan doc based on freshness, security-patch cadence, and configurability of the values surface.
 2. **Seed Job retry semantics.** If Kuma's API isn't ready when the Job runs, does it retry-with-backoff inside the Job, or rely on Job `backoffLimit` + ArgoCD retry? Lean: inside-Job retry with a 5-minute ceiling.
 3. **One Kuma per env or shared with env-flavored config?** Each cluster gets its own Kuma instance; the per-env config is which `monitors.yaml` gets baked into its ConfigMap. The Composition (Phase 1) reads `environment` from `cluster-identity` and selects the right monitor config — already a precedent in the existing composition.
-4. **Should the seed Job clean up monitors removed from git?** Yes for the "rebuild from scratch" goal, but it means a buggy commit can delete prod monitors. Mitigation: dry-run / diff mode toggle on the Job, default to apply-only-additions on first version, opt into deletion-on-removal once trust is built.
+4. **Safeguards for the seed Job's delete-on-removal mode** (the mode itself is decided — see "Seed Job reconcile mode" in the decisions table). The Phase 5 flip from apply-only to delete-on-removal needs concrete guardrails before it ships: dry-run / diff mode that logs intended deletions to the Job's stdout without applying them, an opt-out annotation on individual monitors to mark "do not auto-delete," and (probably) a CI check that fails the PR if `monitors.yaml` removes more than N monitors in a single change. Specific thresholds and tooling decided in the plan doc.
 5. **PrometheusRule wave assignment.** The rule needs Prometheus operator CRDs available (kube-prometheus-stack already provides them as part of its install). Confirm the pipeline ordering puts the PrometheusRule step after the kube-prometheus-stack Release reports Ready.
 6. **What does `kuma-admin-credentials` look like before first login?** Kuma's first-run flow prompts the human to set the admin via the UI. Workaround: the seed Job's first action is to POST to `/api/setup` with credentials from the Secret if the install is fresh. The `uptime-kuma-api` library covers this.
 
