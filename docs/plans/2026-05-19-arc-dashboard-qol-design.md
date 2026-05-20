@@ -43,7 +43,7 @@ The two fields together are an **Eisenhower-lite** read (importance × urgency) 
 
 The main `## Arcs` table in `ArcDashboard.md` gains two new columns positioned **immediately before** "Days":
 
-```
+```markdown
 | 🔥 / 🐢 / ⚠️ | Arc | Status | Next | Impact | Urgency | Host | Days |
 ```
 

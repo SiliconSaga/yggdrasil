@@ -337,7 +337,7 @@ Then check off or remove the originating daily-note bullet per the vault's norma
 
 ## Arc-linked Project Priority
 
-When a vault project note is linked to a GDD arc (the arc's optional `project:` field names the project — see the [SP-A design](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-19-arc-dashboard-qol-design.md)), the project's lightweight `priority:` field can be hand-set from the arc's richer `impact:` × `urgency:` read.
+When a vault project note is linked to a GDD arc (the arc's optional `project:` field names the project), the project's lightweight `priority:` field can be hand-set from the arc's richer `impact:` × `urgency:` read.
 
 The collapse is **drift-tolerant** — no mechanical sync, no live binding. It surfaces only at ceremony touch, propose-then-confirm:
 

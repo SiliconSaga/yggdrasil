@@ -98,10 +98,10 @@ arcs:
     next: "<one-line next step>"
     # optional:
     # issue: https://github.com/<org>/<repo>/issues/<n>
-    # impact: high | medium | low          # Eisenhower-lite priority axis (see SP-A)
+    # impact: high | medium | low          # Eisenhower-lite priority axis
     # urgency: asap | next | soon | later  # paired with impact for the act-order ceremony
     # project: "[[Vault Project Name]]"    # cross-repo link to an Obsidian vault project note
     # tags: [tag-a, tag-b]
 ```
 
-See [the original design](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-07-thalamus-arc-dashboard-design.md) for full lifecycle and skill-integration details, and [the SP-A design](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-19-arc-dashboard-qol-design.md) for the Impact/Urgency columns, the `review` status, the act-order ceremony, and the arc → project `priority` collapse.
+See [the design doc](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-07-thalamus-arc-dashboard-design.md) for full lifecycle and skill-integration details.
