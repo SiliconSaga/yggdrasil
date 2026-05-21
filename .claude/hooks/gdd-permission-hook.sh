@@ -40,8 +40,11 @@
 # This script is security-sensitive: a permissive pattern here lets
 # the agent skip user confirmation for commands matching that pattern.
 # Keep deny logic conservative (Tiers 1-2 below) and allow logic narrow
-# (Tiers 4-5). When uncertain, default to passthrough — the harness's
-# own prompt is the safety net, not a fallback to be eliminated.
+# (Tiers 4-5). Note Tier 1 (composition) is an unconditional deny, while
+# Tier 2 (redirect) is a training-aid deny with a human-approved bypass —
+# do not treat Tier 2 as a hard security floor. When uncertain, default to
+# passthrough — the harness's own prompt is the safety net, not a fallback
+# to be eliminated.
 #
 # ─── DECISION TIERS (in order) ──────────────────────────────────────
 #
@@ -670,8 +673,9 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     _t2_match_pattern="$(normalize_for_match "$_t2_pattern")"
     # shellcheck disable=SC2053
     if [[ "$match_cmd" == $_t2_match_pattern ]]; then
-        # Bypass-marker check (stub in this task — always "no marker").
-        # Task 4 wires the actual file lookup against $_t2_session_id.
+        # Bypass-marker check: a marker for this slug, written by
+        # `ws hook-bypass <slug>`, overrides the deny when its
+        # session_id matches the current session.
         _t2_marker_path="$cwd/.tmp/hook-bypass/$_t2_slug.bypass"
         _t2_bypass_ok=0
         if [[ -f "$_t2_marker_path" ]]; then
