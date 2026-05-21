@@ -53,7 +53,7 @@ fi
 
 # No args → usage + exit 1
 if [[ $# -lt 1 ]]; then
-    usage
+    usage >&2
     exit 1
 fi
 
@@ -78,7 +78,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Enumerate known slugs from hook-rules
+# Enumerate known slugs from hook-rules. This is a deliberately minimal
+# re-implementation of the [redirect-commands] parse in the hook itself
+# (gdd-permission-hook.sh _parse_rules_file) — we only need column 1
+# (the slug), not the full slug|pattern|suggestion unpack. Keep the
+# shared bits (CRLF strip, section detection, slug regex) in sync if the
+# hook-rules format changes.
 known_slugs=()
 if [[ -f "$HOOK_RULES" ]]; then
     in_section=""
@@ -88,8 +93,8 @@ if [[ -f "$HOOK_RULES" ]]; then
         line="${line#"${line%%[![:space:]]*}"}"
         [[ -z "$line" || "$line" == "#"* ]] && continue
         if [[ "$line" == "["*"]" ]]; then
-            in_section="${line#[}"
-            in_section="${in_section%]}"
+            in_section="${line#\[}"
+            in_section="${in_section%\]}"
             continue
         fi
         if [[ "$in_section" == "redirect-commands" ]]; then
@@ -145,11 +150,13 @@ mkdir -p "$marker_dir"
 # ISO-8601 UTC, no microseconds — readable and stable across hosts.
 created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-cat > "$marker_path" <<EOF
-session_id: $CLAUDE_SESSION_ID
-slug: $slug
-created_at: $created_at
-reason: $reason
-EOF
+# printf '%s' per field (not a heredoc) so each value is written
+# literally — a reason containing a '$' or backtick is never re-expanded.
+{
+    printf 'session_id: %s\n' "$CLAUDE_SESSION_ID"
+    printf 'slug: %s\n'       "$slug"
+    printf 'created_at: %s\n' "$created_at"
+    printf 'reason: %s\n'     "$reason"
+} > "$marker_path"
 
 echo "bypass marker written: $marker_path (session ${CLAUDE_SESSION_ID:0:8}...)"

@@ -96,3 +96,12 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage:"* ]]
 }
+
+@test "missing hook-rules file: any slug is unknown, no marker written" {
+    export CLAUDE_SESSION_ID="session-abc"
+    rm -f "$WORK/.claude/hooks/hook-rules"
+    run bash "$SCRIPT" git-commit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown slug"* ]]
+    [ ! -d "$WORK/.tmp/hook-bypass" ]
+}
