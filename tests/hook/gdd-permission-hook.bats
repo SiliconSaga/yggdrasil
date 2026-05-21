@@ -620,3 +620,104 @@ find*-exec*"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
+
+# ─── Tier 2 redirect-deny — parser ──────────────────────────────────
+
+@test "redirect: malformed [redirect-commands] entry (2 columns) is skipped with warning" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+malformed-entry | only-two-columns
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    run_hook "git commit -m x"
+    [ "$status" -eq 0 ]
+    # Well-formed entry still fires
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws commit"* ]]
+    # Malformed entry triggers a warning in the audit log
+    grep -q "WARNING.*redirect-commands.*malformed" "$HOME/.claude/hook-audit.log"
+}
+
+@test "redirect: malformed slug (uppercase / underscore) is skipped" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git_commit | git commit* | bad slug, should skip
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    run_hook "git commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Use ws commit"* ]]
+    [[ "$output" != *"bad slug"* ]]
+}
+
+# ─── Tier 2 redirect-deny — evaluation ──────────────────────────────
+
+@test "redirect: git commit denies with ws commit suggestion" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use `ws commit <comp> <bodyfile>` — handles Co-Authored-By trailer + bodyfile-driven staging.
+git-push | git push* | Use `ws push <comp> [branch]` — handles fork-remote selection.
+gh-pr-create | gh pr create* | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven.
+EOF
+)"
+    run_hook 'git commit -m "fix bug"'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use \`ws commit"* ]]
+}
+
+@test "redirect: git push denies with ws push suggestion" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-push | git push* | Use ws push
+gh-pr-create | gh pr create* | Use ws cr
+EOF
+)"
+    run_hook "git push origin feature/x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws push"* ]]
+}
+
+@test "redirect: gh pr create denies with ws cr suggestion" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-push | git push* | Use ws push
+gh-pr-create | gh pr create* | Use ws cr
+EOF
+)"
+    run_hook "gh pr create --title x --body y"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws cr"* ]]
+}
+
+@test "redirect: composition wins over redirect (T1 before T2)" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    run_hook 'git commit -m x && git push'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Shell composition"* ]]
+    [[ "$output" != *"Use ws commit"* ]]
+}
+
+@test "redirect: command outside [redirect-commands] passes through Tier 2" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_project_settings "Bash(ls *)"
+    run_hook "ls -la"
+    [ "$status" -eq 0 ]
+    # Settings.json allow at Tier 4 should still match
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}

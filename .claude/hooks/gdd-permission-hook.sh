@@ -314,6 +314,7 @@ ask() {
 scratch_dirs=()
 ask_commands=()
 allow_extras=()
+redirect_commands=()  # entries: "<slug>|<pattern>|<suggestion>"
 
 # Parse one rules file, appending entries to the section arrays.
 # $1 = file path; $2 = non-empty when parsing hook-rules.local (local).
@@ -345,6 +346,33 @@ _parse_rules_file() {
                         if [[ -n "$is_local" ]]; then
                             allow_extras+=("$line")
                         fi
+                        ;;
+                    redirect-commands)
+                        # Parse three pipe-separated columns: slug | pattern | suggestion.
+                        # Split on the first two " | " occurrences; remainder is suggestion.
+                        local slug pattern suggestion rest
+                        if [[ "$line" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING [redirect-commands] malformed entry (missing separator): $file" >> "$audit_log"
+                            continue
+                        fi
+                        slug="${line%% | *}"
+                        rest="${line#* | }"
+                        if [[ "$rest" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING [redirect-commands] malformed entry (only two columns): $file" >> "$audit_log"
+                            continue
+                        fi
+                        pattern="${rest%% | *}"
+                        suggestion="${rest#* | }"
+                        # Trim trailing whitespace from slug and pattern (suggestion is free text — keep as-is)
+                        slug="${slug%"${slug##*[![:space:]]}"}"
+                        pattern="${pattern%"${pattern##*[![:space:]]}"}"
+                        # Validate slug shape: ^[a-z0-9-]+$
+                        if [[ ! "$slug" =~ ^[a-z0-9-]+$ ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, bad slug '$slug'): $file" >> "$audit_log"
+                            continue
+                        fi
+                        # Pack as "slug|pattern|suggestion" (internal separator, never displayed)
+                        redirect_commands+=("$slug|$pattern|$suggestion")
                         ;;
                     *)
                         if [[ -z "$section" ]]; then
@@ -600,6 +628,59 @@ normalize_for_match() {
     esac
 }
 match_cmd="$(normalize_for_match "$cmd")"
+
+# ─── Tier 2: Redirect deny — raw commands with a `ws` equivalent ────
+#
+# Walk redirect_commands (parsed from [redirect-commands] in hook-rules).
+# A match emits `deny` with the entry's suggestion as the reason — the
+# corrective text points at the right `ws` subcommand. Tier 1 (above)
+# still runs first, so a composed `git commit -m x && git push` denies
+# for composition, never for redirect — the composition message is
+# more actionable.
+#
+# A bypass marker for the matching slug — written by `ws hook-bypass
+# <slug>` with the current session_id — turns the deny into an allow
+# (BYPASS-ALLOW audit entry). See bypass-check below.
+
+# Normalize cmd once for matching (the same normalization Tier 3/4 use).
+_t2_match_cmd="$(normalize_for_match "$cmd")"
+
+# Read session_id from the stdin payload (already parsed at line 158
+# above as the audit `event` was — we re-parse here to keep the Tier 2
+# block self-contained).
+_t2_session_id=$(echo "$input" | jq -r '.session_id // ""')
+
+for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
+    # Entry shape: "<slug>|<pattern>|<suggestion>"
+    _t2_slug="${_entry%%|*}"
+    _t2_rest="${_entry#*|}"
+    _t2_pattern="${_t2_rest%%|*}"
+    _t2_suggestion="${_t2_rest#*|}"
+    _t2_match_pattern="$(normalize_for_match "$_t2_pattern")"
+    # shellcheck disable=SC2053
+    if [[ "$_t2_match_cmd" == $_t2_match_pattern ]]; then
+        # Bypass-marker check (stub in this task — always "no marker").
+        # Task 4 wires the actual file lookup against $_t2_session_id.
+        _t2_marker_path="$cwd/.tmp/hook-bypass/$_t2_slug.bypass"
+        _t2_bypass_ok=0
+        if [[ -f "$_t2_marker_path" ]]; then
+            # Parse session_id and reason from the marker file.
+            _t2_marker_sid=$(grep '^session_id:' "$_t2_marker_path" 2>/dev/null | sed 's/^session_id: *//')
+            _t2_marker_reason=$(grep '^reason:' "$_t2_marker_path" 2>/dev/null | sed 's/^reason: *//')
+            if [[ -n "$_t2_session_id" && "$_t2_marker_sid" == "$_t2_session_id" ]]; then
+                _t2_bypass_ok=1
+            fi
+        fi
+        if [[ "$_t2_bypass_ok" == "1" ]]; then
+            # Implemented in Task 4 — placeholder allow that the next
+            # task replaces with the BYPASS-ALLOW audit helper.
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_t2_slug] reason=\"$_t2_marker_reason\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+            printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+            exit 0
+        fi
+        deny "$_t2_suggestion"
+    fi
+done
 
 # ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
 #
