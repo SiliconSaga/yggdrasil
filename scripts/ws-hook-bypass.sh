@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# ws-hook-bypass.sh — write a session-scoped bypass marker for a Tier 2
+# redirect-deny slug. The marker lets the matching command run for the
+# rest of the current Claude Code session.
+#
+# Usage:
+#   ws hook-bypass <slug> [--reason "<text>"]
+#
+# <slug> must appear as column 1 of a row in .claude/hooks/hook-rules
+# under [redirect-commands]. The script writes
+# .tmp/hook-bypass/<slug>.bypass with frontmatter the PreToolUse hook
+# parses (session_id, slug, created_at, reason).
+#
+# The subcommand pattern `ws hook-bypass [a-z]*` is on the committed
+# [ask-commands] baseline, so every invocation force-prompts the human —
+# that's the security gate. The slug validation here guards against
+# typos and accidental marker creation for unknown slugs.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# PROJECT_ROOT can be set by callers (tests) or falls back to two
+# levels up from this script's location (the yggdrasil root).
+: "${PROJECT_ROOT:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
+
+HOOK_RULES="$PROJECT_ROOT/.claude/hooks/hook-rules"
+
+usage() {
+    cat <<'HELP'
+Usage: ws hook-bypass <slug> [--reason "<text>"]
+
+  <slug>           Bypass slug — must match a row in [redirect-commands]
+                   in .claude/hooks/hook-rules. Run with an unknown slug
+                   to see the list of known slugs.
+  --reason "<txt>" Optional. Captured in the marker file and echoed into
+                   each BYPASS-ALLOW audit-log entry for retro grep.
+
+Writes .tmp/hook-bypass/<slug>.bypass with the current CLAUDE_SESSION_ID.
+The PreToolUse hook honors this marker for matching commands in this
+session only. ws clean (or any .tmp/ purge) sweeps stale markers.
+
+Examples:
+  ws hook-bypass git-commit --reason "git commit --amend; ws commit no amend support yet"
+  ws hook-bypass gh-pr-create --reason "cross-fork PR, ws cr lacks --upstream support today"
+HELP
+}
+
+# --help / -h
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    usage
+    exit 0
+fi
+
+# No args → usage + exit 1
+if [[ $# -lt 1 ]]; then
+    usage
+    exit 1
+fi
+
+slug="$1"
+shift
+
+# Parse optional --reason
+reason=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --reason)
+            [[ $# -ge 2 ]] || { echo "ERROR: --reason requires a value" >&2; exit 1; }
+            reason="$2"
+            shift 2 ;;
+        --reason=*)
+            reason="${1#--reason=}"
+            shift ;;
+        *)
+            echo "ERROR: Unknown argument '$1'" >&2
+            usage >&2
+            exit 1 ;;
+    esac
+done
+
+# Enumerate known slugs from hook-rules
+known_slugs=()
+if [[ -f "$HOOK_RULES" ]]; then
+    in_section=""
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        # Trim leading whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$line" || "$line" == "#"* ]] && continue
+        if [[ "$line" == "["*"]" ]]; then
+            in_section="${line#[}"
+            in_section="${in_section%]}"
+            continue
+        fi
+        if [[ "$in_section" == "redirect-commands" ]]; then
+            # Column 1 (slug) — substring up to first " | "
+            if [[ "$line" == *" | "* ]]; then
+                s="${line%% | *}"
+                # Trim trailing whitespace
+                s="${s%"${s##*[![:space:]]}"}"
+                # Only accept valid slug shape
+                if [[ "$s" =~ ^[a-z0-9-]+$ ]]; then
+                    known_slugs+=("$s")
+                fi
+            fi
+        fi
+    done < "$HOOK_RULES"
+fi
+
+# Validate slug
+slug_ok=0
+for s in ${known_slugs[@]+"${known_slugs[@]}"}; do
+    if [[ "$s" == "$slug" ]]; then
+        slug_ok=1
+        break
+    fi
+done
+if [[ "$slug_ok" != "1" ]]; then
+    echo "ERROR: Unknown slug '$slug'." >&2
+    if [[ ${#known_slugs[@]} -gt 0 ]]; then
+        echo "Known slugs (from $HOOK_RULES):" >&2
+        for s in ${known_slugs[@]+"${known_slugs[@]}"}; do
+            echo "  - $s" >&2
+        done
+    else
+        echo "No [redirect-commands] entries found in $HOOK_RULES." >&2
+    fi
+    exit 1
+fi
+
+# Validate CLAUDE_SESSION_ID
+if [[ -z "${CLAUDE_SESSION_ID:-}" ]]; then
+    echo "ERROR: CLAUDE_SESSION_ID is not set." >&2
+    echo "  This command only makes sense inside an active Claude Code session." >&2
+    echo "  The marker it would write keys off CLAUDE_SESSION_ID; without it the" >&2
+    echo "  hook can never match the marker against a session." >&2
+    exit 1
+fi
+
+# Write the marker
+marker_dir="$PROJECT_ROOT/.tmp/hook-bypass"
+marker_path="$marker_dir/$slug.bypass"
+mkdir -p "$marker_dir"
+
+# ISO-8601 UTC, no microseconds — readable and stable across hosts.
+created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+cat > "$marker_path" <<EOF
+session_id: $CLAUDE_SESSION_ID
+slug: $slug
+created_at: $created_at
+reason: $reason
+EOF
+
+echo "bypass marker written: $marker_path (session ${CLAUDE_SESSION_ID:0:8}...)"
