@@ -6,13 +6,14 @@ This directory contains a hook script that fires during Claude Code sessions in 
 
 ## PreToolUse hook 
 
-Fires before every Bash tool call. Four decision tiers, then a passthrough:
+Fires before every Bash tool call. Five decision tiers, then a passthrough:
 
 1. **Deny shell composition** (`&&`, `||`, `;`, pipes, command substitution, redirects) with a corrective message that tells the agent how to retry. Trains the agent to use separate tool calls and native `ws` flags (`--limit`, `--compact`, `--output`) instead of shell composition.
-2. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` on some directory within the workspace that `acceptEdits` would otherwise auto-approve silently (to perhaps some surprise! But mass file deletion *could* be considered an "edit" technically).
-3. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
-4. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
-5. **Pass** everything else goes to default behavior based on other config.
+2. **Deny raw `git commit` / `git push` / `gh pr create`** (and any other entry in the `[redirect-commands]` section of `hook-rules`) with a corrective message pointing at the right `ws` subcommand. A session-scoped bypass marker — written by `ws hook-bypass <slug>` after a human-approved ask prompt — overrides the deny for that slug. See [Redirect tier and bypass](#redirect-tier-and-bypass) below.
+3. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` on some directory within the workspace that `acceptEdits` would otherwise auto-approve silently (to perhaps some surprise! But mass file deletion *could* be considered an "edit" technically).
+4. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
+5. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
+6. **Pass** everything else goes to default behavior based on other config.
 
 Logs allow/deny/ask decisions to `~/.claude/hook-audit.log` with timestamps so you can review what the hook is doing. Passthroughs are not logged.
 
@@ -46,6 +47,28 @@ cp .claude/hooks/hook-rules.local.example .claude/hooks/hook-rules.local
 Then edit `hook-rules.local`. The example file is annotated with common entries.
 
 **Important:** the safety reasoning of every `[allow-extras]` pattern depends on the hook's Tier 1 still being active. Removing the hook OR disabling Tier 1 would change the calculus of every entry. Treat changes to `hook-rules.local` with care.
+
+### Redirect tier and bypass
+
+The Tier 2 redirect-deny channels three raw commands toward the workspace's `ws` wrappers:
+
+| Slug | Pattern | Use this instead |
+|---|---|---|
+| `git-commit` | `git commit*` | `ws commit <comp> <bodyfile>` — bodyfile-driven, attaches the Co-Authored-By trailer |
+| `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkOrg`, sets upstream on first push |
+| `gh-pr-create` | `gh pr create*` | `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions |
+
+A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, token coverage. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:
+
+1. Agent hits the deny; corrective message names `ws hook-bypass <slug>` as the escape hatch.
+2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt.
+3. Human approves; the script writes `.tmp/hook-bypass/<slug>.bypass` keyed to `$CLAUDE_SESSION_ID`.
+4. Agent retries the raw command; the hook finds the marker, matches session_id, and emits an allow with audit `BYPASS-ALLOW [<slug>] reason="<text>": <cmd>`.
+5. The marker is honored for the rest of the session. Next session's `CLAUDE_SESSION_ID` differs, so the marker is stale; `ws clean` sweeps `.tmp/` whenever you want a clean slate.
+
+The recurring-bypass pattern — same slug bypassed every session — is a signal that the corresponding `ws` subcommand needs to grow that capability. Periodic `grep BYPASS-ALLOW ~/.claude/hook-audit.log` surfaces it.
+
+**Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z0-9-]+$`. The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
 
 ## Optional: PermissionRequest hook
 

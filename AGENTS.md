@@ -136,6 +136,8 @@ selection, and bodyfile-driven flows that raw tools won't.
 | Raw test runners (`gradle test`, `pytest`, `make test`, …) | `ws test <comp> [args]` | Adapter dispatch via `realms/<active>/adapters/<comp>.yaml`; `ws actions <comp>` lists what's available |
 | `git clone <fork-url>` + manual `git remote add upstream …` + `git fetch` | `ws clone-fork <comp>` | Ensures fork exists (creates via API if missing); SSH transport; both remotes wired; local + fork `main` synced with upstream. Idempotent. |
 
+**Hook enforcement:** the PreToolUse hook denies the three write-side raw commands above (`git commit` / `git push` / `gh pr create`) at Tier 2 with a corrective message pointing at the `ws` subcommand. See `.claude/hooks/README.md` § Redirect tier and bypass for the bypass mechanism if a legitimate edge case requires raw access.
+
 When in doubt: `ws help` for the full list, `ws help <subcommand>`
 (or `ws <subcommand> --help`) for per-command details. Skills and
 instructions defer to the help system as the source of truth.

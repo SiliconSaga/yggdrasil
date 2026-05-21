@@ -50,6 +50,22 @@ The ask-list is defined in `.claude/hooks/hook-rules` (committed baseline) and c
 
 ---
 
+## What happens when you reach for `git commit` / `git push` / `gh pr create`
+
+These three raw commands deny at Tier 2 with a message pointing at the workspace's `ws` wrappers. The wrappers handle work the raw commands don't:
+
+- `ws commit` — Co-Authored-By trailer, bodyfile-driven staging
+- `ws push` — fork-remote selection from `identity.forkOrg`, sets upstream
+- `ws cr` — bodyfile-driven PR body, identity substitutions, right token + remote
+
+The deny is corrective, not punitive — when you see it, retry through the named `ws` subcommand. AGENTS.md's "ws-first reflex check" table maps every raw command in this category to its wrapper.
+
+**When you genuinely need the raw command** (e.g., `git commit --amend` and `ws commit` doesn't support amend yet): run `ws hook-bypass <slug> --reason "<why>"`. The human gets a permission prompt; on approval, a session-scoped marker is written and the next matching raw command runs through. The bypass is per-slug — bypassing `git-commit` doesn't extend to `gh-pr-create`.
+
+**Don't loop on the deny.** If your first instinct hits a Tier 2 deny twice in the same session, that's the moment to either (a) figure out the `ws` form, (b) request a bypass with a clear `--reason`, or (c) ask the human directly. Three identical denies is not the right shape.
+
+---
+
 ## "One action per call" — the operational principle
 
 The hook's deny list isn't a random collection of forbidden operators. It enforces a single rule: **each Bash tool call should do exactly one thing the harness can audit, log, and (if needed) prompt on**.

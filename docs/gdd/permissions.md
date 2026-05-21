@@ -56,6 +56,16 @@ A secondary effect of the hook is that it can sometimes re-map GDD's "auto-appro
 
 See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `hook-rules.local` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
 
+### Redirect deny + session-scoped bypass
+
+Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`) that have a `ws` wrapper equivalent. The deny carries a corrective message pointing at the right `ws` subcommand.
+
+This is a *training* layer, not a safety floor — the `ws` wrappers add attribution, remote selection, and bodyfile flows that AGENTS.md documents but training-data reflex drifts away from. A legitimate edge case (the `ws` subcommand doesn't yet support what's needed) escapes via `ws hook-bypass <slug>`, which writes a marker file keyed to `$CLAUDE_SESSION_ID`. The marker is honored for the rest of the session.
+
+The `ws hook-bypass <slug>` subcommand itself is on the ask-list — every invocation force-prompts the human. The security boundary is the ask-tier; no env-var or cryptographic gate is added.
+
+See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facing details.
+
 ## Pattern shapes
 
 Three shapes appear in this workspace's `.claude/settings.json`:
