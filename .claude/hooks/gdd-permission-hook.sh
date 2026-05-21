@@ -383,8 +383,10 @@ _parse_rules_file() {
                         # Trim trailing whitespace from slug and pattern (suggestion is free text — keep as-is)
                         slug="${slug%"${slug##*[![:space:]]}"}"
                         pattern="${pattern%"${pattern##*[![:space:]]}"}"
-                        # Validate slug shape: ^[a-z0-9-]+$
-                        if [[ ! "$slug" =~ ^[a-z0-9-]+$ ]]; then
+                        # Validate slug shape: ^[a-z][a-z0-9-]*$ (must
+                        # start with a letter so the `ws hook-bypass [a-z]*`
+                        # ask-pattern always catches a slug invocation).
+                        if [[ ! "$slug" =~ ^[a-z][a-z0-9-]*$ ]]; then
                             echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, bad slug '$slug'): $file" >> "$audit_log"
                             continue
                         fi

@@ -34,7 +34,7 @@ bash scripts/ws hook-bypass [a-z]*
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
 # (between composition deny and ask) with the suggestion text below.
-# Format: <slug> | <pattern> | <suggestion>. Slug is kebab-case (^[a-z0-9-]+$);
+# Format: <slug> | <pattern> | <suggestion>. Slug is kebab-case (^[a-z][a-z0-9-]*$);
 # it doubles as the bypass-marker filename and the ws hook-bypass argument.
 # Pattern is a bash glob. Suggestion is free text, ends the line, may contain
 # pipes (parsing splits on the first two " | " only).

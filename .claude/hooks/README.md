@@ -68,7 +68,7 @@ A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The 
 
 The recurring-bypass pattern — same slug bypassed every session — is a signal that the corresponding `ws` subcommand needs to grow that capability. Periodic `grep BYPASS-ALLOW ~/.claude/hook-audit.log` surfaces it.
 
-**Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z0-9-]+$`. The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
+**Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z][a-z0-9-]*$` (start with a letter so the `ws hook-bypass [a-z]*` ask-pattern always catches a slug invocation). The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
 
 ## Optional: PermissionRequest hook
 
@@ -78,6 +78,8 @@ Power-user opt-in. Wires the same `gdd-permission-hook.sh` script to a second ho
 - **Bash allowlist matches double-cover at the prompt layer.** Anything your `settings.json` `allow` or `hook-rules.local` `[allow-extras]` would have allowed at `PreToolUse` also gets approved at `PermissionRequest`, which can help in some configurations — largely intended to let the GDD extensions be good citizens in otherwise constrained settings.
 
 This isn't enabled by default because (a) `PermissionRequest` is a different threat-model surface than `PreToolUse` — auto-allowing writes into a directory list is a stronger trust grant than auto-allowing read-shaped Bash patterns, and (b) the value is mostly ergonomic, so it's better off opt-in than imposed. 
+
+**Interaction with the redirect bypass.** When this optional hook is enabled, `.tmp/` is among the auto-allowed scratch dirs — so an agent could in principle write a bypass marker (`.tmp/hook-bypass/<slug>.bypass`) with the Write tool directly, skipping `ws hook-bypass` and therefore the ask-prompt. That sidesteps the human gate for the Tier 2 redirect deny. This is consistent with the redirect tier's stated threat model (agent *drift*, not an adversarial agent deliberately crafting marker files) — and an agent in `acceptEdits` can already write into `.tmp/` regardless of this hook — but operators who enable the PermissionRequest extension and want the bypass to remain strictly human-gated should be aware of it.
 
 It still includes the sometimes more severe blocks that GDD implements to teach the agent not to let commands be chained at all, favoring deterministic scripts and temporary files that are more auditable than massive commands dumping to a simple point-in-time approve prompt.
 

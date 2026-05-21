@@ -103,8 +103,9 @@ if [[ -f "$HOOK_RULES" ]]; then
                 s="${line%% | *}"
                 # Trim trailing whitespace
                 s="${s%"${s##*[![:space:]]}"}"
-                # Only accept valid slug shape
-                if [[ "$s" =~ ^[a-z0-9-]+$ ]]; then
+                # Only accept valid slug shape (must start with a letter,
+                # matching the hook parser; keeps the ask-pattern catchable).
+                if [[ "$s" =~ ^[a-z][a-z0-9-]*$ ]]; then
                     known_slugs+=("$s")
                 fi
             fi
