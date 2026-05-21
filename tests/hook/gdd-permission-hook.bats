@@ -814,6 +814,9 @@ EOF
     run_hook_with_session "git commit -m x" ""
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    # Security invariant: empty must not match empty. Confirm the deny is
+    # the -n guard rejecting the marker, NOT a bypass that silently fired.
+    ! grep -q 'BYPASS-ALLOW' "$HOME/.claude/hook-audit.log"
 }
 
 @test "bypass: ws hook-bypass <slug> does not match any redirect pattern (pattern-collision invariant)" {
@@ -828,6 +831,7 @@ EOF
 )"
     # Each known slug invocation should hit Tier 3 ask, NOT Tier 2 deny.
     for slug in git-commit git-push gh-pr-create; do
+        echo "# testing slug: $slug"   # surfaces which iteration failed
         run_hook "ws hook-bypass $slug"
         [ "$status" -eq 0 ]
         [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
