@@ -77,7 +77,7 @@ Agent runs: `ws clean`
 Human confirms:
 
 - [ ] `.tmp/hook-bypass/git-commit.bypass` no longer exists
-- [ ] `ws clean` reported one or more files removed (the marker plus whatever else was in `.tmp/`)
+- [ ] `ws clean` reported one or more entries removed (e.g. `.tmp/  N entr(ies) removed` — the marker plus whatever else was in `.tmp/`)
 
 ## Step 7 — Marker stale after restart (optional, slow)
 
