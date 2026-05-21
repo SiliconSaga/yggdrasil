@@ -34,9 +34,9 @@ The format is flat sectioned text: `[section]` headers, one entry per line, `#` 
 
 **`[scratch-dirs]`** — workspace-relative paths under which Edit/Write tool calls auto-allow. Keeps in lockstep with the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore). Entries in `hook-rules.local` add to the baseline; they never replace it.
 
-**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 2 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
+**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 3 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
 
-**`[allow-extras]`** — personal Bash glob patterns auto-allowed on this machine without prompting (Tier 4). Only valid in `hook-rules.local`, never in the committed baseline. An entry here will not win over an "ask command" entry.
+**`[allow-extras]`** — personal Bash glob patterns auto-allowed on this machine without prompting (Tier 5). Only valid in `hook-rules.local`, never in the committed baseline. An entry here will not win over an "ask command" entry.
 
 ### Setting up per-machine overrides
 
@@ -63,7 +63,7 @@ A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The 
 1. Agent hits the deny; corrective message names `ws hook-bypass <slug>` as the escape hatch.
 2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt.
 3. Human approves; the script writes `.tmp/hook-bypass/<slug>.bypass` keyed to `$CLAUDE_SESSION_ID`.
-4. Agent retries the raw command; the hook finds the marker, matches session_id, and emits an allow with audit `BYPASS-ALLOW [<slug>] reason="<text>": <cmd>`.
+4. Agent retries the raw command; the hook finds the marker, matches session_id, and emits an allow with audit `BYPASS-ALLOW [<slug>] reason="<text>" [PreToolUse]: <cmd>`.
 5. The marker is honored for the rest of the session. Next session's `CLAUDE_SESSION_ID` differs, so the marker is stale; `ws clean` sweeps `.tmp/` whenever you want a clean slate.
 
 The recurring-bypass pattern — same slug bypassed every session — is a signal that the corresponding `ws` subcommand needs to grow that capability. Periodic `grep BYPASS-ALLOW ~/.claude/hook-audit.log` surfaces it.
