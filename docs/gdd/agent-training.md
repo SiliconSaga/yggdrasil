@@ -58,7 +58,7 @@ These three raw commands deny at Tier 2 with a message pointing at the workspace
 - `ws push` — fork-remote selection from `identity.forkOrg`, sets upstream
 - `ws cr` — bodyfile-driven PR body, identity substitutions, right token + remote
 
-The deny is corrective, not punitive — when you see it, retry through the named `ws` subcommand. AGENTS.md's "ws-first reflex check" table maps every raw command in this category to its wrapper.
+The deny is corrective, not punitive — when you see it, retry through the named `ws` subcommand. AGENTS.md's `ws`-first reflex check table maps every raw command in this category to its wrapper.
 
 **When you genuinely need the raw command** (e.g., `git commit --amend` and `ws commit` doesn't support amend yet): run `ws hook-bypass <slug> --reason "<why>"`. The human gets a permission prompt; on approval, a session-scoped marker is written and the next matching raw command runs through. The bypass is per-slug — bypassing `git-commit` doesn't extend to `gh-pr-create`.
 

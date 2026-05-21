@@ -86,4 +86,6 @@ layer, and cannot be opted out of on a per-command basis without removing the
 matching entry from the committed `hook-rules` (a reviewed change) or
 disabling the hook entirely via `WS_HOOK_DISABLE=1`.
 
+## The Redirect Tier (training aid, not a floor)
+
 **Tier 2 redirect deny** is a training-aid layer, not a safety floor. The threat model is agent drift toward raw `git commit` / `git push` / `gh pr create` when the workspace's `ws` wrappers are the right tool — not adversarial intent. The bypass mechanism (`ws hook-bypass <slug>`) provides a documented escape hatch keyed to `$CLAUDE_SESSION_ID`. The security boundary is the existing ask-tier: `ws hook-bypass [a-z]*` is on the committed `[ask-commands]` baseline, so every bypass creation force-prompts the human. No env vars or HMACs added — the ask prompt is the gate.
