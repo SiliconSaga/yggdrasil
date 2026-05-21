@@ -636,7 +636,7 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"Use ws commit"* ]]
     # Malformed entry triggers a warning in the audit log
-    grep -q "WARNING.*redirect-commands.*malformed" "$HOME/.claude/hook-audit.log"
+    grep -q "WARNING.*malformed \[redirect-commands\] entry" "$HOME/.claude/hook-audit.log"
 }
 
 @test "redirect: malformed slug (uppercase / underscore) is skipped" {

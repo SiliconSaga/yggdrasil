@@ -352,13 +352,13 @@ _parse_rules_file() {
                         # Split on the first two " | " occurrences; remainder is suggestion.
                         local slug pattern suggestion rest
                         if [[ "$line" != *" | "* ]]; then
-                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING [redirect-commands] malformed entry (missing separator): $file" >> "$audit_log"
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, missing separator): $file" >> "$audit_log"
                             continue
                         fi
                         slug="${line%% | *}"
                         rest="${line#* | }"
                         if [[ "$rest" != *" | "* ]]; then
-                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING [redirect-commands] malformed entry (only two columns): $file" >> "$audit_log"
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, only two columns): $file" >> "$audit_log"
                             continue
                         fi
                         pattern="${rest%% | *}"
