@@ -39,8 +39,8 @@
 #
 # This script is security-sensitive: a permissive pattern here lets
 # the agent skip user confirmation for commands matching that pattern.
-# Keep deny logic conservative (Tier 1 below) and allow logic narrow
-# (Tiers 3-4). When uncertain, default to passthrough — the harness's
+# Keep deny logic conservative (Tiers 1-2 below) and allow logic narrow
+# (Tiers 4-5). When uncertain, default to passthrough — the harness's
 # own prompt is the safety net, not a fallback to be eliminated.
 #
 # ─── DECISION TIERS (in order) ──────────────────────────────────────
@@ -53,16 +53,30 @@
 #   per action and to prefer native flags (--limit, --output) over
 #   shell pipelines.
 #
-# Tier 2 — Ask-list from hook-rules [ask-commands] (ASK)
+# Tier 2 — Redirect deny (DENY, with per-slug bypass override)
+#   Commands matching a [redirect-commands] entry in hook-rules deny
+#   with a corrective message pointing at the right `ws` subcommand
+#   (e.g. `git commit` → use `ws commit`). Each entry declares a slug
+#   (column 1), the deny pattern (column 2), and the suggestion text
+#   (column 3, free text).
+#
+#   A session-scoped bypass marker — written by `ws hook-bypass
+#   <slug>` after a human-approved ask prompt — overrides the deny
+#   for that slug. The marker lives at .tmp/hook-bypass/<slug>.bypass
+#   and is honored only when its session_id matches the current
+#   CLAUDE_SESSION_ID. Marker hits log BYPASS-ALLOW to the audit log
+#   with the slug + optional reason.
+#
+# Tier 3 — Ask-list from hook-rules [ask-commands] (ASK)
 #   Destructive commands that should always prompt, even under
 #   acceptEdits. Any match → ask.
 #
-# Tier 3 — Per-project allowlist from .claude/settings.json (ALLOW)
+# Tier 4 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
 #   too. Glob-match each pattern against the command. Any match → allow.
 #
-# Tier 4 — [allow-extras] from hook-rules.local (ALLOW, optional)
+# Tier 5 — [allow-extras] from hook-rules.local (ALLOW, optional)
 #   Personal per-machine glob patterns declared in hook-rules.local's
 #   [allow-extras] section. Parsed into allow_extras above. Any
 #   match → allow. Silently absent if hook-rules.local has no section.
@@ -70,10 +84,10 @@
 # Default — Passthrough
 #   Exit 0 with no JSON. Harness handles as normal.
 #
-# Config: the scratch-dir and ask-command lists live in
-# .claude/hooks/hook-rules (committed baseline); per-machine additions
-# and [allow-extras] live in hook-rules.local (gitignored). See
-# .claude/hooks/README.md.
+# Config: the scratch-dir, ask-command, and redirect-command lists
+# live in .claude/hooks/hook-rules (committed baseline); per-machine
+# additions and [allow-extras] live in hook-rules.local (gitignored).
+# See .claude/hooks/README.md.
 #
 # ─── AUDIT LOG ──────────────────────────────────────────────────────
 #
@@ -273,7 +287,7 @@ deny() {
 }
 
 # ask() — force a permission prompt without blocking. Used by the
-# Tier 2 ask-list for destructive-but-sometimes-legitimate commands.
+# Tier 3 ask-list for destructive-but-sometimes-legitimate commands.
 # Unlike deny(), the agent can still run the command once the human
 # approves; unlike allow(), it never auto-runs. The `ask` decision
 # overrides the harness's permission mode — it prompts even under
@@ -305,11 +319,11 @@ ask() {
 # and .claude/hooks/hook-rules.local (gitignored per-machine override).
 # Parsed by pure bash — no yq/jq dependency for config. Three sections:
 #   [scratch-dirs]  — Edit/Write auto-allow path prefixes (Tier consumer)
-#   [ask-commands]  — Tier 2 ask-list glob patterns
-#   [allow-extras]  — Tier 4 allow glob patterns (hook-rules.local ONLY;
+#   [ask-commands]  — Tier 3 ask-list glob patterns
+#   [allow-extras]  — Tier 5 allow glob patterns (hook-rules.local ONLY;
 #                     an [allow-extras] section in the committed hook-rules
 #                     is silently inert — only per-machine local files may
-#                     grant Tier 4 allows)
+#                     grant Tier 5 allows)
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
@@ -642,9 +656,6 @@ match_cmd="$(normalize_for_match "$cmd")"
 # <slug>` with the current session_id — turns the deny into an allow
 # (BYPASS-ALLOW audit entry). See bypass-check below.
 
-# Normalize cmd once for matching (the same normalization Tier 3/4 use).
-_t2_match_cmd="$(normalize_for_match "$cmd")"
-
 # Read session_id from the stdin payload (already parsed at line 158
 # above as the audit `event` was — we re-parse here to keep the Tier 2
 # block self-contained).
@@ -658,7 +669,7 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     _t2_suggestion="${_t2_rest#*|}"
     _t2_match_pattern="$(normalize_for_match "$_t2_pattern")"
     # shellcheck disable=SC2053
-    if [[ "$_t2_match_cmd" == $_t2_match_pattern ]]; then
+    if [[ "$match_cmd" == $_t2_match_pattern ]]; then
         # Bypass-marker check (stub in this task — always "no marker").
         # Task 4 wires the actual file lookup against $_t2_session_id.
         _t2_marker_path="$cwd/.tmp/hook-bypass/$_t2_slug.bypass"
@@ -672,8 +683,9 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
             fi
         fi
         if [[ "$_t2_bypass_ok" == "1" ]]; then
-            # Implemented in Task 4 — placeholder allow that the next
-            # task replaces with the BYPASS-ALLOW audit helper.
+            # Bypass marker matched this session — allow the command and
+            # record a BYPASS-ALLOW audit entry (slug + reason) so the
+            # recurring-bypass pattern is greppable for later review.
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_t2_slug] reason=\"$_t2_marker_reason\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
             printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
             exit 0
@@ -682,12 +694,12 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     fi
 done
 
-# ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
+# ─── Tier 3: Ask-list — force a prompt for destructive commands ─────
 #
 # A match emits `ask`: the harness prompts regardless of permission
 # mode (acceptEdits included), but the agent may still run the command
 # once the human approves. The ask-list is a safety FLOOR — it is
-# checked before the Tier 3/4 allow logic, so a destructive command
+# checked before the Tier 4/5 allow logic, so a destructive command
 # prompts even if some allowlist entry would otherwise pass it.
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     # shellcheck disable=SC2053
@@ -702,7 +714,7 @@ for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     fi
 done
 
-# ─── Tier 3: Match against settings.json `permissions.allow` ────────
+# ─── Tier 4: Match against settings.json `permissions.allow` ────────
 #
 # Walk up from $cwd looking for .claude/settings.json files. Closer
 # files (project-specific) come first; the user-level file at
@@ -775,7 +787,7 @@ while IFS= read -r raw; do
     fi
 done < <(collect_patterns)
 
-# ─── Tier 4: Allow via [allow-extras] from hook-rules.local ─────────
+# ─── Tier 5: Allow via [allow-extras] from hook-rules.local ─────────
 #
 # Personal allow-patterns the user trusts on this machine — declared
 # in the [allow-extras] section of hook-rules.local (gitignored,
