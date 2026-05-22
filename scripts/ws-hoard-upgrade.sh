@@ -311,7 +311,7 @@ ws_hoard_upgrade() {
     # hatch (matching the WS_HOOK_DISABLE / WS_HOOK_DEBUG idiom) lets a
     # power user who knows their hoard is obsidian-vault-shaped override.
     if [[ "${WS_HOARD_UPGRADE_ENABLED:-0}" != "1" ]]; then
-        echo "TODO: 'ws hoard upgrade' is disabled pending a provenance fix." >&2
+        echo "DISABLED: 'ws hoard upgrade' is intentionally off pending a provenance fix (TODO)." >&2
         echo "  It has no per-hoard provenance and would apply the obsidian-vault" >&2
         echo "  upgrade recipe to ANY hoard — pushing the full plugin suite onto" >&2
         echo "  thalami hoards that only need Dataview (Linter / Filename Heading" >&2

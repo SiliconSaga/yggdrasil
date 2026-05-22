@@ -19,8 +19,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# PROJECT_ROOT can be set by callers (tests) or falls back to two
-# levels up from this script's location (the yggdrasil root).
+# PROJECT_ROOT can be set by callers (tests) or falls back to one
+# level up from this script's directory (scripts/) — the yggdrasil root.
 : "${PROJECT_ROOT:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
 HOOK_RULES="$PROJECT_ROOT/.claude/hooks/hook-rules"

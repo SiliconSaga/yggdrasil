@@ -323,13 +323,14 @@ ask() {
 #
 # Flat sectioned text at .claude/hooks/hook-rules (committed baseline)
 # and .claude/hooks/hook-rules.local (gitignored per-machine override).
-# Parsed by pure bash — no yq/jq dependency for config. Three sections:
-#   [scratch-dirs]  — Edit/Write auto-allow path prefixes (Tier consumer)
-#   [ask-commands]  — Tier 3 ask-list glob patterns
-#   [allow-extras]  — Tier 5 allow glob patterns (hook-rules.local ONLY;
-#                     an [allow-extras] section in the committed hook-rules
-#                     is silently inert — only per-machine local files may
-#                     grant Tier 5 allows)
+# Parsed by pure bash — no yq/jq dependency for config. Four sections:
+#   [scratch-dirs]      — Edit/Write auto-allow path prefixes (Tier consumer)
+#   [redirect-commands] — Tier 2 redirect-deny entries (slug | pattern | suggestion)
+#   [ask-commands]      — Tier 3 ask-list glob patterns
+#   [allow-extras]      — Tier 5 allow glob patterns (hook-rules.local ONLY;
+#                         an [allow-extras] section in the committed hook-rules
+#                         is silently inert — only per-machine local files may
+#                         grant Tier 5 allows)
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
