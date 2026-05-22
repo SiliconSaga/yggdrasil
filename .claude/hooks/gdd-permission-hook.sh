@@ -67,7 +67,10 @@
 #   <slug>` after a human-approved ask prompt — overrides the deny
 #   for that slug. The marker lives at .tmp/hook-bypass/<slug>.bypass
 #   and is honored only when its session_id matches the current
-#   CLAUDE_SESSION_ID. Marker hits log BYPASS-ALLOW to the audit log
+#   session id (this hook reads it from the stdin payload's
+#   `.session_id`; `ws hook-bypass` writes it from
+#   $CLAUDE_CODE_SESSION_ID — the same UUID). Marker hits log
+#   BYPASS-ALLOW to the audit log
 #   with the slug + optional reason.
 #
 # Tier 3 — Ask-list from hook-rules [ask-commands] (ASK)

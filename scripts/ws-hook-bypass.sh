@@ -35,7 +35,8 @@ Usage: ws hook-bypass <slug> [--reason "<text>"]
   --reason "<txt>" Optional. Captured in the marker file and echoed into
                    each BYPASS-ALLOW audit-log entry for retro grep.
 
-Writes .tmp/hook-bypass/<slug>.bypass with the current CLAUDE_SESSION_ID.
+Writes .tmp/hook-bypass/<slug>.bypass with the current Claude Code session id
+(CLAUDE_CODE_SESSION_ID, or CLAUDE_SESSION_ID as a fallback).
 The PreToolUse hook honors this marker for matching commands in this
 session only. ws clean (or any .tmp/ purge) sweeps stale markers.
 
@@ -134,12 +135,18 @@ if [[ "$slug_ok" != "1" ]]; then
     exit 1
 fi
 
-# Validate CLAUDE_SESSION_ID
-if [[ -z "${CLAUDE_SESSION_ID:-}" ]]; then
-    echo "ERROR: CLAUDE_SESSION_ID is not set." >&2
-    echo "  This command only makes sense inside an active Claude Code session." >&2
-    echo "  The marker it would write keys off CLAUDE_SESSION_ID; without it the" >&2
-    echo "  hook can never match the marker against a session." >&2
+# Resolve the session id the marker keys off. Claude Code exposes it as
+# CLAUDE_CODE_SESSION_ID (verified on 2.1.x); CLAUDE_SESSION_ID is accepted
+# as a fallback for other/older builds. The value must equal the hook's
+# stdin-payload `.session_id` for the bypass to match — empirically the
+# same UUID across both channels.
+session_id="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+if [[ -z "$session_id" ]]; then
+    echo "ERROR: no Claude Code session id in the environment." >&2
+    echo "  Expected \$CLAUDE_CODE_SESSION_ID (or \$CLAUDE_SESSION_ID) to be set." >&2
+    echo "  This command only makes sense inside an active Claude Code session;" >&2
+    echo "  the marker keys off the session id, so without it the hook can never" >&2
+    echo "  match the marker against a session." >&2
     exit 1
 fi
 
@@ -154,10 +161,10 @@ created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # printf '%s' per field (not a heredoc) so each value is written
 # literally — a reason containing a '$' or backtick is never re-expanded.
 {
-    printf 'session_id: %s\n' "$CLAUDE_SESSION_ID"
+    printf 'session_id: %s\n' "$session_id"
     printf 'slug: %s\n'       "$slug"
     printf 'created_at: %s\n' "$created_at"
     printf 'reason: %s\n'     "$reason"
 } > "$marker_path"
 
-echo "bypass marker written: $marker_path (session ${CLAUDE_SESSION_ID:0:8}...)"
+echo "bypass marker written: $marker_path (session ${session_id:0:8}...)"

@@ -62,9 +62,9 @@ A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The 
 
 1. Agent hits the deny; corrective message names `ws hook-bypass <slug>` as the escape hatch.
 2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt.
-3. Human approves; the script writes `.tmp/hook-bypass/<slug>.bypass` keyed to `$CLAUDE_SESSION_ID`.
+3. Human approves; the script writes `.tmp/hook-bypass/<slug>.bypass` keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`).
 4. Agent retries the raw command; the hook finds the marker, matches session_id, and emits an allow with audit `BYPASS-ALLOW [<slug>] reason="<text>" [PreToolUse]: <cmd>`.
-5. The marker is honored for the rest of the session. Next session's `CLAUDE_SESSION_ID` differs, so the marker is stale; `ws clean` sweeps `.tmp/` whenever you want a clean slate.
+5. The marker is honored for the rest of the session. Next session's `CLAUDE_CODE_SESSION_ID` differs, so the marker is stale; `ws clean` sweeps `.tmp/` whenever you want a clean slate.
 
 The recurring-bypass pattern — same slug bypassed every session — is a signal that the corresponding `ws` subcommand needs to grow that capability. Periodic `grep BYPASS-ALLOW ~/.claude/hook-audit.log` surfaces it.
 
