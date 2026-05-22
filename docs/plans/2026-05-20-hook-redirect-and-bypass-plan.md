@@ -660,7 +660,7 @@ At line 604 (the existing `# ─── Tier 2: Ask-list — force a prompt for d
 
 - [ ] **Step 4: Renumber the settings-allow section header**
 
-At line 624 (the existing `# ─── Tier 3: Match against settings.json \`permissions.allow\` ────────`), change `Tier 3` to `Tier 4`:
+At line 624 (the existing `# ─── Tier 3: Match against settings.json permissions.allow ────────`), change `Tier 3` to `Tier 4`:
 
 ```text
 # ─── Tier 4: Match against settings.json `permissions.allow` ────────

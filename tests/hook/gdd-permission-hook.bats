@@ -837,3 +837,21 @@ EOF
         [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
     done
 }
+
+@test "bypass: marker is found when cwd is a subdirectory of the project root" {
+    # The marker lives at <project-root>/.tmp/hook-bypass/ (where
+    # ws hook-bypass writes it). When the agent's cwd is a subdir, the
+    # hook must still resolve the marker via the hook-rules root, not a
+    # cwd-anchored path. Regression guard for the cwd-anchored lookup bug.
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" "from subdir"
+    mkdir -p "$WORK/components/some-comp"
+    run_hook_with_session 'git commit -m x' "session-abc" "$WORK/components/some-comp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[git-commit\] reason="from subdir"' "$HOME/.claude/hook-audit.log"
+}

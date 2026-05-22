@@ -669,6 +669,16 @@ match_cmd="$(normalize_for_match "$cmd")"
 # block self-contained).
 _t2_session_id=$(echo "$input" | jq -r '.session_id // ""')
 
+# Anchor the bypass-marker lookup to the project root, NOT $cwd. The
+# marker is written by `ws hook-bypass` to <project-root>/.tmp/hook-bypass/,
+# so a $cwd-anchored lookup would miss it whenever the agent's cwd is a
+# subdirectory (e.g. a component dir). _rules_dir is the .claude/hooks
+# directory found by walking up from $cwd during config parsing; its
+# parent's parent is the project root. _rules_dir is guaranteed non-empty
+# here because redirect_commands is only populated from a hook-rules file
+# that was actually found.
+_t2_project_root="${_rules_dir%/.claude/hooks}"
+
 for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     # Entry shape: "<slug>|<pattern>|<suggestion>"
     _t2_slug="${_entry%%|*}"
@@ -681,7 +691,7 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
         # Bypass-marker check: a marker for this slug, written by
         # `ws hook-bypass <slug>`, overrides the deny when its
         # session_id matches the current session.
-        _t2_marker_path="$cwd/.tmp/hook-bypass/$_t2_slug.bypass"
+        _t2_marker_path="$_t2_project_root/.tmp/hook-bypass/$_t2_slug.bypass"
         _t2_bypass_ok=0
         if [[ -f "$_t2_marker_path" ]]; then
             # Parse session_id and reason from the marker file.
@@ -695,8 +705,16 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
             # Bypass marker matched this session — allow the command and
             # record a BYPASS-ALLOW audit entry (slug + reason) so the
             # recurring-bypass pattern is greppable for later review.
+            # Emit the event-appropriate allow shape (PreToolUse uses
+            # permissionDecision; PermissionRequest uses decision.behavior),
+            # mirroring the allow() helper so the dormant PermissionRequest
+            # path stays correct if that hook is ever enabled.
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_t2_slug] reason=\"$_t2_marker_reason\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
-            printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+            if [[ "$event" == "PermissionRequest" ]]; then
+                printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+            else
+                printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+            fi
             exit 0
         fi
         deny "$_t2_suggestion"

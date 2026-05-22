@@ -40,8 +40,9 @@ Writes .tmp/hook-bypass/<slug>.bypass with the current Claude Code session id
 The PreToolUse hook honors this marker for matching commands in this
 session only. ws clean (or any .tmp/ purge) sweeps stale markers.
 
-Examples:
-  ws hook-bypass git-commit --reason "git commit --amend; ws commit no amend support yet"
+Examples (keep --reason free of shell composition tokens like ; && | —
+the hook scans the whole command string and would deny them):
+  ws hook-bypass git-commit --reason "git commit --amend not supported by ws commit yet"
   ws hook-bypass gh-pr-create --reason "cross-fork PR, ws cr lacks --upstream support today"
 HELP
 }
