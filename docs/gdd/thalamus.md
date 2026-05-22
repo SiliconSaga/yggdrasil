@@ -62,6 +62,20 @@ staleness_days: 14
 This enables session continuity — the AI knows when you last worked, whether
 an audit is overdue, and what mode to default to.
 
+## Cross-machine sync — the thalami hoard
+
+A single gitignored `Thalamus.md` works for one machine. Once you use yggdrasil on more than one — a desktop, a laptop, an old Mac — the preferences, observations, and in-flight work threads you want to carry across them need a home that isn't tied to a single checkout. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See the [Hoards section of `AGENTS.md`](../../AGENTS.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
+
+When a hoard is active, the orientation skill resolves the active per-machine file (via `ws hoard thalamus-path`) and writes there instead of the workspace-root `Thalamus.md`. A root `Thalamus.md` can still exist as a non-synced scratch file alongside the hoard.
+
+### Arcs and the cross-host dashboard
+
+Per-machine thalamus files carry an `arcs:` list in their frontmatter — one entry per in-flight work thread (a feature, an investigation, a parked idea), each with a `status`, a one-line `next`, and optional `impact` / `urgency` / `issue` / `tags`. Arcs are the shared cross-reference todos: an arc that spans machines uses the same kebab-case `id` slug on each host, so picking up yesterday's laptop work on the desktop is just continuing the same slug.
+
+The hoard ships an `ArcDashboard.md` that — when the hoard is opened as an Obsidian vault with the Dataview plugin — renders a live table of every arc across every machine's frontmatter, sorted by status and freshness (with vibe icons that decay as an arc goes stale, nudging you to either move it forward or close it). The dashboard projects **only** frontmatter; the body sections (Observations, Concerns, Audit Log) sync via git like any other content but never surface in the table. The orientation skill reads the same `arcs:` frontmatter at session start to surface active arcs and offer cross-host pickups, and the housekeeping skill walks arcs through their lifecycle (active → review → closed/promoted → pruned).
+
+See the [Arc Dashboard design doc](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the full arc lifecycle, schema, and skill integration, and the hoard's own `README.md` for the one-time Obsidian + Dataview setup.
+
 ## Housekeeping
 
 When the staleness threshold is reached (or the human asks), the housekeeping
