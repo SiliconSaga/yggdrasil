@@ -18,7 +18,10 @@
 # Glob patterns. A match makes the hook emit permissionDecision: "ask" —
 # a forced permission prompt in any mode, NOT a block. The agent still
 # runs the command once the human approves. Patterns match the full
-# command string; '*' matches any substring.
+# command string; '*' matches any substring. NOTE: ask patterns are
+# matched against the NORMALIZED command (bash scripts/ws → ws), so a
+# pattern only needs the bare `ws ...` form — a `bash scripts/ws ...`
+# pattern can never match the normalized command and would be dead.
 rm -rf*
 rm -fr*
 rm -r *
@@ -29,7 +32,6 @@ find * -delete*
 find*-exec*
 find*-execdir*
 ws hook-bypass [a-z]*
-bash scripts/ws hook-bypass [a-z]*
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2

@@ -10,6 +10,8 @@
 - [`docs/gdd/agent-training.md`](../gdd/agent-training.md) — the user-facing companion to the hook
 - Thalamus `hook-v2-extensions` arc — the parked arc this work picks up; the deep pair is two of six grouped ideas
 
+> **Correction (2026-05-22, post-implementation):** two details below describe the *planned* shape and were superseded during implementation/acceptance — kept here as the historical record. (1) The bypass marker keys off the Claude Code session id exposed as `$CLAUDE_CODE_SESSION_ID` (with a `$CLAUDE_SESSION_ID` fallback), not `$CLAUDE_SESSION_ID` alone — the real env-var name was discovered during the live acceptance walk-through. (2) The ask pattern shipped as the narrower `ws hook-bypass [a-z]*` (not `ws hook-bypass *`) so `--help` / `-h` don't force-prompt. The shipped behavior is authoritative in `.claude/hooks/` and `docs/gdd/`.
+
 ## Overview
 
 The PreToolUse hook today denies shell composition (Tier 1) and asks before destructive single commands (Tier 2, added in the ask-tier work). It does not address a different drift pattern: agents reaching for raw `git commit` / `git push` / `gh pr create` when the workspace's `ws` wrappers are the right tool. The wrappers handle attribution (Co-Authored-By), bodyfile-driven flows, fork-remote selection, identity substitutions, and token coverage — discipline that AGENTS.md documents but training-data reflex drifts away from.

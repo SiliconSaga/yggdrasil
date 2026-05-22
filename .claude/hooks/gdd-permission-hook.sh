@@ -694,9 +694,14 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
         _t2_marker_path="$_t2_project_root/.tmp/hook-bypass/$_t2_slug.bypass"
         _t2_bypass_ok=0
         if [[ -f "$_t2_marker_path" ]]; then
-            # Parse session_id and reason from the marker file.
-            _t2_marker_sid=$(grep '^session_id:' "$_t2_marker_path" 2>/dev/null | sed 's/^session_id: *//')
-            _t2_marker_reason=$(grep '^reason:' "$_t2_marker_path" 2>/dev/null | sed 's/^reason: *//')
+            # Parse session_id and reason from the marker file. The
+            # trailing `|| true` keeps a malformed marker (missing either
+            # line) from aborting the hook under `set -euo pipefail` — a
+            # missing field grep-fails the pipeline, which would otherwise
+            # exit the script; instead the field defaults to empty, the
+            # session check fails to match, and the command denies as usual.
+            _t2_marker_sid=$(grep '^session_id:' "$_t2_marker_path" 2>/dev/null | sed 's/^session_id: *//' || true)
+            _t2_marker_reason=$(grep '^reason:' "$_t2_marker_path" 2>/dev/null | sed 's/^reason: *//' || true)
             if [[ -n "$_t2_session_id" && "$_t2_marker_sid" == "$_t2_session_id" ]]; then
                 _t2_bypass_ok=1
             fi
@@ -709,7 +714,7 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
             # permissionDecision; PermissionRequest uses decision.behavior),
             # mirroring the allow() helper so the dormant PermissionRequest
             # path stays correct if that hook is ever enabled.
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_t2_slug] reason=\"$_t2_marker_reason\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_t2_slug] reason=\"$(audit_safe "$_t2_marker_reason")\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
             if [[ "$event" == "PermissionRequest" ]]; then
                 printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
             else

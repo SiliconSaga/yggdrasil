@@ -855,3 +855,35 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
     grep -q 'BYPASS-ALLOW \[git-commit\] reason="from subdir"' "$HOME/.claude/hook-audit.log"
 }
+
+@test "bypass: malformed marker missing session_id denies without aborting the hook" {
+    # A corrupted / hand-edited marker missing the session_id line must
+    # NOT abort the hook (grep-fail under set -euo pipefail). It should
+    # treat the marker as stale and deny normally.
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    mkdir -p "$WORK/.tmp/hook-bypass"
+    printf 'slug: git-commit\nreason: hand-edited\n' > "$WORK/.tmp/hook-bypass/git-commit.bypass"
+    run_hook_with_session 'git commit -m x' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "bypass: malformed marker missing reason line still allows on session match" {
+    # Missing reason line must not abort the hook either; with a matching
+    # session_id the bypass still applies, just with an empty reason.
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    mkdir -p "$WORK/.tmp/hook-bypass"
+    printf 'session_id: session-abc\nslug: git-commit\n' > "$WORK/.tmp/hook-bypass/git-commit.bypass"
+    run_hook_with_session 'git commit -m x' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[git-commit\] reason=""' "$HOME/.claude/hook-audit.log"
+}

@@ -10,6 +10,8 @@
 
 **Spec:** [`2026-05-20-hook-redirect-and-bypass-design.md`](2026-05-20-hook-redirect-and-bypass-design.md)
 
+> **Correction (2026-05-22, post-implementation):** the Goal above and some snippets below say the marker keys off `CLAUDE_SESSION_ID`. The implementation resolves `${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}` — the real Claude Code env var is `CLAUDE_CODE_SESSION_ID`, discovered during the live acceptance walk-through (the `CLAUDE_SESSION_ID`-only form was unset in practice and the bypass was non-functional until fixed). The ask pattern also shipped as the narrower `ws hook-bypass [a-z]*`. This plan is kept as the historical execution record; `.claude/hooks/` and `scripts/ws-hook-bypass.sh` are authoritative.
+
 ---
 
 ## Notes on this plan
