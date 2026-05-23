@@ -1,33 +1,38 @@
 # Yggdrasil
 
-*The World Tree — The Meta-Workspace*
+*The World Tree — GDD's Meta-Workspace*
 
 > "An immense mythical tree that connects the nine worlds in Norse cosmology."
 
-**Yggdrasil** is the **Root Workspace** / wrapper for the entire ecosystem. It holds the VS Code workspace file, the high-level "Project Constellation" map, workflow strategies that bind the other projects together, and so on
+**Yggdrasil** is the meta-workspace where [Guardian Driven Development (GDD)](docs/gdd/index.md) lives. It isn't just a wrapper around the ecosystem's repos — it's the home of the methodology itself: the `ws` workspace CLI, the GDD skills, the shared-thinking Thalamus, the components/realms/hoards model, and the documentation, commit, and branch conventions that bind everything together. Components, realms, and hoards are what Yggdrasil *orchestrates*; GDD is what Yggdrasil *is*.
 
-## AI Usage
+## Start here
 
-This ecosystem is largely made possible by extensive AI usage, such as with Claude Code or Google's Antigravity. General AI instructions can be found in `agents.md` in this project, which can be pointed at by other agent-specific files like `CLAUDE.md` to avoid duplication. Only put agent-specific instructions in named agent files.
+- **[`AGENTS.md`](AGENTS.md)** — the canonical workspace guide for humans and AI agents: session startup, the `ws` CLI, skills, git workflow, auth, conventions. Read this first.
+- **[`docs/gdd/`](docs/gdd/index.md)** — the methodology: roles and modes, the Thalamus, trust & safety, permissions, and the agent-training companion to the PreToolUse hook.
+- **The `ws` CLI** — the shared interface for both humans and agents. Run `bash scripts/ws help` (or `ws help` once `scripts/` is on your PATH).
 
-Agent skills can be installed in various ways and custom ones added at `.agent/skills`
+## What lives here
 
-### Claude Code
+- **`ecosystem.yaml`** — the manifest declaring components and their tiers, three-layer-merged with an active realm and a per-developer `ecosystem.local.yaml`.
+- **`scripts/ws`** — the unified CLI: clone, status, commit, push, cr, review, test, plus realm / hoard / component management.
+- **`.agent/skills/`** — workspace skills (GDD orchestration, orientation, housekeeping, the documentation conventions, and more). They are plain-markdown files read directly; some practice flows also lean on the optional [Obra Superpowers](https://github.com/obra/superpowers) plugin.
+- **`docs/`** — ecosystem architecture, the GDD methodology, and design / plan docs. Documentation follows the **Component Documentation Convention** — a four-Shape graduation ladder (loose root Markdown → structured `/docs` → themed site → custom) defined in the [`writing-yggdrasil-docs`](.agent/skills/writing-yggdrasil-docs/SKILL.md) skill.
+- **Components / realms / hoards** — cloned under `components/`, `realms/`, `hoards/` (all gitignored, independent Git repos). A VS Code workspace file is generated on demand via `ws vscode`; it is not committed.
 
-* https://code.claude.com/docs/en/skills - read about skills in general and which are bundled
-* https://github.com/anthropics/skills - an additional set of official skills by Anthropic
-  * Install with `/plugin marketplace add anthropics/skills`
-  * Then `/plugin install example-skills@anthropic-agent-skills`
-* https://github.com/obra/superpowers - Obra Superpowers is a well-reputed set of additional skills
-  * Install with `/plugin marketplace add obra/superpowers-marketplace`
-  * Then `/plugin install superpowers@superpowers-marketplace`
-* Restart Claude or run `/reload-plugins` after
+## AI usage
 
-#### Shipped Claude Code hook
+This ecosystem is built with heavy AI assistance (Claude Code, among others). General agent instructions live in [`AGENTS.md`](AGENTS.md); agent-specific files like `CLAUDE.md` point at it to avoid duplication. Custom skills go under `.agent/skills/`.
 
-This repo ships a PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` (registered in `.claude/settings.json`). When a Claude Code session is started in this workspace, the hook fires on every Bash tool call the agent attempts and:
+### Claude Code skills
 
-* **Rejects shell composition** (`&&`, `||`, `;`, pipes, redirects, command substitution) with a corrective message telling the agent to use separate tool calls or native `ws` flags. Keeps commands single-purpose and easier for newer users to follow.
-* **Auto-allows** anything matching the project's `permissions.allow` patterns or per-machine allow patterns in `.claude/hooks/hook-rules.local`.
+* https://code.claude.com/docs/en/skills — skills overview and what ships bundled
+* https://github.com/anthropics/skills — Anthropic's official skill set
+  * `/plugin marketplace add anthropics/skills`, then `/plugin install example-skills@anthropic-agent-skills`
+* https://github.com/obra/superpowers — Obra Superpowers, a well-regarded additional set
+  * `/plugin marketplace add obra/superpowers-marketplace`, then `/plugin install superpowers@superpowers-marketplace`
+* Restart Claude or run `/reload-plugins` after installing.
 
-If the hook ever stalls a session, or you'd just rather have Claude's default permission flow, you can opt out by exporting `WS_HOOK_DISABLE=1`. Full operational details, including how to add safe-command patterns of your own, live in [`.claude/hooks/README.md`](./.claude/hooks/README.md).
+### The PreToolUse hook
+
+This repo ships a Claude Code PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) that channels agent Bash calls toward the `ws` CLI and away from opaque shell composition. Corrective "deny" messages early in a session are the hook teaching conventions, not errors. Full details live in [`.claude/hooks/README.md`](.claude/hooks/README.md) (the technical spec) and [`docs/gdd/agent-training.md`](docs/gdd/agent-training.md) (why it exists, in plain terms). Opt out for a session with `WS_HOOK_DISABLE=1`.
