@@ -508,6 +508,28 @@ git reset --hard*"
     [[ "$output" != *"symlinks"* ]]
 }
 
+@test "ask: ws hook-bypass gets a tailored message naming the slug + reason" {
+    write_project_hook_rules "[ask-commands]
+ws hook-bypass [a-z]*"
+    run_hook 'ws hook-bypass git-commit --reason "amend last commit"'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"git-commit"* ]]
+    [[ "$output" == *"amend last commit"* ]]
+    # NOT the generic destructive-command message
+    [[ "$output" != *"destructive or hard to undo"* ]]
+}
+
+@test "ask: ws hook-bypass without --reason surfaces (none)" {
+    write_project_hook_rules "[ask-commands]
+ws hook-bypass [a-z]*"
+    run_hook "ws hook-bypass git-push"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"git-push"* ]]
+    [[ "$output" == *"(none)"* ]]
+}
+
 @test "ask: Tier 1 composition denies before the ask-tier is reached" {
     write_project_hook_rules "[ask-commands]
 rm -rf*"
