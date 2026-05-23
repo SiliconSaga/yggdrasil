@@ -757,7 +757,23 @@ for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
                 # Strip one layer of surrounding double quotes, if present.
                 _bp_reason="${_bp_reason#\"}"
                 _bp_reason="${_bp_reason%\"}"
-                _ask_reason="Approve to grant a session-scoped bypass for the '$_bp_slug' redirect — the agent will then be able to run the otherwise-denied '$_bp_slug' command for the rest of this session (it still issues that command as a separate step). Per-slug, expires when the session ends. Reason given: ${_bp_reason:-(none)}. Decline if you'd rather it use the ws wrapper."
+                # The slug is NOT the raw command — look up the matching
+                # redirect pattern so the message names what actually gets
+                # unblocked (e.g. slug `git-commit` → `git commit*`).
+                _bp_pattern=""
+                for _bp_entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
+                    if [[ "${_bp_entry%%|*}" == "$_bp_slug" ]]; then
+                        _bp_entry_rest="${_bp_entry#*|}"
+                        _bp_pattern="${_bp_entry_rest%%|*}"
+                        break
+                    fi
+                done
+                if [[ -n "$_bp_pattern" ]]; then
+                    _bp_target="raw commands matching \`$_bp_pattern\` (e.g. \`${_bp_pattern%\*}…\`), which the '$_bp_slug' redirect normally denies"
+                else
+                    _bp_target="the raw command behind the '$_bp_slug' redirect slug"
+                fi
+                _ask_reason="Approve to grant a session-scoped bypass of the '$_bp_slug' redirect — the agent will then be able to run $_bp_target for the rest of this session (it still issues that command as a separate step). Per-slug, expires when the session ends. Reason given: ${_bp_reason:-(none)}. Decline if you'd rather it use the ws wrapper."
                 ;;
         esac
         ask "$_ask_reason"

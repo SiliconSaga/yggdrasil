@@ -530,6 +530,34 @@ ws hook-bypass [a-z]*"
     [[ "$output" == *"(none)"* ]]
 }
 
+@test "ask: ws hook-bypass supports the --reason=<value> form" {
+    write_project_hook_rules "[ask-commands]
+ws hook-bypass [a-z]*"
+    run_hook "ws hook-bypass git-commit --reason=amend-last-commit"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"git-commit"* ]]
+    [[ "$output" == *"amend-last-commit"* ]]
+    [[ "$output" != *"destructive or hard to undo"* ]]
+}
+
+@test "ask: ws hook-bypass message names the raw command pattern, not just the slug" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+[ask-commands]
+ws hook-bypass [a-z]*
+EOF
+)"
+    run_hook "ws hook-bypass git-commit"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    # The slug is named AND the raw command pattern it maps to is surfaced,
+    # so the human isn't told the slug 'git-commit' is itself the command.
+    [[ "$output" == *"git-commit"* ]]
+    [[ "$output" == *"git commit*"* ]]
+}
+
 @test "ask: Tier 1 composition denies before the ask-tier is reached" {
     write_project_hook_rules "[ask-commands]
 rm -rf*"
