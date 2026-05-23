@@ -69,6 +69,17 @@ When an arc completes, its residue splits three ways:
 
 The `ArcDashboard` and the GitHub Project board are **companions, not redundant**: `ArcDashboard` shows in-flight private work across your machines — ephemeral, fast, pruned. The GitHub Project board shows graduated durable work — persistent, public, edited live. An arc with `status: promoted` is the hand-off marker between the two.
 
+## How the Docs tier is structured — the doc-shape ladder
+
+The Docs tier has its own "start small, grow as needed" ladder, mirroring the stack as a whole. A component's documentation moves through four **shapes** as its content grows, and — like every seam here — graduation between shapes is propose-then-confirm during ceremony, never automatic:
+
+1. **Loose root Markdown** — a `README.md` plus optional root companions (`CONTRIBUTING.md`, `CHANGELOG.md`, …), no `docs/` yet. Right for anything from brand-new to small-but-focused, where everything fits in a handful of root files.
+2. **Plainly structured `/docs`** — the README plus a `docs/` directory holding a `docs/README.md` index and one topic file per concept, in plain Markdown with no site config. This is the shape a graduating arc's durable knowledge lands in.
+3. **Themed docs site** — adds a site config (MkDocs / Jekyll / equivalent), a theme, and navigation, and deploys to GitHub Pages. Right once navigation and search start to matter, or the audience extends beyond developers reading on GitHub.
+4. **Custom site** — beyond the standard frameworks. Named only so the ladder is finite; most components never reach it.
+
+The Shape 1 → 2 trigger is exactly the graduation moment above: when a closing arc's durable knowledge would otherwise pile into a single root README, that is the signal to give the component a real `docs/` index plus topic files. The per-shape structure, file roles, and anti-patterns are the operational detail an agent applies when actually writing docs — those live in the `writing-yggdrasil-docs` skill.
+
 ## The cadence ladder
 
 The two ceremonies move items across seams as work happens. But the durable tier also needs periodic review — otherwise promoted issues are never looked at again. The model therefore defines a **cadence ladder**: ceremonies keyed to horizon, not only to session boundaries.

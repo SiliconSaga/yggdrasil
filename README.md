@@ -8,16 +8,16 @@
 
 ## Start here
 
-- **[`AGENTS.md`](AGENTS.md)** — the canonical workspace guide for humans and AI agents: session startup, the `ws` CLI, skills, git workflow, auth, conventions. Read this first.
-- **[`docs/gdd/`](docs/gdd/index.md)** — the methodology: roles and modes, the Thalamus, trust & safety, permissions, and the agent-training companion to the PreToolUse hook.
-- **The `ws` CLI** — the shared interface for both humans and agents. Run `bash scripts/ws help` (or `ws help` once `scripts/` is on your PATH).
+- **New here (human)?** The human-facing docs live in [`docs/gdd/`](docs/gdd/index.md): start with the [features tour](docs/gdd/features.md) — what's in the box — and the [GDD index](docs/gdd/index.md) for the methodology behind it.
+- **Driving a session?** [`AGENTS.md`](AGENTS.md) is the operational guide — session startup, the `ws` CLI, skills, git workflow, auth. It's written *for agents* (terse and optimized for them, not prose for humans), but it's the reference when you need workspace mechanics.
+- **The `ws` CLI** is the shared interface for both humans and agents. Run `bash scripts/ws help` (or `ws help` once `scripts/` is on your PATH).
 
 ## What lives here
 
 - **`ecosystem.yaml`** — the manifest declaring components and their tiers, three-layer-merged with an active realm and a per-developer `ecosystem.local.yaml`.
 - **`scripts/ws`** — the unified CLI: clone, status, commit, push, cr, review, test, plus realm / hoard / component management.
-- **`.agent/skills/`** — workspace skills (GDD orchestration, orientation, housekeeping, the documentation conventions, and more). They are plain-markdown files read directly; some practice flows also lean on the optional [Obra Superpowers](https://github.com/obra/superpowers) plugin.
-- **`docs/`** — ecosystem architecture, the GDD methodology, and design / plan docs. Documentation follows the **Component Documentation Convention** — a four-Shape graduation ladder (loose root Markdown → structured `/docs` → themed site → custom) defined in the [`writing-yggdrasil-docs`](.agent/skills/writing-yggdrasil-docs/SKILL.md) skill.
+- **`.agent/skills/`** — agent-facing workspace skills (GDD orchestration, orientation, housekeeping, the documentation conventions, and more). These are operational guidance the agent reads directly, not human reading material — humans get the higher-level concepts from `docs/`. Some practice flows also lean on the optional [Obra Superpowers](https://github.com/obra/superpowers) plugin.
+- **`docs/`** — ecosystem architecture, the GDD methodology, and design / plan docs. Component docs follow the **Component Documentation Convention** — a four-Shape graduation ladder, described human-side in [the organization stack](docs/gdd/organization-stack.md); the operational rules for agents writing docs live in the `writing-yggdrasil-docs` skill.
 - **Components / realms / hoards** — cloned under `components/`, `realms/`, `hoards/` (all gitignored, independent Git repos). A VS Code workspace file is generated on demand via `ws vscode`; it is not committed.
 
 ## AI usage
