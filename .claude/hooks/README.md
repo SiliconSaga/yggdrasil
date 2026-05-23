@@ -61,7 +61,7 @@ The Tier 2 redirect-deny channels three raw commands toward the workspace's `ws`
 A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, the right token. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:
 
 1. Agent hits the deny; corrective message names `ws hook-bypass <slug>` as the escape hatch.
-2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt.
+2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt — tailored to name the slug being bypassed and surface the `--reason`, so the human sees what they're approving rather than a generic "destructive command" line.
 3. Human approves; the script writes `.tmp/hook-bypass/<slug>.bypass` keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`).
 4. Agent retries the raw command; the hook finds the marker, matches session_id, and emits an allow with audit `BYPASS-ALLOW [<slug>] reason="<text>" [PreToolUse]: <cmd>`.
 5. The marker is honored for the rest of the session. Next session's `CLAUDE_CODE_SESSION_ID` differs, so the marker is stale; `ws clean` sweeps `.tmp/` whenever you want a clean slate.

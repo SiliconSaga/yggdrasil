@@ -742,6 +742,39 @@ for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
             rm|rm\ *)
                 _ask_reason="$_ask_reason Caution: symlinks here could delete outside the workspace."
                 ;;
+            "ws hook-bypass "*)
+                # Tailored message: `ws hook-bypass` is NOT destructive — it
+                # requests a session-scoped bypass of a Tier 2 redirect deny.
+                # The generic ask line misdescribes it and never names what's
+                # being bypassed, so surface the slug + the --reason instead.
+                _bp_rest="${match_cmd#ws hook-bypass }"
+                _bp_slug="${_bp_rest%% *}"
+                _bp_reason=""
+                case "$match_cmd" in
+                    *--reason=*)   _bp_reason="${match_cmd#*--reason=}" ;;
+                    *"--reason "*) _bp_reason="${match_cmd#*--reason }" ;;
+                esac
+                # Strip one layer of surrounding double quotes, if present.
+                _bp_reason="${_bp_reason#\"}"
+                _bp_reason="${_bp_reason%\"}"
+                # The slug is NOT the raw command — look up the matching
+                # redirect pattern so the message names what actually gets
+                # unblocked (e.g. slug `git-commit` → `git commit*`).
+                _bp_pattern=""
+                for _bp_entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
+                    if [[ "${_bp_entry%%|*}" == "$_bp_slug" ]]; then
+                        _bp_entry_rest="${_bp_entry#*|}"
+                        _bp_pattern="${_bp_entry_rest%%|*}"
+                        break
+                    fi
+                done
+                if [[ -n "$_bp_pattern" ]]; then
+                    _bp_target="raw commands matching \`$_bp_pattern\` (e.g. \`${_bp_pattern%\*}…\`), which the '$_bp_slug' redirect normally denies"
+                else
+                    _bp_target="the raw command behind the '$_bp_slug' redirect slug"
+                fi
+                _ask_reason="Approve to grant a session-scoped bypass of the '$_bp_slug' redirect — the agent will then be able to run $_bp_target for the rest of this session (it still issues that command as a separate step). Per-slug, expires when the session ends. Reason given: ${_bp_reason:-(none)}. Decline if you'd rather it use the ws wrapper."
+                ;;
         esac
         ask "$_ask_reason"
     fi
