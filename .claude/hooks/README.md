@@ -6,13 +6,14 @@ This directory contains a hook script that fires during Claude Code sessions in 
 
 ## PreToolUse hook 
 
-Fires before every Bash tool call. Four decision tiers, then a passthrough:
+Fires before every Bash tool call. Five decision tiers, then a passthrough:
 
 1. **Deny shell composition** (`&&`, `||`, `;`, pipes, command substitution, redirects) with a corrective message that tells the agent how to retry. Trains the agent to use separate tool calls and native `ws` flags (`--limit`, `--compact`, `--output`) instead of shell composition.
-2. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` on some directory within the workspace that `acceptEdits` would otherwise auto-approve silently (to perhaps some surprise! But mass file deletion *could* be considered an "edit" technically).
-3. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
-4. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
-5. **Pass** everything else goes to default behavior based on other config.
+2. **Deny raw `git commit` / `git push` / `gh pr create`** (and any other entry in the `[redirect-commands]` section of `hook-rules`) with a corrective message pointing at the right `ws` subcommand. A session-scoped bypass marker — written by `ws hook-bypass <slug>` after a human-approved ask prompt — overrides the deny for that slug. See [Redirect tier and bypass](#redirect-tier-and-bypass) below.
+3. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` on some directory within the workspace that `acceptEdits` would otherwise auto-approve silently (to perhaps some surprise! But mass file deletion *could* be considered an "edit" technically).
+4. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
+5. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
+6. **Pass** everything else goes to default behavior based on other config.
 
 Logs allow/deny/ask decisions to `~/.claude/hook-audit.log` with timestamps so you can review what the hook is doing. Passthroughs are not logged.
 
@@ -33,9 +34,9 @@ The format is flat sectioned text: `[section]` headers, one entry per line, `#` 
 
 **`[scratch-dirs]`** — workspace-relative paths under which Edit/Write tool calls auto-allow. Keeps in lockstep with the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore). Entries in `hook-rules.local` add to the baseline; they never replace it.
 
-**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 2 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
+**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 3 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
 
-**`[allow-extras]`** — personal Bash glob patterns auto-allowed on this machine without prompting (Tier 4). Only valid in `hook-rules.local`, never in the committed baseline. An entry here will not win over an "ask command" entry.
+**`[allow-extras]`** — personal Bash glob patterns auto-allowed on this machine without prompting (Tier 5). Only valid in `hook-rules.local`, never in the committed baseline. An entry here will not win over an "ask command" entry.
 
 ### Setting up per-machine overrides
 
@@ -47,6 +48,28 @@ Then edit `hook-rules.local`. The example file is annotated with common entries.
 
 **Important:** the safety reasoning of every `[allow-extras]` pattern depends on the hook's Tier 1 still being active. Removing the hook OR disabling Tier 1 would change the calculus of every entry. Treat changes to `hook-rules.local` with care.
 
+### Redirect tier and bypass
+
+The Tier 2 redirect-deny channels three raw commands toward the workspace's `ws` wrappers:
+
+| Slug | Pattern | Use this instead |
+|---|---|---|
+| `git-commit` | `git commit*` | `ws commit <comp> <bodyfile>` — bodyfile-driven, attaches the Co-Authored-By trailer |
+| `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkOrg`, sets upstream on first push |
+| `gh-pr-create` | `gh pr create*` | `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions |
+
+A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, the right token. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:
+
+1. Agent hits the deny; corrective message names `ws hook-bypass <slug>` as the escape hatch.
+2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt.
+3. Human approves; the script writes `.tmp/hook-bypass/<slug>.bypass` keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`).
+4. Agent retries the raw command; the hook finds the marker, matches session_id, and emits an allow with audit `BYPASS-ALLOW [<slug>] reason="<text>" [PreToolUse]: <cmd>`.
+5. The marker is honored for the rest of the session. Next session's `CLAUDE_CODE_SESSION_ID` differs, so the marker is stale; `ws clean` sweeps `.tmp/` whenever you want a clean slate.
+
+The recurring-bypass pattern — same slug bypassed every session — is a signal that the corresponding `ws` subcommand needs to grow that capability. Periodic `grep BYPASS-ALLOW ~/.claude/hook-audit.log` surfaces it.
+
+**Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z][a-z0-9-]*$` (start with a letter so the `ws hook-bypass [a-z]*` ask-pattern always catches a slug invocation). The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
+
 ## Optional: PermissionRequest hook
 
 Power-user opt-in. Wires the same `gdd-permission-hook.sh` script to a second hook event — `PermissionRequest` — and broadens its matcher to also cover the `Edit` and `Write` tools. Net effect:
@@ -55,6 +78,8 @@ Power-user opt-in. Wires the same `gdd-permission-hook.sh` script to a second ho
 - **Bash allowlist matches double-cover at the prompt layer.** Anything your `settings.json` `allow` or `hook-rules.local` `[allow-extras]` would have allowed at `PreToolUse` also gets approved at `PermissionRequest`, which can help in some configurations — largely intended to let the GDD extensions be good citizens in otherwise constrained settings.
 
 This isn't enabled by default because (a) `PermissionRequest` is a different threat-model surface than `PreToolUse` — auto-allowing writes into a directory list is a stronger trust grant than auto-allowing read-shaped Bash patterns, and (b) the value is mostly ergonomic, so it's better off opt-in than imposed. 
+
+**Interaction with the redirect bypass.** When this optional hook is enabled, `.tmp/` is among the auto-allowed scratch dirs — so an agent could in principle write a bypass marker (`.tmp/hook-bypass/<slug>.bypass`) with the Write tool directly, skipping `ws hook-bypass` and therefore the ask-prompt. That sidesteps the human gate for the Tier 2 redirect deny. This is consistent with the redirect tier's stated threat model (agent *drift*, not an adversarial agent deliberately crafting marker files) — and an agent in `acceptEdits` can already write into `.tmp/` regardless of this hook — but operators who enable the PermissionRequest extension and want the bypass to remain strictly human-gated should be aware of it.
 
 It still includes the sometimes more severe blocks that GDD implements to teach the agent not to let commands be chained at all, favoring deterministic scripts and temporary files that are more auditable than massive commands dumping to a simple point-in-time approve prompt.
 

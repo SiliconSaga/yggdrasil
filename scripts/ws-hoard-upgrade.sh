@@ -34,13 +34,16 @@
 ws_hoard_upgrade_help() {
     echo "Usage: ws hoard upgrade <hoard-name>" >&2
     echo "" >&2
-    echo "Re-fetch plugins and refresh configs for a hoard, using the" >&2
-    echo "upgrade.yaml shipped by its template. Idempotent — safe to" >&2
-    echo "re-run." >&2
+    echo "DISABLED pending a provenance fix. The command has no per-hoard" >&2
+    echo "provenance and would apply the only upgradeable template" >&2
+    echo "(obsidian-vault) to ANY hoard, pushing the full plugin suite onto" >&2
+    echo "thalami hoards that only need Dataview. Re-enable once hoards carry" >&2
+    echo ".hoard.yaml provenance and/or the thalami template ships its own" >&2
+    echo "minimal upgrade.yaml (yggdrasil#54). Override on an obsidian-vault" >&2
+    echo "hoard with WS_HOARD_UPGRADE_ENABLED=1." >&2
     echo "" >&2
-    echo "The originating template is auto-discovered today (only one" >&2
-    echo "template currently ships upgrade.yaml). When more arrive," >&2
-    echo "this command will require --template <flavor> to disambiguate." >&2
+    echo "When enabled: re-fetch plugins and refresh configs for a hoard," >&2
+    echo "using the upgrade.yaml shipped by its template. Idempotent." >&2
 }
 
 # Try `gh release download <tag> ...` with the literal pin first, then
@@ -286,6 +289,36 @@ ws_hoard_upgrade() {
     local hoard_name="${1:-}"
     if [[ -z "$hoard_name" || "$hoard_name" == "--help" || "$hoard_name" == "-h" ]]; then
         ws_hoard_upgrade_help
+        return 1
+    fi
+
+    # ─── DISABLED by default pending a provenance fix (TODO) ────────
+    # This command has no per-hoard provenance: it applies the single
+    # template that ships an .upgrade/upgrade.yaml (today only
+    # obsidian-vault) to ANY hoard named, regardless of that hoard's
+    # actual flavor. Run against a thalami hoard it pushed the full
+    # PARA-vault plugin suite — including Linter (auto-format on save)
+    # and Filename Heading Sync (renames H1/filename) — onto a vault
+    # that only needs Dataview, risking edits to the thalamus files on
+    # next Obsidian open (observed 2026-05-22).
+    #
+    # Re-enable (remove this gate) once hoards carry a .hoard.yaml
+    # provenance marker (the yggdrasil#54 follow-up) and/or the thalami
+    # template ships its own minimal upgrade.yaml. The internal
+    # _ws_hoard_upgrade_from_template is intentionally left active —
+    # `ws hoard init` calls it with an explicit, known template, so that
+    # path has no provenance gap. The WS_HOARD_UPGRADE_ENABLED escape
+    # hatch (matching the WS_HOOK_DISABLE / WS_HOOK_DEBUG idiom) lets a
+    # power user who knows their hoard is obsidian-vault-shaped override.
+    if [[ "${WS_HOARD_UPGRADE_ENABLED:-0}" != "1" ]]; then
+        echo "DISABLED: 'ws hoard upgrade' is intentionally off pending a provenance fix (TODO)." >&2
+        echo "  It has no per-hoard provenance and would apply the obsidian-vault" >&2
+        echo "  upgrade recipe to ANY hoard — pushing the full plugin suite onto" >&2
+        echo "  thalami hoards that only need Dataview (Linter / Filename Heading" >&2
+        echo "  Sync can then edit the thalamus files on next Obsidian open)." >&2
+        echo "  Re-enable once hoards carry .hoard.yaml provenance and/or the" >&2
+        echo "  thalami template ships its own minimal upgrade.yaml (yggdrasil#54)." >&2
+        echo "  Override for an obsidian-vault hoard with WS_HOARD_UPGRADE_ENABLED=1." >&2
         return 1
     fi
 

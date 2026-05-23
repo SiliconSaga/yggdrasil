@@ -86,6 +86,23 @@ write_local_hook_rules() {
     printf '%s\n' "$1" > "$WORK/.claude/hooks/hook-rules.local"
 }
 
+# Write a bypass marker file under $WORK/.tmp/hook-bypass/<slug>.bypass
+# with the given session_id and optional reason. Used by Tier 2 bypass
+# tests to simulate a marker created by `ws hook-bypass`.
+# Args: $1 = slug, $2 = session_id, $3 = reason (optional)
+write_bypass_marker() {
+    local slug="$1"
+    local session_id="$2"
+    local reason="${3:-}"
+    mkdir -p "$WORK/.tmp/hook-bypass"
+    cat > "$WORK/.tmp/hook-bypass/$slug.bypass" <<EOF
+session_id: $session_id
+slug: $slug
+created_at: 2026-05-20T15:00:00Z
+reason: $reason
+EOF
+}
+
 # Build an Edit/Write tool-call payload and pipe it into the hook.
 # The hook's non-Bash branch decides on the file_path, not a command.
 # project_dir falls back to cwd when CLAUDE_PROJECT_DIR is unset, so
@@ -121,5 +138,19 @@ run_hook() {
     # Bash herestring `<<<` feeds $payload as stdin to the hook —
     # cleaner than wrapping in `bash -c` to pipe (which also runs
     # afoul of the workspace's no-inline-shell-scripts convention).
+    run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
+}
+
+# Build a tool-call payload that includes session_id, and pipe it
+# into the hook. Used by tests that exercise the bypass-marker logic
+# (Tier 2). Args: $1 = command string, $2 = session_id, $3 = cwd
+# (defaults to $WORK).
+run_hook_with_session() {
+    local cmd="$1"
+    local session_id="$2"
+    local cwd="${3:-$WORK}"
+    local payload
+    payload=$(jq -nc --arg cmd "$cmd" --arg cwd "$cwd" --arg sid "$session_id" \
+        '{session_id:$sid, tool_input:{command:$cmd}, cwd:$cwd}')
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }

@@ -38,6 +38,8 @@
 #   audit-permissions [--names-only]  Flag broad permissions.allow patterns across all 3 scopes
 #   mcp-setup [--dry-run]  Generate .mcp.json from realm mcp.servers declarations
 #   mcp-status        Show currently configured MCP servers
+#   hook-bypass <slug> [--reason "<text>"]  Write a session-scoped bypass marker
+#                     for a Tier 2 redirect-deny slug. See `ws hook-bypass --help`.
 #   help              Show this help message (or `ws help <subcommand>` for per-command help)
 #
 # Auth commands (run these before ws push / ws cr):
@@ -722,6 +724,9 @@ case "$COMMAND" in
         ;;
     mcp-status)
         bash "$SCRIPT_DIR/ws-mcp-setup.sh" --status
+        ;;
+    hook-bypass)
+        bash "$SCRIPT_DIR/ws-hook-bypass.sh" "$@"
         ;;
     *)
         echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2

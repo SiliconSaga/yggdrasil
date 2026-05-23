@@ -620,3 +620,270 @@ find*-exec*"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
+
+# ─── Tier 2 redirect-deny — parser ──────────────────────────────────
+
+@test "redirect: malformed [redirect-commands] entry (2 columns) is skipped with warning" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+malformed-entry | only-two-columns
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    run_hook "git commit -m x"
+    [ "$status" -eq 0 ]
+    # Well-formed entry still fires
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws commit"* ]]
+    # Malformed entry triggers a warning in the audit log
+    grep -q "WARNING.*malformed \[redirect-commands\] entry" "$HOME/.claude/hook-audit.log"
+}
+
+@test "redirect: malformed slug (uppercase / underscore) is skipped" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git_commit | git commit* | bad slug, should skip
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    run_hook "git commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Use ws commit"* ]]
+    [[ "$output" != *"bad slug"* ]]
+}
+
+# ─── Tier 2 redirect-deny — evaluation ──────────────────────────────
+
+@test "redirect: git commit denies with ws commit suggestion" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use `ws commit <comp> <bodyfile>` — handles Co-Authored-By trailer + bodyfile-driven staging.
+git-push | git push* | Use `ws push <comp> [branch]` — handles fork-remote selection.
+gh-pr-create | gh pr create* | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven.
+EOF
+)"
+    run_hook 'git commit -m "fix bug"'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use \`ws commit"* ]]
+}
+
+@test "redirect: git push denies with ws push suggestion" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-push | git push* | Use ws push
+gh-pr-create | gh pr create* | Use ws cr
+EOF
+)"
+    run_hook "git push origin feature/x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws push"* ]]
+}
+
+@test "redirect: gh pr create denies with ws cr suggestion" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-push | git push* | Use ws push
+gh-pr-create | gh pr create* | Use ws cr
+EOF
+)"
+    run_hook "gh pr create --title x --body y"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws cr"* ]]
+}
+
+@test "redirect: composition wins over redirect (T1 before T2)" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    run_hook 'git commit -m x && git push'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Shell composition"* ]]
+    [[ "$output" != *"Use ws commit"* ]]
+}
+
+@test "redirect: command outside [redirect-commands] passes through Tier 2" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_project_settings "Bash(ls *)"
+    run_hook "ls -la"
+    [ "$status" -eq 0 ]
+    # Settings.json allow at Tier 4 should still match
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+# ─── Tier 2 redirect — bypass marker ────────────────────────────────
+
+@test "bypass: marker with matching session_id turns deny into allow" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" "amend last commit"
+    run_hook_with_session 'git commit --amend -m "fix"' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[git-commit\] reason="amend last commit"' "$HOME/.claude/hook-audit.log"
+}
+
+@test "bypass: marker with mismatched session_id still denies" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "session-stale" "old session"
+    run_hook_with_session 'git commit -m "fix"' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws commit"* ]]
+}
+
+@test "bypass: marker with empty reason still allows, audit reason is empty" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" ""
+    run_hook_with_session 'git commit -m "x"' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[git-commit\] reason=""' "$HOME/.claude/hook-audit.log"
+}
+
+@test "bypass: git-commit marker does NOT bypass gh-pr-create deny (slug isolation)" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+gh-pr-create | gh pr create* | Use ws cr
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" "amend"
+    run_hook_with_session "gh pr create --title x --body y" "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws cr"* ]]
+}
+
+@test "bypass: marker does NOT override Tier 1 composition deny" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" "amend"
+    run_hook_with_session 'git commit -m x && git push' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Shell composition"* ]]
+}
+
+@test "bypass: marker does NOT override Tier 3 ask-list" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+[ask-commands]
+rm -rf*
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" "amend"
+    run_hook_with_session "rm -rf .tmp/anything" "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "bypass: empty session_id in payload means no marker can match" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "" "no-id"
+    run_hook_with_session "git commit -m x" ""
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    # Security invariant: empty must not match empty. Confirm the deny is
+    # the -n guard rejecting the marker, NOT a bypass that silently fired.
+    ! grep -q 'BYPASS-ALLOW' "$HOME/.claude/hook-audit.log"
+}
+
+@test "bypass: ws hook-bypass <slug> does not match any redirect pattern (pattern-collision invariant)" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-push | git push* | Use ws push
+gh-pr-create | gh pr create* | Use ws cr
+[ask-commands]
+ws hook-bypass [a-z]*
+EOF
+)"
+    # Each known slug invocation should hit Tier 3 ask, NOT Tier 2 deny.
+    for slug in git-commit git-push gh-pr-create; do
+        echo "# testing slug: $slug"   # surfaces which iteration failed
+        run_hook "ws hook-bypass $slug"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    done
+}
+
+@test "bypass: marker is found when cwd is a subdirectory of the project root" {
+    # The marker lives at <project-root>/.tmp/hook-bypass/ (where
+    # ws hook-bypass writes it). When the agent's cwd is a subdir, the
+    # hook must still resolve the marker via the hook-rules root, not a
+    # cwd-anchored path. Regression guard for the cwd-anchored lookup bug.
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    write_bypass_marker "git-commit" "session-abc" "from subdir"
+    mkdir -p "$WORK/components/some-comp"
+    run_hook_with_session 'git commit -m x' "session-abc" "$WORK/components/some-comp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[git-commit\] reason="from subdir"' "$HOME/.claude/hook-audit.log"
+}
+
+@test "bypass: malformed marker missing session_id denies without aborting the hook" {
+    # A corrupted / hand-edited marker missing the session_id line must
+    # NOT abort the hook (grep-fail under set -euo pipefail). It should
+    # treat the marker as stale and deny normally.
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    mkdir -p "$WORK/.tmp/hook-bypass"
+    printf 'slug: git-commit\nreason: hand-edited\n' > "$WORK/.tmp/hook-bypass/git-commit.bypass"
+    run_hook_with_session 'git commit -m x' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "bypass: malformed marker missing reason line still allows on session match" {
+    # Missing reason line must not abort the hook either; with a matching
+    # session_id the bypass still applies, just with an empty reason.
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+EOF
+)"
+    mkdir -p "$WORK/.tmp/hook-bypass"
+    printf 'session_id: session-abc\nslug: git-commit\n' > "$WORK/.tmp/hook-bypass/git-commit.bypass"
+    run_hook_with_session 'git commit -m x' "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[git-commit\] reason=""' "$HOME/.claude/hook-audit.log"
+}

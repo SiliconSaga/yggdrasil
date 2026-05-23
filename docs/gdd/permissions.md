@@ -50,11 +50,21 @@ The hook produces three possible decisions for a Bash command:
 
 - **deny** — shell composition or other forbidden patterns. The command is blocked and the agent receives a corrective message.
 - **ask** — the command matches the `[ask-commands]` glob list in `hook-rules` (or `hook-rules.local`). The hook emits `permissionDecision: "ask"`, forcing a human-facing permission prompt regardless of the session permission mode. This overrides `acceptEdits` and `bypassPermissions` — the prompt always surfaces. The command is NOT blocked; once the human approves, it runs normally. Destructive commands like `rm -rf` and `git reset --hard` live here.
-- **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 3) or an `[allow-extras]` glob in `hook-rules.local` (Tier 4). It proceeds without a prompt.
+- **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 4) or an `[allow-extras]` glob in `hook-rules.local` (Tier 5). It proceeds without a prompt.
 
 A secondary effect of the hook is that it can sometimes re-map GDD's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
 
 See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `hook-rules.local` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
+
+### Redirect tier and bypass
+
+Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`) that have a `ws` wrapper equivalent. The deny carries a corrective message pointing at the right `ws` subcommand.
+
+This is a *training* layer, not a safety floor — the `ws` wrappers add attribution, remote selection, and bodyfile flows that AGENTS.md documents but training-data reflex drifts away from. A legitimate edge case (the `ws` subcommand doesn't yet support what's needed) escapes via `ws hook-bypass <slug>`, which writes a marker file keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`). The marker is honored for the rest of the session.
+
+The `ws hook-bypass <slug>` subcommand itself is on the ask-list — every invocation force-prompts the human. The security boundary is the ask-tier; no env-var or cryptographic gate is added.
+
+See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facing details.
 
 ## Pattern shapes
 

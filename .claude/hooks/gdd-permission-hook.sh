@@ -39,9 +39,12 @@
 #
 # This script is security-sensitive: a permissive pattern here lets
 # the agent skip user confirmation for commands matching that pattern.
-# Keep deny logic conservative (Tier 1 below) and allow logic narrow
-# (Tiers 3-4). When uncertain, default to passthrough — the harness's
-# own prompt is the safety net, not a fallback to be eliminated.
+# Keep deny logic conservative (Tiers 1-2 below) and allow logic narrow
+# (Tiers 4-5). Note Tier 1 (composition) is an unconditional deny, while
+# Tier 2 (redirect) is a training-aid deny with a human-approved bypass —
+# do not treat Tier 2 as a hard security floor. When uncertain, default to
+# passthrough — the harness's own prompt is the safety net, not a fallback
+# to be eliminated.
 #
 # ─── DECISION TIERS (in order) ──────────────────────────────────────
 #
@@ -53,16 +56,33 @@
 #   per action and to prefer native flags (--limit, --output) over
 #   shell pipelines.
 #
-# Tier 2 — Ask-list from hook-rules [ask-commands] (ASK)
+# Tier 2 — Redirect deny (DENY, with per-slug bypass override)
+#   Commands matching a [redirect-commands] entry in hook-rules deny
+#   with a corrective message pointing at the right `ws` subcommand
+#   (e.g. `git commit` → use `ws commit`). Each entry declares a slug
+#   (column 1), the deny pattern (column 2), and the suggestion text
+#   (column 3, free text).
+#
+#   A session-scoped bypass marker — written by `ws hook-bypass
+#   <slug>` after a human-approved ask prompt — overrides the deny
+#   for that slug. The marker lives at .tmp/hook-bypass/<slug>.bypass
+#   and is honored only when its session_id matches the current
+#   session id (this hook reads it from the stdin payload's
+#   `.session_id`; `ws hook-bypass` writes it from
+#   $CLAUDE_CODE_SESSION_ID — the same UUID). Marker hits log
+#   BYPASS-ALLOW to the audit log
+#   with the slug + optional reason.
+#
+# Tier 3 — Ask-list from hook-rules [ask-commands] (ASK)
 #   Destructive commands that should always prompt, even under
 #   acceptEdits. Any match → ask.
 #
-# Tier 3 — Per-project allowlist from .claude/settings.json (ALLOW)
+# Tier 4 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
 #   too. Glob-match each pattern against the command. Any match → allow.
 #
-# Tier 4 — [allow-extras] from hook-rules.local (ALLOW, optional)
+# Tier 5 — [allow-extras] from hook-rules.local (ALLOW, optional)
 #   Personal per-machine glob patterns declared in hook-rules.local's
 #   [allow-extras] section. Parsed into allow_extras above. Any
 #   match → allow. Silently absent if hook-rules.local has no section.
@@ -70,10 +90,10 @@
 # Default — Passthrough
 #   Exit 0 with no JSON. Harness handles as normal.
 #
-# Config: the scratch-dir and ask-command lists live in
-# .claude/hooks/hook-rules (committed baseline); per-machine additions
-# and [allow-extras] live in hook-rules.local (gitignored). See
-# .claude/hooks/README.md.
+# Config: the scratch-dir, ask-command, and redirect-command lists
+# live in .claude/hooks/hook-rules (committed baseline); per-machine
+# additions and [allow-extras] live in hook-rules.local (gitignored).
+# See .claude/hooks/README.md.
 #
 # ─── AUDIT LOG ──────────────────────────────────────────────────────
 #
@@ -273,7 +293,7 @@ deny() {
 }
 
 # ask() — force a permission prompt without blocking. Used by the
-# Tier 2 ask-list for destructive-but-sometimes-legitimate commands.
+# Tier 3 ask-list for destructive-but-sometimes-legitimate commands.
 # Unlike deny(), the agent can still run the command once the human
 # approves; unlike allow(), it never auto-runs. The `ask` decision
 # overrides the harness's permission mode — it prompts even under
@@ -303,17 +323,19 @@ ask() {
 #
 # Flat sectioned text at .claude/hooks/hook-rules (committed baseline)
 # and .claude/hooks/hook-rules.local (gitignored per-machine override).
-# Parsed by pure bash — no yq/jq dependency for config. Three sections:
-#   [scratch-dirs]  — Edit/Write auto-allow path prefixes (Tier consumer)
-#   [ask-commands]  — Tier 2 ask-list glob patterns
-#   [allow-extras]  — Tier 4 allow glob patterns (hook-rules.local ONLY;
-#                     an [allow-extras] section in the committed hook-rules
-#                     is silently inert — only per-machine local files may
-#                     grant Tier 4 allows)
+# Parsed by pure bash — no yq/jq dependency for config. Four sections:
+#   [scratch-dirs]      — Edit/Write auto-allow path prefixes (Tier consumer)
+#   [redirect-commands] — Tier 2 redirect-deny entries (slug | pattern | suggestion)
+#   [ask-commands]      — Tier 3 ask-list glob patterns
+#   [allow-extras]      — Tier 5 allow glob patterns (hook-rules.local ONLY;
+#                         an [allow-extras] section in the committed hook-rules
+#                         is silently inert — only per-machine local files may
+#                         grant Tier 5 allows)
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
 allow_extras=()
+redirect_commands=()  # entries: "<slug>|<pattern>|<suggestion>"
 
 # Parse one rules file, appending entries to the section arrays.
 # $1 = file path; $2 = non-empty when parsing hook-rules.local (local).
@@ -345,6 +367,35 @@ _parse_rules_file() {
                         if [[ -n "$is_local" ]]; then
                             allow_extras+=("$line")
                         fi
+                        ;;
+                    redirect-commands)
+                        # Parse three pipe-separated columns: slug | pattern | suggestion.
+                        # Split on the first two " | " occurrences; remainder is suggestion.
+                        local slug pattern suggestion rest
+                        if [[ "$line" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, missing separator): $file" >> "$audit_log"
+                            continue
+                        fi
+                        slug="${line%% | *}"
+                        rest="${line#* | }"
+                        if [[ "$rest" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, only two columns): $file" >> "$audit_log"
+                            continue
+                        fi
+                        pattern="${rest%% | *}"
+                        suggestion="${rest#* | }"
+                        # Trim trailing whitespace from slug and pattern (suggestion is free text — keep as-is)
+                        slug="${slug%"${slug##*[![:space:]]}"}"
+                        pattern="${pattern%"${pattern##*[![:space:]]}"}"
+                        # Validate slug shape: ^[a-z][a-z0-9-]*$ (must
+                        # start with a letter so the `ws hook-bypass [a-z]*`
+                        # ask-pattern always catches a slug invocation).
+                        if [[ ! "$slug" =~ ^[a-z][a-z0-9-]*$ ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [redirect-commands] entry, bad slug '$slug'): $file" >> "$audit_log"
+                            continue
+                        fi
+                        # Pack as "slug|pattern|suggestion" (internal separator, never displayed)
+                        redirect_commands+=("$slug|$pattern|$suggestion")
                         ;;
                     *)
                         if [[ -z "$section" ]]; then
@@ -601,12 +652,87 @@ normalize_for_match() {
 }
 match_cmd="$(normalize_for_match "$cmd")"
 
-# ─── Tier 2: Ask-list — force a prompt for destructive commands ─────
+# ─── Tier 2: Redirect deny — raw commands with a `ws` equivalent ────
+#
+# Walk redirect_commands (parsed from [redirect-commands] in hook-rules).
+# A match emits `deny` with the entry's suggestion as the reason — the
+# corrective text points at the right `ws` subcommand. Tier 1 (above)
+# still runs first, so a composed `git commit -m x && git push` denies
+# for composition, never for redirect — the composition message is
+# more actionable.
+#
+# A bypass marker for the matching slug — written by `ws hook-bypass
+# <slug>` with the current session_id — turns the deny into an allow
+# (BYPASS-ALLOW audit entry). See bypass-check below.
+
+# Read session_id from the stdin payload (already parsed at line 158
+# above as the audit `event` was — we re-parse here to keep the Tier 2
+# block self-contained).
+_t2_session_id=$(echo "$input" | jq -r '.session_id // ""')
+
+# Anchor the bypass-marker lookup to the project root, NOT $cwd. The
+# marker is written by `ws hook-bypass` to <project-root>/.tmp/hook-bypass/,
+# so a $cwd-anchored lookup would miss it whenever the agent's cwd is a
+# subdirectory (e.g. a component dir). _rules_dir is the .claude/hooks
+# directory found by walking up from $cwd during config parsing; its
+# parent's parent is the project root. _rules_dir is guaranteed non-empty
+# here because redirect_commands is only populated from a hook-rules file
+# that was actually found.
+_t2_project_root="${_rules_dir%/.claude/hooks}"
+
+for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
+    # Entry shape: "<slug>|<pattern>|<suggestion>"
+    _t2_slug="${_entry%%|*}"
+    _t2_rest="${_entry#*|}"
+    _t2_pattern="${_t2_rest%%|*}"
+    _t2_suggestion="${_t2_rest#*|}"
+    _t2_match_pattern="$(normalize_for_match "$_t2_pattern")"
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $_t2_match_pattern ]]; then
+        # Bypass-marker check: a marker for this slug, written by
+        # `ws hook-bypass <slug>`, overrides the deny when its
+        # session_id matches the current session.
+        _t2_marker_path="$_t2_project_root/.tmp/hook-bypass/$_t2_slug.bypass"
+        _t2_bypass_ok=0
+        if [[ -f "$_t2_marker_path" ]]; then
+            # Parse session_id and reason from the marker file. The
+            # trailing `|| true` keeps a malformed marker (missing either
+            # line) from aborting the hook under `set -euo pipefail` — a
+            # missing field grep-fails the pipeline, which would otherwise
+            # exit the script; instead the field defaults to empty, the
+            # session check fails to match, and the command denies as usual.
+            _t2_marker_sid=$(grep '^session_id:' "$_t2_marker_path" 2>/dev/null | sed 's/^session_id: *//' || true)
+            _t2_marker_reason=$(grep '^reason:' "$_t2_marker_path" 2>/dev/null | sed 's/^reason: *//' || true)
+            if [[ -n "$_t2_session_id" && "$_t2_marker_sid" == "$_t2_session_id" ]]; then
+                _t2_bypass_ok=1
+            fi
+        fi
+        if [[ "$_t2_bypass_ok" == "1" ]]; then
+            # Bypass marker matched this session — allow the command and
+            # record a BYPASS-ALLOW audit entry (slug + reason) so the
+            # recurring-bypass pattern is greppable for later review.
+            # Emit the event-appropriate allow shape (PreToolUse uses
+            # permissionDecision; PermissionRequest uses decision.behavior),
+            # mirroring the allow() helper so the dormant PermissionRequest
+            # path stays correct if that hook is ever enabled.
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_t2_slug] reason=\"$(audit_safe "$_t2_marker_reason")\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+            if [[ "$event" == "PermissionRequest" ]]; then
+                printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+            else
+                printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+            fi
+            exit 0
+        fi
+        deny "$_t2_suggestion"
+    fi
+done
+
+# ─── Tier 3: Ask-list — force a prompt for destructive commands ─────
 #
 # A match emits `ask`: the harness prompts regardless of permission
 # mode (acceptEdits included), but the agent may still run the command
 # once the human approves. The ask-list is a safety FLOOR — it is
-# checked before the Tier 3/4 allow logic, so a destructive command
+# checked before the Tier 4/5 allow logic, so a destructive command
 # prompts even if some allowlist entry would otherwise pass it.
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     # shellcheck disable=SC2053
@@ -621,7 +747,7 @@ for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     fi
 done
 
-# ─── Tier 3: Match against settings.json `permissions.allow` ────────
+# ─── Tier 4: Match against settings.json `permissions.allow` ────────
 #
 # Walk up from $cwd looking for .claude/settings.json files. Closer
 # files (project-specific) come first; the user-level file at
@@ -694,7 +820,7 @@ while IFS= read -r raw; do
     fi
 done < <(collect_patterns)
 
-# ─── Tier 4: Allow via [allow-extras] from hook-rules.local ─────────
+# ─── Tier 5: Allow via [allow-extras] from hook-rules.local ─────────
 #
 # Personal allow-patterns the user trusts on this machine — declared
 # in the [allow-extras] section of hook-rules.local (gitignored,
