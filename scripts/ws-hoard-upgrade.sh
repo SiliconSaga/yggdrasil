@@ -31,6 +31,27 @@
 
 # Sourced by ws-hoard.sh; do not enable strict mode here.
 
+# Read a hoard's provenance. Prints "<template> <applied_version>" on
+# success; returns 1 if .hoard.yaml is missing or has no template.
+_ws_hoard_provenance_read() {
+    local hoard_dir="$1"
+    local f="$hoard_dir/.hoard.yaml"
+    [[ -f "$f" ]] || return 1
+    local tmpl ver
+    tmpl="$(yq '.template // ""' "$f" 2>/dev/null)"
+    ver="$(yq '.applied_version // 0' "$f" 2>/dev/null)"
+    [[ -n "$tmpl" && "$tmpl" != "null" ]] || return 1
+    [[ "$ver" =~ ^[0-9]+$ ]] || ver=0
+    printf '%s %s\n' "$tmpl" "$ver"
+}
+
+# Write a hoard's provenance file (git-committed, hoard root).
+_ws_hoard_provenance_write() {
+    local hoard_dir="$1" template="$2" version="$3"
+    printf 'template: %s\napplied_version: %s\n' "$template" "$version" \
+        > "$hoard_dir/.hoard.yaml"
+}
+
 ws_hoard_upgrade_help() {
     echo "Usage: ws hoard upgrade <hoard-name>" >&2
     echo "" >&2
