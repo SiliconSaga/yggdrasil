@@ -64,6 +64,83 @@ _ws_hoard_manifest_version() {
     printf '%s\n' "$v"
 }
 
+# Compute and print the upgrade plan as CLASS<TAB>DETAIL lines, without
+# modifying the hoard. CLASS in uptodate|additive|region-insert|region-edit|
+# destructive. The caller (skill/human) decides on the destructive + region
+# lines; additive lines are safe to auto-apply.
+_ws_hoard_upgrade_plan() {
+    local hoard_dir="$1" template_dir="$2"
+    local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
+    local cp_json="$hoard_dir/.obsidian/community-plugins.json"
+
+    local version applied prov
+    version="$(_ws_hoard_manifest_version "$template_dir")" || return 1
+    if prov="$(_ws_hoard_provenance_read "$hoard_dir")"; then
+        applied="${prov##* }"
+    else
+        applied=-1   # no provenance yet; everything is "new"
+    fi
+    if [[ "$applied" -ge "$version" ]]; then
+        printf 'uptodate\tapplied %s >= version %s\n' "$applied" "$version"
+        return 0
+    fi
+
+    # Plugins: additive if id not already in community-plugins.json.
+    local n i id
+    n="$(yq '.plugins // [] | length' "$upgrade_yaml")"
+    i=0
+    while [[ $i -lt $n ]]; do
+        id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
+        if [[ -f "$cp_json" ]] && jq -e --arg id "$id" 'index($id)' "$cp_json" >/dev/null 2>&1; then
+            :  # already enabled — no change
+        else
+            printf 'additive\tenable plugin %s\n' "$id"
+        fi
+        i=$((i+1))
+    done
+
+    # Managed regions: insert (markers absent) vs edit (markers present).
+    local rn ri rfile rid begin
+    rn="$(yq '.managed_regions // [] | length' "$upgrade_yaml")"
+    ri=0
+    while [[ $ri -lt $rn ]]; do
+        rfile="$(yq ".managed_regions[$ri].file" "$upgrade_yaml")"
+        rid="$(yq ".managed_regions[$ri].id" "$upgrade_yaml")"
+        begin="<!-- BEGIN upgrade-$rid -->"
+        if [[ -f "$hoard_dir/$rfile" ]] && grep -qF "$begin" "$hoard_dir/$rfile" 2>/dev/null; then
+            printf 'region-edit\t%s#%s\n' "$rfile" "$rid"
+        else
+            printf 'region-insert\t%s#%s\n' "$rfile" "$rid"
+        fi
+        ri=$((ri+1))
+    done
+
+    # files_remove: destructive when the target exists.
+    local fn fi rel
+    fn="$(yq '.files_remove // [] | length' "$upgrade_yaml")"
+    fi=0
+    while [[ $fi -lt $fn ]]; do
+        rel="$(yq ".files_remove[$fi]" "$upgrade_yaml")"
+        [[ -e "$hoard_dir/$rel" ]] && printf 'destructive\tremove %s\n' "$rel"
+        fi=$((fi+1))
+    done
+
+    # core_plugins_disable: destructive when currently enabled.
+    local cn ci cid core_json
+    core_json="$hoard_dir/.obsidian/core-plugins.json"
+    cn="$(yq '.core_plugins_disable // [] | length' "$upgrade_yaml")"
+    ci=0
+    while [[ $ci -lt $cn ]]; do
+        cid="$(yq ".core_plugins_disable[$ci]" "$upgrade_yaml")"
+        if [[ -f "$core_json" ]] && jq -e --arg id "$cid" \
+            'if type=="array" then index($id) else .[$id] == true end' \
+            "$core_json" >/dev/null 2>&1; then
+            printf 'destructive\tdisable core plugin %s\n' "$cid"
+        fi
+        ci=$((ci+1))
+    done
+}
+
 ws_hoard_upgrade_help() {
     echo "Usage: ws hoard upgrade <hoard-name>" >&2
     echo "" >&2
