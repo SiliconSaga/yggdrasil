@@ -17,3 +17,17 @@ setup() { setup_dirs; }
     run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
     [ "$status" -ne 0 ]
 }
+
+@test "manifest version: reads the integer version" {
+    make_template thalami "version: 2
+plugins: []"
+    run _ws_hoard_manifest_version "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    [ "$output" = "2" ]
+}
+
+@test "manifest version: returns 1 when no manifest" {
+    mkdir -p "$TEMPLATES_DIR/hoards/empty"
+    run _ws_hoard_manifest_version "$TEMPLATES_DIR/hoards/empty"
+    [ "$status" -ne 0 ]
+}

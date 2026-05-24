@@ -52,6 +52,18 @@ _ws_hoard_provenance_write() {
         > "$hoard_dir/.hoard.yaml"
 }
 
+# Print the integer `version` from a template's upgrade.yaml. Returns 1 if
+# the manifest is absent. Defaults a missing/invalid version to 0.
+_ws_hoard_manifest_version() {
+    local template_dir="$1"
+    local f="$template_dir/.upgrade/upgrade.yaml"
+    [[ -f "$f" ]] || return 1
+    local v
+    v="$(yq '.version // 0' "$f" 2>/dev/null)"
+    [[ "$v" =~ ^[0-9]+$ ]] || v=0
+    printf '%s\n' "$v"
+}
+
 ws_hoard_upgrade_help() {
     echo "Usage: ws hoard upgrade <hoard-name>" >&2
     echo "" >&2
