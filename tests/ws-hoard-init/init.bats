@@ -87,6 +87,13 @@ setup() {
     [ -d "$HOARDS_DIR/test-basic/.git" ]
 }
 
+@test "init writes .hoard.yaml provenance for a template with an upgrade recipe" {
+    run_hoard_init obsidian-vault --name test-prov
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/test-prov/.hoard.yaml" ]
+    grep -qF "template: obsidian-vault" "$HOARDS_DIR/test-prov/.hoard.yaml"
+}
+
 # ---------------------------------------------------------------------------
 # --name validation
 # ---------------------------------------------------------------------------

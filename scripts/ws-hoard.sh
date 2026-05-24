@@ -781,6 +781,13 @@ ws_hoard_init() {
     # disables conflicting core plugins, and injects the README block.
     if [[ -d "$target/.upgrade" ]]; then
         rm -rf "$target/.upgrade"
+        # Record provenance so `ws hoard upgrade` can resolve the source
+        # template + version. Written even when the upgrade phase is skipped
+        # (WS_HOARD_NO_UPGRADE / offline) — it's a cheap local file, no network.
+        if [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+            _ws_hoard_provenance_write "$target" "$(basename "$template_dir")" \
+                "$(_ws_hoard_manifest_version "$template_dir")"
+        fi
         # Only run if template still has .upgrade/ (the source)
         # Allow tests / offline runs / CI to opt out of the upgrade phase
         # via WS_HOARD_NO_UPGRADE=1. Upgrade hits GitHub for plugin
