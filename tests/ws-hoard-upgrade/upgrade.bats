@@ -173,3 +173,43 @@ plugins:
     run grep -cF "<!-- BEGIN upgrade-controls -->" "$HOARDS_DIR/h1/ArcDashboard.md"
     [ "$output" -eq 1 ]
 }
+
+@test "apply: backs up, enables plugin, splices region, bumps provenance" {
+    make_fake_gh
+    make_template thalami "version: 2
+plugins:
+  - id: obsidian-meta-bind-plugin
+    name: Meta Bind
+    description: x
+    repo: mProjectsCode/obsidian-meta-bind-plugin
+    pin: \"1.4.1\"
+managed_regions:
+  - file: ArcDashboard.md
+    id: controls
+    source: regions/arcdashboard-controls.md"
+    printf 'CONTROLS\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/regions/arcdashboard-controls.md"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    printf '# Dash\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+
+    run _ws_hoard_upgrade_apply "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    [ -n "$(find "$HOARDS_DIR/h1/.upgrade-backup" -mindepth 1 -maxdepth 1 -type d)" ]
+    jq -e 'index("obsidian-meta-bind-plugin")' "$HOARDS_DIR/h1/.obsidian/community-plugins.json"
+    grep -qF "CONTROLS" "$HOARDS_DIR/h1/ArcDashboard.md"
+    run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
+    [ "$output" = "thalami 2" ]
+}
+
+@test "apply: aborts before changes if backup fails" {
+    make_template thalami "version: 2
+plugins: []"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    # Plant a FILE where the .upgrade-backup dir would go, so mkdir -p fails.
+    printf 'x\n' > "$HOARDS_DIR/h1/.upgrade-backup"
+    run _ws_hoard_upgrade_apply "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -ne 0 ]
+    run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
+    [ "$output" = "thalami 1" ]
+}

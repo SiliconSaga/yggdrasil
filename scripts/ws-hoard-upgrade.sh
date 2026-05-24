@@ -239,7 +239,11 @@ _ws_hoard_upgrade_gh_download() {
 # Internal: run an upgrade given resolved paths. Used by both the
 # public `ws hoard upgrade` command and ws_hoard_init's post-copy
 # step. Args: <template_dir> <hoard_dir>.
-_ws_hoard_upgrade_from_template() {
+# Mechanical manifest apply: download plugins, seed data.json, write
+# community-plugins.json, disable core plugins, remove declared files, refresh
+# the README plugin table. No backup, no provenance bump, no managed regions —
+# those are the caller's job (--apply / region splice). Args: <template_dir> <hoard_dir>.
+_ws_hoard_apply_manifest() {
     local template_dir="$1"
     local hoard_dir="$2"
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
@@ -454,6 +458,52 @@ _ws_hoard_upgrade_from_template() {
         mv "$tmp" "$inbox_welcome"
         echo "Stripped legacy upgrade block from 00_Inbox/Welcome.md"
     fi
+}
+
+# Back-compat alias: `ws hoard init` calls this with an explicit, known
+# template (no provenance gap), so it maps straight to the mechanical apply.
+_ws_hoard_upgrade_from_template() {
+    _ws_hoard_apply_manifest "$@"
+}
+
+# Apply an upgrade end to end: backup, mechanical manifest apply, region
+# splices, provenance bump. Aborts before any change if the backup fails.
+# Args: <hoard_dir> <template_dir>.
+_ws_hoard_upgrade_apply() {
+    local hoard_dir="$1" template_dir="$2"
+    local version
+    version="$(_ws_hoard_manifest_version "$template_dir")" || return 1
+
+    local snap
+    if ! snap="$(_ws_hoard_backup "$hoard_dir")"; then
+        echo "ERROR: backup failed; aborting upgrade (nothing changed)." >&2
+        return 1
+    fi
+    echo "Backed up hoard to: $snap"
+
+    # Mechanical manifest apply (plugins, data.json, community-plugins.json,
+    # core-disable, files_remove, README block).
+    _ws_hoard_apply_manifest "$template_dir" "$hoard_dir" || return 1
+
+    # Managed regions.
+    local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
+    local rn ri rfile rid rsrc
+    rn="$(yq '.managed_regions // [] | length' "$upgrade_yaml")"
+    ri=0
+    while [[ $ri -lt $rn ]]; do
+        rfile="$(yq ".managed_regions[$ri].file" "$upgrade_yaml")"
+        rid="$(yq ".managed_regions[$ri].id" "$upgrade_yaml")"
+        rsrc="$(yq ".managed_regions[$ri].source" "$upgrade_yaml")"
+        _ws_hoard_region_splice "$hoard_dir/$rfile" "$rid" "$template_dir/.upgrade/$rsrc"
+        echo "Spliced region $rfile#$rid"
+        ri=$((ri+1))
+    done
+
+    # Provenance bump last, so a mid-apply failure leaves it un-bumped and the
+    # upgrade is safely retryable.
+    local template
+    template="$(basename "$template_dir")"
+    _ws_hoard_provenance_write "$hoard_dir" "$template" "$version"
 }
 
 # Public command: resolve template by auto-discovery, then run the
