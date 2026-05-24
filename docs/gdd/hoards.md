@@ -181,6 +181,22 @@ pattern.
 
 ---
 
+## Upgrading a hoard
+
+A hoard tracks where it came from in a git-committed `.hoard.yaml` at its root — the source `template` and the `applied_version` of that template's recipe last applied. `ws hoard init` writes it; existing hoards adopt it on first upgrade (see below).
+
+Templates evolve — a new plugin, a new managed block on a dashboard — and `ws hoard upgrade <hoard>` is how a hoard catches up. It is provenance-tracked and plan-first, so it never guesses which template applies and never changes anything without showing you first:
+
+- `ws hoard upgrade <hoard> --plan` reads the template from `.hoard.yaml`, diffs the template's desired state against your live hoard, and prints a classified change set — additive (enable a new plugin), region edits (a template-managed block inside a file, delimited by `<!-- BEGIN upgrade-<id> -->` sentinels), and destructive (remove a file, disable a core plugin) — touching nothing.
+- `ws hoard upgrade <hoard> --apply` snapshots the whole hoard to `.upgrade-backup/<timestamp>/` first, then applies the plan and bumps `applied_version`. If the backup can't be taken, it aborts before changing anything.
+- `ws hoard upgrade <hoard> --rollback` restores the most recent snapshot, so you can apply, inspect in Obsidian, and retry until it's clean.
+
+The `gdd-hoard-upgrade` skill drives the loop: it runs `--plan`, proposes the destructive and region changes to you for approval (additive changes are safe), and only then runs `--apply`. A hoard that predates `.hoard.yaml` is adopted with `--template <name>`, which records provenance at a baseline one version behind the template so only the newest change applies rather than re-applying the whole recipe.
+
+(Plugin `data.json` is currently overwritten on apply rather than merged, so per-hoard plugin-setting tweaks don't yet survive an upgrade — tracked as future work.)
+
+---
+
 ## Future hoard types
 
 Hoards are intentionally generic; thalami is just the first type

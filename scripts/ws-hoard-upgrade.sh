@@ -1,33 +1,30 @@
 #!/usr/bin/env bash
-# ws-hoard-upgrade.sh — Refresh a hoard's plugins and configs from its
-# template's upgrade.yaml.
+# ws-hoard-upgrade.sh — Provenance-tracked, plan-first hoard upgrades.
 #
-# Templates that need an "after init" or "ongoing refresh" phase ship
-# the recipe under templates/hoards/<flavor>/.upgrade/ — specifically
-# .upgrade/upgrade.yaml plus companion data/<plugin-id>/data.json
-# overlays. Today only obsidian-vault has one, but the discovery is
-# generic.
+# A hoard records its source template + last-applied version in a
+# git-committed .hoard.yaml. A template ships its recipe under
+# templates/hoards/<flavor>/.upgrade/upgrade.yaml: a `version`, the desired
+# plugins (pinned GitHub releases), core plugins to disable, files to remove,
+# and `managed_regions` (sentinel-delimited blocks the template owns inside a
+# content file). Design: docs/plans/2026-05-23-hoard-upgrade-v2-design.md.
 #
-# What an upgrade does (driven by upgrade.yaml + companion files):
-#   - Downloads pinned plugin releases from GitHub into
-#     <hoard>/.obsidian/plugins/<id>/
-#   - Copies template's .upgrade/data/<plugin-id>/data.json into the
-#     hoard, seeding plugin settings
-#   - Writes <hoard>/.obsidian/community-plugins.json (the enabled list)
-#   - Disables conflicting core plugins in core-plugins.json
-#   - Removes redundant files (e.g. core daily-notes.json once
-#     Periodic Notes supersedes it)
-#   - Refreshes a marked plugin table in the hoard's README.md
-#     between sentinel comments (idempotent on re-run)
+# Flow (public: ws_hoard_upgrade):
+#   --plan      Resolve the template via .hoard.yaml, diff desired-vs-live, and
+#               print classified CLASS<TAB>DETAIL lines (uptodate / additive /
+#               region-insert / region-edit / destructive). Changes nothing.
+#   --apply     Snapshot the whole hoard to .upgrade-backup/<ts>/, run the
+#               mechanical manifest apply (_ws_hoard_apply_manifest), splice
+#               managed regions, then bump .hoard.yaml. Aborts before any
+#               change if the backup fails.
+#   --rollback  Restore the most recent pre-apply snapshot.
+# The gdd-hoard-upgrade skill drives plan → propose → apply with a human gate
+# on the destructive + region lines.
 #
-# This is a one-shot install AND a refresh: re-running re-downloads,
-# re-overwrites data.json files, and replaces the README block.
+# _ws_hoard_upgrade_from_template stays as a thin alias to
+# _ws_hoard_apply_manifest, so `ws hoard init`'s post-copy call is unchanged.
 #
-# Future work tracked in the followup to yggdrasil#54:
-#   - Hoard-side provenance tracking (`.hoard.yaml`) so we can resolve
-#     the originating template for free instead of scanning
-#   - JSON-merge instead of overwrite for plugin data.json so user
-#     tweaks survive an upgrade
+# Deferred (yggdrasil#54): plugin data.json is still overwrite-on-apply (no
+# three-way merge yet), so a user's in-hoard data.json tweaks don't survive.
 
 # Sourced by ws-hoard.sh; do not enable strict mode here.
 
