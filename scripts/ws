@@ -293,7 +293,7 @@ ws_clean() {
     local arg
     for arg in "$@"; do
         case "$arg" in
-            --force|--yes) force=1 ;;
+            --force) force=1 ;;
             -h|--help)
                 echo "Usage: ws clean [--force]"
                 echo ""
@@ -330,32 +330,36 @@ ws_clean() {
     local bodyfile_specs=('.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt')
     local tmp_dir="$ROOT_DIR/.tmp"
 
-    # First pass: count what WOULD be removed (per dir), without deleting,
-    # so the threshold decision happens before anything is touched.
-    local total=0
+    # Single scan: collect the exact paths to remove, so the threshold
+    # decision and the deletion act on the same snapshot. Re-scanning at
+    # delete time would risk deleting files that were never counted, or
+    # proceeding after the live total dropped below the threshold.
+    local candidates=()   # individual files in the bodyfile dirs
+    local tmp_entries=()  # top-level entries under .tmp/ (may be dirs)
     local report=()
     local spec
     for spec in "${bodyfile_specs[@]}"; do
         local dir="${spec%%:*}"
         local pattern="${spec#*:}"
         local dirpath="$ROOT_DIR/$dir"
-        if [[ -d "$dirpath" ]]; then
-            local count
-            count=$(find "$dirpath" -maxdepth 1 -name "$pattern" -type f | wc -l)
-            if [[ "$count" -gt 0 ]]; then
-                report+=("  $dir/  $count file(s)")
-                total=$((total + count))
-            fi
-        fi
+        [[ -d "$dirpath" ]] || continue
+        local before=${#candidates[@]}
+        local f
+        while IFS= read -r f; do
+            candidates+=("$f")
+        done < <(find "$dirpath" -maxdepth 1 -name "$pattern" -type f)
+        local n=$(( ${#candidates[@]} - before ))
+        [[ "$n" -gt 0 ]] && report+=("  $dir/  $n file(s)")
     done
-    local tmp_count=0
     if [[ -d "$tmp_dir" ]]; then
-        tmp_count=$(find "$tmp_dir" -mindepth 1 -maxdepth 1 | wc -l)
-        if [[ "$tmp_count" -gt 0 ]]; then
-            report+=("  .tmp/  $tmp_count entr(ies)")
-            total=$((total + tmp_count))
-        fi
+        local e
+        while IFS= read -r e; do
+            tmp_entries+=("$e")
+        done < <(find "$tmp_dir" -mindepth 1 -maxdepth 1)
+        [[ ${#tmp_entries[@]} -gt 0 ]] && report+=("  .tmp/  ${#tmp_entries[@]} entr(ies)")
     fi
+
+    local total=$(( ${#candidates[@]} + ${#tmp_entries[@]} ))
 
     if [[ "$total" -eq 0 ]]; then
         echo "(no draft files to clean)"
@@ -377,33 +381,21 @@ ws_clean() {
         return 0
     fi
 
-    # Proceed: delete. Re-run the same finds — the dirs haven't changed
-    # since the count pass, so the per-dir totals match the report above.
-    local removed=0
-    for spec in "${bodyfile_specs[@]}"; do
-        local dir="${spec%%:*}"
-        local pattern="${spec#*:}"
-        local dirpath="$ROOT_DIR/$dir"
-        if [[ -d "$dirpath" ]]; then
-            local count
-            count=$(find "$dirpath" -maxdepth 1 -name "$pattern" -type f | wc -l)
-            if [[ "$count" -gt 0 ]]; then
-                find "$dirpath" -maxdepth 1 -name "$pattern" -type f -delete
-                echo "  $dir/  $count file(s) removed"
-                removed=$((removed + count))
-            fi
-        fi
+    # Proceed: delete exactly the snapshot we counted. .tmp/ entries are
+    # arbitrary and often nested (synthetic git repos, test fixtures,
+    # generated scripts), so recursive removal; the .tmp/ dir itself stays
+    # for next-use since we only remove its top-level entries.
+    printf '%s\n' "${report[@]}"
+    local c
+    for c in ${candidates[@]+"${candidates[@]}"}; do
+        rm -f "$c"
     done
-    # .tmp/ contents are arbitrary and often nested (synthetic git repos,
-    # test fixtures, generated scripts), so recursive cleanup. We blow
-    # away top-level entries; the directory itself stays for next-use.
-    if [[ -d "$tmp_dir" && "$tmp_count" -gt 0 ]]; then
-        find "$tmp_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-        echo "  .tmp/  $tmp_count entr(ies) removed"
-        removed=$((removed + tmp_count))
-    fi
+    local t
+    for t in ${tmp_entries[@]+"${tmp_entries[@]}"}; do
+        rm -rf "$t"
+    done
 
-    echo "Cleaned $removed draft file(s) total."
+    echo "Cleaned $total draft file(s) total."
 }
 
 ws_issue() {

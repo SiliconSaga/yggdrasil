@@ -10,18 +10,22 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_BIN="$REPO_ROOT/scripts/ws"
 
-if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT_BIN="timeout"
-elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT_BIN="gtimeout"
-else
-    echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
-    echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2
-    echo "  See tests/README.md." >&2
-    exit 1
-fi
+# Resolve `timeout` (Linux/Git Bash) or `gtimeout` (macOS Homebrew
+# coreutils). Called from setup() — NOT at source time — so a missing
+# binary skips the affected tests with a helpful message instead of
+# aborting the whole file's load (which buries the reason in a load error).
+detect_timeout_bin() {
+    if command -v timeout >/dev/null 2>&1; then
+        TIMEOUT_BIN="timeout"
+    elif command -v gtimeout >/dev/null 2>&1; then
+        TIMEOUT_BIN="gtimeout"
+    else
+        skip "neither 'timeout' nor 'gtimeout' found; install GNU coreutils (macOS: brew install coreutils) — see tests/README.md"
+    fi
+}
 
 init_clean_workspace() {
+    detect_timeout_bin
     WORK="$BATS_TEST_TMPDIR/work"
     mkdir -p "$WORK/components" "$WORK/realms" "$WORK/hoards"
     mkdir -p "$WORK/.issues" "$WORK/.crs" "$WORK/.commits" "$WORK/.outputs" "$WORK/.tmp"
