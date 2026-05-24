@@ -141,6 +141,44 @@ _ws_hoard_upgrade_plan() {
     done
 }
 
+# Snapshot the whole hoard into .upgrade-backup/<timestamp>/, excluding
+# .git/ and .upgrade-backup/ itself. Prints the snapshot path. Returns 1 on
+# failure so callers can abort an apply before touching anything.
+_ws_hoard_backup() {
+    local hoard_dir="$1"
+    local ts snap
+    ts="$(date '+%Y%m%d-%H%M%S')"
+    snap="$hoard_dir/.upgrade-backup/$ts"
+    mkdir -p "$snap" || return 1
+    local entry base
+    for entry in "$hoard_dir"/* "$hoard_dir"/.[!.]*; do
+        [[ -e "$entry" ]] || continue
+        base="$(basename "$entry")"
+        [[ "$base" == ".git" || "$base" == ".upgrade-backup" ]] && continue
+        cp -R "$entry" "$snap/" || return 1
+    done
+    printf '%s\n' "$snap"
+}
+
+# Restore the most recent .upgrade-backup/<ts>/ over the hoard. Returns 1 if
+# there is no snapshot.
+_ws_hoard_rollback() {
+    local hoard_dir="$1"
+    local backups_dir="$hoard_dir/.upgrade-backup"
+    [[ -d "$backups_dir" ]] || return 1
+    local latest
+    latest="$(find "$backups_dir" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+    [[ -n "$latest" ]] || return 1
+    local entry base
+    for entry in "$latest"/* "$latest"/.[!.]*; do
+        [[ -e "$entry" ]] || continue
+        base="$(basename "$entry")"
+        rm -rf "$hoard_dir/$base"
+        cp -R "$entry" "$hoard_dir/"
+    done
+    printf 'Restored %s\n' "$latest"
+}
+
 ws_hoard_upgrade_help() {
     echo "Usage: ws hoard upgrade <hoard-name>" >&2
     echo "" >&2

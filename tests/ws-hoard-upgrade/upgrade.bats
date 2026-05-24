@@ -112,3 +112,31 @@ plugins:
     _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami" >/dev/null
     [ "$(cat "$HOARDS_DIR/h1/.obsidian/community-plugins.json")" = "$before" ]
 }
+
+@test "backup: snapshots hoard contents, excludes .git and .upgrade-backup" {
+    make_hoard h1
+    printf 'hello\n' > "$HOARDS_DIR/h1/note.md"
+    mkdir -p "$HOARDS_DIR/h1/.git"; printf 'x\n' > "$HOARDS_DIR/h1/.git/config"
+    run _ws_hoard_backup "$HOARDS_DIR/h1"
+    [ "$status" -eq 0 ]
+    local snap="$output"
+    [ -f "$snap/note.md" ]
+    [ ! -e "$snap/.git" ]
+    [ ! -e "$snap/.upgrade-backup" ]
+}
+
+@test "rollback: restores the latest snapshot" {
+    make_hoard h1
+    printf 'original\n' > "$HOARDS_DIR/h1/note.md"
+    _ws_hoard_backup "$HOARDS_DIR/h1" >/dev/null
+    printf 'changed\n' > "$HOARDS_DIR/h1/note.md"
+    run _ws_hoard_rollback "$HOARDS_DIR/h1"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$HOARDS_DIR/h1/note.md")" = "original" ]
+}
+
+@test "rollback: errors when no snapshot exists" {
+    make_hoard h1
+    run _ws_hoard_rollback "$HOARDS_DIR/h1"
+    [ "$status" -ne 0 ]
+}
