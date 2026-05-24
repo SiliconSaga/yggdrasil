@@ -179,6 +179,32 @@ _ws_hoard_rollback() {
     printf 'Restored %s\n' "$latest"
 }
 
+# Splice a template-managed region into a file. If the BEGIN marker is
+# present, replace everything between BEGIN/END; otherwise append a freshly
+# wrapped block. Content outside the markers is preserved verbatim.
+_ws_hoard_region_splice() {
+    local file="$1" id="$2" source_file="$3"
+    local begin="<!-- BEGIN upgrade-$id -->"
+    local end="<!-- END upgrade-$id -->"
+    local out
+    out="$(mktemp)"
+    if [[ -f "$file" ]] && grep -qF "$begin" "$file" 2>/dev/null; then
+        awk -v b="$begin" -v e="$end" -v insert="$source_file" '
+            $0 == b { print; while ((getline line < insert) > 0) print line; close(insert); skip=1; next }
+            $0 == e { skip=0 }
+            !skip { print }
+        ' "$file" > "$out"
+    else
+        {
+            [[ -f "$file" ]] && cat "$file"
+            printf '\n%s\n' "$begin"
+            cat "$source_file"
+            printf '%s\n' "$end"
+        } > "$out"
+    fi
+    mv "$out" "$file"
+}
+
 ws_hoard_upgrade_help() {
     echo "Usage: ws hoard upgrade <hoard-name>" >&2
     echo "" >&2

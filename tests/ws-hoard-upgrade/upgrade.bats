@@ -140,3 +140,36 @@ plugins:
     run _ws_hoard_rollback "$HOARDS_DIR/h1"
     [ "$status" -ne 0 ]
 }
+
+@test "region splice: inserts wrapped block when markers absent" {
+    make_hoard h1
+    printf '# Dash\nbody\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    printf 'CONTROLS\n' > "$BATS_TEST_TMPDIR/src.md"
+    run _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
+    [ "$status" -eq 0 ]
+    grep -qF "<!-- BEGIN upgrade-controls -->" "$HOARDS_DIR/h1/ArcDashboard.md"
+    grep -qF "CONTROLS" "$HOARDS_DIR/h1/ArcDashboard.md"
+    grep -qF "# Dash" "$HOARDS_DIR/h1/ArcDashboard.md"
+}
+
+@test "region splice: replaces between markers, preserves outside" {
+    make_hoard h1
+    printf '# Dash\n<!-- BEGIN upgrade-controls -->\nOLD\n<!-- END upgrade-controls -->\ntail\n' \
+        > "$HOARDS_DIR/h1/ArcDashboard.md"
+    printf 'NEW\n' > "$BATS_TEST_TMPDIR/src.md"
+    run _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
+    [ "$status" -eq 0 ]
+    grep -qF "NEW" "$HOARDS_DIR/h1/ArcDashboard.md"
+    ! grep -qF "OLD" "$HOARDS_DIR/h1/ArcDashboard.md"
+    grep -qF "tail" "$HOARDS_DIR/h1/ArcDashboard.md"
+}
+
+@test "region splice: idempotent on re-run with same source" {
+    make_hoard h1
+    printf '# Dash\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    printf 'NEW\n' > "$BATS_TEST_TMPDIR/src.md"
+    _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
+    _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
+    run grep -cF "<!-- BEGIN upgrade-controls -->" "$HOARDS_DIR/h1/ArcDashboard.md"
+    [ "$output" -eq 1 ]
+}
