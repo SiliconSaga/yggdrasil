@@ -1,4 +1,4 @@
-<!-- Template-managed (ws hoard upgrade). Edits inside the markers are overwritten on upgrade; edit around them freely. VERIFY the meta-bind-button syntax against the pinned Meta Bind release before first --apply. -->
+<!-- Template-managed (ws hoard upgrade). Edits inside the markers are overwritten on upgrade; edit around them freely. The meta-bind-button command-action block targets Meta Bind 1.4.10 (pinned in upgrade.yaml); confirm it renders as a button on first open in Obsidian. -->
 > [!tip]- Dashboard controls
 > ```meta-bind-button
 > label: "🔄 Refresh"

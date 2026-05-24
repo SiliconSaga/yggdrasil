@@ -21,12 +21,10 @@ plugins:
     name: Meta Bind
     description: Inline buttons/inputs bound to frontmatter; powers the ArcDashboard controls.
     repo: mProjectsCode/obsidian-meta-bind-plugin
-    # VERIFY BEFORE FIRST --apply: this sentinel is intentional. Run
-    #   gh release list -R mProjectsCode/obsidian-meta-bind-plugin -L 5
-    # and replace with the chosen stable tag. A real --apply will fail the
-    # download (cleanly) until this is set — by design, so no wrong version
-    # is silently installed.
-    pin: "REPLACE-WITH-VERIFIED-TAG"
+    # Verified 2026-05-24 against the live release: tag 1.4.10 ships
+    # main.js / manifest.json / styles.css, and manifest id ==
+    # obsidian-meta-bind-plugin (minAppVersion 1.10.0).
+    pin: "1.4.10"
 managed_regions:
   - file: ArcDashboard.md
     id: controls
