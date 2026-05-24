@@ -332,9 +332,12 @@ ws_hoard_help() {
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
     echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
     echo "                           thalamus file (empty if no active hoard)" >&2
-    echo "  upgrade <hoard-name>     Re-fetch plugins and refresh configs from the" >&2
-    echo "                           hoard's template. Run after pulling a yggdrasil" >&2
-    echo "                           update or to refresh on a fresh clone." >&2
+    echo "  upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]" >&2
+    echo "                           Provenance-tracked upgrade from the hoard's" >&2
+    echo "                           template (.hoard.yaml). --plan previews;" >&2
+    echo "                           --apply backs up then applies; --rollback" >&2
+    echo "                           restores the last backup. The gdd-hoard-upgrade" >&2
+    echo "                           skill drives the propose-then-apply flow." >&2
 }
 
 # Read staleness_days from a hoard's `.ws-cadence.yaml`. Defaults to 2

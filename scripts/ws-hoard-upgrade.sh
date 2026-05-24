@@ -206,18 +206,19 @@ _ws_hoard_region_splice() {
 }
 
 ws_hoard_upgrade_help() {
-    echo "Usage: ws hoard upgrade <hoard-name>" >&2
-    echo "" >&2
-    echo "DISABLED pending a provenance fix. The command has no per-hoard" >&2
-    echo "provenance and would apply the only upgradeable template" >&2
-    echo "(obsidian-vault) to ANY hoard, pushing the full plugin suite onto" >&2
-    echo "thalami hoards that only need Dataview. Re-enable once hoards carry" >&2
-    echo ".hoard.yaml provenance and/or the thalami template ships its own" >&2
-    echo "minimal upgrade.yaml (yggdrasil#54). Override on an obsidian-vault" >&2
-    echo "hoard with WS_HOARD_UPGRADE_ENABLED=1." >&2
-    echo "" >&2
-    echo "When enabled: re-fetch plugins and refresh configs for a hoard," >&2
-    echo "using the upgrade.yaml shipped by its template. Idempotent." >&2
+    cat >&2 <<'HELP'
+Usage: ws hoard upgrade <hoard> [--plan | --apply | --rollback] [--template <name>]
+
+  --plan       Show what would change; touch nothing (default).
+  --apply      Back up the hoard, then apply the plan; bump .hoard.yaml.
+  --rollback   Restore the most recent pre-apply backup.
+  --template   Name the source template for a hoard with no .hoard.yaml yet
+               (establishes provenance, then applies the latest version).
+
+Reads the source template from <hoard>/.hoard.yaml. The gdd-hoard-upgrade
+skill drives the propose-then-apply flow; run it instead of --apply by hand
+when there are destructive or region changes to review.
+HELP
 }
 
 # Try `gh release download <tag> ...` with the literal pin first, then
@@ -506,44 +507,26 @@ _ws_hoard_upgrade_apply() {
     _ws_hoard_provenance_write "$hoard_dir" "$template" "$version"
 }
 
-# Public command: resolve template by auto-discovery, then run the
-# upgrade. Errors clearly if zero or multiple upgradeable templates
-# exist (the latter is forward-looking; today there's just one).
+# Public command. Resolves the source template from <hoard>/.hoard.yaml
+# (or --template for a not-yet-tracked hoard), then plans / applies / rolls
+# back. No global enable gate: provenance scopes each run to the right
+# template, so there is no cross-template misapplication to guard against.
 ws_hoard_upgrade() {
-    local hoard_name="${1:-}"
-    if [[ -z "$hoard_name" || "$hoard_name" == "--help" || "$hoard_name" == "-h" ]]; then
-        ws_hoard_upgrade_help
-        return 1
-    fi
-
-    # ─── DISABLED by default pending a provenance fix (TODO) ────────
-    # This command has no per-hoard provenance: it applies the single
-    # template that ships an .upgrade/upgrade.yaml (today only
-    # obsidian-vault) to ANY hoard named, regardless of that hoard's
-    # actual flavor. Run against a thalami hoard it pushed the full
-    # PARA-vault plugin suite — including Linter (auto-format on save)
-    # and Filename Heading Sync (renames H1/filename) — onto a vault
-    # that only needs Dataview, risking edits to the thalamus files on
-    # next Obsidian open (observed 2026-05-22).
-    #
-    # Re-enable (remove this gate) once hoards carry a .hoard.yaml
-    # provenance marker (the yggdrasil#54 follow-up) and/or the thalami
-    # template ships its own minimal upgrade.yaml. The internal
-    # _ws_hoard_upgrade_from_template is intentionally left active —
-    # `ws hoard init` calls it with an explicit, known template, so that
-    # path has no provenance gap. The WS_HOARD_UPGRADE_ENABLED escape
-    # hatch (matching the WS_HOOK_DISABLE / WS_HOOK_DEBUG idiom) lets a
-    # power user who knows their hoard is obsidian-vault-shaped override.
-    if [[ "${WS_HOARD_UPGRADE_ENABLED:-0}" != "1" ]]; then
-        echo "DISABLED: 'ws hoard upgrade' is intentionally off pending a provenance fix (TODO)." >&2
-        echo "  It has no per-hoard provenance and would apply the obsidian-vault" >&2
-        echo "  upgrade recipe to ANY hoard — pushing the full plugin suite onto" >&2
-        echo "  thalami hoards that only need Dataview (Linter / Filename Heading" >&2
-        echo "  Sync can then edit the thalamus files on next Obsidian open)." >&2
-        echo "  Re-enable once hoards carry .hoard.yaml provenance and/or the" >&2
-        echo "  thalami template ships its own minimal upgrade.yaml (yggdrasil#54)." >&2
-        echo "  Override for an obsidian-vault hoard with WS_HOARD_UPGRADE_ENABLED=1." >&2
-        return 1
+    local hoard_name="" mode="plan" template_override=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --plan) mode="plan" ;;
+            --apply) mode="apply" ;;
+            --rollback) mode="rollback" ;;
+            --template) shift; template_override="${1:-}" ;;
+            -h|--help) ws_hoard_upgrade_help; return 0 ;;
+            -*) echo "ERROR: unknown flag '$1'" >&2; ws_hoard_upgrade_help; return 1 ;;
+            *) hoard_name="$1" ;;
+        esac
+        shift
+    done
+    if [[ -z "$hoard_name" ]]; then
+        ws_hoard_upgrade_help; return 1
     fi
 
     local hoard_dir="$HOARDS_DIR/$hoard_name"
@@ -553,36 +536,39 @@ ws_hoard_upgrade() {
         return 1
     fi
 
-    # Discover which templates ship an upgrade.yaml. v1: if exactly
-    # one, use it. Future: read provenance from <hoard>/.hoard.yaml.
-    local upgradeable=()
-    local d
-    for d in "$TEMPLATES_DIR"/hoards/*/; do
-        [[ -f "$d/.upgrade/upgrade.yaml" ]] && upgradeable+=("$(basename "$d")")
-    done
-    if [[ ${#upgradeable[@]} -eq 0 ]]; then
-        echo "ERROR: no template ships an upgrade.yaml — nothing to upgrade." >&2
-        return 1
+    if [[ "$mode" == "rollback" ]]; then
+        _ws_hoard_rollback "$hoard_dir" || { echo "ERROR: no backup to roll back to." >&2; return 1; }
+        return 0
     fi
-    if [[ ${#upgradeable[@]} -gt 1 ]]; then
-        echo "ERROR: multiple templates have upgrade.yaml: ${upgradeable[*]}" >&2
-        echo "  Hoard-side provenance tracking is not yet implemented; this" >&2
-        echo "  command currently requires exactly one upgradeable template." >&2
+
+    # Resolve template; adopt a not-yet-tracked hoard via --template.
+    local template prov
+    if prov="$(_ws_hoard_provenance_read "$hoard_dir")"; then
+        template="${prov%% *}"
+    elif [[ -n "$template_override" ]]; then
+        template="$template_override"
+        local tv
+        tv="$(_ws_hoard_manifest_version "$TEMPLATES_DIR/hoards/$template")" || {
+            echo "ERROR: template '$template' has no .upgrade/upgrade.yaml" >&2; return 1; }
+        # Adopt at a baseline one version behind the template's current, so the
+        # latest bump applies rather than re-applying the recipe from zero.
+        local baseline=$(( tv > 0 ? tv - 1 : 0 ))
+        _ws_hoard_provenance_write "$hoard_dir" "$template" "$baseline"
+        printf 'provenance\testablished %s @ %s (was untracked)\n' "$template" "$baseline"
+    else
+        echo "ERROR: $hoard_name has no .hoard.yaml; pass --template <name> to adopt it." >&2
         return 1
     fi
 
-    local template="${upgradeable[0]}"
     local template_dir="$TEMPLATES_DIR/hoards/$template"
-    echo "Upgrading hoard '$hoard_name' from template '$template'..."
-    echo "  Template: $template_dir"
-    echo "  Hoard:    $hoard_dir"
-    echo ""
-    _ws_hoard_upgrade_from_template "$template_dir" "$hoard_dir"
-    local rc=$?
-    if [[ $rc -eq 0 ]]; then
-        echo ""
-        echo "Upgrade complete. Open the hoard in Obsidian — plugins"
-        echo "will activate on first launch."
+    if [[ ! -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+        echo "ERROR: template '$template' has no .upgrade/upgrade.yaml" >&2
+        return 1
     fi
-    return $rc
+
+    if [[ "$mode" == "plan" ]]; then
+        _ws_hoard_upgrade_plan "$hoard_dir" "$template_dir"
+    else
+        _ws_hoard_upgrade_apply "$hoard_dir" "$template_dir"
+    fi
 }

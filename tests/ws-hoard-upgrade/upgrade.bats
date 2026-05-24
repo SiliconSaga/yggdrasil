@@ -213,3 +213,42 @@ plugins: []"
     run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
     [ "$output" = "thalami 1" ]
 }
+
+@test "command: --plan prints a plan and changes nothing, no enable gate needed" {
+    unset WS_HOARD_UPGRADE_ENABLED
+    make_template thalami "version: 2
+plugins:
+  - id: obsidian-meta-bind-plugin
+    name: Meta Bind
+    repo: mProjectsCode/obsidian-meta-bind-plugin
+    pin: \"1.4.1\""
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    run ws_hoard_upgrade h1 --plan
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"additive"* ]]
+}
+
+@test "command: errors when hoard has no provenance and no --template" {
+    make_template thalami "version: 1
+plugins: []"
+    make_hoard h1
+    run ws_hoard_upgrade h1 --plan
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--template"* ]]
+}
+
+@test "command: --template establishes provenance then plans" {
+    make_template thalami "version: 2
+plugins: []
+managed_regions:
+  - file: ArcDashboard.md
+    id: controls
+    source: regions/arcdashboard-controls.md"
+    printf 'C\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/regions/arcdashboard-controls.md"
+    make_hoard h1
+    printf '# Dash\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    run ws_hoard_upgrade h1 --plan --template thalami
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"provenance"* ]]
+}
