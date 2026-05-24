@@ -386,14 +386,17 @@ ws_clean() {
     # generated scripts), so recursive removal; the .tmp/ dir itself stays
     # for next-use since we only remove its top-level entries.
     printf '%s\n' "${report[@]}"
-    local c
-    for c in ${candidates[@]+"${candidates[@]}"}; do
-        rm -f "$c"
-    done
-    local t
-    for t in ${tmp_entries[@]+"${tmp_entries[@]}"}; do
-        rm -rf "$t"
-    done
+    # Delete the snapshot with one rm per group (batched for speed,
+    # quoted + `--` so paths with spaces or leading dashes stay intact).
+    # Each group is length-guarded: one side can be empty even when
+    # total > 0, and a bare "${arr[@]}" on an empty array trips `set -u`
+    # on older bash.
+    if [[ ${#candidates[@]} -gt 0 ]]; then
+        rm -f -- "${candidates[@]}"
+    fi
+    if [[ ${#tmp_entries[@]} -gt 0 ]]; then
+        rm -rf -- "${tmp_entries[@]}"
+    fi
 
     echo "Cleaned $total draft file(s) total."
 }

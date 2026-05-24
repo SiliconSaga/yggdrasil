@@ -39,6 +39,16 @@ setup() {
     [ "$(count_scratch)" -eq 0 ]
 }
 
+@test "force clean handles paths with spaces" {
+    export WS_CLEAN_MINE_THRESHOLD=1
+    printf 'x\n' > "$ROOT_DIR/.commits/with space.md"
+    run_ws clean --force
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Cleaned 1 draft file(s) total."* ]]
+    [ ! -e "$ROOT_DIR/.commits/with space.md" ]
+    [ "$(count_scratch)" -eq 0 ]
+}
+
 @test "at/above threshold without --force: cleans" {
     export WS_CLEAN_MINE_THRESHOLD=2
     make_drafts .commits 2
