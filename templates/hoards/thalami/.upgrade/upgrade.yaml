@@ -1,0 +1,33 @@
+# Upgrade recipe for thalami hoards.
+#
+# version 1 = the Dataview-only baseline the existing hoards shipped with.
+# version 2 adds Meta Bind and the ArcDashboard controls region (a refresh
+# button that fixes Dataview's stale date(today) on long-open panes).
+#
+# Applied by `ws hoard upgrade <hoard> --plan/--apply` (provenance resolves
+# this template via the hoard's .hoard.yaml). Plugin code is downloaded fresh
+# from the pinned GitHub release; manifest.json + data.json are tracked.
+version: 2
+description: |
+  Dataview for the ArcDashboard, plus Meta Bind for the dashboard's
+  interactive controls (a force-refresh button).
+plugins:
+  - id: dataview
+    name: Dataview
+    description: Query engine powering ArcDashboard.md.
+    repo: blacksmithgu/obsidian-dataview
+    pin: "0.5.68"
+  - id: obsidian-meta-bind-plugin
+    name: Meta Bind
+    description: Inline buttons/inputs bound to frontmatter; powers the ArcDashboard controls.
+    repo: mProjectsCode/obsidian-meta-bind-plugin
+    # VERIFY BEFORE FIRST --apply: this sentinel is intentional. Run
+    #   gh release list -R mProjectsCode/obsidian-meta-bind-plugin -L 5
+    # and replace with the chosen stable tag. A real --apply will fail the
+    # download (cleanly) until this is set — by design, so no wrong version
+    # is silently installed.
+    pin: "REPLACE-WITH-VERIFIED-TAG"
+managed_regions:
+  - file: ArcDashboard.md
+    id: controls
+    source: regions/arcdashboard-controls.md
