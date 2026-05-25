@@ -138,6 +138,30 @@ _ws_hoard_upgrade_plan() {
         fi
         ci=$((ci+1))
     done
+
+    # Community plugins the hoard has enabled but the template doesn't ship:
+    # --apply overwrites community-plugins.json with exactly the template ids,
+    # so these would be disabled. Surface them so the plan stays truthful.
+    if [[ -f "$cp_json" ]]; then
+        local tmpl_ids enabled_id
+        tmpl_ids="$(yq -o tsv '.plugins // [] | .[].id' "$upgrade_yaml" 2>/dev/null)"
+        while IFS= read -r enabled_id; do
+            [[ -n "$enabled_id" ]] || continue
+            grep -qxF "$enabled_id" <<< "$tmpl_ids" && continue
+            printf 'destructive\tdisable plugin %s (overwrite of community-plugins.json drops it)\n' "$enabled_id"
+        done < <(jq -r '.[]?' "$cp_json" 2>/dev/null)
+    fi
+
+    # data.json overlays overwrite existing plugin settings on --apply.
+    if [[ -d "$template_dir/.upgrade/data" ]]; then
+        local dpath did
+        for dpath in "$template_dir/.upgrade/data"/*/data.json; do
+            [[ -f "$dpath" ]] || continue
+            did="$(basename "$(dirname "$dpath")")"
+            [[ -f "$hoard_dir/.obsidian/plugins/$did/data.json" ]] \
+                && printf 'destructive\toverwrite %s data.json\n' "$did"
+        done
+    fi
 }
 
 # Snapshot the whole hoard into .upgrade-backup/<timestamp>/, excluding
@@ -224,28 +248,32 @@ _ws_hoard_region_splice() {
         echo "ERROR: malformed managed-region markers in $file for id '$id' (BEGIN=$begin_count END=$end_count)" >&2
         return 1
     fi
+    # Render into a temp file in the SAME directory as the target so the final
+    # mv is an atomic same-filesystem rename, and clean the temp up on any
+    # failure so a partial render never replaces the original.
     local out
-    out="$(mktemp)"
+    out="$(mktemp "$(dirname "$file")/.upgrade-splice.XXXXXX")" || return 1
     if [[ -f "$file" ]] && grep -qF "$begin" "$file" 2>/dev/null; then
         awk -v b="$begin" -v e="$end" -v insert="$source_file" '
             $0 == b { print; while ((getline line < insert) > 0) print line; close(insert); skip=1; next }
             $0 == e { skip=0 }
             !skip { print }
-        ' "$file" > "$out"
+        ' "$file" > "$out" || { rm -f "$out"; return 1; }
     else
-        {
-            # Only prepend a separating blank line when the file already has
-            # content — a brand-new file shouldn't start with an empty line.
+        # Subshell so an internal `exit 1` (on a failed cat) aborts the render
+        # without killing the caller; only prepend a separating blank line when
+        # the file already has content — a brand-new file shouldn't start blank.
+        (
             if [[ -s "$file" ]]; then
-                cat "$file"
+                cat "$file" || exit 1
                 printf '\n'
             fi
             printf '%s\n' "$begin"
-            cat "$source_file"
+            cat "$source_file" || exit 1
             printf '%s\n' "$end"
-        } > "$out"
+        ) > "$out" || { rm -f "$out"; return 1; }
     fi
-    mv "$out" "$file"
+    mv "$out" "$file" || { rm -f "$out"; return 1; }
 }
 
 ws_hoard_upgrade_help() {
@@ -534,9 +562,11 @@ _ws_hoard_upgrade_from_template() {
 
 # Apply an upgrade end to end: backup, mechanical manifest apply, region
 # splices, provenance bump. Aborts before any change if the backup fails.
-# Args: <hoard_dir> <template_dir>.
+# Args: <hoard_dir> <template_dir> [adopt_baseline]. When adopt_baseline is
+# given (first-time adoption), it is written ONLY after the backup succeeds —
+# so the snapshot captures the pre-adoption state and rollback stays clean.
 _ws_hoard_upgrade_apply() {
-    local hoard_dir="$1" template_dir="$2"
+    local hoard_dir="$1" template_dir="$2" adopt_baseline="${3:-}"
     local version
     version="$(_ws_hoard_manifest_version "$template_dir")" || return 1
 
@@ -546,6 +576,9 @@ _ws_hoard_upgrade_apply() {
         return 1
     fi
     echo "Backed up hoard to: $snap"
+    if [[ -n "$adopt_baseline" ]]; then
+        _ws_hoard_provenance_write "$hoard_dir" "$(basename "$template_dir")" "$adopt_baseline"
+    fi
 
     # Mechanical manifest apply (plugins, data.json, community-plugins.json,
     # core-disable, files_remove, README block), then managed regions.
@@ -564,12 +597,16 @@ _ws_hoard_upgrade_apply() {
 # back. No global enable gate: provenance scopes each run to the right
 # template, so there is no cross-template misapplication to guard against.
 ws_hoard_upgrade() {
-    local hoard_name="" mode="plan" template_override=""
+    local hoard_name="" mode="plan" template_override="" mode_set=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --plan) mode="plan" ;;
-            --apply) mode="apply" ;;
-            --rollback) mode="rollback" ;;
+            --plan|--apply|--rollback)
+                if [[ "$mode_set" -eq 1 ]]; then
+                    echo "ERROR: only one of --plan / --apply / --rollback may be given." >&2
+                    ws_hoard_upgrade_help; return 1
+                fi
+                mode="${1#--}"; mode_set=1
+                ;;
             --template)
                 shift
                 if [[ -z "${1:-}" || "${1:-}" == -* ]]; then
@@ -580,7 +617,13 @@ ws_hoard_upgrade() {
                 ;;
             -h|--help) ws_hoard_upgrade_help; return 0 ;;
             -*) echo "ERROR: unknown flag '$1'" >&2; ws_hoard_upgrade_help; return 1 ;;
-            *) hoard_name="$1" ;;
+            *)
+                if [[ -n "$hoard_name" ]]; then
+                    echo "ERROR: unexpected extra argument '$1' (hoard already set to '$hoard_name')." >&2
+                    ws_hoard_upgrade_help; return 1
+                fi
+                hoard_name="$1"
+                ;;
         esac
         shift
     done
@@ -629,13 +672,11 @@ ws_hoard_upgrade() {
 
     if [[ "$mode" == "plan" ]]; then
         _ws_hoard_upgrade_plan "$hoard_dir" "$template_dir" "$baseline"
+    elif [[ "$adopting" -eq 1 ]]; then
+        # Pass the baseline so apply records it AFTER its backup (keeps the
+        # snapshot pre-adoption and never mutates before the safety net exists).
+        _ws_hoard_upgrade_apply "$hoard_dir" "$template_dir" "$baseline"
     else
-        # --apply may persist: record the adoption baseline first so the hoard
-        # is tracked even if the apply fails midway, then apply (which bumps
-        # provenance to the manifest version on success).
-        if [[ "$adopting" -eq 1 ]]; then
-            _ws_hoard_provenance_write "$hoard_dir" "$template" "$baseline"
-        fi
         _ws_hoard_upgrade_apply "$hoard_dir" "$template_dir"
     fi
 }

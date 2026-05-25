@@ -359,3 +359,60 @@ plugins: []"
     run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
     [ "$output" = "thalami 1" ]
 }
+
+@test "apply --template: backup snapshot predates the adoption marker write" {
+    make_template thalami "version: 1
+plugins: []"
+    mkdir -p "$HOARDS_DIR/h1/.obsidian"
+    run ws_hoard_upgrade h1 --apply --template thalami
+    [ "$status" -eq 0 ]
+    local snap
+    snap="$(find "$HOARDS_DIR/h1/.upgrade-backup" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    [ -n "$snap" ]
+    # The marker was written AFTER the backup, so the snapshot must not have it.
+    [ ! -e "$snap/.hoard.yaml" ]
+    [ -f "$HOARDS_DIR/h1/.hoard.yaml" ]
+}
+
+@test "plan: a hoard plugin absent from the template is destructive" {
+    make_template thalami "version: 2
+plugins:
+  - id: dataview
+    name: Dataview
+    repo: blacksmithgu/obsidian-dataview
+    pin: \"0.5.68\""
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    printf '["dataview","some-extra-plugin"]\n' > "$HOARDS_DIR/h1/.obsidian/community-plugins.json"
+    run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"destructive"*"some-extra-plugin"* ]]
+}
+
+@test "plan: an existing data.json the template would overlay is destructive" {
+    make_template thalami "version: 2
+plugins: []"
+    mkdir -p "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview"
+    printf '{}\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview"
+    printf '{"existing":true}\n' > "$HOARDS_DIR/h1/.obsidian/plugins/dataview/data.json"
+    run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"destructive"*"dataview data.json"* ]]
+}
+
+@test "command: a second positional argument errors" {
+    make_hoard h1
+    run ws_hoard_upgrade h1 extra-arg
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"unexpected extra argument"* ]]
+}
+
+@test "command: conflicting mode flags error" {
+    make_hoard h1
+    run ws_hoard_upgrade h1 --plan --apply
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"only one of"* ]]
+}
