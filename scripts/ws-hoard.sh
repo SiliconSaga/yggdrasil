@@ -332,9 +332,12 @@ ws_hoard_help() {
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
     echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
     echo "                           thalamus file (empty if no active hoard)" >&2
-    echo "  upgrade <hoard-name>     Re-fetch plugins and refresh configs from the" >&2
-    echo "                           hoard's template. Run after pulling a yggdrasil" >&2
-    echo "                           update or to refresh on a fresh clone." >&2
+    echo "  upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]" >&2
+    echo "                           Provenance-tracked upgrade from the hoard's" >&2
+    echo "                           template (.hoard.yaml). --plan previews;" >&2
+    echo "                           --apply backs up then applies; --rollback" >&2
+    echo "                           restores the last backup. The gdd-hoard-upgrade" >&2
+    echo "                           skill drives the propose-then-apply flow." >&2
 }
 
 # Read staleness_days from a hoard's `.ws-cadence.yaml`. Defaults to 2
@@ -771,30 +774,40 @@ ws_hoard_init() {
         fi
     fi
 
-    # If the template ships an .upgrade/ recipe, strip it from the
-    # target (it's template-internal, not user content) and run the
-    # upgrade phase against the freshly-copied hoard. This installs
-    # plugins, seeds plugin data.json, writes community-plugins.json,
-    # disables conflicting core plugins, and injects the README block.
-    if [[ -d "$target/.upgrade" ]]; then
-        rm -rf "$target/.upgrade"
-        # Only run if template still has .upgrade/ (the source)
-        # Allow tests / offline runs / CI to opt out of the upgrade phase
-        # via WS_HOARD_NO_UPGRADE=1. Upgrade hits GitHub for plugin
-        # release downloads, which is fine for interactive use but bad
-        # for hermetic test runs.
-        if [[ -f "$template_dir/.upgrade/upgrade.yaml" && -z "${WS_HOARD_NO_UPGRADE:-}" ]]; then
+    # If the template ships an .upgrade/ recipe, run the upgrade phase against
+    # the freshly-created hoard (install plugins, seed data.json, write
+    # community-plugins.json, disable core plugins, splice managed regions).
+    # Gate on the *template's* recipe, not on $target/.upgrade: the cp path
+    # copies .upgrade into the instance, but the yaml-driven clone path does
+    # not, so checking $target would skip the phase for clone-based templates.
+    if [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+        # The cp path leaves a copy of .upgrade in the instance — strip it
+        # (template-internal, not user content). The clone path won't have one.
+        [[ -d "$target/.upgrade" ]] && rm -rf "$target/.upgrade"
+        local _tmpl_name _applied_version
+        _tmpl_name="$(basename "$template_dir")"
+        _applied_version=0   # baseline: recipe not yet applied
+        # Allow tests / offline / CI to opt out of the upgrade phase via
+        # WS_HOARD_NO_UPGRADE=1 (it hits GitHub for plugin downloads).
+        if [[ -z "${WS_HOARD_NO_UPGRADE:-}" ]]; then
             echo ""
             echo "Running upgrade phase from template..."
-            _ws_hoard_upgrade_from_template "$template_dir" "$target" || {
+            if _ws_hoard_apply_manifest "$template_dir" "$target" \
+                && _ws_hoard_apply_regions "$target" "$template_dir"; then
+                _applied_version="$(_ws_hoard_manifest_version "$template_dir")"
+            else
                 echo "WARNING: upgrade phase failed; hoard is initialized but" >&2
-                echo "  plugins were not installed. Re-run \`ws hoard upgrade $hoard_name\`" >&2
-                echo "  to retry." >&2
-            }
-        elif [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
+                echo "  plugins/regions were not fully applied. Re-run" >&2
+                echo "  \`ws hoard upgrade $hoard_name --apply\` to retry." >&2
+            fi
+        else
             echo "Skipping upgrade phase (WS_HOARD_NO_UPGRADE set). Run" >&2
-            echo "  \`ws hoard upgrade $hoard_name\` later to install plugins." >&2
+            echo "  \`ws hoard upgrade $hoard_name --apply\` later to install plugins." >&2
         fi
+        # Provenance reflects what was actually applied: the manifest version
+        # on success, else 0 so a later --apply brings it current (rather than
+        # a misleading "uptodate").
+        _ws_hoard_provenance_write "$target" "$_tmpl_name" "$_applied_version"
     fi
 
     # git init + initial commit. Honor the user's existing git config for
