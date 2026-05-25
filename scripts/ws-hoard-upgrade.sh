@@ -145,8 +145,10 @@ _ws_hoard_backup() {
     local hoard_dir="$1"
     local ts snap
     ts="$(date '+%Y%m%d-%H%M%S')"
-    snap="$hoard_dir/.upgrade-backup/$ts"
-    mkdir -p "$snap" || return 1
+    mkdir -p "$hoard_dir/.upgrade-backup" || return 1
+    # mktemp -d adds a random suffix so two snapshots in the same second
+    # can't merge into one directory (which would weaken rollback).
+    snap="$(mktemp -d "$hoard_dir/.upgrade-backup/${ts}-XXXXXX")" || return 1
     local entry base
     for entry in "$hoard_dir"/* "$hoard_dir"/.[!.]*; do
         [[ -e "$entry" ]] || continue
@@ -161,6 +163,11 @@ _ws_hoard_backup() {
 # there is no snapshot.
 _ws_hoard_rollback() {
     local hoard_dir="$1"
+    # Guard before any rm -rf below: never operate on an empty or root path.
+    [[ -n "$hoard_dir" && "$hoard_dir" != "/" ]] || {
+        echo "ERROR: unsafe hoard_dir for rollback: '$hoard_dir'" >&2
+        return 1
+    }
     local backups_dir="$hoard_dir/.upgrade-backup"
     [[ -d "$backups_dir" ]] || return 1
     local latest
@@ -183,6 +190,16 @@ _ws_hoard_region_splice() {
     local file="$1" id="$2" source_file="$3"
     local begin="<!-- BEGIN upgrade-$id -->"
     local end="<!-- END upgrade-$id -->"
+    # Surface malformed markers as a conflict instead of silently rewriting:
+    # an unbalanced BEGIN/END (e.g. END deleted by hand) would make the awk
+    # replace path truncate the rest of the file.
+    local begin_count end_count
+    begin_count="$(grep -cF "$begin" "$file" 2>/dev/null || true)"
+    end_count="$(grep -cF "$end" "$file" 2>/dev/null || true)"
+    if [[ "${begin_count:-0}" -ne "${end_count:-0}" ]]; then
+        echo "ERROR: malformed managed-region markers in $file for id '$id' (BEGIN=$begin_count END=$end_count)" >&2
+        return 1
+    fi
     local out
     out="$(mktemp)"
     if [[ -f "$file" ]] && grep -qF "$begin" "$file" 2>/dev/null; then

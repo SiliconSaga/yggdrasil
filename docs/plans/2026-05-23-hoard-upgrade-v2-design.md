@@ -77,7 +77,7 @@ The manifest describes a **desired end state**, not per-version migration script
 
 ### Flow — `--plan` → propose → `--apply`
 
-```
+```text
 ws hoard upgrade <hoard> --plan
   1. Read <hoard>/.hoard.yaml → template + applied_version.
      (If absent: emit a "establish provenance" step — see Adopting existing hoards.)

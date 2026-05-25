@@ -3,8 +3,8 @@
 > ```meta-bind-button
 > label: "🔄 Refresh"
 > style: default
-> actions:
->   - type: command
->     command: dataview:dataview-force-refresh-views
+> action:
+>   type: command
+>   command: dataview:dataview-force-refresh-views
 > ```
 > Hit Refresh if the **Days** column reads negative — Dataview caches `date(today)` until the view re-renders, so a pane left open across days drifts. See `docs/gdd/thalamus.md` if this recurs.

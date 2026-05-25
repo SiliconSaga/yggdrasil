@@ -30,7 +30,7 @@
 #   hoard init [template] [--name <name>]   Scaffold a new hoard (default template: thalami)
 #   hoard <url>                Clone an existing hoard
 #   hoard list                 Show hoards and which thalami hoard is active
-#   hoard upgrade <hoard> [--plan|--apply|--rollback]  Provenance-tracked plugin/config upgrade
+#   hoard upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]  Provenance-tracked plugin/config upgrade
 #   component init <flavor> [name]   Scaffold a new component from a template
 #   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component

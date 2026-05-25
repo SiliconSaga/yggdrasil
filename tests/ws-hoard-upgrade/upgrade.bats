@@ -68,6 +68,7 @@ managed_regions:
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     printf '# Dash\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
     run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"region-insert"*"ArcDashboard.md#controls"* ]]
 }
 
@@ -84,6 +85,7 @@ managed_regions:
     printf '# Dash\n<!-- BEGIN upgrade-controls -->\nold\n<!-- END upgrade-controls -->\n' \
         > "$HOARDS_DIR/h1/ArcDashboard.md"
     run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"region-edit"*"ArcDashboard.md#controls"* ]]
 }
 
@@ -96,6 +98,7 @@ files_remove:
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     printf '{}\n' > "$HOARDS_DIR/h1/.obsidian/daily-notes.json"
     run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
     [[ "$output" == *"destructive"*"daily-notes.json"* ]]
 }
 
@@ -171,7 +174,21 @@ plugins:
     _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
     _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
     run grep -cF "<!-- BEGIN upgrade-controls -->" "$HOARDS_DIR/h1/ArcDashboard.md"
+    [ "$status" -eq 0 ]
     [ "$output" -eq 1 ]
+}
+
+@test "region splice: malformed markers (BEGIN without END) error without rewriting" {
+    make_hoard h1
+    printf '# Dash\n<!-- BEGIN upgrade-controls -->\nstuff\nmore\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    local before
+    before="$(cat "$HOARDS_DIR/h1/ArcDashboard.md")"
+    printf 'NEW\n' > "$BATS_TEST_TMPDIR/src.md"
+    run _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"malformed managed-region markers"* ]]
+    # File untouched — no truncation.
+    [ "$(cat "$HOARDS_DIR/h1/ArcDashboard.md")" = "$before" ]
 }
 
 @test "apply: backs up, enables plugin, splices region, bumps provenance" {
