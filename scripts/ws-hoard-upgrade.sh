@@ -66,13 +66,15 @@ _ws_hoard_manifest_version() {
 # destructive. The caller (skill/human) decides on the destructive + region
 # lines; additive lines are safe to auto-apply.
 _ws_hoard_upgrade_plan() {
-    local hoard_dir="$1" template_dir="$2"
+    local hoard_dir="$1" template_dir="$2" applied_override="${3:-}"
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
     local cp_json="$hoard_dir/.obsidian/community-plugins.json"
 
     local version applied prov
     version="$(_ws_hoard_manifest_version "$template_dir")" || return 1
-    if prov="$(_ws_hoard_provenance_read "$hoard_dir")"; then
+    if [[ -n "$applied_override" ]]; then
+        applied="$applied_override"   # in-memory baseline for an untracked adoption (--plan must not write)
+    elif prov="$(_ws_hoard_provenance_read "$hoard_dir")"; then
         applied="${prov##* }"
     else
         applied=-1   # no provenance yet; everything is "new"
@@ -181,13 +183,19 @@ _ws_hoard_rollback() {
         [[ -e "$cur" ]] || continue
         curbase="$(basename "$cur")"
         [[ "$curbase" == ".git" || "$curbase" == ".upgrade-backup" ]] && continue
-        rm -rf "$cur"
+        rm -rf "$cur" || {
+            echo "ERROR: rollback failed to remove $cur; hoard may be half-cleared." >&2
+            return 1
+        }
     done
     local entry base
     for entry in "$latest"/* "$latest"/.[!.]*; do
         [[ -e "$entry" ]] || continue
         base="$(basename "$entry")"
-        cp -R "$entry" "$hoard_dir/"
+        cp -R "$entry" "$hoard_dir/" || {
+            echo "ERROR: rollback failed to restore $base; hoard may be half-restored." >&2
+            return 1
+        }
     done
     printf 'Restored %s\n' "$latest"
 }
@@ -592,8 +600,12 @@ ws_hoard_upgrade() {
         return 0
     fi
 
-    # Resolve template; adopt a not-yet-tracked hoard via --template.
-    local template prov
+    # Resolve template; adopt a not-yet-tracked hoard via --template. For an
+    # adoption we compute a baseline (one version behind, so the latest bump
+    # applies) but DO NOT persist it here — writing .hoard.yaml during --plan
+    # would mutate the hoard and break the "touch nothing" contract. The plan
+    # uses the baseline in-memory; --apply persists it before applying.
+    local template prov adopting=0 baseline=""
     if prov="$(_ws_hoard_provenance_read "$hoard_dir")"; then
         template="${prov%% *}"
     elif [[ -n "$template_override" ]]; then
@@ -601,11 +613,9 @@ ws_hoard_upgrade() {
         local tv
         tv="$(_ws_hoard_manifest_version "$TEMPLATES_DIR/hoards/$template")" || {
             echo "ERROR: template '$template' has no .upgrade/upgrade.yaml" >&2; return 1; }
-        # Adopt at a baseline one version behind the template's current, so the
-        # latest bump applies rather than re-applying the recipe from zero.
-        local baseline=$(( tv > 0 ? tv - 1 : 0 ))
-        _ws_hoard_provenance_write "$hoard_dir" "$template" "$baseline"
-        printf 'provenance\testablished %s @ %s (was untracked)\n' "$template" "$baseline"
+        adopting=1
+        baseline=$(( tv > 0 ? tv - 1 : 0 ))
+        printf 'provenance\twould adopt %s @ %s (untracked; persisted on --apply)\n' "$template" "$baseline"
     else
         echo "ERROR: $hoard_name has no .hoard.yaml; pass --template <name> to adopt it." >&2
         return 1
@@ -618,8 +628,14 @@ ws_hoard_upgrade() {
     fi
 
     if [[ "$mode" == "plan" ]]; then
-        _ws_hoard_upgrade_plan "$hoard_dir" "$template_dir"
+        _ws_hoard_upgrade_plan "$hoard_dir" "$template_dir" "$baseline"
     else
+        # --apply may persist: record the adoption baseline first so the hoard
+        # is tracked even if the apply fails midway, then apply (which bumps
+        # provenance to the manifest version on success).
+        if [[ "$adopting" -eq 1 ]]; then
+            _ws_hoard_provenance_write "$hoard_dir" "$template" "$baseline"
+        fi
         _ws_hoard_upgrade_apply "$hoard_dir" "$template_dir"
     fi
 }

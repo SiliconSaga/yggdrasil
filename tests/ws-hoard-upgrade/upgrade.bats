@@ -330,7 +330,7 @@ plugins: []"
     [[ "$output" == *"--template"* ]]
 }
 
-@test "command: --template establishes provenance then plans" {
+@test "command: --plan --template previews the adopted baseline WITHOUT writing provenance" {
     make_template thalami "version: 2
 plugins: []
 managed_regions:
@@ -343,4 +343,19 @@ managed_regions:
     run ws_hoard_upgrade h1 --plan --template thalami
     [ "$status" -eq 0 ]
     [[ "$output" == *"provenance"* ]]
+    # Baseline (v1) is used in-memory so the plan shows the pending region.
+    [[ "$output" == *"region-insert"* ]]
+    # --plan must not mutate the hoard.
+    [ ! -f "$HOARDS_DIR/h1/.hoard.yaml" ]
+}
+
+@test "command: --apply --template persists provenance (adoption)" {
+    make_template thalami "version: 1
+plugins: []"
+    mkdir -p "$HOARDS_DIR/h1/.obsidian"
+    run ws_hoard_upgrade h1 --apply --template thalami
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/h1/.hoard.yaml" ]
+    run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
+    [ "$output" = "thalami 1" ]
 }
