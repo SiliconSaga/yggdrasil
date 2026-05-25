@@ -173,11 +173,20 @@ _ws_hoard_rollback() {
     local latest
     latest="$(find "$backups_dir" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
     [[ -n "$latest" ]] || return 1
+    # Clear the hoard first (except .git and the backups themselves) so files
+    # created after the snapshot — e.g. freshly downloaded plugin dirs — don't
+    # survive a rollback, leaving a true revert rather than a merged state.
+    local cur curbase
+    for cur in "$hoard_dir"/* "$hoard_dir"/.[!.]*; do
+        [[ -e "$cur" ]] || continue
+        curbase="$(basename "$cur")"
+        [[ "$curbase" == ".git" || "$curbase" == ".upgrade-backup" ]] && continue
+        rm -rf "$cur"
+    done
     local entry base
     for entry in "$latest"/* "$latest"/.[!.]*; do
         [[ -e "$entry" ]] || continue
         base="$(basename "$entry")"
-        rm -rf "$hoard_dir/$base"
         cp -R "$entry" "$hoard_dir/"
     done
     printf 'Restored %s\n' "$latest"
@@ -188,6 +197,13 @@ _ws_hoard_rollback() {
 # wrapped block. Content outside the markers is preserved verbatim.
 _ws_hoard_region_splice() {
     local file="$1" id="$2" source_file="$3"
+    # Refuse a missing/unreadable source: otherwise the append path would write
+    # empty markers and the replace path would drop the managed block, both
+    # corrupting the target.
+    [[ -r "$source_file" ]] || {
+        echo "ERROR: managed-region source not readable: $source_file" >&2
+        return 1
+    }
     local begin="<!-- BEGIN upgrade-$id -->"
     local end="<!-- END upgrade-$id -->"
     # Surface malformed markers as a conflict instead of silently rewriting:
@@ -210,8 +226,13 @@ _ws_hoard_region_splice() {
         ' "$file" > "$out"
     else
         {
-            [[ -f "$file" ]] && cat "$file"
-            printf '\n%s\n' "$begin"
+            # Only prepend a separating blank line when the file already has
+            # content — a brand-new file shouldn't start with an empty line.
+            if [[ -s "$file" ]]; then
+                cat "$file"
+                printf '\n'
+            fi
+            printf '%s\n' "$begin"
             cat "$source_file"
             printf '%s\n' "$end"
         } > "$out"
@@ -267,11 +288,11 @@ _ws_hoard_apply_manifest() {
         echo "ERROR: template has no upgrade.yaml: $template_dir" >&2
         return 1
     fi
-    if [[ ! -d "$hoard_dir/.obsidian" ]]; then
-        echo "ERROR: $hoard_dir does not appear to be an Obsidian vault" >&2
-        echo "  No .obsidian/ directory found." >&2
-        return 1
-    fi
+    # Bootstrap .obsidian/ if absent. Templates like thalami don't ship one
+    # (it's per-machine, gitignored), and a hoard may not have been opened in
+    # Obsidian yet — so create it rather than erroring, letting init/upgrade
+    # seed plugins + config cleanly on a fresh hoard.
+    mkdir -p "$hoard_dir/.obsidian" || return 1
     if ! command -v gh &>/dev/null; then
         echo "ERROR: gh (GitHub CLI) is required to download plugin releases." >&2
         echo "  Install: https://cli.github.com/" >&2
@@ -475,6 +496,28 @@ _ws_hoard_apply_manifest() {
     fi
 }
 
+# Splice every managed region declared in the template manifest into the hoard.
+# Aborts (returns 1) on a missing/unreadable source or a splice failure, so a
+# caller can refuse to bump provenance on a partial apply. Args: <hoard_dir> <template_dir>.
+_ws_hoard_apply_regions() {
+    local hoard_dir="$1" template_dir="$2"
+    local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
+    local rn ri rfile rid rsrc
+    rn="$(yq '.managed_regions // [] | length' "$upgrade_yaml")"
+    ri=0
+    while [[ $ri -lt $rn ]]; do
+        rfile="$(yq ".managed_regions[$ri].file" "$upgrade_yaml")"
+        rid="$(yq ".managed_regions[$ri].id" "$upgrade_yaml")"
+        rsrc="$(yq ".managed_regions[$ri].source" "$upgrade_yaml")"
+        _ws_hoard_region_splice "$hoard_dir/$rfile" "$rid" "$template_dir/.upgrade/$rsrc" || {
+            echo "ERROR: region splice failed for $rfile#$rid; aborting (provenance not bumped, --rollback to restore)." >&2
+            return 1
+        }
+        echo "Spliced region $rfile#$rid"
+        ri=$((ri+1))
+    done
+}
+
 # Back-compat alias: `ws hoard init` calls this with an explicit, known
 # template (no provenance gap), so it maps straight to the mechanical apply.
 _ws_hoard_upgrade_from_template() {
@@ -497,25 +540,9 @@ _ws_hoard_upgrade_apply() {
     echo "Backed up hoard to: $snap"
 
     # Mechanical manifest apply (plugins, data.json, community-plugins.json,
-    # core-disable, files_remove, README block).
+    # core-disable, files_remove, README block), then managed regions.
     _ws_hoard_apply_manifest "$template_dir" "$hoard_dir" || return 1
-
-    # Managed regions.
-    local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
-    local rn ri rfile rid rsrc
-    rn="$(yq '.managed_regions // [] | length' "$upgrade_yaml")"
-    ri=0
-    while [[ $ri -lt $rn ]]; do
-        rfile="$(yq ".managed_regions[$ri].file" "$upgrade_yaml")"
-        rid="$(yq ".managed_regions[$ri].id" "$upgrade_yaml")"
-        rsrc="$(yq ".managed_regions[$ri].source" "$upgrade_yaml")"
-        _ws_hoard_region_splice "$hoard_dir/$rfile" "$rid" "$template_dir/.upgrade/$rsrc" || {
-            echo "ERROR: region splice failed for $rfile#$rid; aborting (provenance not bumped, --rollback to restore)." >&2
-            return 1
-        }
-        echo "Spliced region $rfile#$rid"
-        ri=$((ri+1))
-    done
+    _ws_hoard_apply_regions "$hoard_dir" "$template_dir" || return 1
 
     # Provenance bump last, so a mid-apply failure leaves it un-bumped and the
     # upgrade is safely retryable.
@@ -535,7 +562,14 @@ ws_hoard_upgrade() {
             --plan) mode="plan" ;;
             --apply) mode="apply" ;;
             --rollback) mode="rollback" ;;
-            --template) shift; template_override="${1:-}" ;;
+            --template)
+                shift
+                if [[ -z "${1:-}" || "${1:-}" == -* ]]; then
+                    echo "ERROR: --template requires a template name." >&2
+                    ws_hoard_upgrade_help; return 1
+                fi
+                template_override="$1"
+                ;;
             -h|--help) ws_hoard_upgrade_help; return 0 ;;
             -*) echo "ERROR: unknown flag '$1'" >&2; ws_hoard_upgrade_help; return 1 ;;
             *) hoard_name="$1" ;;

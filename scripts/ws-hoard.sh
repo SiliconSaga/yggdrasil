@@ -781,29 +781,31 @@ ws_hoard_init() {
     # disables conflicting core plugins, and injects the README block.
     if [[ -d "$target/.upgrade" ]]; then
         rm -rf "$target/.upgrade"
-        # Record provenance so `ws hoard upgrade` can resolve the source
-        # template + version. Written even when the upgrade phase is skipped
-        # (WS_HOARD_NO_UPGRADE / offline) — it's a cheap local file, no network.
         if [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
-            _ws_hoard_provenance_write "$target" "$(basename "$template_dir")" \
-                "$(_ws_hoard_manifest_version "$template_dir")"
-        fi
-        # Only run if template still has .upgrade/ (the source)
-        # Allow tests / offline runs / CI to opt out of the upgrade phase
-        # via WS_HOARD_NO_UPGRADE=1. Upgrade hits GitHub for plugin
-        # release downloads, which is fine for interactive use but bad
-        # for hermetic test runs.
-        if [[ -f "$template_dir/.upgrade/upgrade.yaml" && -z "${WS_HOARD_NO_UPGRADE:-}" ]]; then
-            echo ""
-            echo "Running upgrade phase from template..."
-            _ws_hoard_upgrade_from_template "$template_dir" "$target" || {
-                echo "WARNING: upgrade phase failed; hoard is initialized but" >&2
-                echo "  plugins were not installed. Re-run \`ws hoard upgrade $hoard_name\`" >&2
-                echo "  to retry." >&2
-            }
-        elif [[ -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
-            echo "Skipping upgrade phase (WS_HOARD_NO_UPGRADE set). Run" >&2
-            echo "  \`ws hoard upgrade $hoard_name\` later to install plugins." >&2
+            local _tmpl_name _applied_version
+            _tmpl_name="$(basename "$template_dir")"
+            _applied_version=0   # baseline: recipe not yet applied
+            # Allow tests / offline / CI to opt out of the upgrade phase via
+            # WS_HOARD_NO_UPGRADE=1 (it hits GitHub for plugin downloads).
+            if [[ -z "${WS_HOARD_NO_UPGRADE:-}" ]]; then
+                echo ""
+                echo "Running upgrade phase from template..."
+                if _ws_hoard_apply_manifest "$template_dir" "$target" \
+                    && _ws_hoard_apply_regions "$target" "$template_dir"; then
+                    _applied_version="$(_ws_hoard_manifest_version "$template_dir")"
+                else
+                    echo "WARNING: upgrade phase failed; hoard is initialized but" >&2
+                    echo "  plugins/regions were not fully applied. Re-run" >&2
+                    echo "  \`ws hoard upgrade $hoard_name --apply\` to retry." >&2
+                fi
+            else
+                echo "Skipping upgrade phase (WS_HOARD_NO_UPGRADE set). Run" >&2
+                echo "  \`ws hoard upgrade $hoard_name --apply\` later to install plugins." >&2
+            fi
+            # Provenance reflects what was actually applied: the manifest
+            # version on success, else 0 so a later --apply brings it current
+            # (rather than a misleading "uptodate").
+            _ws_hoard_provenance_write "$target" "$_tmpl_name" "$_applied_version"
         fi
     fi
 

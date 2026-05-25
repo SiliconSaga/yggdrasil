@@ -221,6 +221,51 @@ managed_regions:
     [ "$output" = "thalami 1" ]
 }
 
+@test "region splice: missing source errors without writing the target" {
+    make_hoard h1
+    printf '# Dash\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    run _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/does-not-exist.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"source not readable"* ]]
+    [ "$(cat "$HOARDS_DIR/h1/ArcDashboard.md")" = "# Dash" ]
+}
+
+@test "region splice: inserting into a new file has no leading blank line" {
+    make_hoard h1
+    printf 'NEW\n' > "$BATS_TEST_TMPDIR/src.md"
+    _ws_hoard_region_splice "$HOARDS_DIR/h1/brand-new.md" controls "$BATS_TEST_TMPDIR/src.md"
+    run head -n 1 "$HOARDS_DIR/h1/brand-new.md"
+    [ "$output" = "<!-- BEGIN upgrade-controls -->" ]
+}
+
+@test "rollback: removes files created after the snapshot" {
+    make_hoard h1
+    printf 'orig\n' > "$HOARDS_DIR/h1/note.md"
+    _ws_hoard_backup "$HOARDS_DIR/h1" >/dev/null
+    printf 'extra\n' > "$HOARDS_DIR/h1/new-file.md"
+    run _ws_hoard_rollback "$HOARDS_DIR/h1"
+    [ "$status" -eq 0 ]
+    [ ! -e "$HOARDS_DIR/h1/new-file.md" ]
+    [ -f "$HOARDS_DIR/h1/note.md" ]
+}
+
+@test "apply: creates .obsidian when the hoard lacks one" {
+    make_template thalami "version: 1
+plugins: []"
+    mkdir -p "$HOARDS_DIR/h1"
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 0
+    run _ws_hoard_upgrade_apply "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    [ -d "$HOARDS_DIR/h1/.obsidian" ]
+}
+
+@test "command: --template without a value errors" {
+    make_hoard h1
+    run ws_hoard_upgrade h1 --plan --template
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--template requires"* ]]
+}
+
 @test "apply: backs up, enables plugin, splices region, bumps provenance" {
     make_fake_gh
     make_template thalami "version: 2
