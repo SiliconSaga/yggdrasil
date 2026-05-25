@@ -1,10 +1,11 @@
-<!-- Template-managed (ws hoard upgrade). Edits inside the markers are overwritten on upgrade; edit around them freely. The meta-bind-button command-action block targets Meta Bind 1.4.10 (pinned in upgrade.yaml); confirm it renders as a button on first open in Obsidian. -->
-> [!tip]- Dashboard controls
-> ```meta-bind-button
-> label: "🔄 Refresh"
-> style: default
-> action:
->   type: command
->   command: dataview:dataview-force-refresh-views
-> ```
-> Hit Refresh if the **Days** column reads negative — Dataview caches `date(today)` until the view re-renders, so a pane left open across days drifts. See `docs/gdd/thalamus.md` if this recurs.
+<!-- Template-managed (ws hoard upgrade); edit the region source in the template, not here. -->
+```meta-bind-button
+label: "🔄 Refresh"
+style: default
+id: arc-refresh
+hidden: true
+action:
+  type: command
+  command: dataview:dataview-force-refresh-views
+```
+**Filter** `INPUT[text:filter]` · **Sort by** `INPUT[inlineSelect(option(Status), option(Touched, Last touched), option(Arc), option(Host), option(Age), option(Impact), option(Urgency)):sortby]` · **Desc** `INPUT[toggle:descending]` · `BUTTON[arc-refresh]`

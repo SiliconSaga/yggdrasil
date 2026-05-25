@@ -1,10 +1,29 @@
+---
+filter: ""
+sortby: Status
+descending: false
+---
 # Thalami Arc Dashboard
 
-Live cross-host view of in-flight work. Renders when this hoard is opened as an Obsidian vault with the Dataview plugin installed (see this hoard's `README.md` for one-time setup).
+Live cross-host view of in-flight work. Renders when this hoard is opened as an Obsidian vault with the Dataview and Meta Bind plugins installed (see this hoard's `README.md` for one-time setup). The Filter, Sort, and Refresh controls by the table can take a few seconds to update after you use them.
 
 ## Arcs
 
-Each row is one (host, arc) pair. Arcs that span hosts share an `id` slug and appear as adjacent rows under the status sort.
+Each row is one (host, arc) pair. Arcs that span hosts share an `id` slug and appear as adjacent rows under the default status sort. Refresh if the **Age** column reads negative — Dataview caches `date(today)` until the view re-renders.
+
+<!-- BEGIN upgrade-controls -->
+<!-- Template-managed (ws hoard upgrade); edit the region source in the template, not here. -->
+```meta-bind-button
+label: "🔄 Refresh"
+style: default
+id: arc-refresh
+hidden: true
+action:
+  type: command
+  command: dataview:dataview-force-refresh-views
+```
+**Filter** `INPUT[text:filter]` · **Sort by** `INPUT[inlineSelect(option(Status), option(Touched, Last touched), option(Arc), option(Host), option(Age), option(Impact), option(Urgency)):sortby]` · **Desc** `INPUT[toggle:descending]` · `BUTTON[arc-refresh]`
+<!-- END upgrade-controls -->
 
 ```dataview
 TABLE WITHOUT ID
@@ -23,11 +42,14 @@ TABLE WITHOUT ID
   arc.impact AS "Impact",
   arc.urgency AS "Urgency",
   regexreplace(file.name, "-thalamus$", "") AS "Host",
-  (date(today) - date(arc.started)).days AS "Days"
+  arc.last_touched AS "Touched",
+  (date(today) - date(arc.started)).days AS "Age"
 FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
-SORT arc.status ASC, arc.last_touched DESC
+WHERE this.filter = null OR this.filter = "" OR contains(lower(string(arc.id) + " " + string(arc.name) + " " + string(arc.status) + " " + regexreplace(file.name, "-thalamus$", "") + " " + string(arc.tags)), lower(this.filter))
+FLATTEN choice(this.sortby = "Arc", arc.id, choice(this.sortby = "Host", regexreplace(file.name, "-thalamus$", ""), choice(this.sortby = "Age", (date(today) - date(arc.started)).days, choice(this.sortby = "Touched", arc.last_touched, choice(this.sortby = "Impact", choice(arc.impact = "high", 0, choice(arc.impact = "medium", 1, choice(arc.impact = "low", 2, 3))), choice(this.sortby = "Urgency", choice(arc.urgency = "asap", 0, choice(arc.urgency = "next", 1, choice(arc.urgency = "soon", 2, choice(arc.urgency = "later", 3, 4)))), arc.status)))))) AS sortkey
+SORT choice(this.descending, null, sortkey) ASC, choice(this.descending, sortkey, null) DESC, arc.last_touched DESC
 ```
 
 ## Vibe legend & count
