@@ -387,6 +387,39 @@ plugins:
     run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
     [ "$status" -eq 0 ]
     [[ "$output" == *"destructive"*"some-extra-plugin"* ]]
+    # An in-template plugin (dataview) must NOT be flagged — it survives the
+    # overwrite. Regression for the -o tsv false-positive found via live --plan.
+    [[ "$output" != *"dataview"* ]]
+}
+
+@test "plan: a directory in files_remove is not flagged (apply uses rm -f)" {
+    make_template thalami "version: 2
+plugins: []
+files_remove:
+  - somedir"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    mkdir -p "$HOARDS_DIR/h1/somedir"
+    run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"somedir"* ]]
+}
+
+@test "apply: prunes old backups, keeping WS_HOARD_BACKUP_KEEP most recent" {
+    make_template thalami "version: 1
+plugins: []"
+    mkdir -p "$HOARDS_DIR/h1/.obsidian"
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 0
+    mkdir -p "$HOARDS_DIR/h1/.upgrade-backup/20260101-000001" \
+             "$HOARDS_DIR/h1/.upgrade-backup/20260101-000002" \
+             "$HOARDS_DIR/h1/.upgrade-backup/20260101-000003" \
+             "$HOARDS_DIR/h1/.upgrade-backup/20260101-000004"
+    export WS_HOARD_BACKUP_KEEP=3
+    run _ws_hoard_upgrade_apply "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -eq 0 ]
+    # 4 pre-seeded + 1 from this apply = 5; pruned to the 3 newest.
+    run find "$HOARDS_DIR/h1/.upgrade-backup" -mindepth 1 -maxdepth 1 -type d
+    [ "${#lines[@]}" -eq 3 ]
 }
 
 @test "plan: an existing data.json the template would overlay is destructive" {
