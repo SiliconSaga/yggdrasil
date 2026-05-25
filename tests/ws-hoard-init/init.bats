@@ -92,7 +92,7 @@ setup() {
     [ "$status" -eq 0 ]
     [ -f "$HOARDS_DIR/test-prov/.hoard.yaml" ]
     grep -qF "template: obsidian-vault" "$HOARDS_DIR/test-prov/.hoard.yaml"
-    grep -qF "applied_version:" "$HOARDS_DIR/test-prov/.hoard.yaml"
+    grep -Eq '^applied_version:[[:space:]]*[0-9]+$' "$HOARDS_DIR/test-prov/.hoard.yaml"
 }
 
 # ---------------------------------------------------------------------------

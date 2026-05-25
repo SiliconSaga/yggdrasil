@@ -191,6 +191,36 @@ plugins:
     [ "$(cat "$HOARDS_DIR/h1/ArcDashboard.md")" = "$before" ]
 }
 
+@test "region splice: malformed markers (END without BEGIN) error without rewriting" {
+    make_hoard h1
+    printf '# Dash\n<!-- END upgrade-controls -->\ntail\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    local before
+    before="$(cat "$HOARDS_DIR/h1/ArcDashboard.md")"
+    printf 'NEW\n' > "$BATS_TEST_TMPDIR/src.md"
+    run _ws_hoard_region_splice "$HOARDS_DIR/h1/ArcDashboard.md" controls "$BATS_TEST_TMPDIR/src.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"malformed managed-region markers"* ]]
+    [ "$(cat "$HOARDS_DIR/h1/ArcDashboard.md")" = "$before" ]
+}
+
+@test "apply: aborts and leaves provenance un-bumped when a region splice fails" {
+    make_template thalami "version: 2
+plugins: []
+managed_regions:
+  - file: ArcDashboard.md
+    id: controls
+    source: regions/arcdashboard-controls.md"
+    printf 'CONTROLS\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/regions/arcdashboard-controls.md"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    # Malformed marker (BEGIN without END) makes the region splice fail mid-apply.
+    printf '# Dash\n<!-- BEGIN upgrade-controls -->\nx\n' > "$HOARDS_DIR/h1/ArcDashboard.md"
+    run _ws_hoard_upgrade_apply "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+    [ "$status" -ne 0 ]
+    run _ws_hoard_provenance_read "$HOARDS_DIR/h1"
+    [ "$output" = "thalami 1" ]
+}
+
 @test "apply: backs up, enables plugin, splices region, bumps provenance" {
     make_fake_gh
     make_template thalami "version: 2

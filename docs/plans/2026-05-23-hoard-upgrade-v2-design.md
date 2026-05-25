@@ -25,6 +25,7 @@ The goal is to re-enable the command by replacing blind apply with a provenance-
 
 - **Software-component upgrades (Dependabot-style).** The provenance + version concept is meant to generalize to `components/` later, but nothing component-facing is built now. The design only avoids decisions that would foreclose it.
 - **Three-way JSON merge for `data.json`.** The current overwrite-on-apply behavior for plugin `data.json` is kept. `thalami`'s recipe is tiny, so the risk is low; the three-way merge cited in the yggdrasil#54 follow-up is deferred.
+- **Merging `community-plugins.json`.** The template is authoritative for the *enabled-plugin set*: `--apply` overwrites `community-plugins.json` with exactly the template's plugin ids, so any extra plugin a user enabled in a managed hoard would be disabled on upgrade. Acceptable for `thalami` (no extra plugins expected); a union-merge is deferred alongside the `data.json` merge.
 - **A general filter/sort UX for `ArcDashboard`.** The Meta Bind controls region added here is the first concrete managed-region, not a full dashboard redesign.
 
 ## Architecture

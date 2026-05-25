@@ -509,7 +509,10 @@ _ws_hoard_upgrade_apply() {
         rfile="$(yq ".managed_regions[$ri].file" "$upgrade_yaml")"
         rid="$(yq ".managed_regions[$ri].id" "$upgrade_yaml")"
         rsrc="$(yq ".managed_regions[$ri].source" "$upgrade_yaml")"
-        _ws_hoard_region_splice "$hoard_dir/$rfile" "$rid" "$template_dir/.upgrade/$rsrc"
+        _ws_hoard_region_splice "$hoard_dir/$rfile" "$rid" "$template_dir/.upgrade/$rsrc" || {
+            echo "ERROR: region splice failed for $rfile#$rid; aborting (provenance not bumped, --rollback to restore)." >&2
+            return 1
+        }
         echo "Spliced region $rfile#$rid"
         ri=$((ri+1))
     done
