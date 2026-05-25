@@ -540,7 +540,7 @@ gh repo create cervator/thalami-cervator --private --source=hoards/thalami-cerva
   chains. The existing three-layer merge (upstream → realm → local)
   generalizes to N layers with a child-wins rule. Useful for organizations
   where different teams share a common base but diverge in details (e.g.
-  Nvidia-style corporate / department / team layering). Not needed yet.
+  corporate-style department / team layering). Not needed yet.
 - **Additional hoard templates.** `obsidian` (personal Obsidian vault),
   `claudesidian` (Claudesidian-style notes), `samples` (zipped sample
   projects). Each lives in `templates/hoards/<type>/` and ships in the

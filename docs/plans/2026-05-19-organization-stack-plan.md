@@ -117,7 +117,7 @@ The scribe skill only *moves items across* the bridge — it never decides wheth
 
 During the daily review, inbox processing, or a weekly sweep, watch for daily-note bullets tagged `#gdd`. For each one, propose moving it to the active thalami hoard's `Intake.md`:
 
-> "`Test the updated GDD hook on the Nvidia laptop` is tagged `#gdd` — move it to the thalami-hoard Intake so the GDD ceremony can route it?"
+> "`Test the updated GDD hook on the work laptop` is tagged `#gdd` — move it to the thalami-hoard Intake so the GDD ceremony can route it?"
 
 This is propose-then-confirm like every other ceremony move — never shift an item silently.
 

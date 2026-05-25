@@ -565,8 +565,8 @@ add:
 ---
 
 These nine files predate GDD and reflect general AI-tooling-sandboxing
-exploration that's been substantially superseded (Nvidia OpenShell /
-NemoClaw addresses the same concerns more concretely). Keeping them in
+exploration that's been substantially superseded (internal corporate
+AI-sandboxing tooling addresses the same concerns more concretely). Keeping them in
 upstream yggdrasil's `docs/` competed with a new GDD-specific
 permissions doc landing in the same hygiene PR (PR #TBD against
 SiliconSaga/yggdrasil) and confused the boundary between "GDD
@@ -626,8 +626,8 @@ remove:
 ---
 
 These files predate GDD and reflect general AI-tooling-sandboxing
-exploration that's been substantially superseded (Nvidia OpenShell /
-NemoClaw work). They competed for shelf space with the new GDD-specific
+exploration that's been substantially superseded (internal corporate
+AI-sandboxing tooling). They competed for shelf space with the new GDD-specific
 permissions doc (`docs/gdd/permissions.md`, also in this hygiene PR).
 
 Relocated to `realms/realm-siliconsaga/docs/agent-security/` —
@@ -663,7 +663,7 @@ Expected: `ls` shows directory not found OR empty; `git log --stat` shows 9 dele
 Edit the active thalami-hoard's per-machine thalamus file (e.g. `D:/Dev/GitWS/yggdrasil/hoards/thalami-Cervator/Dionysus-thalamus.md`). Under "## Observations", add:
 
 ```markdown
-- **Old `docs/agent-security/` content lives in `realms/realm-siliconsaga/docs/agent-security/`** (relocated 2026-04-27). The nine files (capability model, implementation phases, openclaw-security, several pattern-*) predate GDD and reflect general AI-tooling-sandboxing exploration that's been substantially superseded by Nvidia OpenShell / NemoClaw work. Moved out of upstream yggdrasil's `docs/` to clear shelf space for the new GDD-specific permissions doc, but kept findable here for any future security-oriented thread that wants to revisit them.
+- **Old `docs/agent-security/` content lives in `realms/realm-siliconsaga/docs/agent-security/`** (relocated 2026-04-27). The nine files (capability model, implementation phases, openclaw-security, several pattern-*) predate GDD and reflect general AI-tooling-sandboxing exploration that's been substantially superseded by internal corporate AI-sandboxing tooling. Moved out of upstream yggdrasil's `docs/` to clear shelf space for the new GDD-specific permissions doc, but kept findable here for any future security-oriented thread that wants to revisit them.
 ```
 
 Don't commit the Thalamus yet — batched per the cadence preference.

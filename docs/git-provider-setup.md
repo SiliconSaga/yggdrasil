@@ -199,9 +199,9 @@ This naming makes `gitTokens` entries readable at a glance:
 ```yaml
 defaults:
   gitTokens:
-    gitlab-master.nvidia.com/gni-cis/gdd: GITLAB_GDD_REPORTER
-    gitlab-master.nvidia.com/gni-cis/gdd/rpraestholm: GITLAB_GDD_RPRAESTHOLM_DEVELOPER
-    gitlab-master.nvidia.com/rpraestholm: GITLAB_RPRAESTHOLM_PAT
+    gitlab.example.com/gdd: GITLAB_GDD_REPORTER
+    gitlab.example.com/gdd/rpraestholm-fork-group: GITLAB_GDD_RPRAESTHOLM_DEVELOPER
+    gitlab.example.com/rpraestholm: GITLAB_RPRAESTHOLM_PAT
 ```
 
 For self-hosted instances, token URLs follow the pattern:

@@ -13,7 +13,7 @@ A bundled hygiene pass that surfaces from the realms-and-hoards review cycle (PR
 - **Workspace tooling extension** — `ws status` walks `realms/` and `hoards/` in addition to `components/`.
 - **Permission system documentation** — new `docs/gdd/permissions.md` explaining the `.claude/settings.json` allowlist structure, the two-layer defense model, empirical matcher findings, and the cross-reference rule for keeping doc and config in sync.
 - **Permission management skill + skill updates** — new `permissions-management` skill for per-pattern safety analysis and "don't ask again" judgment; `gdd-orientation` gains a Thalamus-commit-cadence nudge plus a pointer at the new skill; `gdd-housekeeping` gains a permission-related-item hook.
-- **Doc cleanup** — relocate `docs/agent-security/` (predates GDD; reflects general AI-sandboxing exploration that's been superseded by Nvidia OpenShell/NemoClaw work) into `realms/realm-siliconsaga/docs/agent-security/` so it stays accessible but doesn't compete with the new permissions doc for shelf space.
+- **Doc cleanup** — relocate `docs/agent-security/` (predates GDD; reflects general AI-sandboxing exploration that's been superseded by internal corporate AI-sandboxing tooling) into `realms/realm-siliconsaga/docs/agent-security/` so it stays accessible but doesn't compete with the new permissions doc for shelf space.
 
 The pass is sized to land as a single PR. None of the items individually justifies its own arc; bundled, they form a coherent "post-#45 cleanup" landing.
 
@@ -143,7 +143,7 @@ docs/agent-security/pattern-gitops-staging.md
 docs/agent-security/pattern-voice-pipeline.md
 ```
 
-**Rationale:** These predate GDD and reflect general AI-tooling-sandboxing exploration that's been substantially superseded (Nvidia OpenShell/NemoClaw addresses the same concerns more concretely). Keeping them in upstream yggdrasil's `docs/` competes with the new GDD-specific permissions doc and confuses readers about the boundary between "GDD methodology" (this repo) and "personal exploration / community-specific notes" (the realm).
+**Rationale:** These predate GDD and reflect general AI-tooling-sandboxing exploration that's been substantially superseded (internal corporate AI-sandboxing tooling addresses the same concerns more concretely). Keeping them in upstream yggdrasil's `docs/` competes with the new GDD-specific permissions doc and confuses readers about the boundary between "GDD methodology" (this repo) and "personal exploration / community-specific notes" (the realm).
 
 **Move target:** `realms/realm-siliconsaga/docs/agent-security/` (preserving filenames). The realm already has `docs/plans/` for community-specific design plans (`bifrost-first-contact`, etc.); adding a sibling `docs/agent-security/` keeps the existing organization intact.
 

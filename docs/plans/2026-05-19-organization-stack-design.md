@@ -154,5 +154,5 @@ This model is deliberately thin. The detailed work lives in separate specs, each
 ## Open questions
 
 - **Intake-file lifecycle detail.** How long may an item sit in `Intake.md` before the GDD ceremony nudges it? Does it have lightweight per-item frontmatter (captured date, source host) or is it a plain list? Likely settled when SP-B or the GDD-ceremony skill update is specified.
-- **Work vs. personal capture.** The model routes everything through the `borgr` daily note, including work items. This is fine today (one work machine, the Nvidia laptop), but if work organization grows its own surface, the capture-wide rule may need a second universal surface. Deferred until there is evidence of need.
+- **Work vs. personal capture.** The model routes everything through the `borgr` daily note, including work items. This is fine today (one work machine, the work laptop), but if work organization grows its own surface, the capture-wide rule may need a second universal surface. Deferred until there is evidence of need.
 - **Ceremony skill updates.** Implementing this model means touching the scribe skill (bridge population, durable-tier sweep) and the gdd-orientation / gdd-housekeeping skills (intake drain, graduation, cadence ladder). The sequencing of those edits is an implementation-plan concern, not a model one.
