@@ -114,13 +114,17 @@ _ws_hoard_upgrade_plan() {
         ri=$((ri+1))
     done
 
-    # files_remove: destructive when the target exists.
+    # files_remove: destructive when the target exists AND is a file. apply uses
+    # `rm -f` (which skips directories), so the plan only flags what apply can
+    # actually remove — a directory entry would otherwise show in the plan but
+    # be silently skipped on apply.
     local fn fi rel
     fn="$(yq '.files_remove // [] | length' "$upgrade_yaml")"
     fi=0
     while [[ $fi -lt $fn ]]; do
         rel="$(yq ".files_remove[$fi]" "$upgrade_yaml")"
-        [[ -e "$hoard_dir/$rel" ]] && printf 'destructive\tremove %s\n' "$rel"
+        [[ -e "$hoard_dir/$rel" && ! -d "$hoard_dir/$rel" ]] \
+            && printf 'destructive\tremove %s\n' "$rel"
         fi=$((fi+1))
     done
 
@@ -143,11 +147,20 @@ _ws_hoard_upgrade_plan() {
     # --apply overwrites community-plugins.json with exactly the template ids,
     # so these would be disabled. Surface them so the plan stays truthful.
     if [[ -f "$cp_json" ]]; then
+        # Newline-delimited template ids (NOT -o tsv, which row-orients them onto
+        # one tab-separated line). Membership via a bash `case` substring —
+        # portable (bash 3.2) and avoids a grep-here-string-in-while-read fd
+        # clash on Git Bash. Strip a trailing CR from each enabled id: jq on
+        # Windows emits CRLF, so `read` would otherwise yield "id\r" and never
+        # match a clean template id.
         local tmpl_ids enabled_id
-        tmpl_ids="$(yq -o tsv '.plugins // [] | .[].id' "$upgrade_yaml" 2>/dev/null)"
+        tmpl_ids="$(yq '.plugins // [] | .[].id' "$upgrade_yaml" 2>/dev/null)"
         while IFS= read -r enabled_id; do
+            enabled_id="${enabled_id%$'\r'}"
             [[ -n "$enabled_id" ]] || continue
-            grep -qxF "$enabled_id" <<< "$tmpl_ids" && continue
+            case $'\n'"$tmpl_ids"$'\n' in
+                *$'\n'"$enabled_id"$'\n'*) continue ;;
+            esac
             printf 'destructive\tdisable plugin %s (overwrite of community-plugins.json drops it)\n' "$enabled_id"
         done < <(jq -r '.[]?' "$cp_json" 2>/dev/null)
     fi
@@ -172,6 +185,14 @@ _ws_hoard_backup() {
     local ts snap
     ts="$(date '+%Y%m%d-%H%M%S')"
     mkdir -p "$hoard_dir/.upgrade-backup" || return 1
+    # Ensure git ignores the snapshots. Hoards adopted via --template predate
+    # the template's .gitignore entry, so without this they'd commit backups.
+    if [[ -d "$hoard_dir/.git" ]]; then
+        local gi="$hoard_dir/.gitignore"
+        if ! { [[ -f "$gi" ]] && grep -qxF '.upgrade-backup/' "$gi"; }; then
+            printf '\n# Pre-upgrade snapshots written by `ws hoard upgrade --apply`\n.upgrade-backup/\n' >> "$gi"
+        fi
+    fi
     # mktemp -d adds a random suffix so two snapshots in the same second
     # can't merge into one directory (which would weaken rollback).
     snap="$(mktemp -d "$hoard_dir/.upgrade-backup/${ts}-XXXXXX")" || return 1
@@ -560,6 +581,26 @@ _ws_hoard_upgrade_from_template() {
     _ws_hoard_apply_manifest "$@"
 }
 
+# Keep only the N most recent .upgrade-backup/<ts>/ snapshots (default 3,
+# override with WS_HOARD_BACKUP_KEEP). Portable: collects dirs oldest-first and
+# removes all but the last N (avoids the non-portable `head -n -N`).
+_ws_hoard_prune_backups() {
+    local hoard_dir="$1" keep="${2:-${WS_HOARD_BACKUP_KEEP:-3}}"
+    local backups_dir="$hoard_dir/.upgrade-backup"
+    [[ -d "$backups_dir" ]] || return 0
+    [[ "$keep" =~ ^[0-9]+$ ]] || keep=3
+    local dirs=() d
+    while IFS= read -r d; do
+        dirs+=("$d")
+    done < <(find "$backups_dir" -mindepth 1 -maxdepth 1 -type d | sort)
+    local total=${#dirs[@]} i
+    local to_delete=$(( total - keep ))
+    [[ "$to_delete" -gt 0 ]] || return 0
+    for (( i = 0; i < to_delete; i++ )); do
+        rm -rf "${dirs[$i]}"
+    done
+}
+
 # Apply an upgrade end to end: backup, mechanical manifest apply, region
 # splices, provenance bump. Aborts before any change if the backup fails.
 # Args: <hoard_dir> <template_dir> [adopt_baseline]. When adopt_baseline is
@@ -590,6 +631,10 @@ _ws_hoard_upgrade_apply() {
     local template
     template="$(basename "$template_dir")"
     _ws_hoard_provenance_write "$hoard_dir" "$template" "$version"
+
+    # Self-trim the snapshots so backups don't accumulate forever (no separate
+    # human chore). Best-effort — a prune failure must not fail the upgrade.
+    _ws_hoard_prune_backups "$hoard_dir" || true
 }
 
 # Public command. Resolves the source template from <hoard>/.hoard.yaml
