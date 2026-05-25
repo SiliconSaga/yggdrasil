@@ -50,12 +50,17 @@ This hoard ships an `ArcDashboard.md` that renders an at-a-glance table of in-fl
 
 ### Setup (one-time, per machine)
 
+Follow these steps, or better yet see the shortcut at the end.
+
 1. **Open this folder as an Obsidian vault.** In Obsidian: `File → Open vault → Open folder as vault`, point at this hoard's directory.
 2. **Install the Dataview plugin.** `Settings → Community plugins → Browse`, search for *Dataview*, install, then enable. After enabling, open `Settings → Dataview` and turn on **"Enable JavaScript Queries"** — required for the dashboard's tags and per-host one-liner blocks.
-3. **Recommended: disable readable-line-length.** `Settings → Editor → Readable line length` → toggle off. Lets the dashboard table use the full window width. The vault is single-purpose (thalamus files + dashboard); the prose-readability cap isn't useful here.
-4. **Open `ArcDashboard.md`.** The query blocks render as live tables.
+3. **Install the Meta Bind plugin.** Same `Browse` flow, search for *Meta Bind*, install, then enable. It powers the dashboard's Filter box, Sort dropdown, and Refresh button above the table.
+4. **Recommended: disable readable-line-length.** `Settings → Editor → Readable line length` → toggle off. Lets the dashboard table use the full window width. The vault is single-purpose (thalamus files + dashboard); the prose-readability cap isn't useful here.
+5. **Open `ArcDashboard.md`.** The query blocks render as live tables, and the controls above the table become interactive.
 
 Obsidian creates a `.obsidian/` directory the first time you open the vault; that's gitignored by default since it's a per-machine UI preference store, not shared state.
+
+**Shortcut:** instead of installing the two plugins by hand, `ws hoard upgrade thalami --apply` downloads and enables the pinned Dataview + Meta Bind releases into this vault's `.obsidian/` for you. You still do steps 1, 4, and 5.
 
 ---
 
