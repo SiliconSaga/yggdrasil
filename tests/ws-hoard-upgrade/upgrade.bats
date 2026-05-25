@@ -128,6 +128,14 @@ plugins:
     [ ! -e "$snap/.upgrade-backup" ]
 }
 
+@test "backup: ensures .upgrade-backup/ is gitignored in a git-tracked hoard" {
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.git"
+    printf '.obsidian/\n' > "$HOARDS_DIR/h1/.gitignore"
+    _ws_hoard_backup "$HOARDS_DIR/h1" >/dev/null
+    grep -qxF '.upgrade-backup/' "$HOARDS_DIR/h1/.gitignore"
+}
+
 @test "rollback: restores the latest snapshot" {
     make_hoard h1
     printf 'original\n' > "$HOARDS_DIR/h1/note.md"

@@ -185,6 +185,14 @@ _ws_hoard_backup() {
     local ts snap
     ts="$(date '+%Y%m%d-%H%M%S')"
     mkdir -p "$hoard_dir/.upgrade-backup" || return 1
+    # Ensure git ignores the snapshots. Hoards adopted via --template predate
+    # the template's .gitignore entry, so without this they'd commit backups.
+    if [[ -d "$hoard_dir/.git" ]]; then
+        local gi="$hoard_dir/.gitignore"
+        if ! { [[ -f "$gi" ]] && grep -qxF '.upgrade-backup/' "$gi"; }; then
+            printf '\n# Pre-upgrade snapshots written by `ws hoard upgrade --apply`\n.upgrade-backup/\n' >> "$gi"
+        fi
+    fi
     # mktemp -d adds a random suffix so two snapshots in the same second
     # can't merge into one directory (which would weaken rollback).
     snap="$(mktemp -d "$hoard_dir/.upgrade-backup/${ts}-XXXXXX")" || return 1
