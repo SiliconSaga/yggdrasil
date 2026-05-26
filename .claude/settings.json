@@ -257,6 +257,7 @@
       "Bash(git -C * grep *)",
       "Bash(git -C * log *)",
       "Bash(git -C * status)",
+      "Bash(git -C * status -s)",
       "Bash(git -C * status --short)",
       "Bash(git -C * diff *)",
       "Bash(git -C * remote -v)",
