@@ -52,6 +52,14 @@ the SSH URL is read from the provider's project-details API response
 (provider-agnostic — no host-specific port handling here).
 
 Idempotent: re-runs on an already-prepared clone simply re-sync main.
+
+Cross-group forks (e.g. forking from one GitLab group into a fork
+home that lives in another group) hit a GitLab API limitation: the
+fork API requires one caller identity with both Reporter+ on source
+and Maintainer+ on destination, and bot users created by access
+tokens cannot be cross-invited (Gitlab issue #355659). When the script
+detects this case it emits a one-click fork-via-UI URL and exits with
+code 2 ("manual step needed"). Re-run after user interaction.
 HELP
         exit 0
     fi
@@ -239,6 +247,45 @@ api_call() {
     GITLAB_TOKEN="$token" glab api --hostname "$UPSTREAM_HOST" "$@"
 }
 
+# Emit a one-click helper for the cross-group fork case and exit 2.
+emit_cross_group_helper() {
+    local fork_url="https://$UPSTREAM_HOST/$UPSTREAM_PATH/-/forks/new"
+
+    # Best-effort: look up destination namespace ID for URL pre-fill.
+    # GitLab versions vary in whether ?namespace_id=<id> actually pre-fills
+    # the fork-form dropdown — include it anyway; harmless if ignored,
+    # saves a click on versions that honor it.
+    local ns_id="" ns_encoded ns_details
+    ns_encoded=$(urlencode "$FORK_NAMESPACE")
+    if ns_details=$(api_call "$FORK_TOKEN_VAR" "namespaces/$ns_encoded" 2>/dev/null); then
+        ns_id=$(echo "$ns_details" | jq -r '.id // empty')
+    fi
+    if [[ -n "$ns_id" ]]; then
+        fork_url="${fork_url}?namespace_id=${ns_id}"
+    fi
+
+    echo "" >&2
+    echo "  Cross-group fork detected — manual step needed." >&2
+    echo "" >&2
+    echo "  Your fork-home token (\$$FORK_TOKEN_VAR) has write access on" >&2
+    echo "  '$FORK_NAMESPACE' but no read access on '$UPSTREAM_PATH'. GitLab's" >&2
+    echo "  fork API needs one identity with both rights, and bot users created" >&2
+    echo "  by access tokens cannot be cross-invited to other groups" >&2
+    echo "" >&2
+    echo "  Click here to fork in the GitLab UI:" >&2
+    echo "" >&2
+    echo "    $fork_url" >&2
+    echo "" >&2
+    echo "  In the fork form:" >&2
+    echo "    Destination namespace: $FORK_NAMESPACE" >&2
+    echo "    Project slug:          $UPSTREAM_REPO_NAME (default)" >&2
+    echo "    Visibility:            match upstream (default)" >&2
+    echo "" >&2
+    echo "  Once GitLab finishes the import (usually <1 minute), re-run:" >&2
+    echo "    ws clone-fork $COMPONENT" >&2
+    echo "" >&2
+}
+
 # --- ensure fork exists -----------------------------------------------------
 echo "[ ws clone-fork: $COMPONENT ]"
 echo "  Upstream : $UPSTREAM_PATH on $UPSTREAM_HOST"
@@ -265,6 +312,17 @@ fi
 
 if [[ -z "$FORK_DETAILS" ]]; then
     echo "         ✗ fork does not exist — creating..."
+
+    # Probe: can FORK_TOKEN see upstream? GitLab's fork API requires one
+    # caller identity with rights on both source (read) and destination
+    # (create). When upstream and destination are in different groups,
+    # FORK_TOKEN typically has create on destination but no read on source.
+    # Detect this up front and surface a UI-fork helper rather than letting
+    # the API call fail with a cryptic 404.
+    if ! api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" >/dev/null 2>&1; then
+        emit_cross_group_helper
+        exit 2
+    fi
 
     # Get upstream project ID (needed for fork API)
     local_upstream_details=""
