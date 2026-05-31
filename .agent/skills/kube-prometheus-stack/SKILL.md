@@ -23,14 +23,16 @@ NOT for native AlertManager routing/templating — see `alertmanager-config`. NO
 | Goal | Pattern | Gotcha |
 |------|---------|--------|
 | Operator picks up your CR | Label `ServiceMonitor`/`PrometheusRule` with `release: <chart-release-name>` | Default selector is `release=<release>`. **Missing this is the #1 silent-invisibility cause** — Prometheus doesn't scrape, rules don't fire, no error. |
-| Pick up CRs from other namespaces | `prometheus.prometheusSpec.{serviceMonitor,podMonitor,rule,probe}SelectorNilUsesHelmValues: false` + `serviceMonitorNamespaceSelector: {}` (and the matching `*NamespaceSelector` fields) | Default is "same namespace as the Prometheus CR only." |
+| Pick up CRs from other namespaces | `prometheus.prometheusSpec.serviceMonitorNamespaceSelector: {}` (and matching `podMonitor`/`rule`/`probe` `*NamespaceSelector` fields) — empty selector matches **all** namespaces. | Default is "same namespace as the Prometheus CR only." Don't conflate with `*Selector` (object-label match) — those are independent knobs. Flipping `*SelectorNilUsesHelmValues: false` does NOT control namespace scope; it makes the *object* selector match everything when empty, which sidesteps the `release:` label requirement above. |
 | Grafana admin password from Secret | `grafana.admin.existingSecret: <name>` + `passwordKey: password` | Legacy `grafana.adminPassword: <value>` works but bakes plaintext into helm values. Chart-version drift: `helm show values prometheus-community/kube-prometheus-stack` to confirm the current path. |
 | Scrape interval | `30s` is production-safe | Matches the chart's own cadence and 5m alert windows. |
 | `up == 0` `job` label | Operator-generated label is usually `<namespace>/<servicemonitor-name>` | If `up{job="…"} == 0` never matches, query bare `up{}` to see the actual label value. |
 
 ## Single-Replica RWO Workloads: `strategy: Recreate`
 
-Any single-replica Deployment that mounts a `ReadWriteOnce` PVC (single-replica Loki, AlertManager with persistence, Grafana with a PVC, ntfy-style sidecar apps) **must** use `strategy: Recreate`. Default RollingUpdate deadlocks on the RWO volume:
+Any single-replica Deployment that mounts a `ReadWriteOnce` PVC (single-replica Loki, Grafana with a PVC, ntfy-style sidecar apps) **must** use `strategy: Recreate`. Default RollingUpdate deadlocks on the RWO volume:
+
+(The Operator-deployed Prometheus and AlertManager pods are StatefulSets, not Deployments — they use `podManagementPolicy` + ordered restarts, not `strategy.type`. This section is about *Deployment* workloads with attached storage.)
 
 - The new pod can't attach the PV the old pod still holds → `Multi-Attach error`.
 - maxUnavailable rounds to 0 at 1 replica → the deployment controller refuses to scale old down → pod stuck `ContainerCreating` forever.
@@ -128,7 +130,7 @@ gcloud logging sinks update _Default \
 
 **Pin the match string narrowly.** `"127.0.0.1:2021"` is the unique meta-chatter marker. Broad markers like `"HTTP status="` would catch unrelated workloads.
 
-**gcloud version drift:** `gcloud logging exclusions create` (older project-level API) was removed in modern gcloud — `sinks update ... --add-exclusion` is the current form. If you're on an older SDK, the fallback is `gcloud logging exclusions create NAME --log-filter=... --description=...`.
+**gcloud surface for exclusions:** there is no `gcloud logging exclusions create` command — the underlying REST API has an `exclusions.create` method, but in the CLI exclusions are managed as properties of sinks via `gcloud logging sinks update _Default --add-exclusion=...` (or on a custom sink at create-time via `--exclusion=...`). If you see older blog snippets using `gcloud logging exclusions create`, they're conflating the API surface with the CLI surface; the command doesn't exist.
 
 **Bake into IaC** for fresh bootstraps: Terraform `google_logging_project_exclusion`, or Crossplane `provider-gcp` `LogExclusion`. Hand-applied exclusions don't survive a project recreate.
 
