@@ -1,13 +1,13 @@
 ---
 name: alertmanager-config
-description: Use when writing or debugging a native Prometheus AlertManager config — routing trees, the null-blackhole + Watchdog dead-man's-switch idiom, inhibit/silence rules, the `webhook_configs` body limitation (no headers, no body templating) and the bridge-vs-server-side-templating decision, severity→priority mapping, and amtool validation. Vanilla open-source AlertManager (Prometheus Operator / kube-prometheus-stack), NOT Grafana-managed alerting.
+description: Use when writing or debugging a native Prometheus AlertManager config — routing trees, the null-blackhole + Watchdog dead-man's-switch idiom, inhibit/silence rules, webhook payload/header customization (`webhook_configs[].payload`, `http_config.http_headers`) and the native-vs-server-side-vs-bridge templating decision, severity→priority mapping, and amtool validation. Vanilla open-source AlertManager (Prometheus Operator / kube-prometheus-stack), NOT Grafana-managed alerting.
 ---
 
 # alertmanager-config
 
 ## Overview
 
-AlertManager config has a handful of well-known idioms (the `'null'` blackhole receiver, the Watchdog canary, inhibit rules) and one hard limitation: `webhook_configs` posts a fixed JSON envelope — you cannot set headers, rewrite the body, or template fields like `priority`. This skill covers the idioms, the limitation and its two workarounds, the Prometheus-Operator deployment loop, and the `amtool` toolbox.
+AlertManager config has a handful of well-known idioms (the `'null'` blackhole receiver, the Watchdog canary, inhibit rules) plus one common confusion: `webhook_configs` *does* support templating the JSON body (`payload:`) and adding custom HTTP headers (`http_config.http_headers:`) — many older blog posts/stackoverflow answers claim otherwise. This skill covers the idioms, the native-vs-server-side-vs-bridge templating choice for shaping downstream payloads, the Prometheus-Operator deployment loop, and the `amtool` toolbox.
 
 ## When to Use
 
@@ -16,7 +16,7 @@ AlertManager config has a handful of well-known idioms (the `'null'` blackhole r
 - Need to map severity to a downstream's notification priority (ntfy, custom pager, …).
 - Validating routing or matchers before deploying.
 
-NOT for Grafana-managed alerting (contact points, notification policies) — see Grafana's `alerting-irm` skill.
+NOT for Grafana-managed alerting (contact points, notification policies) — that's a different config model entirely.
 
 ## Quick Reference
 
@@ -29,14 +29,18 @@ NOT for Grafana-managed alerting (contact points, notification policies) — see
 | Per-route repeat | Set `repeat_interval` on the specific child route | Default is the root's `repeat_interval` (often 4h — too long for criticals) |
 | Matchers vs match | Use modern `matchers: ['severity = "critical"']` | Legacy `match: {severity: critical}` is deprecated |
 
-## The `webhook_configs` Body Limitation
+## Customizing `webhook_configs` Body and Headers
 
-Vanilla AM POSTs a fixed JSON envelope (`status`, `commonLabels`, `alerts[]`, `externalURL`, …). You CANNOT add headers, rewrite the body, or template `priority`/`title` fields. The `payload:` / `http_headers:` options you'll find in some examples are **Grafana-managed-alerting only**.
+Vanilla AM POSTs a fixed JSON envelope by default (`status`, `commonLabels`, `alerts[]`, `externalURL`, …), but `webhook_configs` *does* support customization — the old "you can't template the body or set headers" claim is out of date:
 
-Two patterns to add custom fields like `priority` to the downstream payload — **pick by asking: does the downstream support payload templating?**
+- **`payload:`** — a templated JSON payload that overrides the default envelope. Rendered with AM's Go templates (`{{ range .Alerts }}`, `{{ .Labels.severity }}`, etc.). Useful for mapping `severity`→`priority` or matching a specific downstream schema.
+- **`http_config.http_headers:`** — arbitrary headers (auth tokens, `X-Priority`, content negotiation). Headers AM sets itself (`Content-Type`) can't be overridden.
 
-1. **Server-side templating on the receiver** (preferred when supported). The downstream renders the body from the AM payload. Example: ntfy's `--template-dir` + `?template=<name>` maps `severity`→priority and formats title/message server-side. No extra component to run.
-2. **A small webhook bridge** (when the receiver can't template). A ~30-line Go/Python shim that AM POSTs to → rewrites body → re-POSTs to the real receiver. Off-the-shelf: `FXinnovation/alertmanager-webhook-template`, or hand-roll.
+Three patterns to shape the downstream payload — pick by where templating lives:
+
+1. **Native `payload` + `http_headers` on `webhook_configs`** (preferred for most cases). One config file, no extra runtime, full access to AM's template namespace. Use when the transformation is expressible in Go templates over the alert data.
+2. **Server-side templating on the receiver** (when the receiver already has a richer template system). Example: ntfy's `--template-dir` + `?template=<name>` formats title/message/priority server-side; AM just posts its default envelope. Useful if you want to reuse the receiver's templates from other sources too.
+3. **A small webhook bridge** (rare — only when the transformation needs logic neither AM templates nor the receiver can express: external lookups, fan-out to multiple downstreams, schema diffing). A ~30-line Go/Python shim. Off-the-shelf: `FXinnovation/alertmanager-webhook-template`, or hand-roll. Adds an extra component to operate; avoid unless you actually need it.
 
 ## `amtool` Toolbox
 
@@ -105,10 +109,23 @@ alertmanager:
 
       - name: pager
         webhook_configs:
-          - url: 'http://am-bridge.monitoring.svc:8080/hook'
-            # OR, if the downstream supports server-side templating:
-            # url: 'http://ntfy.ntfy.svc.cluster.local/<topic>?template=pager'
+          # Option 1 (native): templated payload + custom headers, no extra runtime.
+          - url: 'http://ntfy.ntfy.svc.cluster.local/<topic>'
             send_resolved: true
+            http_config:
+              http_headers:
+                X-Priority: high
+                X-Tags: warning,rotating_light
+            payload: |
+              {
+                "alerts": [{{ range $i, $a := .Alerts }}{{ if $i }},{{ end }}
+                  {"title":"{{ $a.Labels.alertname }}","msg":"{{ $a.Annotations.description }}"}
+                {{ end }}]
+              }
+          # Option 2 (server-side template on receiver):
+          # - url: 'http://ntfy.ntfy.svc.cluster.local/<topic>?template=pager'
+          # Option 3 (webhook bridge — only if neither side can express the shape):
+          # - url: 'http://am-bridge.monitoring.svc:8080/hook'
 
       - name: email
         email_configs:
