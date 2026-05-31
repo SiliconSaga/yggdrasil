@@ -23,7 +23,7 @@ Crossplane Compositions in Pipeline mode have a small, stable set of integration
 |------|---------|--------|
 | Offline-validate a Composition | `crossplane render <xr>.yaml <composition>.yaml <functions>.yaml --extra-resources=<envconfig>.yaml --include-function-results --include-context` | No cluster needed — fastest feedback loop. Pair with `crossplane beta validate <xrd>.yaml -` for schema. |
 | Read EnvironmentConfig in template | `{{- $env := index .context "apiextensions.crossplane.io/environment" -}}` then `$env.data.<key>` | `function-environment-configs` writes the merged map under exactly that context key. |
-| Readiness from live status | `Object.spec.readiness: { policy: DeriveFromCelQuery, celQuery: status.availableReplicas >= 1 }` | provider-kubernetes evaluates the CEL against the **observed** object. Requires `kubernetes.crossplane.io/v1alpha2` (v1alpha1 doesn't support it). |
+| Readiness from live status | `Object.spec.readiness: { policy: DeriveFromCelQuery, celQuery: object.status.availableReplicas >= 1 }` | provider-kubernetes evaluates the CEL against the **observed** object — CEL root variable is `object` (the observed resource). Requires `kubernetes.crossplane.io/v1alpha2` (v1alpha1 doesn't support it). |
 | Single-replica RWO Deployment | `strategy: { type: Recreate }` | Default RollingUpdate deadlocks on Multi-Attach. See `kube-prometheus-stack` → "Single-Replica RWO Workloads" and `alertmanager-config` for the same pattern. |
 | Provider setup order | Install providers → `kubectl wait --for=condition=Healthy providers.pkg.crossplane.io --all --timeout=120s` → THEN apply `ProviderConfig`s | Otherwise `no matches for kind ProviderConfig` (CRDs don't exist yet). |
 | Operator that watches all namespaces | Use the operator's boolean (e.g. `--set watchAllNamespaces=true`), NOT `--set watchNamespace=""` | Helm `--set` silently ignores empty strings → operator only watches its own namespace → Claim stuck Synced=True Ready=False forever. |
@@ -64,7 +64,7 @@ Most-common root causes: PVC `Pending` (wrong/missing `storageClass`), `ImagePul
 
 When you change a Composition from `strategy.type: RollingUpdate` → `Recreate`, the apply fails with:
 
-```
+```text
 Deployment "X" is invalid: spec.strategy.rollingUpdate: Forbidden: may not be specified when strategy.type is 'Recreate'
 ```
 
@@ -158,7 +158,7 @@ spec:
             spec:
               readiness:
                 policy: DeriveFromCelQuery
-                celQuery: status.availableReplicas >= 1
+                celQuery: object.status.availableReplicas >= 1
               forProvider:
                 manifest:
                   apiVersion: apps/v1
