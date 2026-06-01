@@ -89,7 +89,7 @@ metadata:
 
 Operator CRDs (Percona, Strimzi, valkey-operator, etc.) often exceed the 262144-byte annotation limit:
 
-```
+```text
 metadata.annotations: Too long: must have at most 262144 bytes
 ```
 
