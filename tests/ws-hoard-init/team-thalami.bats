@@ -25,3 +25,13 @@ setup() { init_workspace; }
     # Host retained as a secondary detail column
     grep -q 'AS "Host"' "$f"
 }
+
+@test "ws hoard init team-thalami scaffolds files without machine seeding" {
+    run bash "$WS_HOARD_BIN" init team-thalami --name team-thalami-cfr
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/TeamArcDashboard.md" ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/README.md" ]
+    # No per-machine thalamus file is seeded for this flavor
+    run bash -c 'ls "$HOARDS_DIR/team-thalami-cfr/"*-thalamus.md 2>/dev/null'
+    [ "$status" -ne 0 ]
+}
