@@ -1,6 +1,5 @@
-# Obsidian per-machine UI state — never shared
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
+# Obsidian per-machine state (plugins + UI) — installed/managed per machine
+.obsidian/
 .trash/
 # Upgrade backups (if ws hoard upgrade is ever wired for this flavor)
 .upgrade-backup/

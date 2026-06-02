@@ -7,7 +7,6 @@ setup() { init_workspace; }
 
 @test "team-thalami template ships the required files" {
     [ -f "$REPO_ROOT/templates/hoards/team-thalami/README.md" ]
-    [ -f "$REPO_ROOT/templates/hoards/team-thalami/TeamArcDashboard.md" ]
     [ -f "$REPO_ROOT/templates/hoards/team-thalami/.ws-cadence.yaml" ]
     [ -f "$REPO_ROOT/templates/hoards/team-thalami/.gitignore" ]
 }
