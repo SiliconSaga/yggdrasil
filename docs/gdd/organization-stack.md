@@ -1,8 +1,8 @@
 # The Organization Stack
 
-Work in this ecosystem lives across several places: an Obsidian vault for daily life organization, the Thalamus and arcs for in-flight GDD work, component `docs/` directories for durable reference knowledge, and GitHub for trackable collaborative work. The **organization stack** is the model that names those four tiers and defines the promotion paths between them — so items move deliberately rather than drifting or getting lost.
+Work in this ecosystem lives across several places: an Obsidian vault for daily life organization, the Thalamus and arcs for in-flight GDD work, component `docs/` directories for durable reference knowledge, and GitHub for trackable collaborative work. The **organization stack** is the model that names those five tiers and defines the promotion paths between them — so items move deliberately rather than drifting or getting lost.
 
-## The four tiers
+## The five tiers
 
 The stack is read as audience/purpose tiers, not a simple durability ladder. Durability rises roughly across the tiers but not monotonically — an Area note in the Vault is permanent, while an arc in the Thalami tier is ephemeral.
 
@@ -100,10 +100,11 @@ The weekly and monthly passes have distinct focuses: the weekly sweep is a light
 
 ## Start small
 
-The full stack — four tiers, two ceremonies, a cadence ladder — is the complete picture, but it is not all-or-nothing. You can adopt a subset and grow into the rest:
+The full stack — five tiers, two ceremonies, a cadence ladder — is the complete picture, but it is not all-or-nothing. You can adopt a subset and grow into the rest:
 
 - **Vault only.** Use `borgr` and the scribe ceremony for life organization. No Thalami bridge, no arcs, no GitHub Project. A complete, useful system on its own.
 - **+ Thalami.** Add arcs and `ArcDashboard` for in-flight GDD work; the bridge connects the daily note to `Intake.md`. Where most solo GDD users will sit.
+- **+ Team.** Add a shared `team-thalami` hoard and publish in-flight arcs to it once your team wants visibility into each other's work. Builds on Thalami arcs; publication is non-terminal — you keep working the arc on your personal side.
 - **+ Docs / GitHub.** Add the graduation seams and the companion GitHub Project once work is durable or collaborative enough to warrant them.
 
 Each tier is independently useful; each seam is dormant until the tier on its far side is in use. The model degrades gracefully — a missing tier means its seam is unused, not broken, and the routing rule still works: items simply have fewer possible homes.
