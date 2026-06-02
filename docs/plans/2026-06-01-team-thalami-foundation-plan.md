@@ -45,12 +45,11 @@
 staleness_days: 2
 ```
 
-- [ ] **Step 2: Create `.gitignore`**
+- [ ] **Step 2: Create `.gitignore`** (ignore all of `.obsidian/`, matching the `thalami` template — Plan 1 installs plugins per-machine, so plugin binaries must not be committed)
 
 ```gitignore
-# Obsidian per-machine UI state — never shared
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
+# Obsidian per-machine state (plugins + UI) — installed/managed per machine
+.obsidian/
 .trash/
 # Upgrade backups (if ws hoard upgrade is ever wired for this flavor)
 .upgrade-backup/
@@ -103,7 +102,6 @@ setup() { init_workspace; }
 
 @test "team-thalami template ships the required files" {
     [ -f "$REPO_ROOT/templates/hoards/team-thalami/README.md" ]
-    [ -f "$REPO_ROOT/templates/hoards/team-thalami/TeamArcDashboard.md" ]
     [ -f "$REPO_ROOT/templates/hoards/team-thalami/.ws-cadence.yaml" ]
     [ -f "$REPO_ROOT/templates/hoards/team-thalami/.gitignore" ]
 }
@@ -115,10 +113,12 @@ setup() { init_workspace; }
 }
 ```
 
-- [ ] **Step 5: Run the test** — `TeamArcDashboard.md` doesn't exist yet, so the first test fails
+(The `TeamArcDashboard.md` presence assertion is added in Task 2, where the file is created, so this commit's suite stays green.)
+
+- [ ] **Step 5: Run the test** — both tests pass (the skeleton files exist; the help command lists the new template dir)
 
 Run: `bash tests/vendor/bats-core/bin/bats tests/ws-hoard-init/team-thalami.bats`
-Expected: FAIL on "team-thalami template ships the required files" (TeamArcDashboard.md missing — created in Task 2).
+Expected: PASS (2 tests).
 
 - [ ] **Step 6: Commit**
 
@@ -202,7 +202,20 @@ SORT choice(this.descending, null, sortkey) ASC, choice(this.descending, sortkey
 Published arc files mirror the personal arc frontmatter (see the personal `ArcDashboard.md` Schema). The team dashboard additionally honors a top-level `user:` field per file; absent that, the containing folder name is the identity.
 ````
 
-- [ ] **Step 2: Extend the test** — append to `tests/ws-hoard-init/team-thalami.bats`
+- [ ] **Step 2: Extend the test** — in `tests/ws-hoard-init/team-thalami.bats`, (a) add the `TeamArcDashboard.md` presence assertion back into the first test (now that the file exists), and (b) append a person-keyed query test.
+
+(a) The first test becomes:
+
+```bash
+@test "team-thalami template ships the required files" {
+    [ -f "$REPO_ROOT/templates/hoards/team-thalami/README.md" ]
+    [ -f "$REPO_ROOT/templates/hoards/team-thalami/TeamArcDashboard.md" ]
+    [ -f "$REPO_ROOT/templates/hoards/team-thalami/.ws-cadence.yaml" ]
+    [ -f "$REPO_ROOT/templates/hoards/team-thalami/.gitignore" ]
+}
+```
+
+(b) Append:
 
 ```bash
 @test "TeamArcDashboard is person-keyed (User column, no publish filter)" {
