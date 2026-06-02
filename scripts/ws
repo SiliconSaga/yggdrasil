@@ -18,6 +18,7 @@
 #   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
+#   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
 #   log [comp] [--oneline] Show commits on current branch vs main
@@ -741,6 +742,9 @@ case "$COMMAND" in
         ;;
     test)
         bash "$SCRIPT_DIR/ws-test.sh" "$@"
+        ;;
+    lint)
+        bash "$SCRIPT_DIR/ws-lint.sh" "$@"
         ;;
     review)
         bash "$SCRIPT_DIR/ws-review.sh" "$@"
