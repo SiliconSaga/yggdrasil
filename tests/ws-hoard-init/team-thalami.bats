@@ -41,7 +41,7 @@ setup() { init_workspace; }
     local t="$REPO_ROOT/templates/thalamus.md"
     grep -q '^user: null' "$t"
     grep -q '^vault: null' "$t"
-    grep -q 'published (true' "$t"
+    grep -q 'published (true.*flag' "$t"
 }
 
 @test "personal ArcDashboard schema documents published + vault" {

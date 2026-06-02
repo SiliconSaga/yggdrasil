@@ -11,7 +11,8 @@ active_vault: null  # name of the vault-flavored hoard scribe should
                     # want session friction reduced.
 staleness_days: 14  # suggest housekeeping after this many days without audit
 user: null          # optional — overrides folder/OS-user → person mapping in the
-                    # TeamArcDashboard. Confirmed at onboarding (see Plan 3).
+                    # TeamArcDashboard. Confirmed at onboarding — see
+                    # docs/plans/2026-06-01-team-thalami-tier-design.md
 vault: null         # optional — default source Vault path for `ws thalami publish`
                     # (LOCAL; never recorded in the realm). May be overridden per-arc.
 arcs: []            # in-flight strands of work — see docs/plans/2026-05-07-thalamus-arc-dashboard-design.md
