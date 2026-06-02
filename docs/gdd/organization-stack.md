@@ -10,6 +10,7 @@ The stack is read as audience/purpose tiers, not a simple durability ladder. Dur
 |------|-------------|--------------------|---------|
 | **Vault** | daily notes, project notes, area notes | You — and your agent during the scribe ceremony. Life organization, every topic: personal, GDD, work | daily: hours; project: weeks–months; area: permanent |
 | **Thalami** (the thalami hoard) | per-machine `*-thalamus.md` (observations + arcs), `Intake.md`, `ArcDashboard.md` | You + your agents. GDD working memory, in-flight work | weeks–months, pruned in housekeeping |
+| **Team** | per-user folders in a `team-thalami` hoard (`*-thalamus.md` + published docs), `TeamArcDashboard.md` | You + your immediate team. In-flight work promoted for team visibility | weeks–months; removed when un-published, closed, or pruned |
 | **Docs** (`<component>/docs/`) | repo README + docs index + topic files | Anyone reading the repo. Durable reference knowledge | permanent, versioned |
 | **GitHub** | issues, PRs, the companion Project board | Collaborators / public. Trackable, durable, dynamic work | long-lived, edited live |
 
@@ -62,6 +63,8 @@ The "belongs in two places" problem dissolves: an item has one home for its curr
 ## Graduation
 
 When an arc completes, its residue splits three ways:
+
+**Publication is not graduation.** Graduating an arc to Docs or GitHub is *terminal* — the arc closes as `promoted`. Publishing an arc to the **Team** tier is *non-terminal*: the arc stays in flight, you keep working it on your personal side, and a live projection is mirrored to the team `team-thalami` hoard. A `published: true` flag (orthogonal to the lifecycle `status`) marks it; the personal `ArcDashboard` shows a 📡 on published arcs. Full design: [team-thalami tier design doc](../plans/2026-06-01-team-thalami-tier-design.md).
 
 - **Knowledge** — how something works, why a decision was made, conceptual reference — graduates to **component `docs/`**. Durable knowledge belongs in a real docs index plus topic files, not stranded in a closed arc.
 - **Trackable work** — follow-ups, deferred items, anything others should see — graduates to **GitHub** as an issue or PR. The arc closes as `promoted` with a pointer to the GitHub item.
