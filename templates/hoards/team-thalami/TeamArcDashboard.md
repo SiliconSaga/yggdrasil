@@ -11,7 +11,7 @@ Live person-keyed view of in-flight work published by the team. Renders when thi
 
 Each row is one published (user, arc) pair. The **User** column reads the per-arc file's `user:` frontmatter, falling back to its containing folder name.
 
-**Filter** `INPUT[text:filter]` · **Sort by** `INPUT[inlineSelect(option(Status), option(Touched, Last touched), option(Arc), option(User), option(Host), option(Age), option(Impact), option(Urgency)):sortby]` · **Desc** `INPUT[toggle:descending]`
+**Filter** `INPUT[text:filter]` · **Sort by** `INPUT[inlineSelect(option(User), option(Status), option(Touched, Last touched), option(Arc), option(Host), option(Age), option(Impact), option(Urgency)):sortby]` · **Desc** `INPUT[toggle:descending]`
 
 ```dataview
 TABLE WITHOUT ID
