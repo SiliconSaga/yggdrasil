@@ -31,7 +31,8 @@ setup() { init_workspace; }
     [ "$status" -eq 0 ]
     [ -f "$HOARDS_DIR/team-thalami-cfr/TeamArcDashboard.md" ]
     [ -f "$HOARDS_DIR/team-thalami-cfr/README.md" ]
+    [ -d "$HOARDS_DIR/team-thalami-cfr/.git" ]
     # No per-machine thalamus file is seeded for this flavor
-    run bash -c 'ls "$HOARDS_DIR/team-thalami-cfr/"*-thalamus.md 2>/dev/null'
+    run bash -c "compgen -G '$HOARDS_DIR/team-thalami-cfr/*-thalamus.md'"
     [ "$status" -ne 0 ]
 }
