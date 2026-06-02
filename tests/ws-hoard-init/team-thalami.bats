@@ -54,3 +54,17 @@ setup() { init_workspace; }
     local d="$REPO_ROOT/templates/hoards/thalami/ArcDashboard.md"
     grep -qF 'choice(arc.published = true, "📡 ", "") + choice(arc.status = "active",' "$d"
 }
+
+@test "dashboard dataview blocks have balanced parentheses" {
+    local f block opens closes
+    for f in "$REPO_ROOT/templates/hoards/thalami/ArcDashboard.md" \
+             "$REPO_ROOT/templates/hoards/team-thalami/TeamArcDashboard.md"; do
+        block="$(awk '/^```dataview$/{inblk=1;next} /^```$/{if(inblk)exit} inblk' "$f")"
+        opens="$(printf '%s' "$block" | tr -cd '(' | wc -c)"
+        closes="$(printf '%s' "$block" | tr -cd ')' | wc -c)"
+        [ "$opens" -eq "$closes" ] || {
+            echo "unbalanced parens in $f: $opens open vs $closes close" >&2
+            return 1
+        }
+    done
+}

@@ -37,7 +37,7 @@ FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
 WHERE this.filter = null OR this.filter = "" OR contains(lower(string(arc.id) + " " + string(arc.name) + " " + string(arc.status) + " " + string(choice(user, user, file.folder)) + " " + string(arc.tags)), lower(this.filter))
-FLATTEN choice(this.sortby = "Arc", arc.id, choice(this.sortby = "User", choice(user, user, file.folder), choice(this.sortby = "Host", regexreplace(file.name, "-thalamus$", ""), choice(this.sortby = "Age", (date(today) - date(arc.started)).days, choice(this.sortby = "Touched", arc.last_touched, choice(this.sortby = "Impact", choice(arc.impact = "high", 0, choice(arc.impact = "medium", 1, choice(arc.impact = "low", 2, 3))), choice(this.sortby = "Urgency", choice(arc.urgency = "asap", 0, choice(arc.urgency = "next", 1, choice(arc.urgency = "soon", 2, choice(arc.urgency = "later", 3, 4)))), arc.status)))))))) AS sortkey
+FLATTEN choice(this.sortby = "Arc", arc.id, choice(this.sortby = "User", choice(user, user, file.folder), choice(this.sortby = "Host", regexreplace(file.name, "-thalamus$", ""), choice(this.sortby = "Age", (date(today) - date(arc.started)).days, choice(this.sortby = "Touched", arc.last_touched, choice(this.sortby = "Impact", choice(arc.impact = "high", 0, choice(arc.impact = "medium", 1, choice(arc.impact = "low", 2, 3))), choice(this.sortby = "Urgency", choice(arc.urgency = "asap", 0, choice(arc.urgency = "next", 1, choice(arc.urgency = "soon", 2, choice(arc.urgency = "later", 3, 4)))), arc.status))))))) AS sortkey
 SORT choice(this.descending, null, sortkey) ASC, choice(this.descending, sortkey, null) DESC, arc.last_touched DESC
 ```
 
