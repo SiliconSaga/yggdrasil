@@ -65,7 +65,7 @@ A **shared, team-visibility** thalami. Teammates publish in-flight arcs (and the
 
 ## The model — generated, never hand-edited
 
-This repo is a **projection**. Your personal thalami stays canonical; `ws thalami publish` (see the workspace docs) mirrors your *published* arcs + their tagged Vault notes into your own folder here. **Do not hand-edit another teammate's folder, and treat your own as machine-managed** — re-running publish overwrites it. See the design: `docs/plans/2026-06-01-team-thalami-tier-design.md` in yggdrasil.
+This repo is a **projection**. Your personal thalami stays canonical; `ws thalami publish` (see the workspace docs) mirrors your *published* arcs + their tagged Vault notes into your own folder here. **Do not hand-edit another teammate's folder, and treat your own as machine-managed** — re-running publish overwrites it, and prunes only files a prior publish recorded (tracked in `.publish-manifest.yaml`). Note publishing is gated — a note must carry `#team/<arc-id>`, must not be on the denylist (`#private`/`#noteam`), and publish lists every file before copying. See the design: `docs/plans/2026-06-01-team-thalami-tier-design.md` in yggdrasil.
 
 ## Layout
 
@@ -75,7 +75,9 @@ team-thalami-<team>/
   README.md
   <username>/                  # one folder per teammate — only YOUR publish writes here
     <host>-thalamus.md         # mirrored arc frontmatter (per host)
-    <doc>.md                   # mirrored copies of your Vault notes tagged #team/<arc-id>
+    <arc-id>/                  # one subfolder per published arc (collision-safe)
+      <vault-relative-path>.md # mirrored copies of your Vault notes tagged #team/<arc-id>
+    .publish-manifest.yaml     # records files your last publish wrote (scopes pruning)
 ```
 
 ## Setup (one-time, per machine)

@@ -31,7 +31,9 @@ team-thalami-cfr/
   README.md                    # one-time Obsidian + Dataview/Meta Bind setup, sync model, conventions
   <username>/                  # one folder per teammate — the ONLY place that user's sync writes
     <host>-thalamus.md         # mirrored arc frontmatter for that user/host (per-host retained)
-    <doc>.md                   # mirrored COPIES of Vault notes tagged for this user's arcs
+    <arc-id>/                  # one subfolder per published arc (collision-safe + prune-safe)
+      <vault-relative-path>.md # mirrored COPIES of that arc's tagged Vault notes
+    .publish-manifest.yaml     # records the files this user's last publish wrote (scopes pruning)
     ...
 ```
 
@@ -54,13 +56,27 @@ Two things make an arc publishable:
 1. **The flag.** The arc frontmatter gains `published: true`. This is a *flag*, orthogonal to `status` — a published arc keeps its real lifecycle status (`active`/`review`/…). It is deliberately **not** a new `status` value, both to avoid colliding with the existing terminal `promoted` status and to preserve the dashboard's status-driven decay vibes.
 2. **The doc tag.** Associated docs are collected by a **namespaced tag keyed to the arc id**: `#team/<arc-id>`, applied to **Vault notes** (not thalami-hoard files). The sync sweeps the Vault the active Thalamus points to for notes bearing that tag and mirrors copies of them into the team hoard under that arc. The arc id is already the stable cross-host slug, so this adds no bookkeeping; namespacing avoids a generic `#publish` tag bleeding across arcs, and un-publishing a single doc is just removing its tag.
 
+### Privacy guardrails — copying to a shared repo is gated three ways
+
+The destination is team-visible, so a single mis-applied tag must never leak a sensitive note. Publishing a note requires it to pass **all three** gates:
+
+1. **Association** — the note carries `#team/<arc-id>` for an arc that is itself `published: true`.
+2. **Denylist (machine backstop)** — the note is not excluded. A note carrying an exclusion tag (`#private` / `#noteam`, configurable) or matching a configured exclude-glob is **never** copied, even if it bears the association tag. The denylist wins over the tag. (An allowlist mode — only sweep notes under a designated publishable folder — is an alternative the plan can offer; denylist is the default.)
+3. **Human confirm (human backstop)** — `ws thalami publish` lists every file it will copy, with full source and destination paths, and waits for confirmation before writing anything.
+
+Neither gate is trusted alone: the denylist catches mis-tagging mechanically, the confirm catches everything else.
+
+### Collision-safe doc layout
+
+Mirrored notes land under a **per-arc subfolder** preserving their Vault-relative path: `team-thalami-cfr/<username>/<arc-id>/<vault-relative-path>.md`. This is collision-free by construction (Vault paths are unique within an arc), avoids two same-basename notes clobbering each other, reinforces arc-anchoring (un-publish an arc → delete its whole subfolder), and keeps the `<host>-thalamus.md` arc-frontmatter files (which the dashboard projects) separate from the prose.
+
 ## Sync — ceremony-driven, script-assisted
 
 The mirror runs as a step in the **GDD housekeeping ceremony**, propose-then-confirm like every other seam in the stack ("nothing moves silently"):
 
 > "Arc `x` is marked `published`. Sync its row plus 2 docs tagged `#team/x` into `team-thalami-cfr/<username>/`?"
 
-A small `ws` subcommand performs the mechanical work — read published arcs, sweep tagged docs, write the user's team-hoard subtree, remove anything no longer published. The commit/push to the team hoard follows normal hoard cadence (the team hoard is a separate repo; a quick rebase-before-push keeps the per-user folders clean). Nothing is automatic; the human confirms the projection.
+A small `ws` subcommand performs the mechanical work — read published arcs, sweep tagged docs (subject to the privacy gates above), write the user's team-hoard subtree, and **prune scoped by a per-user `.publish-manifest.yaml`** so deletes only ever touch files a prior publish recorded — never files the tool didn't create. The commit/push to the team hoard follows normal hoard cadence (the team hoard is a separate repo; a quick rebase-before-push keeps the per-user folders clean). Nothing is automatic; the human confirms the projection.
 
 ```mermaid
 flowchart LR
@@ -143,7 +159,7 @@ No change to the lifecycle `status` enum. `published` defaults to absent/false. 
 - **`templates/hoards/team-thalami/`** — new flavor: `README.md`, `TeamArcDashboard.md`, an example `<username>/` subtree, and a **commented/deferred** `.gitlab-ci.yml` stub (Pages, v2).
 - **`templates/hoards/thalami/`** — additive: document the `published` flag and `#team/<arc-id>` convention; add the conditional `📡` to `ArcDashboard.md`.
 - **`gdd-housekeeping` skill** — invoke `ws thalami publish` as a stage when there are published arcs to sync (propose-then-confirm). Distinct from the **scribe** Vault↔Thalami housekeeping: team-publish *consumes* the Vault's current state, it does not move content between Vault and Thalamus.
-- **`ws thalami publish`** — generic, multi-purpose publish verb (team publication is its first consumer). Mechanical work: resolve source/destination/identity via the cascade above, confirm with the user, then read published arcs (thalami hoard / `Thalamus.md`), sweep the resolved Vault for notes tagged `#team/<arc-id>`, mirror the arc row + note copies into the user's team-hoard subtree, and prune anything no longer published. Runnable standalone or as a housekeeping stage.
+- **`ws thalami publish`** — generic, multi-purpose publish verb (team publication is its first consumer). Mechanical work: resolve source/destination/identity via the cascade above, confirm with the user, then read published arcs (thalami hoard / `Thalamus.md`), sweep the resolved Vault for notes tagged `#team/<arc-id>` that pass the privacy gates, mirror the arc row + note copies into the user's team-hoard subtree (per-arc subfolders), and prune via the per-user `.publish-manifest.yaml` (deletes limited to files a prior publish wrote). Runnable standalone or as a housekeeping stage.
 - **Realm** — declare the team hoard pointer; a clone flow for teammates.
 - **Docs** — extend [`organization-stack.md`](../gdd/organization-stack.md) with the Team tier and the publication-vs-graduation distinction; cross-link from [`thalamus.md`](../gdd/thalamus.md).
 
