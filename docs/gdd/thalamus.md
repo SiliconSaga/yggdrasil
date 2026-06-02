@@ -76,6 +76,12 @@ The hoard ships an `ArcDashboard.md` that — when the hoard is opened as an Obs
 
 See the [Arc Dashboard design doc](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the full arc lifecycle, schema, and skill integration, and the hoard's own `README.md` for the one-time Obsidian + Dataview setup.
 
+### Team publication
+
+An arc can be *published* to a shared **`team-thalami` hoard** so teammates can see in-flight work — a non-terminal counterpart to graduating an arc to Docs/GitHub. Mark the arc `published: true` (a flag, orthogonal to its lifecycle `status`); the personal `ArcDashboard` then shows a 📡 on it. Associated prose lives in your Obsidian Vault, tagged `#team/<arc-id>`. Your personal thalami stays canonical — the team hoard is *generated, never hand-edited*: `ws thalami publish` (see the team-tier design) mirrors your published arcs + tagged notes into your own per-user folder, and the team hoard's `TeamArcDashboard.md` projects them person-keyed.
+
+See the [team-thalami tier design doc](../plans/2026-06-01-team-thalami-tier-design.md) for the full model, the publish cascade, and phasing.
+
 ## Housekeeping
 
 When the staleness threshold is reached (or the human asks), the housekeeping
