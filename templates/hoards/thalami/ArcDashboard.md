@@ -125,6 +125,8 @@ arcs:
     # urgency: asap | next | soon | later  # paired with impact for the act-order ceremony
     # project: "[[Vault Project Name]]"    # cross-repo link to an Obsidian vault project note
     # tags: [tag-a, tag-b]
+    # published: true                      # mirrored to the team hoard (flag, orthogonal to status)
+    # vault: <path>                        # per-arc source-Vault override for `ws thalami publish`
 ```
 
 See [the design doc](https://github.com/SiliconSaga/yggdrasil/blob/main/docs/plans/2026-05-07-thalamus-arc-dashboard-design.md) for full lifecycle and skill-integration details.

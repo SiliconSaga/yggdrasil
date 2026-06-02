@@ -36,3 +36,16 @@ setup() { init_workspace; }
     run bash -c "compgen -G '$HOARDS_DIR/team-thalami-cfr/*-thalamus.md'"
     [ "$status" -ne 0 ]
 }
+
+@test "thalamus seed documents published/user/vault fields" {
+    local t="$REPO_ROOT/templates/thalamus.md"
+    grep -q '^user: null' "$t"
+    grep -q '^vault: null' "$t"
+    grep -q 'published (true' "$t"
+}
+
+@test "personal ArcDashboard schema documents published + vault" {
+    local d="$REPO_ROOT/templates/hoards/thalami/ArcDashboard.md"
+    grep -q '# published: true' "$d"
+    grep -q '# vault: <path>' "$d"
+}
