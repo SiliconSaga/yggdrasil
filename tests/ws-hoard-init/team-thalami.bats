@@ -49,3 +49,8 @@ setup() { init_workspace; }
     grep -q '# published: true' "$d"
     grep -q '# vault: <path>' "$d"
 }
+
+@test "personal ArcDashboard prepends a conditional team icon" {
+    local d="$REPO_ROOT/templates/hoards/thalami/ArcDashboard.md"
+    grep -qF 'choice(arc.published = true, "📡 ", "") + choice(arc.status = "active",' "$d"
+}

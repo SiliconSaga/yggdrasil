@@ -27,7 +27,7 @@ action:
 
 ```dataview
 TABLE WITHOUT ID
-  choice(arc.status = "active",
+  choice(arc.published = true, "📡 ", "") + choice(arc.status = "active",
     choice((date(today) - date(arc.last_touched)).days <= 2, "🔥",
       choice((date(today) - date(arc.last_touched)).days <= 10, "🐢", "⚠️")),
   choice(arc.status = "parked",
