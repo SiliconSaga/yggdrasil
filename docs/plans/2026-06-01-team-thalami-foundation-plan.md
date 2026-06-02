@@ -489,10 +489,18 @@ In the `## Graduation` section, immediately after its intro sentence (before the
 **Publication is not graduation.** Graduating an arc to Docs or GitHub is *terminal* — the arc closes as `promoted`. Publishing an arc to the **Team** tier is *non-terminal*: the arc stays in flight, you keep working it on your personal side, and a live projection is mirrored to the team `team-thalami` hoard. A `published: true` flag (orthogonal to the lifecycle `status`) marks it; the personal `ArcDashboard` shows a 📡 on published arcs. Full design: [team-thalami tier design doc](../plans/2026-06-01-team-thalami-tier-design.md).
 ```
 
+- [ ] **Step 2b: Reframe "four tiers" → "five tiers".** Adding a fifth tier row makes the doc's "four tiers" references stale. Change `four tiers` → `five tiers` in the intro sentence (`names those four tiers`), the section heading (`## The four tiers` → `## The five tiers`), and the "Start small" summary (`The full stack — four tiers, two ceremonies`). Then add a `+ Team` bullet to the "Start small" adoption ladder, between the `+ Thalami` and `+ Docs / GitHub` bullets:
+
+```
+- **+ Team.** Add a shared `team-thalami` hoard and publish in-flight arcs to it once your team wants visibility into each other's work. Builds on Thalami arcs; publication is non-terminal — you keep working the arc on your personal side.
+```
+
+(The mermaid graduation diagram is intentionally left as-is: it depicts only the terminal graduation seams; non-terminal Team publication is covered by the adjacent "Publication is not graduation" paragraph.)
+
 - [ ] **Step 3: Verify the table still renders**
 
 Run: `grep -n "**Team**" docs/gdd/organization-stack.md`
-Expected: one match in the tiers table. Eyeball the table for column alignment (4 columns, same as the other rows).
+Expected: one match in the tiers table. Eyeball the table for column alignment (4 columns, same as the other rows). Run `grep -n "four tiers" docs/gdd/organization-stack.md` — expected: no matches (all reframed to five).
 
 - [ ] **Step 4: Commit**
 
