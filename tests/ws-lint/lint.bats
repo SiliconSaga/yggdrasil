@@ -43,6 +43,16 @@ EOF
     [[ "$output" == *"No lint command configured"* ]]
 }
 
+@test "lint falls through gracefully when the adapter YAML is malformed" {
+    # An unterminated flow mapping makes yq exit non-zero. Without the
+    # guarded substitution, `set -euo pipefail` would abort here before the
+    # "No lint command configured" guidance — regression test for that.
+    printf 'commands: {\n' > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml"
+    run_ws_lint yggdrasil
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"No lint command configured"* ]]
+}
+
 @test "lint --help prints usage and exits 0" {
     run_ws_lint --help
     [ "$status" -eq 0 ]

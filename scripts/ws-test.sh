@@ -125,8 +125,10 @@ active_realm="$(ws_detect_realm)" || true
 if [[ -n "$active_realm" ]]; then
     adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     if [[ -f "$adapter_file" ]]; then
-        adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null)
-        [[ "$adapter_cmd" == "null" ]] && adapter_cmd=""
+        # Guard the substitution: under `set -euo pipefail` a non-zero yq
+        # exit (malformed adapter YAML) would abort before the auto-detect
+        # fallback below. `// ""` already maps a missing key to empty.
+        adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null) || adapter_cmd=""
         if [[ -n "$adapter_cmd" ]]; then
             runner="adapter"
         fi

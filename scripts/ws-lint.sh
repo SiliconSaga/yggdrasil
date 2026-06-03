@@ -67,8 +67,11 @@ active_realm="$(ws_detect_realm)" || true
 if [[ -n "$active_realm" ]]; then
     adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     if [[ -f "$adapter_file" ]]; then
-        lint_cmd=$(yq -r '.commands.lint // ""' "$adapter_file" 2>/dev/null)
-        [[ "$lint_cmd" == "null" ]] && lint_cmd=""
+        # Guard the substitution: under `set -euo pipefail` a non-zero yq
+        # exit (malformed adapter YAML) would abort the script before the
+        # "No lint command configured" guidance runs. `// ""` already maps a
+        # missing key to empty, so no separate "null" check is needed.
+        lint_cmd=$(yq -r '.commands.lint // ""' "$adapter_file" 2>/dev/null) || lint_cmd=""
         if [[ -n "$lint_cmd" ]]; then
             runner="adapter"
         fi
