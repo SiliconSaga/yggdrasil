@@ -77,7 +77,7 @@ Bash(CLAUDE_MODEL=* ws commit:*)
 Bash(CLAUDE_MODEL=* bash scripts/ws commit:*)
 ```
 
-Both the `ws commit` and `bash scripts/ws commit` bare forms are listed so the command still auto-approves under Claude Code's native matcher — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
+The `:*` suffix here is Claude Code's *prefix* form — it matches the command plus any argument tail, not a single argument slot (see [Pattern shapes → Colon-prefix](#colon-prefix-cmd) below). Both the `ws commit` and `bash scripts/ws commit` bare forms are listed because that prefix match is anchored at the start of the string, so neither covers the other dispatch form; listing both keeps the command auto-approving under Claude Code's native matcher too — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
 
 The `CLAUDE_MODEL=*` forms exist because sub-agents attribute commits by prepending the model inline — `CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>` — rather than rewriting the shared `.env` (which would race across parallel sub-agents). See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
@@ -104,7 +104,7 @@ match an allow pattern (prompt suppressed) and then run with an attacker-control
 
 ## Pattern shapes
 
-Three shapes appear in this workspace's `.claude/settings.json`:
+Four shapes appear in this workspace's `.claude/settings.json`:
 
 ### Exact-form
 
@@ -135,6 +135,16 @@ argument-shaped sequence. The space before `*` matters: `Bash(foo*)`
 without the space matches `foo` followed by anything (including
 `foobar`); `Bash(foo *)` requires a space, then any single argument.
 For prefix matching of arguments, always include the space.
+
+### Colon-prefix (`cmd:*`)
+
+```text
+Bash(ws commit:*)
+Bash(ws test:*)
+Bash(bash scripts/ws commit:*)
+```
+
+The `:*` suffix is Claude Code's *prefix* form: the rule matches the literal text before the `:` followed by **anything at all** — any number of arguments, spaces included — in a single entry. `Bash(ws test:*)` matches `ws test`, `ws test knarr`, and `ws test knarr -k foo --verbose` alike. This differs from the spaced `*` wildcard above, where each `*` binds exactly one argument-shaped token (so `Bash(ws test *)` matches only `ws test <one-arg>`, and covering two args needs `Bash(ws test * *)`). Because the prefix match is anchored at the start of the command string, each dispatch form needs its own entry — `Bash(ws test:*)` does not cover `bash scripts/ws test …`, hence the separate `Bash(bash scripts/ws test:*)`. Reach for `:*` on always-trusted subcommands where any argument tail is safe; use the tighter spaced-`*` or exact forms when you need to bound *which* arguments are allowed (e.g. a subcommand with a mutating flag-form).
 
 ### MCP tool names
 

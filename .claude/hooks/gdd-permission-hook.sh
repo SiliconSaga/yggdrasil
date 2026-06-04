@@ -690,6 +690,12 @@ match_cmd="$(normalize_for_match "$cmd")"
 # settings.json patterns alone suggest.
 strip_claude_model_prefix() {
     local s="$1"
+    # Three arms: double-quoted value, single-quoted value, unquoted value.
+    # In the `${s#PATTERN}` removals, backslash is the glob ESCAPE char, so
+    # `\"` and `\'` match a LITERAL `"` / `'` (NOT a backslash) — the quote
+    # is part of the prefix being stripped. The quoted arms come first so a
+    # value containing spaces (e.g. "Sonnet 4.6") is consumed whole before
+    # the unquoted arm's stop-at-first-space removal would mis-split it.
     case "$s" in
         'CLAUDE_MODEL="'*'" '*)  printf '%s' "${s#CLAUDE_MODEL=\"*\" }" ;;
         "CLAUDE_MODEL='"*"' "*)  printf '%s' "${s#CLAUDE_MODEL=\'*\' }" ;;

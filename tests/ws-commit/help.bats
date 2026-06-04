@@ -1,20 +1,21 @@
 #!/usr/bin/env bats
 
 # ws commit --help documents model attribution + the sub-agent inline rule.
+#
+# --help needs no synthetic repo, so we don't call init_synthetic_repo here —
+# but we load the shared helper for $WS_COMMIT_BIN (matches dry-run.bats).
 
-setup() {
-    ROOT_DIR="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-}
+load test_helper
 
 @test "ws commit --help mentions CLAUDE_MODEL and the .env default" {
-    run bash "$ROOT_DIR/scripts/ws-commit.sh" --help
+    run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"CLAUDE_MODEL"* ]]
     [[ "$output" == *".env"* ]]
 }
 
 @test "ws commit --help explains the sub-agent inline override" {
-    run bash "$ROOT_DIR/scripts/ws-commit.sh" --help
+    run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
     # Case-insensitive: the help text uses "SUB-AGENTS:" as a heading and
     # "sub-agents" in prose; match either without depending on which case wins.

@@ -972,6 +972,13 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "allow: single-quoted CLAUDE_MODEL prefix on ws commit is allowlisted" {
+    seed_real_project_config
+    run_hook "CLAUDE_MODEL='Sonnet 4.6' ws commit yggdrasil .commits/x.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 # ws test / ws lint allowlisted under the realm trust model (design § Adapter
 # trust). They run adapter-defined commands; trust is established at realm
 # scan/activation (orientation risk-scan) + surfaced by `ws orient`, NOT by
