@@ -99,7 +99,7 @@ Superpowers — only the `superpowers:*` plugin skills are unavailable.
 | **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/creating-github-issues/SKILL.md) |
 | **KUTTL Testing** | Guidelines for writing and running KUTTL tests | [SKILL.md](./.agent/skills/kuttl-testing/SKILL.md) |
 | **Multi-Repo Orchestration** | Session start/end discipline when a session touches more than one repo, TODO triage | [SKILL.md](./.agent/skills/multi-repo-orchestration/SKILL.md) |
-| **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
+| **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/gdd-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/gdd-workflow-audit/SKILL.md) |
 | **Writing Yggdrasil Docs** | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/gdd-doc-writing/SKILL.md) |
 | **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
@@ -272,7 +272,7 @@ Always use a topic branch. Main is protected.
 
 For the full step-by-step workflow (branch naming, bodyfile format, CR
 draft, rebase), read the **Topic Branch Workflow** skill at
-`.agent/skills/topic-branch-workflow/SKILL.md`.
+`.agent/skills/gdd-branch-workflow/SKILL.md`.
 
 ---
 

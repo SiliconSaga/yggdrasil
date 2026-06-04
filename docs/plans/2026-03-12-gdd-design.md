@@ -112,7 +112,7 @@ gdd (orchestrator)
 │
 ├── tdd               — red-green-refactor (superpowers skill, already exists)
 ├── gdd-workflow-audit   — detect repeated patterns (already exists)
-├── topic-branch-workflow — Git discipline (already exists)
+├── gdd-branch-workflow — Git discipline (already exists)
 └── creating-github-issues — issue pipeline (already exists)
 ```
 

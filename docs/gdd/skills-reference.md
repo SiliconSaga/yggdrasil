@@ -52,7 +52,7 @@ Skills that handle session-level coordination — start, end, cross-cutting work
 | **gdd-housekeeping** | Triage thalamus content — review observations and concerns, promote to issues/skills, prune resolved items. |
 | **gdd-review-triage** | After pushing, when CR review comments arrive (CodeRabbit, Copilot, others). Dedupes and triages. |
 | **multi-repo-orchestration** | A session touches more than one repo; deciding work-now vs defer. |
-| **topic-branch-workflow** | About to commit and push; deciding direct-to-main vs topic branch. |
+| **gdd-branch-workflow** | About to commit and push; deciding direct-to-main vs topic branch. |
 
 ---
 
