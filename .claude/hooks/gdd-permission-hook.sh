@@ -675,6 +675,19 @@ match_cmd="$(normalize_for_match "$cmd")"
 # auto-approve while still executing with the attacker-controlled env.
 # The strip below removes ONLY the inert CLAUDE_MODEL assignment; every
 # other env prefix stays in the match string and fails the allow globs.
+#
+# NOTE for future maintainers: THIS STRIP — not the settings.json patterns
+# — is what makes a `CLAUDE_MODEL=… ws commit` prepend auto-approve. The
+# explicit `Bash(CLAUDE_MODEL=* …)` entries in settings.json are belt-and-
+# suspenders (and cover Claude Code's NATIVE matcher when this hook is
+# disabled/passed through); with the strip in place they are redundant for
+# the hook path, since the prefixed form already matches the bare
+# `Bash(ws commit:*)`. So do NOT delete this strip assuming those patterns
+# cover it. Also note the strip is workspace-wide: a CLAUDE_MODEL prefix is
+# stripped before matching ANY command, so it auto-approves any allowlisted
+# `ws` subcommand (e.g. `CLAUDE_MODEL=… ws status`), not just `ws commit` —
+# harmless because CLAUDE_MODEL is execution-inert, but wider than the
+# settings.json patterns alone suggest.
 strip_claude_model_prefix() {
     local s="$1"
     case "$s" in
