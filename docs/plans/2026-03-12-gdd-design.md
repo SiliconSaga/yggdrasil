@@ -111,7 +111,7 @@ gdd (orchestrator)
 │   └── bdd-kuttl     — infrastructure BDD via kuttl (already exists)
 │
 ├── tdd               — red-green-refactor (superpowers skill, already exists)
-├── workflow-auditor   — detect repeated patterns (already exists)
+├── gdd-workflow-audit   — detect repeated patterns (already exists)
 ├── topic-branch-workflow — Git discipline (already exists)
 └── creating-github-issues — issue pipeline (already exists)
 ```
@@ -155,7 +155,7 @@ appropriately-sized work based on available time.
 | Layer | What's Built | Status |
 |-------|-------------|--------|
 | Workflow engine | `ws` CLI, permission tiers, `.claude/settings.json` | Functional |
-| Process skills | TDD, workflow-auditor, topic-branch, issue filing | Functional |
+| Process skills | TDD, gdd-workflow-audit, topic-branch, issue filing | Functional |
 | BDD artifacts | 20 .feature files across ymir, mimir, vordu | Written, partial automation |
 | Visualization | Vordu ingests Cucumber JSON, renders roadmap | Designed, early implementation |
 | Session recovery | Memory system (MEMORY.md + memory files) | Functional |

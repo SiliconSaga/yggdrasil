@@ -137,7 +137,7 @@ Conceptual model: [access.md](access.md). Setup mechanics (installing CLIs, gene
 
 Every observation captured in the Thalamus is candidate material for promotion. Housekeeping audits (default every 14 days, or on demand) walk through accumulated items and decide:
 
-- **Promote** — to a GitHub issue, a skill update, an instruction-file edit, a workflow-auditor candidate.
+- **Promote** — to a GitHub issue, a skill update, an instruction-file edit, a gdd-workflow-audit candidate.
 - **Keep** — relevant but not yet actionable.
 - **Prune** — resolved, stale, or superseded.
 

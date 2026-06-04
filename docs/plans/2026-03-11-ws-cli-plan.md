@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Create a unified `scripts/ws` CLI that wraps existing workspace scripts as subcommands, adds component-aware `exec` for cwd-independent command execution, and build a workflow-auditor skill for detecting repeated patterns.
+**Goal:** Create a unified `scripts/ws` CLI that wraps existing workspace scripts as subcommands, adds component-aware `exec` for cwd-independent command execution, and build a gdd-workflow-audit skill for detecting repeated patterns.
 
 **Architecture:** Single bash dispatcher script (`scripts/ws`) that resolves ROOT_DIR from its own location, validates component names against `ecosystem.yaml`, and delegates to existing `ws-*.sh` scripts or executes commands in component directories via `cd` + `"$@"`.
 
@@ -20,7 +20,7 @@
 | `.gitattributes` | Modify | Add `scripts/ws text eol=lf` rule |
 | `CLAUDE.md` | Modify | Add Workspace CLI instruction to Session Conventions |
 | `docs/dev-setup.md` | Modify | Add ws CLI section for humans |
-| `.agent/skills/workflow-auditor/SKILL.md` | Create | Pattern detection skill |
+| `.agent/skills/gdd-workflow-audit/SKILL.md` | Create | Pattern detection skill |
 
 ---
 
@@ -410,7 +410,7 @@ git commit -m "chore: add ws to gitattributes, update CLAUDE.md with ws CLI inst
 
 ---
 
-## Chunk 2: Documentation and workflow-auditor skill
+## Chunk 2: Documentation and gdd-workflow-audit skill
 
 ### Task 7: Add human documentation to dev-setup.md
 
@@ -501,16 +501,16 @@ git commit -m "docs: add workspace CLI guide to dev-setup"
 
 ---
 
-### Task 8: Create workflow-auditor skill
+### Task 8: Create gdd-workflow-audit skill
 
 **Files:**
-- Create: `.agent/skills/workflow-auditor/SKILL.md`
+- Create: `.agent/skills/gdd-workflow-audit/SKILL.md`
 
 - [ ] **Step 1: Create the skill directory and file**
 
 ```markdown
 ---
-name: workflow-auditor
+name: gdd-workflow-audit
 description: Use when you notice repeated manual workarounds (3+ instances), at session wrap-up, or when asked to check for workflow patterns
 ---
 
@@ -586,14 +586,14 @@ These are especially high-value patterns to catch:
 
 - [ ] **Step 2: Verify skill is discoverable**
 
-Run: `ls .agent/skills/workflow-auditor/SKILL.md`
+Run: `ls .agent/skills/gdd-workflow-audit/SKILL.md`
 Expected: File exists.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add .agent/skills/workflow-auditor/SKILL.md
-git commit -m "feat: add workflow-auditor skill for detecting repeated patterns"
+git add .agent/skills/gdd-workflow-audit/SKILL.md
+git commit -m "feat: add gdd-workflow-audit skill for detecting repeated patterns"
 ```
 
 ---

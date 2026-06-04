@@ -140,9 +140,9 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 *Issue #22 filed for the linebreaks. Thalamus updated with audit log entry. Frontmatter `last_audit` set to today.*
 
-**Human:** What other related changes could we take care of? Should session wrap-up be part of housekeeping? And the workflow-auditor and auto-approve audit seem close together.
+**Human:** What other related changes could we take care of? Should session wrap-up be part of housekeeping? And the gdd-workflow-audit and auto-approve audit seem close together.
 
-**Agent:** Good instincts — session wrap-up belongs in housekeeping (centralizes GDD-specific steps), and the workflow-auditor + auto-approve audit should stay together as one general-purpose skill. Also flagged: no post-merge check exists.
+**Agent:** Good instincts — session wrap-up belongs in housekeeping (centralizes GDD-specific steps), and the gdd-workflow-audit + auto-approve audit should stay together as one general-purpose skill. Also flagged: no post-merge check exists.
 
 *Issue #23 filed to consolidate these. The agent then ran the workflow auditor, scanning the auto-approve list.*
 

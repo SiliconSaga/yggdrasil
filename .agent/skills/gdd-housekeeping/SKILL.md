@@ -143,7 +143,7 @@ After reviewing individual items, look across them:
 
 If so, suggest consolidation — the cluster is likely a candidate for a
 skill, `ws` subcommand, or instruction update. Cross-reference with the
-@workflow-auditor skill for patterns it might formalize.
+@gdd-workflow-audit skill for patterns it might formalize.
 
 ### Step 4: Update the Audit Log
 
@@ -310,7 +310,7 @@ N×duplication is acceptable cost for design simplicity.
 
 ## Relationship to Other Skills
 
-- **@workflow-auditor** — housekeeping may surface patterns that the auditor
+- **@gdd-workflow-audit** — housekeeping may surface patterns that the auditor
   should formalize as scripts or `ws` subcommands
 - **@creating-github-issues** — promoted items that become issues use this
   skill for filing
