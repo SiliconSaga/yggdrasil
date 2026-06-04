@@ -140,7 +140,7 @@ The model fixes the following distinctions. The *detail* behind each is deferred
 - **Area vs. tag.** An **area** is a hierarchical container — a note with one home in a tree (e.g. Household → Family → Graciela). A **tag** is a cross-cutting facet that ignores the tree (e.g. `#medical` spanning multiple children and areas; `#gdd` spanning Vault and GDD work). One item has **exactly one area** (its home) and **any number of tags**. The actual area tree and tag vocabulary are deferred to the nonclaudesidian migration.
 - **`Intake.md`.** The bridge file is machine-agnostic, lives in the thalami hoard beside `ArcDashboard.md`, and holds pre-arc GDD work items. "Bridge" names the populating/draining *process*, not the file.
 - **Project vs. arc.** A project (Vault) is a container that can span **multiple arcs** (Thalami) over its life. One project, many arcs. The internal structure question — "active projects stay flat, archive gets subfolders by area" — is a Vault-internal matter deferred to SP-C / the migration; it is not a model call.
-- **Tier naming.** This document uses "tier" generically for the four organization-stack tiers and names them (Vault / Thalami / Docs / GitHub) rather than numbering them, to avoid collision with the platform **Tier** (1/2/3) and bootstrap **Layer** (L2/L3) terminology defined in the writing-yggdrasil-docs skill.
+- **Tier naming.** This document uses "tier" generically for the four organization-stack tiers and names them (Vault / Thalami / Docs / GitHub) rather than numbering them, to avoid collision with the platform **Tier** (1/2/3) and bootstrap **Layer** (L2/L3) terminology defined in the gdd-doc-writing skill.
 
 ## Facet boundaries
 

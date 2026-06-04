@@ -83,7 +83,7 @@ The things `wildcard-tls.md` is currently guilty of:
 
 ### Prose conventions
 
-The workspace-wide rule applies to component docs too: **do not hard-wrap prose**. Write each paragraph as a single line; let the renderer wrap. The convention is enforced in the `writing-yggdrasil-docs` skill — same rule, same reasons (some renderers respect hard-wraps as visible line breaks; reflowing after every edit is friction; editors handle wrap natively).
+The workspace-wide rule applies to component docs too: **do not hard-wrap prose**. Write each paragraph as a single line; let the renderer wrap. The convention is enforced in the `gdd-doc-writing` skill — same rule, same reasons (some renderers respect hard-wraps as visible line breaks; reflowing after every edit is friction; editors handle wrap natively).
 
 This is called out explicitly here because component docs render in two distinct contexts — directly on GitHub when browsing a repo, and (for Shape 3+) via a themed site renderer — and hard-wrapped lines render reliably in neither.
 

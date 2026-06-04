@@ -60,7 +60,7 @@ documentation, Mermaid diagrams.
 - **Move local config** `overlay:` selector → `realm:` (only if user has it set in `ecosystem.local.yaml`)
 - **Rename remote** `SiliconSaga/overlay-yggdrasil-live` → `SiliconSaga/realm-siliconsaga` via `gh repo rename`; update the realm's `origin` URL locally
 - **Modify** docs: `AGENTS.md`, `CLAUDE.md`, `docs/ecosystem-architecture.md`, `docs/getting-started/index.md`, `docs/ws-cli-guide.md`
-- **Modify** skills: `.agent/skills/gdd-orientation/SKILL.md`, `.agent/skills/gdd-housekeeping/SKILL.md`, `.agent/skills/mcp-usage/SKILL.md`, `.agent/skills/writing-yggdrasil-docs/SKILL.md`
+- **Modify** skills: `.agent/skills/gdd-orientation/SKILL.md`, `.agent/skills/gdd-housekeeping/SKILL.md`, `.agent/skills/mcp-usage/SKILL.md`, `.agent/skills/gdd-doc-writing/SKILL.md`
 - **Modify** `.claude/settings.json` (any `ws overlay` permission patterns → `ws realm`)
 - **Add** one-line inheritance reservation comment in `ws_resolve_ecosystem` and a Future Direction note in `docs/ecosystem-architecture.md`
 
@@ -915,7 +915,7 @@ note (or short paragraph if the section is short on context):
 - `.agent/skills/gdd-orientation/SKILL.md`
 - `.agent/skills/gdd-housekeeping/SKILL.md`
 - `.agent/skills/mcp-usage/SKILL.md`
-- `.agent/skills/writing-yggdrasil-docs/SKILL.md`
+- `.agent/skills/gdd-doc-writing/SKILL.md`
 
 - [ ] **Step 1: Find hits**
 
@@ -991,7 +991,7 @@ add:
   - .agent/skills/gdd-orientation/SKILL.md
   - .agent/skills/gdd-housekeeping/SKILL.md
   - .agent/skills/mcp-usage/SKILL.md
-  - .agent/skills/writing-yggdrasil-docs/SKILL.md
+  - .agent/skills/gdd-doc-writing/SKILL.md
   - .claude/settings.json
   - AGENTS.md
   - CLAUDE.md

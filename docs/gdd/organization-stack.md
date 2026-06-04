@@ -78,7 +78,7 @@ The Docs tier has its own "start small, grow as needed" ladder, mirroring the st
 3. **Themed docs site** — adds a site config (MkDocs / Jekyll / equivalent), a theme, and navigation, and deploys to GitHub Pages. Right once navigation and search start to matter, or the audience extends beyond developers reading on GitHub.
 4. **Custom site** — beyond the standard frameworks. Named only so the ladder is finite; most components never reach it.
 
-The Shape 1 → 2 trigger is exactly the graduation moment above: when a closing arc's durable knowledge would otherwise pile into a single root README, that is the signal to give the component a real `docs/` index plus topic files. The per-shape structure, file roles, and anti-patterns are the operational detail an agent applies when actually writing docs — those live in the `writing-yggdrasil-docs` skill.
+The Shape 1 → 2 trigger is exactly the graduation moment above: when a closing arc's durable knowledge would otherwise pile into a single root README, that is the signal to give the component a real `docs/` index plus topic files. The per-shape structure, file roles, and anti-patterns are the operational detail an agent applies when actually writing docs — those live in the `gdd-doc-writing` skill.
 
 ## The cadence ladder
 

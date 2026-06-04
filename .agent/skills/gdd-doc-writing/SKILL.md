@@ -1,9 +1,9 @@
 ---
-name: writing-yggdrasil-docs
-description: Use when writing or editing any documentation in the Yggdrasil ecosystem — architecture docs, design docs, runbooks, or any file containing Mermaid diagrams
+name: gdd-doc-writing
+description: Use when writing or editing any documentation in the GDD/Yggdrasil ecosystem — architecture docs, design docs, runbooks, or any file containing Mermaid diagrams
 ---
 
-# Writing Yggdrasil Docs
+# GDD Doc Writing
 
 Conventions for documentation written in this ecosystem. Apply these rules to every file you create or edit that contains Mermaid diagrams or lives in a Yggdrasil-family repo (yggdrasil, refr-k8s, nidavellir, mimir, heimdall, etc.).
 

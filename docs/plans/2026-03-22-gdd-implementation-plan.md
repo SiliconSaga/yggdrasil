@@ -486,7 +486,7 @@ orientation skill will guide you."
 
 **Design Principles** — the 6 principles from the spec.
 
-Use the writing-yggdrasil-docs skill (@writing-yggdrasil-docs) for
+Use the gdd-doc-writing skill (@gdd-doc-writing) for
 formatting conventions, especially Mermaid diagram rules.
 
 - [ ] **Step 2: Review for clarity**

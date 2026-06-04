@@ -223,5 +223,5 @@ This means the two upgrade paths can fight: in-app updates push fresher versions
 ## Related skills and docs
 
 - [`scribe` skill](../../.agent/skills/scribe/SKILL.md) — vault conventions, capture-process-organize, daily review, weekly synthesis, de-AI-ifying text
-- [`writing-yggdrasil-docs` skill](../../.agent/skills/writing-yggdrasil-docs/SKILL.md) — line-wrapping convention applies to vault content too
+- [`gdd-doc-writing` skill](../../.agent/skills/gdd-doc-writing/SKILL.md) — line-wrapping convention applies to vault content too
 - [Hoards overview](hoards.md) — the hoard concept across all flavors

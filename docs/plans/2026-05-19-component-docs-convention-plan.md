@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Promote the SP-C "Component documentation convention" (the four shapes + Shape 2 detail) into the `writing-yggdrasil-docs` workspace skill as the permanent home, then apply Shape 2 to `nidavellir` as the worked example — split `docs/wildcard-tls.md` into three focused topic files, distribute the misfiled `CLAUDE.md` content, add a `docs/README.md` index, polish the root `README.md`.
+**Goal:** Promote the SP-C "Component documentation convention" (the four shapes + Shape 2 detail) into the `gdd-doc-writing` workspace skill as the permanent home, then apply Shape 2 to `nidavellir` as the worked example — split `docs/wildcard-tls.md` into three focused topic files, distribute the misfiled `CLAUDE.md` content, add a `docs/README.md` index, polish the root `README.md`.
 
 **Architecture:** Markdown only. Two-repo work: one commit on the existing `docs/component-docs-convention` branch in yggdrasil (skill update); four commits on a new branch in the nidavellir repo (the cleanup). No automation, no tests beyond `ws test yggdrasil` for the skill change (markdown edits don't affect the bats suite).
 
-**Tech Stack:** Markdown. Workspace conventions: `ws commit` with `.commits/` bodyfiles, `ws push`, `ws cr`. The PreToolUse hook denies compound bash — each shell command is a separate tool call. New prose follows the no-hard-wrap rule (single-line paragraphs, single-line bullets) per `writing-yggdrasil-docs`.
+**Tech Stack:** Markdown. Workspace conventions: `ws commit` with `.commits/` bodyfiles, `ws push`, `ws cr`. The PreToolUse hook denies compound bash — each shell command is a separate tool call. New prose follows the no-hard-wrap rule (single-line paragraphs, single-line bullets) per `gdd-doc-writing`.
 
 **Branches:**
 - Yggdrasil: existing `docs/component-docs-convention` (already carries the SP-C spec commit `8a5fb53`).
@@ -18,7 +18,7 @@
 
 | Repo | File | Action | Responsibility |
 |------|------|--------|----------------|
-| yggdrasil | `.agent/skills/writing-yggdrasil-docs/SKILL.md` | Modify | Add a "Component Documentation Convention" section codifying the four shapes + Shape 2 rules |
+| yggdrasil | `.agent/skills/gdd-doc-writing/SKILL.md` | Modify | Add a "Component Documentation Convention" section codifying the four shapes + Shape 2 rules |
 | nidavellir | `docs/tls-and-certificates.md` | Create | Core wildcard-cert story (from `wildcard-tls.md` sections) + cert-manager / Gateway API gotchas (from `CLAUDE.md`) |
 | nidavellir | `docs/traefik-version-pins.md` | Create | The 3.6.x / 3.7.x version-constraint story (from `wildcard-tls.md`) |
 | nidavellir | `docs/cloud-iam-and-dns.md` | Create | Workload Identity + Cloud DNS + the test domain note (from `wildcard-tls.md` + `CLAUDE.md`) |
@@ -33,13 +33,13 @@
 ## Task 1: Skill update — add the Component Documentation Convention (yggdrasil)
 
 **Files:**
-- Modify: `.agent/skills/writing-yggdrasil-docs/SKILL.md` (append a new top-level section before the existing `## Terminology` section)
+- Modify: `.agent/skills/gdd-doc-writing/SKILL.md` (append a new top-level section before the existing `## Terminology` section)
 
 Branch: already on `docs/component-docs-convention`. No branch action needed.
 
 - [ ] **Step 1: Insert the new section**
 
-Open `.agent/skills/writing-yggdrasil-docs/SKILL.md`. Find the line `## Terminology` (an existing top-level section). Insert the following new section immediately *before* it (exactly as shown between the >>>> markers, markers not included; the new section ends with a blank line followed by the existing `## Terminology` heading):
+Open `.agent/skills/gdd-doc-writing/SKILL.md`. Find the line `## Terminology` (an existing top-level section). Insert the following new section immediately *before* it (exactly as shown between the >>>> markers, markers not included; the new section ends with a blank line followed by the existing `## Terminology` heading):
 
 >>>>
 ## Component Documentation Convention
@@ -109,9 +109,9 @@ Create `.commits/sp-c-skill-update.md`:
 
 ```markdown
 ---
-message: "docs(skills): add Component Documentation Convention to writing-yggdrasil-docs"
+message: "docs(skills): add Component Documentation Convention to gdd-doc-writing"
 add:
-  - .agent/skills/writing-yggdrasil-docs/SKILL.md
+  - .agent/skills/gdd-doc-writing/SKILL.md
 ---
 
 Promotes the SP-C convention into the permanent home (the skill rather than the design doc). Documents the four-shape graduation ladder and pins the new Shape 2 (Plainly structured /docs) convention — required structure, root-README role once /docs exists, docs/README.md as the GitHub-renderable index, topic-file conventions, graduation triggers, anti-patterns, and what the convention deliberately does not dictate (Shape 3 toolchain, agent-context-file presence).

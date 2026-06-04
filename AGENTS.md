@@ -101,7 +101,7 @@ Superpowers — only the `superpowers:*` plugin skills are unavailable.
 | **Multi-Repo Orchestration** | Session start/end discipline when a session touches more than one repo, TODO triage | [SKILL.md](./.agent/skills/multi-repo-orchestration/SKILL.md) |
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
-| **Writing Yggdrasil Docs** | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/writing-yggdrasil-docs/SKILL.md) |
+| **Writing Yggdrasil Docs** | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/gdd-doc-writing/SKILL.md) |
 | **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
 
 ---
@@ -294,7 +294,7 @@ It does *not* apply to:
 - Lists (one bullet per line — bullets are list items, not prose)
 - YAML frontmatter
 
-**Why:** GitHub renders some hard-wrapped contexts as visible line breaks; Obsidian/markdown editors wrap automatically; reflowing after every edit is friction. Specific code or tooling may have its own wrap conventions — follow those when they exist (e.g. Mermaid diagrams have their own rules in the writing-yggdrasil-docs skill).
+**Why:** GitHub renders some hard-wrapped contexts as visible line breaks; Obsidian/markdown editors wrap automatically; reflowing after every edit is friction. Specific code or tooling may have its own wrap conventions — follow those when they exist (e.g. Mermaid diagrams have their own rules in the gdd-doc-writing skill).
 
 ### Bash usage enforcement (PreToolUse hook)
 
