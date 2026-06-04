@@ -58,7 +58,7 @@ Phase 1 task bodies below specify interfaces + tests now; finalize per-line adap
 
 **Why:** make `ws commit` auto-approved by default (instead of hand-added per workspace), and allow the `CLAUDE_MODEL="…" ws commit` attribution prepend — via **explicit, bounded** patterns, **not** a general env-prefix strip.
 
-**Security note (the reason this task does NOT touch `normalize_for_match`):** a general "strip leading `VAR=value`" would be a privilege escalation. The stripped assignment is removed only for *matching* but stays on the *executed* command, so `LD_PRELOAD=…/evil.so ws status` / `PATH=/tmp/evil ws status` / `GIT_SSH_COMMAND="…" ws push` would auto-approve without a prompt and then run with an attacker-controlled environment. We bound the allowance to `CLAUDE_MODEL`, which is code-execution-inert (only feeds the `Co-Authored-By` trailer string, newline-sanitized at `ws-commit.sh:135`).
+**Security note (the reason this task does NOT touch `normalize_for_match`):** a general "strip leading `VAR=value`" would be a privilege escalation. The stripped assignment is removed only for *matching* but stays on the *executed* command, so `LD_PRELOAD=…/evil.so ws status` / `PATH=/tmp/evil ws status` / `GIT_SSH_COMMAND="…" ws push` would auto-approve without a prompt and then run with an attacker-controlled environment. We bound the allowance to `CLAUDE_MODEL`, which is code-execution-inert (only feeds the `Co-Authored-By` trailer string, newline-sanitized in `ws-commit.sh`'s trailer build).
 
 **Files:**
 - Modify: `.claude/settings.json` (`permissions.allow` array)

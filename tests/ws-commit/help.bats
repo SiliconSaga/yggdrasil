@@ -17,7 +17,11 @@ load test_helper
 @test "ws commit --help explains the sub-agent inline override" {
     run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
-    # Case-insensitive: the help text uses "SUB-AGENTS:" as a heading and
-    # "sub-agents" in prose; match either without depending on which case wins.
-    [[ "${output,,}" == *"sub-agent"* ]]
+    # Case-insensitive, but Bash 3.2-safe (macOS /bin/bash predates the
+    # ${var,,} downcase): the help uses "SUB-AGENTS:" as a heading and
+    # "sub-agents" in prose, so downcase via tr and match either without
+    # depending on which case wins.
+    local lower
+    lower="$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')"
+    [[ "$lower" == *"sub-agent"* ]]
 }
