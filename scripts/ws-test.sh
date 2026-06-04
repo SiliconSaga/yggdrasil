@@ -81,6 +81,12 @@ test_help() {
         echo "Runner-specific flags are passed through as-is:"
         echo "  ws test mimir -run TestFoo -v"
         echo "  ws test terasology --tests '*.SomeTest'"
+        echo ""
+        echo "For pytest adapters, a selector that names an existing path or"
+        echo "nodeid runs just that target; anything else becomes a -k filter:"
+        echo "  ws test knarr tests/test_foo.py            # runs that file"
+        echo "  ws test knarr tests/test_foo.py::test_bar  # runs that test"
+        echo "  ws test knarr some_keyword                 # -k some_keyword"
     } >&"$stream"
 }
 
@@ -119,8 +125,10 @@ active_realm="$(ws_detect_realm)" || true
 if [[ -n "$active_realm" ]]; then
     adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     if [[ -f "$adapter_file" ]]; then
-        adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null)
-        [[ "$adapter_cmd" == "null" ]] && adapter_cmd=""
+        # Guard the substitution: under `set -euo pipefail` a non-zero yq
+        # exit (malformed adapter YAML) would abort before the auto-detect
+        # fallback below. `// ""` already maps a missing key to empty.
+        adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null) || adapter_cmd=""
         if [[ -n "$adapter_cmd" ]]; then
             runner="adapter"
         fi
@@ -236,10 +244,25 @@ case "$runner" in
             if [[ "${adapter_argv[0]}" == *gradlew* ]]; then
                 gradle_argv=("${adapter_argv[@]}")
             else
-                # Non-Gradle adapter: we don't know how to translate a test filter
+                # Non-Gradle adapter. A positional test selector can be
+                # translated for pytest commands; other runners can't.
                 if [[ -n "$test_filter" ]]; then
-                    echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle." >&2
-                    echo "  Test name filters are only supported for Gradle/Go/Python runners." >&2
+                    if [[ "$adapter_cmd" == *pytest* ]]; then
+                        # A selector that resolves to an on-disk path or a
+                        # pytest nodeid (path::node) is passed positionally so
+                        # pytest collects just that target. This also lets a
+                        # single file run when unrelated modules have
+                        # collection errors (e.g. mid-refactor). Anything else
+                        # is treated as a keyword expression for -k.
+                        if [[ -e "$test_filter" || ( "$test_filter" == *"::"* && -e "${test_filter%%::*}" ) ]]; then
+                            "${adapter_argv[@]}" "$test_filter" "${runner_args[@]}"
+                        else
+                            "${adapter_argv[@]}" -k "$test_filter" "${runner_args[@]}"
+                        fi
+                        exit 0
+                    fi
+                    echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle or pytest." >&2
+                    echo "  Test name filters are only supported for Gradle, Go, Python, and pytest adapters." >&2
                     echo "  Use 'ws exec $comp <runner> <args>' to run '$test_filter' directly." >&2
                     exit 1
                 fi

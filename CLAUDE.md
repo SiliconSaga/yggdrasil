@@ -13,14 +13,7 @@ This file covers only Claude-specific overrides.
 - **Start Claude from `yggdrasil/`** — this is the workspace root. All sessions
   should use it as the working directory. Avoid starting from `GitWS/` or
   component subdirectories.
-- **Workspace CLI:** The `ws` CLI is the shared interface for both humans and
-  AI agents. Always use `bash scripts/ws <cmd>` for workspace operations.
-  Use `bash scripts/ws exec <component> <cmd>` to run commands in component
-  directories — never manually `cd` to components.
-  Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`,
-  `ws cr`, `ws issue`, `ws test`, `ws review`, `ws commit`, `ws log`, `ws clean`,
-  `ws resolve`, `ws vscode`, `ws exec`, `ws realm`, `ws hoard`, `ws component`,
-  `ws actions`, `ws help`.
+- **Workspace CLI:** The `ws` CLI is the shared interface for both humans and AI agents. Always use `bash scripts/ws <cmd>` for workspace operations. Use `bash scripts/ws exec <component> <cmd>` to run commands in component directories — never manually `cd` to components. Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`, `ws cr`, `ws issue`, `ws test`, `ws lint`, `ws review`, `ws commit`, `ws log`, `ws clean`, `ws resolve`, `ws vscode`, `ws exec`, `ws realm`, `ws hoard`, `ws component`, `ws actions`, `ws help`.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH.
   Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
 - On first use of `ws` in a session, briefly note: "Using the workspace CLI
