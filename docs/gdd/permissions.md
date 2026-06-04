@@ -68,43 +68,27 @@ See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facin
 
 ### Bounded `CLAUDE_MODEL=` attribution prefix
 
-`ws commit`, `ws test`, and `ws lint` are allowlisted by default in this
-workspace's `.claude/settings.json` — they no longer need to be hand-added
-per machine. The `ws commit` allow patterns come in three forms:
+`ws commit`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json` — they no longer need to be hand-added per machine. The `ws commit` allow patterns come in four forms:
 
 ```text
 Bash(ws commit:*)
+Bash(bash scripts/ws commit:*)
 Bash(CLAUDE_MODEL=* ws commit:*)
 Bash(CLAUDE_MODEL=* bash scripts/ws commit:*)
 ```
 
-The `CLAUDE_MODEL=*` forms exist because sub-agents attribute commits by
-prepending the model inline — `CLAUDE_MODEL="Sonnet 4.6" ws commit <comp>
-<bodyfile>` — rather than rewriting the shared `.env` (which would race
-across parallel sub-agents). See [`ws commit` attribution in the CLI
-guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
+Both the `ws commit` and `bash scripts/ws commit` bare forms are listed so the command still auto-approves under Claude Code's native matcher — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
 
-To make the prefixed form auto-approve cleanly, the PreToolUse hook
-(`strip_claude_model_prefix` in `.claude/hooks/gdd-permission-hook.sh`)
-strips a **single** leading `CLAUDE_MODEL=<value>` assignment (quoted or
-unquoted) from the command **before** allow/redirect matching. The strip is
-applied to the MATCH copy of the command only — never the executed command,
-never the audit log. Two consequences fall out of this:
+The `CLAUDE_MODEL=*` forms exist because sub-agents attribute commits by prepending the model inline — `CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>` — rather than rewriting the shared `.env` (which would race across parallel sub-agents). See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
-1. `CLAUDE_MODEL="Opus 4.8" ws commit …` matches the bare `Bash(ws
-   commit:*)` allow pattern after the prefix is stripped, so it
-   auto-approves.
-2. A prefixed redirect-deny target — e.g. `CLAUDE_MODEL="x" git commit` —
-   STILL hits its `git commit` redirect-deny instead of slipping past the
-   start-anchored glob. The prefix can't smuggle a denied command past the
-   matcher.
+To make the prefixed form auto-approve cleanly, the PreToolUse hook (`strip_claude_model_prefix` in `.claude/hooks/gdd-permission-hook.sh`) strips a **single** leading `CLAUDE_MODEL=<value>` assignment (quoted or unquoted) from the command **before** allow/redirect matching. The strip is applied to the MATCH copy of the command only — never the executed command, never the audit log. Two consequences fall out of this:
+
+1. `CLAUDE_MODEL="Opus 4.8" ws commit …` matches the bare `Bash(ws commit:*)` allow pattern after the prefix is stripped, so it auto-approves.
+2. A prefixed redirect-deny target — e.g. `CLAUDE_MODEL="x" git commit` — STILL hits its `git commit` redirect-deny instead of slipping past the start-anchored glob. The prefix can't smuggle a denied command past the matcher.
 
 #### Why not a general env-prefix strip
 
-The strip is deliberately bounded to `CLAUDE_MODEL` and nothing else. A
-general "strip any leading `VAR=value`" would be a **privilege escalation**.
-The stripped assignment is removed only for MATCHING but stays on the
-EXECUTED command. So a general strip would make
+The strip is deliberately bounded to `CLAUDE_MODEL` and nothing else. A general "strip any leading `VAR=value`" would be a **privilege escalation**. The stripped assignment is removed only for MATCHING but stays on the EXECUTED command. So a general strip would make
 
 ```text
 LD_PRELOAD=…/evil.so ws status
@@ -112,23 +96,11 @@ PATH=/tmp/evil ws status
 GIT_SSH_COMMAND="…" ws push
 ```
 
-match an allow pattern (prompt suppressed) and then run with an
-attacker-controlled environment. The allowance is bounded to `CLAUDE_MODEL`
-because it is **code-execution-inert** — it only feeds the `Co-Authored-By`
-trailer string, which `ws-commit.sh` newline-sanitizes. Two security
-regression tests lock this boundary: an `LD_PRELOAD=…` prefix must NOT
-auto-allow, and a `CLAUDE_MODEL`-prefixed `git commit` must still DENY toward
-`ws commit`.
+match an allow pattern (prompt suppressed) and then run with an attacker-controlled environment. The allowance is bounded to `CLAUDE_MODEL` because it is **code-execution-inert** — it only feeds the `Co-Authored-By` trailer string, which `ws-commit.sh` newline-sanitizes. Two security regression tests lock this boundary: an `LD_PRELOAD=…` prefix must NOT auto-allow, and a `CLAUDE_MODEL`-prefixed `git commit` must still DENY toward `ws commit`.
 
 #### `ws test` / `ws lint` under the realm trust model
 
-`ws test` and `ws lint` run adapter-defined commands (the component's own
-test/lint runner, resolved through the active realm's adapter). They are
-allowlisted under the **realm trust model**: trust is established when a
-realm is scanned and activated, and is surfaced to the agent at session
-start (by `ws orient`, a forthcoming Phase 1 feature) — NOT by withholding
-the allowlist. Treating adapter-defined runners as trusted-once-activated is
-the same posture as the rest of the realm's declared commands.
+`ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They are allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and is surfaced to the agent at session start (by `ws orient`, a forthcoming Phase 1 feature) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
 
 ## Pattern shapes
 

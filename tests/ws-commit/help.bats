@@ -16,5 +16,7 @@ setup() {
 @test "ws commit --help explains the sub-agent inline override" {
     run bash "$ROOT_DIR/scripts/ws-commit.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"sub-agent"* ]]
+    # Case-insensitive: the help text uses "SUB-AGENTS:" as a heading and
+    # "sub-agents" in prose; match either without depending on which case wins.
+    [[ "${output,,}" == *"sub-agent"* ]]
 }
