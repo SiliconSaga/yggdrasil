@@ -210,6 +210,53 @@ commands need one `*` per argument:
 deny rule in `.claude/settings.json` cannot be overridden by local settings.
 See "Why exec always requires human approval" above.
 
+## ws commit
+
+`ws commit <component> <bodyfile>` is the bodyfile-driven commit wrapper
+(staging declared in the bodyfile's `add:` frontmatter, no separate `git
+add`). It appends a `Co-Authored-By` trailer automatically. Run `ws commit
+--help` for the full bodyfile and flag reference; the attribution behavior
+is documented here.
+
+### Model attribution
+
+The `Co-Authored-By` trailer name resolves as:
+
+1. `identity.co_authored_by` from the merged ecosystem config, **if set** —
+   a realm or local override can pin a fixed attribution string.
+2. Otherwise `"Claude $CLAUDE_MODEL"`.
+
+`CLAUDE_MODEL` is auto-sourced from `.env` at the workspace root. The
+shipped default (see `.env.example`) is:
+
+```bash
+export CLAUDE_MODEL="${CLAUDE_MODEL:-Opus 4.8}"
+```
+
+Keep `.env` current with the model the workspace primarily commits as,
+rather than prepending `CLAUDE_MODEL` on every commit. If `.env` is absent,
+`ws-commit.sh` falls back to a hardcoded default (also `Opus 4.8`). The
+resolved value only feeds the trailer string and is newline-sanitized — it
+is never evaluated as a command.
+
+### Sub-agent override rule
+
+A sub-agent running on a **non-default** model (e.g. Sonnet while the
+workspace default is Opus) should prepend the model **inline** for that one
+commit:
+
+```bash
+CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>
+```
+
+Inline is the correct mechanism for sub-agents. Do **not** rewrite the
+shared `.env` to change attribution for a single commit — parallel
+sub-agents rewriting the same file would race. The inline prefix is
+allowlisted (`Bash(CLAUDE_MODEL=* ws commit:*)`); see [the bounded
+`CLAUDE_MODEL=` prefix in the permissions reference](gdd/permissions.md#bounded-claude_model-attribution-prefix)
+for why this specific prefix auto-approves while arbitrary env prefixes do
+not.
+
 ## ws component init
 
 Scaffolds a new component into `components/<name>/` from a template
