@@ -53,6 +53,7 @@ _wt_resolve_team_hoard() {
 }
 
 ws_thalami_publish() {
+    command -v yq >/dev/null 2>&1 || { echo "ERROR: 'yq' (v4+) is required for 'ws thalami publish'." >&2; return 1; }
     local to="" vault="" user="" dry=0 yes=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -73,7 +74,7 @@ ws_thalami_publish() {
 
     # 2. Team hoard.
     local team; team="$(_wt_resolve_team_hoard "$to")" || return 1
-    local team_dir="$HOARDS_DIR/$team"
+    local team_dir; team_dir="$HOARDS_DIR/$team"
 
     # 3. User: --user > frontmatter user > $USER.
     local fm_user; fm_user="$(printf '%s\n' "$fm" | yq '.user // ""')"
