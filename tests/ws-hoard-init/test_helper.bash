@@ -68,7 +68,14 @@ make_bare_upstream() {
     local name="${1:-upstream}"
     local bare="$BATS_TEST_TMPDIR/${name}.git"
     local seed="$BATS_TEST_TMPDIR/${name}-seed"
-    git init -q --bare "$bare"
+    # Force the bare repo's HEAD to `main` so it matches the branch the seed
+    # pushes below (`git branch -M main`). Without --initial-branch, `git init
+    # --bare` sets HEAD to the host git's default branch — which on machines
+    # that haven't set init.defaultBranch=main is still `master`. The bare
+    # would then advertise HEAD -> refs/heads/master (nonexistent), and
+    # `git clone` would emit "remote HEAD refers to nonexistent ref" and check
+    # out an empty tree, failing the yaml-flow tests on those machines only.
+    git init -q --bare --initial-branch=main "$bare"
     git init -q "$seed"
     (
         cd "$seed"

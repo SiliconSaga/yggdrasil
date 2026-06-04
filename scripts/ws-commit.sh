@@ -36,7 +36,17 @@ commit_help() {
         echo "              with YAML frontmatter — typically .commits/<name>.md"
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
-        echo "Set CLAUDE_MODEL to control the model name (default: Opus 4.7)."
+        echo "Model attribution:"
+        echo "  The trailer name resolves as: identity.co_authored_by (if set"
+        echo "  in the merged ecosystem config) else \"Claude \$CLAUDE_MODEL\"."
+        echo "  CLAUDE_MODEL is auto-sourced from .env (built-in default: Opus"
+        echo "  4.8; effective value now: \"${CLAUDE_MODEL:-Opus 4.8}\"). Keep"
+        echo "  .env current rather than prepending it on every commit."
+        echo "  SUB-AGENTS: if you commit while running on a non-default model"
+        echo "  (e.g. Sonnet vs the workspace Opus default), prepend it inline:"
+        echo "    CLAUDE_MODEL=\"Sonnet 4.6\" ws commit <comp> <bodyfile>"
+        echo "  Inline is correct for sub-agents — a shared .env rewrite from"
+        echo "  parallel sub-agents would race."
         echo ""
         echo "Bodyfile frontmatter (YAML between --- markers):"
         echo "  message:      Commit subject line (required)"
@@ -129,7 +139,7 @@ if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
     # No custom identity configured — fall back to Claude, with CLAUDE_MODEL
     # selecting the model name. CLAUDE_MODEL does not override a configured
     # identity (e.g. "Human Dev" or a non-Claude AI should pass through).
-    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.7}"
+    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.8}"
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"

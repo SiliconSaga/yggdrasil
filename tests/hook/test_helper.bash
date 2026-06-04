@@ -86,6 +86,19 @@ write_local_hook_rules() {
     printf '%s\n' "$1" > "$WORK/.claude/hooks/hook-rules.local"
 }
 
+# Seed the synthetic $WORK project with the REAL committed config — the
+# repo's .claude/settings.json (permissions.allow) and
+# .claude/hooks/hook-rules (redirect/ask/scratch). Tests that assert the
+# *shipped* allow/deny behavior (rather than a hand-written synthetic
+# rule) use this so the hook evaluates against the same config the
+# workspace actually runs. The synthetic $WORK lives in a tmp tree the
+# hook's upward walk can't reach the repo from, so we copy the files in
+# explicitly.
+seed_real_project_config() {
+    cp "$REPO_ROOT/.claude/settings.json" "$WORK/.claude/settings.json"
+    cp "$REPO_ROOT/.claude/hooks/hook-rules" "$WORK/.claude/hooks/hook-rules"
+}
+
 # Write a bypass marker file under $WORK/.tmp/hook-bypass/<slug>.bypass
 # with the given session_id and optional reason. Used by Tier 2 bypass
 # tests to simulate a marker created by `ws hook-bypass`.
