@@ -66,7 +66,7 @@ Community realms may provide additional component-specific skills in
 |---|---|---|
 | Workspace skill path | `.agent/skills/gdd-orientation/SKILL.md` | Read the file with the Read tool. Do **not** invoke via the Skill tool. |
 | Plugin skill identifier | `superpowers:executing-plans` | Invoke via the Skill tool. Requires the plugin (e.g. Obra Superpowers) installed. |
-| `@<name>` cross-reference | `@gdd-orientation`, `@workflow-auditor` | Informational pointer to a workspace skill in skill bodies — read the referenced file, don't invoke it as a tool. Plugin skills always use the explicit `superpowers:*` form, never `@<name>`. |
+| `@<name>` cross-reference | `@gdd-orientation`, `@gdd-workflow-audit` | Informational pointer to a workspace skill in skill bodies — read the referenced file, don't invoke it as a tool. Plugin skills always use the explicit `superpowers:*` form, never `@<name>`. |
 
 **Companion plugin (recommended):** GDD plans and several practice
 skills reference [Obra Superpowers](https://github.com/obra/superpowers)
@@ -100,7 +100,7 @@ Superpowers — only the `superpowers:*` plugin skills are unavailable.
 | **KUTTL Testing** | Guidelines for writing and running KUTTL tests | [SKILL.md](./.agent/skills/kuttl-testing/SKILL.md) |
 | **Multi-Repo Orchestration** | Session start/end discipline when a session touches more than one repo, TODO triage | [SKILL.md](./.agent/skills/multi-repo-orchestration/SKILL.md) |
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/topic-branch-workflow/SKILL.md) |
-| **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/workflow-auditor/SKILL.md) |
+| **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/gdd-workflow-audit/SKILL.md) |
 | **Writing Yggdrasil Docs** | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/gdd-doc-writing/SKILL.md) |
 | **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
 

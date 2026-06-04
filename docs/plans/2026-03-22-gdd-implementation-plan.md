@@ -367,7 +367,7 @@ Walk through each step:
 2. **Review each item with the human** — present items one at a time or
    in small groups. For each, offer three actions:
    - **Promote** — specify where it goes:
-     - Pattern → workflow-auditor candidate or new skill
+     - Pattern → gdd-workflow-audit candidate or new skill
      - Bug/feature → GitHub issue (use creating-github-issues skill)
      - Preference → CLAUDE.md or AGENTS.md update
      - Instruction change → skill update
@@ -376,7 +376,7 @@ Walk through each step:
 
 3. **Check for pattern accumulation** — if 2+ observations point to the
    same friction or workaround, suggest consolidation. Cross-reference
-   with the workflow-auditor skill.
+   with the gdd-workflow-audit skill.
 
 4. **Update the Audit Log** — append an entry:
    ```markdown
@@ -402,7 +402,7 @@ Walk through each step:
 - Not automated — human is always part of promote/prune decisions
 
 **Section: Relationship to Other Skills**
-- **workflow-auditor** — housekeeping may surface patterns that the auditor
+- **gdd-workflow-audit** — housekeeping may surface patterns that the auditor
   should formalize as scripts or ws subcommands
 - **creating-github-issues** — promoted items that become issues use this
   skill for filing

@@ -78,7 +78,7 @@ Skills tied to specific workspace operations.
 | **creating-github-issues** | Filing a deferred task or capturing work a fresh agent should be able to complete in a single repo. |
 | **permissions-management** | Adding/editing permission patterns, considering "don't ask again" offers, reviewing `.claude/settings.json` changes. |
 | **mcp-usage** | Setup offers, auth, tool-calling conventions for [MCP servers](../mcp-setup.md). |
-| **workflow-auditor** | At session wrap-up, after noticing 3+ instances of a manual workaround. |
+| **gdd-workflow-audit** | At session wrap-up, after noticing 3+ instances of a manual workaround. |
 
 ---
 
