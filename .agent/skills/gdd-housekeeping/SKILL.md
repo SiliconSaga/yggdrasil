@@ -34,11 +34,11 @@ sections. Count them and give the human a quick summary before diving in:
 **Per-item special case — permissions items.** If the item mentions
 permissions, `.claude/settings.json`, a permission prompt the user
 wants to follow up on, or "don't ask again" decisions, prompt the
-user to walk through it via the `permissions-management` skill before
+user to walk through it via the `gdd-permissions` skill before
 applying the standard Promote/Keep/Prune trichotomy. Example:
 
 > "This observation mentions a permission prompt for `xxd` you got
-> last session. Want me to invoke `permissions-management` to think
+> last session. Want me to invoke `gdd-permissions` to think
 > through whether it's worth allowlisting?"
 
 This routes permissions-related work through the dedicated skill
@@ -213,7 +213,7 @@ housekeeping:
   | Leave in `.claude/settings.local.json` | The decision was correct as recorded (don't-ask-again at the harness level) | No change needed |
 
   For the doc-driven path (project `.claude/settings.json`), invoke
-  the `permissions-management` skill for the full add-and-document
+  the `gdd-permissions` skill for the full add-and-document
   flow. For the `hook-rules.local` path, copy
   `.claude/hooks/hook-rules.local.example` to `hook-rules.local`
   (if it doesn't exist) and append the bash glob pattern under the

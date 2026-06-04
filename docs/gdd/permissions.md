@@ -4,8 +4,8 @@ How `.claude/settings.json` works in a GDD workspace, what makes a
 pattern safe, and how to verify the safety claims for yourself.
 
 This doc is the source of truth for the permission system's behavior
-and the empirical findings it relies on. The `permissions-management`
-skill (`.agent/skills/permissions-management/`) is the operational
+and the empirical findings it relies on. The `gdd-permissions`
+skill (`.agent/skills/gdd-permissions/`) is the operational
 companion — agents invoke it for live decisions; this doc is what they
 (and humans, and automated review tools) read for reference.
 
@@ -293,7 +293,7 @@ the doc, and a stale doc gives false confidence. PR review for
 `.claude/settings.json` changes should call out a missing doc update
 as blocking.
 
-The `permissions-management` skill enforces this rule operationally:
+The `gdd-permissions` skill enforces this rule operationally:
 when an agent adds a pattern, the skill includes the doc update as
 part of the same change.
 

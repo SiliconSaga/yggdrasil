@@ -102,7 +102,7 @@ Modes are picked at session start (and can be re-picked mid-session). The defaul
 
 `.claude/settings.json`'s `permissions.allow` and `permissions.deny` control which commands run without a confirmation prompt (output still streams normally either way; the question is just whether the user gets asked before execution). The two-layer defense model (subcommand-level safety + matcher-level scoping) keeps the allowlist trustworthy even if Claude Code's matcher behavior shifts.
 
-Adding a new pattern? Read [permissions.md](permissions.md) — the **When to widen vs narrow patterns** section — first. Operational guidance for adding patterns or handling "don't ask again" prompts is in the `permissions-management` skill.
+Adding a new pattern? Read [permissions.md](permissions.md) — the **When to widen vs narrow patterns** section — first. Operational guidance for adding patterns or handling "don't ask again" prompts is in the `gdd-permissions` skill.
 
 ---
 

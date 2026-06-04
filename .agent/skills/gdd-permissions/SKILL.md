@@ -1,5 +1,5 @@
 ---
-name: permissions-management
+name: gdd-permissions
 description: >
   Use when adding or editing permission patterns, considering a "don't
   ask again" offer at a permission prompt, explaining the permission
@@ -7,7 +7,7 @@ description: >
   code review. Operational companion to docs/gdd/permissions.md.
 ---
 
-# Permissions Management
+# GDD Permissions
 
 Operational guidance for working with `.claude/settings.json` allowlist
 and deny rules. The reference content (how the system works, the
