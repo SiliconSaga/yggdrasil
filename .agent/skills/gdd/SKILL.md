@@ -94,7 +94,7 @@ The orchestrator selects skills based on what the user is doing:
 | Topic Branch Workflow (@gdd-branch-workflow) | Exists | Git discipline |
 | Creating GitHub Issues (@gdd-github-issues) | Exists | Issue filing pipeline |
 | KUTTL Testing (@kuttl-testing) | Exists | Infrastructure BDD |
-| BDD (@bdd) | Exists | Gherkin scenarios, step definitions, runner integration |
+| BDD (@gdd-bdd) | Exists | Gherkin scenarios, step definitions, runner integration |
 
 ### Cross-Cutting Skills
 

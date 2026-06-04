@@ -677,14 +677,14 @@ git commit -m "docs: register GDD mode skills in AGENTS.md"
 ### Task 15: Create BDD skill
 
 **Files:**
-- Create: `.agent/skills/bdd/SKILL.md`
+- Create: `.agent/skills/gdd-bdd/SKILL.md`
 
 The first practice skill that plugs into the GDD orchestrator. Guides
 scenario writing, file placement, and runner integration per language.
 
 - [ ] **Step 1: Create the skill directory**
 
-Run: `mkdir -p .agent/skills/bdd`
+Run: `mkdir -p .agent/skills/gdd-bdd`
 
 - [ ] **Step 2: Write the SKILL.md file**
 
@@ -703,7 +703,7 @@ Cover:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add .agent/skills/bdd/
+git add .agent/skills/gdd-bdd/
 git commit -m "feat: add BDD practice skill for GDD"
 ```
 
@@ -717,7 +717,7 @@ git commit -m "feat: add BDD practice skill for GDD"
 - [ ] **Step 1: Add to skills table**
 
 ```markdown
-| **BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
+| **GDD-BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/gdd-bdd/SKILL.md) |
 ```
 
 - [ ] **Step 2: Commit**
@@ -758,7 +758,7 @@ and used before they can be designed well:
 - **Designer onboarding** — low-barrier scenario writing without local tooling
   or Git knowledge. Deferred until BDD workflows are stable enough to
   simplify for non-technical contributors.
-- **BDD sub-skills** (bdd-go, bdd-python, bdd-kuttl) — the GDD design shows
+- **BDD sub-skills** (gdd-bdd-go, gdd-bdd-python, gdd-bdd-kuttl) — the GDD design shows
   these as separate skills under BDD. This plan consolidates them into a
   single BDD skill (Task 15) for simplicity. Split into sub-skills when
   language-specific guidance grows complex enough to warrant it.

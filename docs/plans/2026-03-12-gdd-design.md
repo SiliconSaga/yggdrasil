@@ -105,10 +105,10 @@ gdd (orchestrator)
 ├── gdd-autonomous    — permission-bounded independent work
 │
 │  Practice skills (the actual work)
-├── bdd               — Gherkin scenarios, step definitions, runner integration
-│   ├── bdd-go        — godog integration for Go components
-│   ├── bdd-python    — pytest-bdd or behave for Python components
-│   └── bdd-kuttl     — infrastructure BDD via kuttl (already exists)
+├── gdd-bdd           — Gherkin scenarios, step definitions, runner integration
+│   ├── gdd-bdd-go    — godog integration for Go components
+│   ├── gdd-bdd-python — pytest-bdd or behave for Python components
+│   └── gdd-bdd-kuttl — infrastructure BDD via kuttl (already exists)
 │
 ├── tdd               — red-green-refactor (superpowers skill, already exists)
 ├── gdd-workflow-audit   — detect repeated patterns (already exists)

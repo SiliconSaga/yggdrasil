@@ -254,7 +254,7 @@ gdd (orchestrator)
 ├── gdd-housekeeping   ← NEW — audit, prune, promote
 │
 │  Practice skills
-├── bdd, tdd, gdd-workflow-audit, etc.
+├── gdd-bdd, tdd, gdd-workflow-audit, etc.
 ```
 
 The orientation skill is cross-cutting — runs at session start regardless of

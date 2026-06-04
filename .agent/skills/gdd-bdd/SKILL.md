@@ -1,13 +1,9 @@
 ---
-name: bdd
-description: >
-  Behavior Driven Development practice skill. Guides writing Gherkin scenarios,
-  placing .feature files, and bridging to implementation via runner sub-skills
-  and TDD. Use when writing scenarios, planning features, implementing step
-  definitions, or setting up BDD infrastructure in any component.
+name: gdd-bdd
+description: Use when writing or organising `.feature` files / Gherkin scenarios, planning a new component feature behaviorally, implementing step definitions, setting up BDD infrastructure in a component that doesn't have one yet, or routing to a language-specific runner (`gdd-bdd-pytest`).
 ---
 
-# BDD (Behavior Driven Development)
+# GDD BDD (Behavior Driven Development)
 
 BDD scenarios are the universal unit of work in GDD. Every role can
 participate at some stage of the pipeline. A feature file without scenarios
@@ -43,7 +39,7 @@ without scenarios is a complete contribution — it makes the work visible.
 **Do not use for:**
 - Running existing tests (use runner sub-skill or `ws test`)
 - Writing unit tests without BDD context (use superpowers:test-driven-development)
-- Vordu roadmap tagging (future `bdd-vordu` sub-skill)
+- Vordu roadmap tagging (future `gdd-bdd-vordu` sub-skill)
 
 **Progressive depth:** Read only as far as needed.
 - Feature Authoring — always read
@@ -179,7 +175,7 @@ Check the component's project files:
 - `go.mod` with `godog` → use godog conventions (see below)
 - Infrastructure components → see @kuttl-testing skill
 - `pom.xml` or `build.gradle` with `cucumber`
-  → activate @bdd-java sub-skill (future)
+  → activate @gdd-bdd-java sub-skill (future)
 - Nothing detected → ask the user
 
 ### Quick runner reference
