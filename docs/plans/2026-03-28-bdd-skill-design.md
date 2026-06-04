@@ -42,7 +42,7 @@ yet underway.
 .agent/skills/
   bdd/
     SKILL.md              # Core — concepts, feature authoring, conventions
-  bdd-pytest/
+  gdd-bdd-pytest/
     SKILL.md              # Runner — pytest-bdd step defs, execution, cucumber output
 ```
 
@@ -65,10 +65,10 @@ description: Write and organize BDD feature files — planning features, scenari
 ---
 ```
 
-`bdd-pytest/SKILL.md`:
+`gdd-bdd-pytest/SKILL.md`:
 ```yaml
 ---
-name: bdd-pytest
+name: gdd-bdd-pytest
 description: pytest-bdd runner — step definitions, test execution, and Cucumber JSON output
 ---
 ```
@@ -223,7 +223,7 @@ When scenarios are written and the user wants to implement:
 Scenarios written → need step definitions?
   ├── Yes → detect framework:
   │         ├── pyproject.toml / requirements.txt with pytest-bdd
-  │         │   → activate bdd-pytest sub-skill
+  │         │   → activate gdd-bdd-pytest sub-skill
   │         ├── pom.xml / build.gradle with cucumber
   │         │   → activate bdd-java sub-skill (future)
   │         └── Nothing detected → ask the user
@@ -268,7 +268,7 @@ just observations. The user decides whether to act on any of it.
 
 ---
 
-## 5. Runner Sub-Skill: bdd-pytest (bdd-pytest/SKILL.md)
+## 5. Runner Sub-Skill: gdd-bdd-pytest (gdd-bdd-pytest/SKILL.md)
 
 The first concrete runner. Activated when the BDD core skill detects
 pytest-bdd in the project or the user explicitly chooses it.

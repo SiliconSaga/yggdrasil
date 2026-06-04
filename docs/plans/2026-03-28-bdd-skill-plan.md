@@ -18,7 +18,7 @@
 .agent/skills/
   bdd/
     SKILL.md                  # Core BDD skill — feature authoring, conventions
-  bdd-pytest/
+  gdd-bdd-pytest/
     SKILL.md                  # pytest-bdd runner — step defs, execution
 AGENTS.md                     # Add entries to skill table
 ```
@@ -178,7 +178,7 @@ implement step definitions and production code.
 
 Check the component's project files:
 - `pyproject.toml` or `requirements.txt` with `pytest-bdd`
-  → activate `bdd-pytest` sub-skill
+  → activate `gdd-bdd-pytest` sub-skill
 - `pom.xml` or `build.gradle` with `cucumber`
   → activate `bdd-java` sub-skill (future)
 - Nothing detected → ask the user
@@ -245,14 +245,14 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 ### Task 2: pytest-bdd Runner Sub-Skill
 
 **Files:**
-- Create: `.agent/skills/bdd-pytest/SKILL.md`
+- Create: `.agent/skills/gdd-bdd-pytest/SKILL.md`
 
 - [ ] **Step 1: Create the SKILL.md**
 
-`.agent/skills/bdd-pytest/SKILL.md`:
+`.agent/skills/gdd-bdd-pytest/SKILL.md`:
 ```markdown
 ---
-name: bdd-pytest
+name: gdd-bdd-pytest
 description: pytest-bdd runner — step definitions, test execution, and Cucumber JSON output for Python components
 ---
 
@@ -361,7 +361,7 @@ Read the complete file back and verify:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add .agent/skills/bdd-pytest/SKILL.md
+git add .agent/skills/gdd-bdd-pytest/SKILL.md
 git commit -m "feat: add pytest-bdd runner sub-skill
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
@@ -380,7 +380,7 @@ Add two rows to the skill table in `AGENTS.md` after the existing entries:
 
 ```markdown
 | **BDD** | Write and organize BDD feature files — planning features, scenarios, and conventions | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
-| **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/bdd-pytest/SKILL.md) |
+| **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/gdd-bdd-pytest/SKILL.md) |
 ```
 
 - [ ] **Step 2: Commit**

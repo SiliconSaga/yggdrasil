@@ -175,7 +175,7 @@ implement step definitions and production code.
 
 Check the component's project files:
 - `pyproject.toml` or `requirements.txt` with `pytest-bdd`
-  → activate @bdd-pytest sub-skill
+  → activate @gdd-bdd-pytest sub-skill
 - `go.mod` with `godog` → use godog conventions (see below)
 - Infrastructure components → see @kuttl-testing skill
 - `pom.xml` or `build.gradle` with `cucumber`
@@ -192,7 +192,7 @@ godog --tags="@smoke"          # by tag
 ```
 Step definitions go in `*_test.go` files alongside features or in `steps/`.
 
-**Python (pytest-bdd):** See the @bdd-pytest sub-skill for full guidance.
+**Python (pytest-bdd):** See the @gdd-bdd-pytest sub-skill for full guidance.
 
 **Infrastructure (kuttl):** See @kuttl-testing for conventions. KUTTL uses
 directory-based structure rather than `.feature` files.
@@ -253,5 +253,5 @@ whether to act on any of it.
 
 - **@gdd-github-issues** — convert a scenario into a GitHub issue
 - **@kuttl-testing** — infrastructure BDD uses kuttl conventions
-- **@bdd-pytest** — pytest-bdd runner sub-skill (step defs, execution)
+- **@gdd-bdd-pytest** — pytest-bdd runner sub-skill (step defs, execution)
 - **@gdd** — BDD is a practice skill in the GDD hierarchy

@@ -63,7 +63,7 @@ Skills that capture *how* to do specific kinds of technical work.
 | Skill | Use when |
 |---|---|
 | **bdd** | Writing Gherkin scenarios, planning features, placing `.feature` files. |
-| **bdd-pytest** | Pytest-bdd runner specifics — step definitions, execution, Cucumber JSON output. |
+| **gdd-bdd-pytest** | Pytest-bdd runner specifics — step definitions, execution, Cucumber JSON output. |
 | **kuttl-testing** | Writing or debugging kuttl e2e tests for Kubernetes (Crossplane claims, operator-managed resources, secret-dependent checks). |
 | **gdd-doc-writing** | Writing or editing any yggdrasil-ecosystem documentation, including Mermaid diagrams. |
 

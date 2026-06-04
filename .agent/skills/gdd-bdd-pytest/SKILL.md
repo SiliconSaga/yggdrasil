@@ -1,6 +1,6 @@
 ---
-name: bdd-pytest
-description: pytest-bdd runner — step definitions, test execution, and Cucumber JSON output for Python components
+name: gdd-bdd-pytest
+description: Use when a Python component declares a `.feature` file and needs step definitions implemented, or when configuring/running pytest-bdd tests, or when generating Cucumber JSON output from pytest-bdd runs. Activated by the gdd-bdd skill when pytest-bdd is detected in the project.
 ---
 
 # BDD Runner: pytest-bdd
