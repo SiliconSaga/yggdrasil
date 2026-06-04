@@ -120,7 +120,7 @@ $(echo "$values_yaml" | sed 's/^/        /')"
 kind: Application
 metadata:
   name: $name
-  namespace: argocd
+  namespace: argo
   labels:
     ecosystem.siliconsaga.dev/tier: \"$tier\"
     ecosystem.siliconsaga.dev/managed-by: ws-resolve
