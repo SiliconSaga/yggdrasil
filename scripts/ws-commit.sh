@@ -138,7 +138,7 @@ if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
     # No custom identity configured — fall back to Claude, with CLAUDE_MODEL
     # selecting the model name. CLAUDE_MODEL does not override a configured
     # identity (e.g. "Human Dev" or a non-Claude AI should pass through).
-    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.7}"
+    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.8}"
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"
