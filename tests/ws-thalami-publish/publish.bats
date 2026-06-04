@@ -30,3 +30,30 @@ setup() { init_publish_workspace; }
     [ "$status" -eq 0 ]
     [[ "$output" == *"user=Borgr"* ]]
 }
+
+@test "publish --dry-run shows the published-only projection, excludes unpublished" {
+    run_publish --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"observability-improvements"* ]]
+    [[ "$output" != *"private-spike"* ]]
+}
+
+@test "publish writes a regenerated team thalamus with only published arcs" {
+    run_publish --yes
+    [ "$status" -eq 0 ]
+    local f="$HOARDS_DIR/team-thalami-cfr/Cervator/testhost-thalamus.md"
+    [ -f "$f" ]
+    grep -q "observability-improvements" "$f"
+    run grep -c "private-spike" "$f"
+    [ "$output" -eq 0 ]
+    grep -q "do not hand-edit" "$f"
+}
+
+@test "publish is idempotent — re-running yields the same projection file" {
+    run_publish --yes
+    local f="$HOARDS_DIR/team-thalami-cfr/Cervator/testhost-thalamus.md"
+    cp "$f" "$BATS_TEST_TMPDIR/first"
+    run_publish --yes
+    run diff "$f" "$BATS_TEST_TMPDIR/first"
+    [ "$status" -eq 0 ]
+}
