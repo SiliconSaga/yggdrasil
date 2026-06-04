@@ -92,7 +92,7 @@ The orchestrator selects skills based on what the user is doing:
 | TDD (`superpowers:test-driven-development`) | Requires Superpowers plugin | Red-green-refactor cycle |
 | Workflow Auditor (@gdd-workflow-audit) | Exists | Detect repeated manual workarounds |
 | Topic Branch Workflow (@gdd-branch-workflow) | Exists | Git discipline |
-| Creating GitHub Issues (@creating-github-issues) | Exists | Issue filing pipeline |
+| Creating GitHub Issues (@gdd-github-issues) | Exists | Issue filing pipeline |
 | KUTTL Testing (@kuttl-testing) | Exists | Infrastructure BDD |
 | BDD (@bdd) | Exists | Gherkin scenarios, step definitions, runner integration |
 

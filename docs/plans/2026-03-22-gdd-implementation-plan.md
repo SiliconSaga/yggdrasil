@@ -368,7 +368,7 @@ Walk through each step:
    in small groups. For each, offer three actions:
    - **Promote** — specify where it goes:
      - Pattern → gdd-workflow-audit candidate or new skill
-     - Bug/feature → GitHub issue (use creating-github-issues skill)
+     - Bug/feature → GitHub issue (use gdd-github-issues skill)
      - Preference → CLAUDE.md or AGENTS.md update
      - Instruction change → skill update
    - **Keep** — still relevant, leave it
@@ -404,7 +404,7 @@ Walk through each step:
 **Section: Relationship to Other Skills**
 - **gdd-workflow-audit** — housekeeping may surface patterns that the auditor
   should formalize as scripts or ws subcommands
-- **creating-github-issues** — promoted items that become issues use this
+- **gdd-github-issues** — promoted items that become issues use this
   skill for filing
 - **gdd-orientation** — housekeeping updates the frontmatter that orientation
   reads on next startup
@@ -698,7 +698,7 @@ Cover:
   - Infrastructure: kuttl (reference existing @kuttl-testing skill)
 - The scenario pipeline: write → file issue → implement → review
 - Session sizing: what's achievable in 15 min vs 45 min vs 2 hours
-- Relationship to the creating-github-issues skill for scenario → issue flow
+- Relationship to the gdd-github-issues skill for scenario → issue flow
 
 - [ ] **Step 3: Commit**
 

@@ -65,7 +65,7 @@ For each, offer three actions:
 | Item type | Destination |
 |-----------|-------------|
 | Recurring pattern or friction | Workflow-auditor candidate, new skill, or `ws` subcommand |
-| Bug or feature idea | GitHub issue (use @creating-github-issues) |
+| Bug or feature idea | GitHub issue (use @gdd-github-issues) |
 | User preference | `CLAUDE.md` or `AGENTS.md` update |
 | Process improvement | Skill update or new skill |
 | Safety concern (verified) | Trust rule in orientation skill or root instructions |
@@ -312,7 +312,7 @@ N×duplication is acceptable cost for design simplicity.
 
 - **@gdd-workflow-audit** — housekeeping may surface patterns that the auditor
   should formalize as scripts or `ws` subcommands
-- **@creating-github-issues** — promoted items that become issues use this
+- **@gdd-github-issues** — promoted items that become issues use this
   skill for filing
 - **@gdd-orientation** — housekeeping updates the frontmatter that orientation
   reads on next session startup. The two skills form a cycle: orientation

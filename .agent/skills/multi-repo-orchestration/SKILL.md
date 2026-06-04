@@ -31,7 +31,7 @@ When something comes up that you can't or won't finish right now:
 | Type | Criteria | Action |
 |------|----------|--------|
 | Work now | Needs current context, blocks goal, or under 15 min | Do it |
-| GitHub issue | Single repo, fully describable, independent, fresh-agent-doable | Use `creating-github-issues` skill |
+| GitHub issue | Single repo, fully describable, independent, fresh-agent-doable | Use `gdd-github-issues` skill |
 | Design doc | Multi-repo, needs architectural decision, underspecified | Write in appropriate repo's `docs/` |
 | Memory note | Cross-session architectural knowledge | Update MEMORY.md |
 
@@ -43,7 +43,7 @@ Before closing any session:
 
 1. List every deferred item accumulated during the session
 2. Classify each using the table above
-3. File issues for anything that qualifies (invoke `creating-github-issues` skill)
+3. File issues for anything that qualifies (invoke `gdd-github-issues` skill)
 4. Update MEMORY.md with architectural knowledge from this session
 5. Confirm: nothing important is trapped only in this conversation
 
@@ -61,4 +61,4 @@ When filing an issue that is blocked by or depends on work in another repo:
 
 ## Related Skills
 
-`creating-github-issues` — invoke when an item qualifies for filing
+`gdd-github-issues` — invoke when an item qualifies for filing

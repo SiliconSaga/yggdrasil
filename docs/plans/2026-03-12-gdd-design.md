@@ -113,7 +113,7 @@ gdd (orchestrator)
 ├── tdd               — red-green-refactor (superpowers skill, already exists)
 ├── gdd-workflow-audit   — detect repeated patterns (already exists)
 ├── gdd-branch-workflow — Git discipline (already exists)
-└── creating-github-issues — issue pipeline (already exists)
+└── gdd-github-issues — issue pipeline (already exists)
 ```
 
 **Not every skill needs to be built.** The orchestrator and BDD skill are the

@@ -22,7 +22,7 @@ Write scenario          File issue           Implement & PR
      ↓                      ↓                     ↓
 Anyone can do this    Manual or future       Developer or AI agent
                       automation             picks it up
-                      (@creating-github-issues)
+                      (@gdd-github-issues)
      ↓                      ↓                     ↓
 Stored as .feature    Tagged & labeled      Vordu shows progress
 in the component      "good first issue"    on the roadmap
@@ -251,7 +251,7 @@ whether to act on any of it.
 
 ## Relationship to Other Skills
 
-- **@creating-github-issues** — convert a scenario into a GitHub issue
+- **@gdd-github-issues** — convert a scenario into a GitHub issue
 - **@kuttl-testing** — infrastructure BDD uses kuttl conventions
 - **@bdd-pytest** — pytest-bdd runner sub-skill (step defs, execution)
 - **@gdd** — BDD is a practice skill in the GDD hierarchy
