@@ -102,7 +102,7 @@ Superpowers — only the `superpowers:*` plugin skills are unavailable.
 | **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/gdd-branch-workflow/SKILL.md) |
 | **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/gdd-workflow-audit/SKILL.md) |
 | **Writing Yggdrasil Docs** | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/gdd-doc-writing/SKILL.md) |
-| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/mcp-usage/SKILL.md) |
+| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/gdd-mcp/SKILL.md) |
 
 ---
 
@@ -382,10 +382,10 @@ Commit bodyfiles use YAML frontmatter to declare the message and files to stage 
 
 ## MCP
 
-Read `.agent/skills/mcp-usage/SKILL.md` when any condition is true:
+Read `.agent/skills/gdd-mcp/SKILL.md` when any condition is true:
 
 - **Proactive (in use)** — `.mcp.json` exists in the workspace root, and no
-  `mcp-usage: skip` preference is set in Thalamus. Load at session start.
+  `gdd-mcp: skip` preference is set in Thalamus. Load at session start.
 - **Proactive (setup offer)** — `.mcp.json` is absent, the active realm
   declares `mcp.servers`, and no `mcp-setup: declined` preference is set in
   Thalamus. Load at session start to drive the one-time setup prompt.

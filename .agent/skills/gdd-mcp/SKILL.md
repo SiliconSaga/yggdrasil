@@ -1,17 +1,14 @@
 ---
-name: mcp-usage
-description: >
-  Agent behaviour around MCP servers — setup offer, auth, tool calling conventions,
-  and how to load realm-specific server details. Loaded at session start when
-  .mcp.json exists or the active realm declares mcp.servers (setup offer case),
-  and on-demand when the user asks about MCP.
+name: gdd-mcp
+description: Use when an active realm declares `mcp.servers` and `.mcp.json` doesn't exist, when an MCP server prompts for authentication, when the user asks about MCP setup or usage, or when deciding how to call MCP tools (search-before-fetch, conservative page sizes).
 ---
 
-# MCP Usage
+# GDD MCP
 
-Guidelines for AI agent behaviour around MCP servers.
-This skill covers the generic patterns; realm-specific details (server list, caveats)
-are loaded from the file referenced by `mcp.doc` in the active realm's ecosystem config.
+Guidelines for AI agent behaviour around MCP servers in a GDD workspace.
+This skill covers the GDD-side patterns (setup offer with Thalamus persistence, realm config integration, `ws mcp-setup` flow); realm-specific details (server list, caveats) are loaded from the file referenced by `mcp.doc` in the active realm's ecosystem config.
+
+**Currently Claude-focused.** Concrete commands (`.mcp.json`, `/mcp`) below are Claude Code's. Codex, Gemini CLI, and other MCP-capable agents will follow the same `gdd-mcp` ↔ `gdd-mcp-<runner>` pair pattern as `bdd` ↔ `bdd-pytest` once their content lands; until then this skill covers Claude paths explicitly and points elsewhere for others.
 
 ## Setup (when .mcp.json is absent)
 
@@ -86,6 +83,6 @@ system (cross-session recall). Do not confuse them.
 
 ## Opting Out
 
-If the user has set `mcp-usage: skip` in Thalamus Preferences, do not load this
+If the user has set `gdd-mcp: skip` in Thalamus Preferences, do not load this
 skill at future session starts and do not surface MCP-related prompts. Still load
 on-demand if the user explicitly asks about MCP.
