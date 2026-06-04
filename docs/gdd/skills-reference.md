@@ -37,7 +37,7 @@ Roles scope the agent to a specific kind of work. A session has at most one role
 
 | Skill | Use when |
 |---|---|
-| **scribe** | Obsidian vault conventions — PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. |
+| **gdd-scribe** | Obsidian vault conventions — PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. |
 
 ---
 

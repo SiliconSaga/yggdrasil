@@ -1,15 +1,9 @@
 ---
-name: scribe
-description: >
-  Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks,
-  inbox capture loop. Auto-loaded for `role: scribe`. Other roles can
-  dip in on keyword detection — vault, note, journal, inbox, daily note,
-  obsidian, PARA, wikilink, frontmatter, capture, jot, weekly review,
-  weekly synthesis, daily review — when the phrase implies capture
-  intent, not bare keyword matches.
+name: gdd-scribe
+description: Use when the active role is `scribe`, when an Obsidian-style vault hoard is detected, when the user says something matching capture intent (jot in inbox, daily note, weekly synthesis, daily review, capture this idea), when a `#gdd`-tagged daily-note bullet needs to cross the vault→Thalami bridge, or when a project note's priority looks out of step with its arc.
 ---
 
-# Scribe Skill
+# GDD Scribe Skill
 
 Operates against Obsidian-style vaults stored as hoards under
 `hoards/<name>/`. Handles capture, daily/weekly notes, inbox

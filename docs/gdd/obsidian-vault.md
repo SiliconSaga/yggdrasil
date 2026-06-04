@@ -40,7 +40,7 @@ Plugin code (`main.js`, `styles.css`) is *committed by default* in fresh hoards 
 
 ## PARA conventions
 
-Folder roles, applied by both the human and the `scribe` skill:
+Folder roles, applied by both the human and the `gdd-scribe` skill:
 
 | Folder | Role |
 |--------|------|
@@ -55,7 +55,7 @@ Folder roles, applied by both the human and the `scribe` skill:
 
 Three `40_Archive/` sub-folders carry the project lifecycle: `40_Archive/Projects/` (`done` and `cancelled` projects), `40_Archive/Backlog/` (`someday`-tier projects that may be revived), and `40_Archive/Daily/` (historical daily notes). A `30_Resources/PKM/` folder holds the methodology references — see the status-schema section below.
 
-The capture-process-organize loop lives in the `scribe` skill, which the agent loads when you say things like *"jot this in my inbox"* or *"process my inbox"*.
+The capture-process-organize loop lives in the `gdd-scribe` skill, which the agent loads when you say things like *"jot this in my inbox"* or *"process my inbox"*.
 
 ## Templates and syntax
 
@@ -72,7 +72,7 @@ Some templates ship in `60_Metadata/Templates/`. Two different substitution synt
 
 **The two-syntax rule of thumb:** `{{...}}` for templates that Periodic Notes / core Templates plugin own; `<% ... %>` for templates that Templater owns. Mixing within a single template breaks YAML — putting `{{date:fmt}}` in a Templater-owned template produces invalid frontmatter (the curly braces parse as a YAML flow mapping).
 
-When the `scribe` skill creates notes via Claude (not via Obsidian's UI), it substitutes literal dates — neither plugin runs from outside Obsidian.
+When the `gdd-scribe` skill creates notes via Claude (not via Obsidian's UI), it substitutes literal dates — neither plugin runs from outside Obsidian.
 
 **Every template carries an `# H1` at the top mirroring its filename.** Filename Heading Sync (bundled, enabled) keeps filename and first heading in lockstep bidirectionally — renaming the file rewrites the H1 on save; changing the first heading renames the file on save. *Templates must therefore give FHS a matching H1 right after the frontmatter, before any body section headings*; without it, FHS picks the first body heading (e.g., `## Journal & Capture` in Daily Note) and renames the file to match. Custom framing for periodic reviews (e.g., "Weekly review for 2026-05-06 to 2026-05-12") goes in an italic body line below the H1, not in the H1 itself.
 
@@ -94,8 +94,8 @@ Quarterly and yearly are not configured — write those freeform when the moment
 
 The recommended cadence:
 
-- **Daily** — capture in the morning, review in the evening. The `scribe` skill builds out a richer review structure (Accomplished / Progress / Insights / Blocked / Tomorrow's Focus / Open Loops) when you say *"do a daily review"*.
-- **Weekly** — synthesis at week's end. Template includes a Tasks query that auto-fills "what got done this week", a Project Review checklist, and "3 big rocks" for next week. The `scribe` skill's *"do a weekly synthesis"* workflow surfaces themes and connections across the week's notes.
+- **Daily** — capture in the morning, review in the evening. The `gdd-scribe` skill builds out a richer review structure (Accomplished / Progress / Insights / Blocked / Tomorrow's Focus / Open Loops) when you say *"do a daily review"*.
+- **Weekly** — synthesis at week's end. Template includes a Tasks query that auto-fills "what got done this week", a Project Review checklist, and "3 big rocks" for next week. The `gdd-scribe` skill's *"do a weekly synthesis"* workflow surfaces themes and connections across the week's notes.
 - **Monthly** — themes that span weekly reviews. The Monthly Review template ships with a "first-time? customize this" prompt since monthly cadence varies a lot by user.
 
 ## Dashboard.md
@@ -128,7 +128,7 @@ Vaults scaffolded by this template use a five-tier project status schema beyond 
 | `someday` | Wishful, no commitment | `40_Archive/Backlog/` |
 | `done` / `cancelled` | Finished | `40_Archive/Projects/` |
 
-Projects decay through the tiers when untouched (14 / 28 / 42 / 84 days); `waiting` is exempt. The `scribe` skill proposes decay flips during review — it never applies them silently.
+Projects decay through the tiers when untouched (14 / 28 / 42 / 84 days); `waiting` is exempt. The `gdd-scribe` skill proposes decay flips during review — it never applies them silently.
 
 The review cadence has four layers: a **micro** ceremony (ask the agent *"one item"* for a single 30-second decision, mobile-friendly), an optional **weekly** sweep, a **monthly** review, and the daily note as pure capture. `WaitingRoom.md` is a second root-level dashboard surfacing blocked work. Full reference: `30_Resources/PKM/Status Schema.md` and `30_Resources/PKM/Ceremony Layers.md` inside any scaffolded vault.
 
@@ -222,6 +222,6 @@ This means the two upgrade paths can fight: in-app updates push fresher versions
 
 ## Related skills and docs
 
-- [`scribe` skill](../../.agent/skills/scribe/SKILL.md) — vault conventions, capture-process-organize, daily review, weekly synthesis, de-AI-ifying text
+- [`gdd-scribe` skill](../../.agent/skills/gdd-scribe/SKILL.md) — vault conventions, capture-process-organize, daily review, weekly synthesis, de-AI-ifying text
 - [`gdd-doc-writing` skill](../../.agent/skills/gdd-doc-writing/SKILL.md) — line-wrapping convention applies to vault content too
 - [Hoards overview](hoards.md) — the hoard concept across all flavors
