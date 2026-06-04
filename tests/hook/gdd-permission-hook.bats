@@ -937,3 +937,66 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
     grep -q 'BYPASS-ALLOW \[git-commit\] reason=""' "$HOME/.claude/hook-audit.log"
 }
+
+# ─── ws commit allowlist + bounded attribution prepend ──────────────
+
+# These tests assert the SHIPPED config (real .claude/settings.json +
+# .claude/hooks/hook-rules), so each seeds the synthetic project with the
+# committed files — the hook can't walk up to the repo from the tmp $WORK.
+
+@test "allow: bare 'ws commit' is allowlisted" {
+    seed_real_project_config
+    run_hook "ws commit yggdrasil .commits/x.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow: CLAUDE_MODEL prefix on ws commit is allowlisted" {
+    seed_real_project_config
+    run_hook 'CLAUDE_MODEL="Opus 4.8" ws commit yggdrasil .commits/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow: CLAUDE_MODEL prefix on bash scripts/ws commit is allowlisted" {
+    seed_real_project_config
+    run_hook 'CLAUDE_MODEL="Opus 4.8" bash scripts/ws commit yggdrasil .commits/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+# ws test / ws lint allowlisted under the realm trust model (design § Adapter
+# trust). They run adapter-defined commands; trust is established at realm
+# scan/activation (orientation risk-scan) + surfaced by `ws orient`, NOT by
+# withholding the allowlist.
+@test "allow: ws test is allowlisted" {
+    seed_real_project_config
+    run_hook "ws test knarr"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow: ws lint is allowlisted" {
+    seed_real_project_config
+    run_hook "ws lint knarr"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+# SECURITY: a general env-prefix strip must NOT exist — an arbitrary env
+# assignment on an allowlisted command must not silently auto-approve.
+@test "security: LD_PRELOAD prefix on an allowlisted command does NOT auto-allow" {
+    seed_real_project_config
+    run_hook 'LD_PRELOAD=/tmp/evil.so ws status'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+# SECURITY: an env prefix must not bypass a redirect deny.
+@test "security: env prefix does NOT let a redirect-denied command through" {
+    seed_real_project_config
+    run_hook 'CLAUDE_MODEL="x" git commit -m y'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
