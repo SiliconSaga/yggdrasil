@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # ws thalami — publish personal published:true arcs (+ tagged Vault notes)
 # into a team-thalami hoard. See docs/gdd/team-thalami-quickstart.md.
-set -euo pipefail
+#
+# Sourcing ws-hoard.sh transitively provides the ws-realm.sh helpers
+# (ws_resolve_ecosystem, ws_detect_thalami_hoard, ws_resolve_thalamus_path, …):
+# ws-hoard.sh already sources ws-realm.sh, so we do not source it again here.
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 : "${HOARDS_DIR:="$ROOT_DIR/hoards"}"
 
-# shared helpers (ws_resolve_ecosystem, ws_detect_thalami_hoard,
-# ws_resolve_thalamus_path, etc.)
-source "$SCRIPT_DIR/ws-realm.sh"
 source "$SCRIPT_DIR/ws-hoard.sh"
 
 ws_thalami_help() {
@@ -31,6 +32,9 @@ ws_thalami_publish() {
     echo "ws thalami publish: not yet implemented" >&2
     return 1
 }
+
+# When sourced for its function definitions, stop before dispatch.
+[[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
 SUBCMD="${1:-}"
 shift 2>/dev/null || true

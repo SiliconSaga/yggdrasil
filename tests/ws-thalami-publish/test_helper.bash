@@ -8,14 +8,16 @@ init_publish_workspace() {
     export ROOT_DIR="$WORK"
     export HOARDS_DIR="$WORK/hoards"
     mkdir -p "$HOARDS_DIR/thalami" "$HOARDS_DIR/obsidian-Cervator/notes" \
-             "$HOARDS_DIR/team-thalami-cfr"
+             "$HOARDS_DIR/team-thalami-cfr" "$WORK/realms"
     export HOSTNAME="testhost"
+    export REALMS_DIR="$WORK/realms"   # isolate: no active realm in tests
 
     export ECOSYSTEM="$WORK/ecosystem.yaml"
     printf 'components: []\n' > "$ECOSYSTEM"
     export ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml"
     printf 'identity:\n  human_account: testuser\n' > "$ECOSYSTEM_LOCAL"
 
+    # Unquoted heredoc on purpose: $HOARDS_DIR must expand to the temp path.
     cat > "$HOARDS_DIR/thalami/testhost-thalamus.md" <<EOF
 ---
 mode: flow
