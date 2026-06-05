@@ -176,7 +176,7 @@ namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
 With a well-named token, an MR opened by the agent shows as authored by
 e.g. `gdd-rpraestholm-developer` — the human connection is clear even though
 it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this is
-the primary attribution mechanism on GitLab (see `docs/cr-internals.md`).
+the primary attribution mechanism on GitLab (see `docs/gdd/cr-internals.md`).
 
 **Env var name** (used in `.env` and referenced in `gitTokens`):
 
