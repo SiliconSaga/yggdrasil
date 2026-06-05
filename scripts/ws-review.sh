@@ -254,6 +254,66 @@ review_comments() {
         '
     }
 
+    # Count `entry headers` on stdin. The three section formats all
+    # share the leading `[<reviewer>(\[bot\])?] ` shape (reviews end in
+    # `STATE:`, inline comments end in `path:LINE`, notes end in
+    # `(note)`), so a single header regex counts entries across any of
+    # the three streams. Used by the Index section to surface
+    # `N reviews / N inline / N notes` at the top so a busy PR's full
+    # rendered output doesn't bury the high-level shape.
+    _count_entries() {
+        LC_ALL=C awk '
+            BEGIN { hdr = "^\\[[A-Za-z0-9._-]+(\\[bot\\])?\\] " }
+            $0 ~ hdr { count++ }
+            END { print count+0 }
+        '
+    }
+
+    # Extract `[reviewer] STATE` headers from the reviews stream so the
+    # Index can show who said what at a glance (e.g. `coderabbitai[bot]:
+    # CHANGES_REQUESTED`, `copilot-pull-request-reviewer[bot]:
+    # COMMENTED`). The strict state allowlist guards against matching
+    # comment / note headers if a future provider's output format drifts
+    # — only review headers carry these terminal states. Drops the
+    # trailing `:` for clean indentation under the Index.
+    _list_review_states() {
+        LC_ALL=C awk '
+            /^\[[A-Za-z0-9._-]+(\[bot\])?\] (APPROVED|CHANGES_REQUESTED|COMMENTED|DISMISSED|PENDING):?$/ {
+                line = $0
+                sub(/:$/, "", line)
+                print line
+            }
+        '
+    }
+
+    # CodeRabbit (and occasionally other bots) sometimes embed findings
+    # *inside* the main review body rather than as inline threads — the
+    # two patterns to watch are `Outside diff range comments (N)` and
+    # `Nitpick comments (N)` collapsibles. These never appear in the
+    # inline-comments fetch and are easy to miss when scrolling through
+    # the rendered review text. Surface their counts in the Index so
+    # they don't silently disappear under a long review body.
+    #
+    # The N inside the parens is the finding count for that block —
+    # sum across all such blocks in the stream so the Index reports
+    # the total number of findings, not just the number of blocks.
+    _count_embedded_findings() {
+        local pattern="$1"
+        # Pipeline keeps the extraction portable across awk variants
+        # (gawk's `match($0, re, arr)` array-capture form isn't
+        # available in mawk / BSD awk). grep -o emits each match on its
+        # own line, sed peels out the integer, awk sums.
+        #
+        # The `|| true` guard on grep is load-bearing under `set -o
+        # pipefail` (enabled at the top of this script): grep returns
+        # exit 1 when nothing matches, which the absence of these
+        # findings on most PRs would otherwise translate to "abort the
+        # script." Here, no-matches should report `0`, not fail.
+        { LC_ALL=C grep -oE "${pattern} \\([0-9]+\\)" || true; } \
+            | LC_ALL=C sed -E 's/.*\(([0-9]+)\).*/\1/' \
+            | awk '{ sum += $1 } END { print sum+0 }'
+    }
+
     # Compact rendering: extract `[reviewer] file:line` headers + the
     # first meaningful body line per comment block, drop the rest.
     # Skip severity markers (start with `_`), HTML <details> wrappers,
@@ -350,15 +410,75 @@ review_comments() {
     }
     echo ""
 
-    # Fetch reviews — warn on failure instead of aborting mid-report
+    # === Phase 1: Fetch all three sections ===
+    #
+    # The fetches used to happen interleaved with prints. We now buffer
+    # them so an Index block can lead the output — a busy PR's full
+    # rendered review can be thousands of lines, and the high-level
+    # shape ("3 reviews, 5 inline, 1 note, 1 outside-diff-range find
+    # hiding in a CR body") would otherwise be invisible from the top.
+    # Failure markers still go to stdout, not stderr, so they remain
+    # in `--output` snapshots; rc tracking moves the warn-vs-content
+    # decision to the print phase.
+    local reviews="" reviews_rc=0
+    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || reviews_rc=$?
+
+    local comments="" comments_rc=0
+    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || comments_rc=$?
+
+    local notes="" notes_rc=0
+    notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || notes_rc=$?
+
+    # === Phase 2: Lead with an Index ===
+    #
+    # Counts derive from the same `[<reviewer>] ...` header regex used
+    # everywhere else in this file (kept in `_count_entries`), so a
+    # format drift in any provider's emit changes one regex, not three.
+    # Embedded-finding counts surface the two CodeRabbit patterns
+    # (`Outside diff range comments` and `Nitpick comments`) that hide
+    # *inside* the main review body rather than appearing as inline
+    # threads — easy to skim past without this nudge.
+    local n_reviews n_comments n_notes
+    n_reviews=$(printf '%s\n' "$reviews" | _count_entries)
+    n_comments=$(printf '%s\n' "$comments" | _count_entries)
+    n_notes=$(printf '%s\n' "$notes" | _count_entries)
+
+    local review_states=""
+    review_states=$(printf '%s\n' "$reviews" | _list_review_states)
+
+    local n_outside n_embedded_nits
+    n_outside=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Outside diff range comments')
+    n_embedded_nits=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Nitpick comments')
+
+    echo "=== Index ==="
+    echo "  Reviews:         $n_reviews"
+    if [[ -n "$review_states" ]]; then
+        # Indent each header line under the count so it visually attaches.
+        printf '%s\n' "$review_states" | sed 's/^/    /'
+    fi
+    echo "  Inline comments: $n_comments"
+    echo "  Notes:           $n_notes"
+    # `(( … ))` returns exit 1 when the arithmetic test is false, which
+    # under `set -e` plays badly with `&&` short-circuit lines (the
+    # bash-manual carve-out for `&&` lists is narrow and easy to
+    # misjudge). Pure `if` statements keep the control flow
+    # unambiguous — no compound that might trip `errexit` if the count
+    # happens to be 0.
+    if (( n_outside > 0 )) || (( n_embedded_nits > 0 )); then
+        echo ""
+        echo "  ! Special finds inside review bodies (NOT as separate threads):"
+        if (( n_outside > 0 )); then
+            echo "      Outside diff range comments: $n_outside"
+        fi
+        if (( n_embedded_nits > 0 )); then
+            echo "      Embedded nitpick comments:   $n_embedded_nits"
+        fi
+    fi
+    echo ""
+
+    # === Phase 3: Print all sections ===
     echo "=== Reviews ==="
-    local reviews="" _rc=0
-    reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || _rc=$?
-    # Failure markers go to stdout (not stderr) so they end up IN
-    # the saved snapshot when `--output` redirects stdout to a file.
-    # Otherwise a fetch failure under `--output` produces a partial
-    # file with no in-file indication that a section was lost.
-    if [[ $_rc -ne 0 ]]; then
+    if [[ $reviews_rc -ne 0 ]]; then
         echo "(failed to fetch reviews — check auth and connectivity)"
     elif [[ -n "$reviews" ]]; then
         echo "$reviews"
@@ -367,11 +487,8 @@ review_comments() {
     fi
     echo ""
 
-    # Fetch inline comments — warn on failure instead of aborting mid-report
     echo "=== Inline Comments ==="
-    local comments="" _rc=0
-    comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
-    if [[ $_rc -ne 0 ]]; then
+    if [[ $comments_rc -ne 0 ]]; then
         echo "(failed to fetch inline comments — check auth and connectivity)"
     elif [[ -n "$comments" ]]; then
         if [[ "$compact" == true ]]; then
@@ -384,11 +501,8 @@ review_comments() {
     fi
     echo ""
 
-    # Fetch top-level notes (bot summaries, general comments) — warn on failure
     echo "=== Notes ==="
-    local notes="" _rc=0
-    notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
-    if [[ $_rc -ne 0 ]]; then
+    if [[ $notes_rc -ne 0 ]]; then
         echo "(failed to fetch notes — check auth and connectivity)"
     elif [[ -n "$notes" ]]; then
         if [[ "$compact" == true ]]; then
