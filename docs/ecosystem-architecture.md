@@ -30,11 +30,11 @@ graph BT
         A["What real people interact with"]
     end
 
-    T1 --> T2
-    T2 --> T3
-    YGG -. "informs" .-> T1
-    YGG -. "informs" .-> T2
-    YGG -. "informs" .-> T3
+    F --> P
+    P --> A
+    YGG -. "informs" .-> F
+    YGG -. "informs" .-> P
+    YGG -. "informs" .-> A
 ```
 
 Arrows read as **"provides the foundation for"** — each tier only knows about the tier directly above it.
@@ -84,7 +84,7 @@ ecosystem.local.yaml (per-developer overrides)
 
 All `ws` commands read the merged result. Realms own the component list; upstream provides methodology and tooling.
 
-> **Inheritance future:** the merge generalizes to N layers if multi-realm chains land later (e.g. corp → dept → team). No new identifier needed — the same upstream → realm(s) → local pattern with child-wins semantics. See [Realms and Hoards Design](../plans/2026-04-24-realms-and-hoards-design.md#future-directions).
+> **Inheritance future:** the merge generalizes to N layers if multi-realm chains land later (e.g. corp → dept → team). No new identifier needed — the same upstream → realm(s) → local pattern with child-wins semantics. See [Realms and Hoards Design](plans/2026-04-24-realms-and-hoards-design.md#future-directions).
 
 ## Realms — Where Stack Choice Lives
 
