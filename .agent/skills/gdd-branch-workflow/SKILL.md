@@ -1,9 +1,9 @@
 ---
-name: topic-branch-workflow
+name: gdd-branch-workflow
 description: Use when about to commit and push code changes, or when deciding whether to push directly to main or use a topic branch
 ---
 
-# Topic Branch Workflow
+# GDD Branch Workflow
 
 ## Default Rule
 

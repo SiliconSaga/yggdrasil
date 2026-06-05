@@ -20,7 +20,7 @@
 
   ```bash
   grep -rn '#46' D:/Dev/GitWS/yggdrasil/docs/gdd/permissions.md \
-                  D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md \
+                  D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-permissions/SKILL.md \
                   D:/Dev/GitWS/yggdrasil/.commits/hygiene-pass-permissions-doc.md \
                   D:/Dev/GitWS/yggdrasil/.crs/permissions-and-hygiene.md
   ```
@@ -55,13 +55,13 @@
 
 - **Create** `docs/gdd/permissions.md` (~250-400 lines, seven sections).
 
-### Phase E — New permissions-management skill
+### Phase E — New gdd-permissions skill
 
-- **Create** `.agent/skills/permissions-management/SKILL.md` (~80-150 lines, six sections).
+- **Create** `.agent/skills/gdd-permissions/SKILL.md` (~80-150 lines, six sections).
 
 ### Phase F — `gdd-orientation` updates
 
-- **Modify** `.agent/skills/gdd-orientation/SKILL.md` — add commit-cadence-nudge logic + permissions-management pointer.
+- **Modify** `.agent/skills/gdd-orientation/SKILL.md` — add commit-cadence-nudge logic + gdd-permissions pointer.
 - **Modify** `templates/thalamus.md` — add `commit_staleness_days: 2` to the example frontmatter block with an inline comment.
 
 ### Phase G — `gdd-housekeeping` update
@@ -703,8 +703,8 @@ How `.claude/settings.json` works in a GDD workspace, what makes a
 pattern safe, and how to verify the safety claims for yourself.
 
 This doc is the source of truth for the permission system's behavior
-and the empirical findings it relies on. The `permissions-management`
-skill (`.agent/skills/permissions-management/`) is the operational
+and the empirical findings it relies on. The `gdd-permissions`
+skill (`.agent/skills/gdd-permissions/`) is the operational
 companion — agents invoke it for live decisions; this doc is what they
 (and humans, and automated review tools) read for reference.
 
@@ -891,7 +891,7 @@ the doc, and a stale doc gives false confidence. PR review for
 `.claude/settings.json` changes should call out a missing doc update
 as blocking.
 
-The `permissions-management` skill enforces this rule operationally:
+The `gdd-permissions` skill enforces this rule operationally:
 when an agent adds a pattern, the skill includes the doc update as
 part of the same change.
 
@@ -988,19 +988,19 @@ Expected: 1 file added, ~340 lines.
 
 ---
 
-# Phase E — New permissions-management skill
+# Phase E — New gdd-permissions skill
 
-Single new file at `.agent/skills/permissions-management/SKILL.md`. Content per the design spec's §6. Length target ~80-150 lines.
+Single new file at `.agent/skills/gdd-permissions/SKILL.md`. Content per the design spec's §6. Length target ~80-150 lines.
 
 ## Task E1: Write the skill
 
 **Files:**
-- Create: `D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md`
+- Create: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-permissions/SKILL.md`
 
 - [ ] **Step 1: Make the directory.**
 
 ```bash
-mkdir -p D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management
+mkdir -p D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-permissions
 ```
 
 - [ ] **Step 2: Write the skill file.**
@@ -1009,7 +1009,7 @@ Content with all six sections per the design spec:
 
 ```markdown
 ---
-name: permissions-management
+name: gdd-permissions
 description: >
   Use when adding or editing permission patterns, considering a "don't
   ask again" offer at a permission prompt, explaining the permission
@@ -1134,11 +1134,11 @@ arc.
 
 ```bash
 # Check the frontmatter is valid (just verify the file starts and ends correctly)
-head -5 D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md
-tail -5 D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md
+head -5 D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-permissions/SKILL.md
+tail -5 D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-permissions/SKILL.md
 ```
 
-Expected: starts with `---\nname: permissions-management\n...` frontmatter; ends with the "Future scope" section.
+Expected: starts with `---\nname: gdd-permissions\n...` frontmatter; ends with the "Future scope" section.
 
 ## Task E2: Commit Phase E
 
@@ -1148,9 +1148,9 @@ Create `D:/Dev/GitWS/yggdrasil/.commits/hygiene-pass-permissions-skill.md`:
 
 ```markdown
 ---
-message: "feat(skill): add permissions-management for per-pattern decisions"
+message: "feat(skill): add gdd-permissions for per-pattern decisions"
 add:
-  - .agent/skills/permissions-management/SKILL.md
+  - .agent/skills/gdd-permissions/SKILL.md
 ---
 
 Operational companion to `docs/gdd/permissions.md`. Triggered when
@@ -1193,7 +1193,7 @@ Expected: 1 file added, ~120 lines.
 
 # Phase F — `gdd-orientation` updates
 
-Two additions to the existing skill: pointer at permissions-management, plus the commit-cadence nudge logic. Plus updating the thalamus template's frontmatter example.
+Two additions to the existing skill: pointer at gdd-permissions, plus the commit-cadence nudge logic. Plus updating the thalamus template's frontmatter example.
 
 ## Task F1: Read the current `gdd-orientation/SKILL.md` to find insertion points
 
@@ -1210,7 +1210,7 @@ Identify:
 - The startup-sequence section (where Step 0 / Step 1 are).
 - A natural place for a one-paragraph "available skills for this session" note (likely near the end of the startup sequence or in a "Skills you might invoke during the session" sidebar).
 
-## Task F2: Add the permissions-management pointer
+## Task F2: Add the gdd-permissions pointer
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-orientation/SKILL.md`
@@ -1225,7 +1225,7 @@ Find an appropriate spot near the end of the startup sequence (after the existin
 The session has several specialized skills that are NOT loaded by
 default at startup but are worth knowing about:
 
-- **`permissions-management`** — invoke when handling permission prompts
+- **`gdd-permissions`** — invoke when handling permission prompts
   during the session, especially when offered a "don't ask again"
   choice. See `docs/gdd/permissions.md` for the underlying reference
   content. The skill carries the operational decision-making
@@ -1370,7 +1370,7 @@ Create `D:/Dev/GitWS/yggdrasil/.commits/hygiene-pass-orientation.md`:
 
 ```markdown
 ---
-message: "feat(orientation): commit-cadence nudge + permissions-management pointer"
+message: "feat(orientation): commit-cadence nudge + gdd-permissions pointer"
 add:
   - .agent/skills/gdd-orientation/SKILL.md
   - templates/thalamus.md
@@ -1379,7 +1379,7 @@ add:
 Two additions to gdd-orientation:
 
 - **Skills-available pointer** (one paragraph) listing
-  `permissions-management` and `fewer-permission-prompts` as
+  `gdd-permissions` and `fewer-permission-prompts` as
   on-demand skills the agent should remember exist for the session.
   Doesn't preload either; just primes awareness.
 
@@ -1438,7 +1438,7 @@ cat D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-housekeeping/SKILL.md
 
 Identify the per-item review section. Each housekeeping item gets reviewed; we want to add a hook.
 
-## Task G2: Add the permissions-management hook
+## Task G2: Add the gdd-permissions hook
 
 **Files:**
 - Modify: `D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-housekeeping/SKILL.md`
@@ -1455,10 +1455,10 @@ Insert content like:
 - **If the item mentions permissions, `.claude/settings.json`, a
   permission prompt the user wants to follow up on, or "don't ask
   again" decisions:** prompt the user to walk through it via
-  `permissions-management`. Example:
+  `gdd-permissions`. Example:
 
   > "This observation mentions a permission prompt for `xxd` you got
-  > last session. Want me to invoke `permissions-management` to think
+  > last session. Want me to invoke `gdd-permissions` to think
   > through whether it's worth allowlisting?"
 
   This routes permissions-related work through the dedicated skill
@@ -1481,7 +1481,7 @@ Create `D:/Dev/GitWS/yggdrasil/.commits/hygiene-pass-housekeeping.md`:
 
 ```markdown
 ---
-message: "feat(housekeeping): hook permissions-management for permission-related items"
+message: "feat(housekeeping): hook gdd-permissions for permission-related items"
 add:
   - .agent/skills/gdd-housekeeping/SKILL.md
 ---
@@ -1490,7 +1490,7 @@ Adds a single bullet to the per-item review flow: when a Thalamus
 observation/concern mentions permissions, `.claude/settings.json`,
 a permission prompt the user wants to follow up on, or
 "don't ask again" decisions, prompt the user to walk it through via
-`permissions-management`.
+`gdd-permissions`.
 
 Routes permissions-related housekeeping work through the dedicated
 skill rather than handling it ad hoc. Doesn't change the rest of the
@@ -1560,7 +1560,7 @@ Expected: scaffold lands in the temp dir without leaking into the real workspace
 
 ```bash
 ls D:/Dev/GitWS/yggdrasil/docs/gdd/permissions.md \
-   D:/Dev/GitWS/yggdrasil/.agent/skills/permissions-management/SKILL.md \
+   D:/Dev/GitWS/yggdrasil/.agent/skills/gdd-permissions/SKILL.md \
    2>&1
 ```
 
@@ -1627,7 +1627,7 @@ Post-#45 hygiene pass — bundles 9 items from the realms-and-hoards review cycl
 3. Router env-var clobber in `scripts/ws` switched to `:=` defaults so caller env overrides survive.
 4. `docs/agent-security/` relocated to `realms/realm-siliconsaga/docs/agent-security/` (companion realm commit: <REALM_SHA>).
 5. New `docs/gdd/permissions.md` — reference doc for the GDD permission system, audience is security-paranoid users + automated review tools + agents reading on-demand.
-6. New `.agent/skills/permissions-management/SKILL.md` — operational companion to the doc; agents invoke for per-pattern decisions and "don't ask again" judgments.
+6. New `.agent/skills/gdd-permissions/SKILL.md` — operational companion to the doc; agents invoke for per-pattern decisions and "don't ask again" judgments.
 7. `gdd-orientation` adds a Thalamus commit-cadence nudge (configurable threshold; default 2 days) and a one-line pointer at the new skill.
 8. `gdd-housekeeping` adds a per-item permission-related hook.
 9. `ws status` walks `realms/*/.git/` and `hoards/*/.git/` in addition to `components/`.
@@ -1645,16 +1645,16 @@ Net diff: ~7 commits on `design/permissions-and-hygiene`, plus 1 commit on `real
 - [x] Env-var override smoke test: `COMPONENTS_DIR=/tmp/test ws component init dummy ...` lands in the temp dir without leaking into the real workspace.
 - [x] `ws status` shows new `=== realms ===` and `=== hoards ===` sections (suppressed when no cloned realms / hoards).
 - [x] `docs/gdd/permissions.md` exists with all 7 sections, including the empirical findings table.
-- [x] `.agent/skills/permissions-management/SKILL.md` exists with all 6 sections.
+- [x] `.agent/skills/gdd-permissions/SKILL.md` exists with all 6 sections.
 - [x] `gdd-orientation` skill mentions the new commit-cadence nudge; `templates/thalamus.md` has the new `commit_staleness_days` field.
-- [x] `gdd-housekeeping` mentions the new permissions-management hook.
+- [x] `gdd-housekeeping` mentions the new gdd-permissions hook.
 - [x] `docs/agent-security/` no longer present in yggdrasil; `realms/realm-siliconsaga/docs/agent-security/` has all 9 files.
 - [ ] CodeRabbit review.
 
 ## Notes for reviewers
 
 - Two-repo move: the `docs/agent-security/` content was relocated to `realm-siliconsaga` (commit <REALM_SHA>) BEFORE the yggdrasil-side delete, so the content was never untracked anywhere live (git history preserves it on yggdrasil's side regardless).
-- Loading discipline: `permissions-management` is on-demand only. `gdd-orientation` adds a one-line pointer so the agent knows it exists; baseline context is unchanged.
+- Loading discipline: `gdd-permissions` is on-demand only. `gdd-orientation` adds a one-line pointer so the agent knows it exists; baseline context is unchanged.
 - Cross-framework porting (Codex / Gemini / Cursor permission semantics) is explicitly Future Direction in the new doc and the new skill — not in v1.
 
 ## Related

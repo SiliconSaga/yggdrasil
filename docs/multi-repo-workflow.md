@@ -47,7 +47,7 @@ When in doubt between an issue and a design doc: if you can write a clear accept
 
 1. Identify any loose ends from the session.
 2. For each one, classify it using the table above.
-3. File GitHub issues for anything delegatable. Every issue body must start with the AI attribution line (see `creating-github-issues` skill). Include what the problem is, the expected outcome, and any relevant file paths or context a fresh agent would need.
+3. File GitHub issues for anything delegatable. Every issue body must start with the AI attribution line (see `gdd-github-issues` skill). Include what the problem is, the expected outcome, and any relevant file paths or context a fresh agent would need.
 4. Update MEMORY.md if you learned something architectural (a constraint, a dependency, a decision that shouldn't be re-litigated).
 5. If work spans repos, note the dependency explicitly (see below).
 
@@ -63,12 +63,7 @@ This keeps the dependency visible to both humans reviewing issues and agents sca
 
 ## Agent Skills
 
-Two agent skills in `.agent/skills/` support this workflow:
-
-- **`multi-repo-orchestration`** — guides the agent through coordinating work that touches multiple repos in a single session: scoping, sequencing, and handoff
-- **`creating-github-issues`** — guides the agent through writing well-formed GitHub issues: title conventions, body structure, label selection, and cross-repo references
-
-These skills are invoked by the agent automatically when the task matches. The workflow described in this doc is the human-facing equivalent of what those skills enforce on the agent side.
+The `gdd-github-issues` skill supports the issue-filing leg of this workflow — title conventions, body structure, label selection, and cross-repo references. The classification framework above (decide-now-vs-defer, file-an-issue-vs-keep-in-context) lives in `gdd-orientation` / `gdd-housekeeping` rather than as a standalone skill (a previous `multi-repo-orchestration` skill was retired — its triggers were too vague, its content overlapped with the GDD orientation/housekeeping flow and the documentation convention).
 
 ## Related Docs
 

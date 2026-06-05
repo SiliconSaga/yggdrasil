@@ -37,7 +37,7 @@ Roles scope the agent to a specific kind of work. A session has at most one role
 
 | Skill | Use when |
 |---|---|
-| **scribe** | Obsidian vault conventions — PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. |
+| **gdd-scribe** | Obsidian vault conventions — PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. |
 
 ---
 
@@ -51,8 +51,7 @@ Skills that handle session-level coordination — start, end, cross-cutting work
 | **gdd-orientation** | Session start, or when new components are discovered. Reads thalamus, verifies trust, sets mode/role. |
 | **gdd-housekeeping** | Triage thalamus content — review observations and concerns, promote to issues/skills, prune resolved items. |
 | **gdd-review-triage** | After pushing, when CR review comments arrive (CodeRabbit, Copilot, others). Dedupes and triages. |
-| **multi-repo-orchestration** | A session touches more than one repo; deciding work-now vs defer. |
-| **topic-branch-workflow** | About to commit and push; deciding direct-to-main vs topic branch. |
+| **gdd-branch-workflow** | About to commit and push; deciding direct-to-main vs topic branch. |
 
 ---
 
@@ -62,10 +61,10 @@ Skills that capture *how* to do specific kinds of technical work.
 
 | Skill | Use when |
 |---|---|
-| **bdd** | Writing Gherkin scenarios, planning features, placing `.feature` files. |
-| **bdd-pytest** | Pytest-bdd runner specifics — step definitions, execution, Cucumber JSON output. |
+| **gdd-bdd** | Writing Gherkin scenarios, planning features, placing `.feature` files. |
+| **gdd-bdd-pytest** | Pytest-bdd runner specifics — step definitions, execution, Cucumber JSON output. |
 | **kuttl-testing** | Writing or debugging kuttl e2e tests for Kubernetes (Crossplane claims, operator-managed resources, secret-dependent checks). |
-| **writing-yggdrasil-docs** | Writing or editing any yggdrasil-ecosystem documentation, including Mermaid diagrams. |
+| **gdd-doc-writing** | Writing or editing any yggdrasil-ecosystem documentation, including Mermaid diagrams. |
 
 ---
 
@@ -75,10 +74,10 @@ Skills tied to specific workspace operations.
 
 | Skill | Use when |
 |---|---|
-| **creating-github-issues** | Filing a deferred task or capturing work a fresh agent should be able to complete in a single repo. |
-| **permissions-management** | Adding/editing permission patterns, considering "don't ask again" offers, reviewing `.claude/settings.json` changes. |
-| **mcp-usage** | Setup offers, auth, tool-calling conventions for [MCP servers](../mcp-setup.md). |
-| **workflow-auditor** | At session wrap-up, after noticing 3+ instances of a manual workaround. |
+| **gdd-github-issues** | Filing a deferred task or capturing work a fresh agent should be able to complete in a single repo. |
+| **gdd-permissions** | Adding/editing permission patterns, considering "don't ask again" offers, reviewing `.claude/settings.json` changes. |
+| **gdd-mcp** | Setup offers, auth, tool-calling conventions for [MCP servers](../mcp-setup.md). |
+| **gdd-workflow-audit** | At session wrap-up, after noticing 3+ instances of a manual workaround. |
 
 ---
 

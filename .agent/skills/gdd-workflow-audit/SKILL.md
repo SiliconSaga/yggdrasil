@@ -1,9 +1,9 @@
 ---
-name: workflow-auditor
+name: gdd-workflow-audit
 description: Use when you notice repeated manual workarounds (3+ instances), at session wrap-up, or when asked to check for workflow patterns
 ---
 
-# Workflow Auditor
+# GDD Workflow Audit
 
 Detect repeated manual workarounds in a session and propose workspace utility
 scripts or workflow improvements.

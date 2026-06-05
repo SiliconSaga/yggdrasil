@@ -239,7 +239,7 @@ ws_hoard_scan() {
 
     # Iterate via find + sort under LC_ALL=C so YAML output order is
     # stable across filesystems and locales (design contract — the
-    # scribe skill and other consumers depend on reproducible output).
+    # gdd-scribe skill and other consumers depend on reproducible output).
     local d hoard_name flavors_csv
     while IFS= read -r d; do
         [[ -d "$d" ]] || continue

@@ -367,8 +367,8 @@ Walk through each step:
 2. **Review each item with the human** — present items one at a time or
    in small groups. For each, offer three actions:
    - **Promote** — specify where it goes:
-     - Pattern → workflow-auditor candidate or new skill
-     - Bug/feature → GitHub issue (use creating-github-issues skill)
+     - Pattern → gdd-workflow-audit candidate or new skill
+     - Bug/feature → GitHub issue (use gdd-github-issues skill)
      - Preference → CLAUDE.md or AGENTS.md update
      - Instruction change → skill update
    - **Keep** — still relevant, leave it
@@ -376,7 +376,7 @@ Walk through each step:
 
 3. **Check for pattern accumulation** — if 2+ observations point to the
    same friction or workaround, suggest consolidation. Cross-reference
-   with the workflow-auditor skill.
+   with the gdd-workflow-audit skill.
 
 4. **Update the Audit Log** — append an entry:
    ```markdown
@@ -402,9 +402,9 @@ Walk through each step:
 - Not automated — human is always part of promote/prune decisions
 
 **Section: Relationship to Other Skills**
-- **workflow-auditor** — housekeeping may surface patterns that the auditor
+- **gdd-workflow-audit** — housekeeping may surface patterns that the auditor
   should formalize as scripts or ws subcommands
-- **creating-github-issues** — promoted items that become issues use this
+- **gdd-github-issues** — promoted items that become issues use this
   skill for filing
 - **gdd-orientation** — housekeeping updates the frontmatter that orientation
   reads on next startup
@@ -486,7 +486,7 @@ orientation skill will guide you."
 
 **Design Principles** — the 6 principles from the spec.
 
-Use the writing-yggdrasil-docs skill (@writing-yggdrasil-docs) for
+Use the gdd-doc-writing skill (@gdd-doc-writing) for
 formatting conventions, especially Mermaid diagram rules.
 
 - [ ] **Step 2: Review for clarity**
@@ -677,14 +677,14 @@ git commit -m "docs: register GDD mode skills in AGENTS.md"
 ### Task 15: Create BDD skill
 
 **Files:**
-- Create: `.agent/skills/bdd/SKILL.md`
+- Create: `.agent/skills/gdd-bdd/SKILL.md`
 
 The first practice skill that plugs into the GDD orchestrator. Guides
 scenario writing, file placement, and runner integration per language.
 
 - [ ] **Step 1: Create the skill directory**
 
-Run: `mkdir -p .agent/skills/bdd`
+Run: `mkdir -p .agent/skills/gdd-bdd`
 
 - [ ] **Step 2: Write the SKILL.md file**
 
@@ -698,12 +698,12 @@ Cover:
   - Infrastructure: kuttl (reference existing @kuttl-testing skill)
 - The scenario pipeline: write → file issue → implement → review
 - Session sizing: what's achievable in 15 min vs 45 min vs 2 hours
-- Relationship to the creating-github-issues skill for scenario → issue flow
+- Relationship to the gdd-github-issues skill for scenario → issue flow
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add .agent/skills/bdd/
+git add .agent/skills/gdd-bdd/
 git commit -m "feat: add BDD practice skill for GDD"
 ```
 
@@ -717,7 +717,7 @@ git commit -m "feat: add BDD practice skill for GDD"
 - [ ] **Step 1: Add to skills table**
 
 ```markdown
-| **BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/bdd/SKILL.md) |
+| **GDD-BDD (Behavior Driven Development)** | Gherkin scenarios, step definitions, runner integration (godog, pytest-bdd, kuttl) | [SKILL.md](./.agent/skills/gdd-bdd/SKILL.md) |
 ```
 
 - [ ] **Step 2: Commit**
@@ -758,7 +758,7 @@ and used before they can be designed well:
 - **Designer onboarding** — low-barrier scenario writing without local tooling
   or Git knowledge. Deferred until BDD workflows are stable enough to
   simplify for non-technical contributors.
-- **BDD sub-skills** (bdd-go, bdd-python, bdd-kuttl) — the GDD design shows
+- **BDD sub-skills** (gdd-bdd-go, gdd-bdd-pytest, gdd-bdd-kuttl) — the GDD design shows
   these as separate skills under BDD. This plan consolidates them into a
   single BDD skill (Task 15) for simplicity. Split into sub-skills when
   language-specific guidance grows complex enough to warrant it.

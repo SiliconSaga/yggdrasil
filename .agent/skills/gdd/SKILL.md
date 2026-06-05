@@ -44,7 +44,7 @@ in the Developer role.
 | **Scribe** | Note-taking and vault work | PARA layout, frontmatter, daily notes, capture-process-organize loop |
 | **AI Agent** | Guided work | Any of the above, bounded by permissions |
 
-The **Scribe** role auto-loads `.agent/skills/scribe/SKILL.md`. Other roles can dip into the scribe skill on capture-intent keywords without switching role.
+The **Scribe** role auto-loads `.agent/skills/gdd-scribe/SKILL.md`. Other roles can dip into the gdd-scribe skill on capture-intent keywords without switching role.
 
 ## Modes
 
@@ -90,11 +90,11 @@ The orchestrator selects skills based on what the user is doing:
 | Skill | Status | Description |
 |-------|--------|-------------|
 | TDD (`superpowers:test-driven-development`) | Requires Superpowers plugin | Red-green-refactor cycle |
-| Workflow Auditor (@workflow-auditor) | Exists | Detect repeated manual workarounds |
-| Topic Branch Workflow (@topic-branch-workflow) | Exists | Git discipline |
-| Creating GitHub Issues (@creating-github-issues) | Exists | Issue filing pipeline |
+| Workflow Auditor (@gdd-workflow-audit) | Exists | Detect repeated manual workarounds |
+| Topic Branch Workflow (@gdd-branch-workflow) | Exists | Git discipline |
+| Creating GitHub Issues (@gdd-github-issues) | Exists | Issue filing pipeline |
 | KUTTL Testing (@kuttl-testing) | Exists | Infrastructure BDD |
-| BDD (@bdd) | Exists | Gherkin scenarios, step definitions, runner integration |
+| BDD (@gdd-bdd) | Exists | Gherkin scenarios, step definitions, runner integration |
 
 ### Cross-Cutting Skills
 

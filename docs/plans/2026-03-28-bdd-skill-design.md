@@ -29,7 +29,7 @@ yet underway.
 ### What This Skill Does Not Do
 
 - Run tests (that's the runner sub-skill or `ws test`)
-- Manage Vordu roadmap tags (that's a future `bdd-vordu` sub-skill)
+- Manage Vordu roadmap tags (that's a future `gdd-bdd-vordu` sub-skill)
 - Write policy/governance BDD for Nornir (that's Nornir-specific docs)
 - Implement the GDD mode system (the GDD orchestrator will wrap this later)
 - Replace the TDD skill (BDD defines *what*, TDD implements *how*)
@@ -40,16 +40,16 @@ yet underway.
 
 ```
 .agent/skills/
-  bdd/
+  gdd-bdd/
     SKILL.md              # Core — concepts, feature authoring, conventions
-  bdd-pytest/
+  gdd-bdd-pytest/
     SKILL.md              # Runner — pytest-bdd step defs, execution, cucumber output
 ```
 
 **Future additions (not in this spec):**
-- `bdd-vordu/SKILL.md` — Vordu roadmap tagging integration (lives near Vordu component)
-- `bdd-java/SKILL.md` — Cucumber-JVM runner (for Terasology, Destination Sol)
-- `bdd-go/SKILL.md` — godog runner (if Go components adopt BDD)
+- `gdd-bdd-vordu/SKILL.md` — Vordu roadmap tagging integration (lives near Vordu component)
+- `gdd-bdd-java/SKILL.md` — Cucumber-JVM runner (for Terasology, Destination Sol)
+- `gdd-bdd-go/SKILL.md` — godog runner (if Go components adopt BDD)
 
 The core skill is runner-agnostic. It teaches BDD as a practice and produces
 `.feature` files. Runner sub-skills teach how to execute those files in a
@@ -57,18 +57,18 @@ specific language/framework.
 
 **SKILL.md frontmatter:**
 
-`bdd/SKILL.md`:
+`gdd-bdd/SKILL.md`:
 ```yaml
 ---
-name: bdd
+name: gdd-bdd
 description: Write and organize BDD feature files — planning features, scenarios, conventions, and bridging to implementation
 ---
 ```
 
-`bdd-pytest/SKILL.md`:
+`gdd-bdd-pytest/SKILL.md`:
 ```yaml
 ---
-name: bdd-pytest
+name: gdd-bdd-pytest
 description: pytest-bdd runner — step definitions, test execution, and Cucumber JSON output
 ---
 ```
@@ -91,7 +91,7 @@ description: pytest-bdd runner — step definitions, test execution, and Cucumbe
 
 ---
 
-## 4. Core Skill Structure (bdd/SKILL.md)
+## 4. Core Skill Structure (gdd-bdd/SKILL.md)
 
 The skill has 5 progressive sections. An agent reads only as deep as the
 task requires. For the common case (writing a planning feature), only
@@ -223,9 +223,9 @@ When scenarios are written and the user wants to implement:
 Scenarios written → need step definitions?
   ├── Yes → detect framework:
   │         ├── pyproject.toml / requirements.txt with pytest-bdd
-  │         │   → activate bdd-pytest sub-skill
+  │         │   → activate gdd-bdd-pytest sub-skill
   │         ├── pom.xml / build.gradle with cucumber
-  │         │   → activate bdd-java sub-skill (future)
+  │         │   → activate gdd-bdd-java sub-skill (future)
   │         └── Nothing detected → ask the user
   └── No  → done (planning feature committed)
 
@@ -268,7 +268,7 @@ just observations. The user decides whether to act on any of it.
 
 ---
 
-## 5. Runner Sub-Skill: bdd-pytest (bdd-pytest/SKILL.md)
+## 5. Runner Sub-Skill: gdd-bdd-pytest (gdd-bdd-pytest/SKILL.md)
 
 The first concrete runner. Activated when the BDD core skill detects
 pytest-bdd in the project or the user explicitly chooses it.
@@ -294,7 +294,7 @@ pytest-bdd in the project or the user explicitly chooses it.
 
 Captured here for reference. Each is a separate spec when the time comes.
 
-### bdd-vordu Sub-Skill
+### gdd-bdd-vordu Sub-Skill
 - Vordu tag format: `@vordu:project=X @vordu:row=Y @vordu:phase=N`
   (Note: the workspace has inconsistent tag usage — Vordu uses `@vordu:` prefix,
   Mimir uses `@component:` / `@phase:` without prefix. The sub-skill must
@@ -306,7 +306,7 @@ Captured here for reference. Each is a separate spec when the time comes.
 - `catalog-info.yaml` defines system/row structure
 - Tag inference from component metadata
 
-### bdd-java Sub-Skill
+### gdd-bdd-java Sub-Skill
 - Cucumber-JVM with Gradle
 - For Terasology and Destination Sol when headless testing is set up
 - Step definition conventions for Java

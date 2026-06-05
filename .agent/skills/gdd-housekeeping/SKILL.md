@@ -34,11 +34,11 @@ sections. Count them and give the human a quick summary before diving in:
 **Per-item special case — permissions items.** If the item mentions
 permissions, `.claude/settings.json`, a permission prompt the user
 wants to follow up on, or "don't ask again" decisions, prompt the
-user to walk through it via the `permissions-management` skill before
+user to walk through it via the `gdd-permissions` skill before
 applying the standard Promote/Keep/Prune trichotomy. Example:
 
 > "This observation mentions a permission prompt for `xxd` you got
-> last session. Want me to invoke `permissions-management` to think
+> last session. Want me to invoke `gdd-permissions` to think
 > through whether it's worth allowlisting?"
 
 This routes permissions-related work through the dedicated skill
@@ -65,7 +65,7 @@ For each, offer three actions:
 | Item type | Destination |
 |-----------|-------------|
 | Recurring pattern or friction | Workflow-auditor candidate, new skill, or `ws` subcommand |
-| Bug or feature idea | GitHub issue (use @creating-github-issues) |
+| Bug or feature idea | GitHub issue (use @gdd-github-issues) |
 | User preference | `CLAUDE.md` or `AGENTS.md` update |
 | Process improvement | Skill update or new skill |
 | Safety concern (verified) | Trust rule in orientation skill or root instructions |
@@ -143,7 +143,7 @@ After reviewing individual items, look across them:
 
 If so, suggest consolidation — the cluster is likely a candidate for a
 skill, `ws` subcommand, or instruction update. Cross-reference with the
-@workflow-auditor skill for patterns it might formalize.
+@gdd-workflow-audit skill for patterns it might formalize.
 
 ### Step 4: Update the Audit Log
 
@@ -213,7 +213,7 @@ housekeeping:
   | Leave in `.claude/settings.local.json` | The decision was correct as recorded (don't-ask-again at the harness level) | No change needed |
 
   For the doc-driven path (project `.claude/settings.json`), invoke
-  the `permissions-management` skill for the full add-and-document
+  the `gdd-permissions` skill for the full add-and-document
   flow. For the `hook-rules.local` path, copy
   `.claude/hooks/hook-rules.local.example` to `hook-rules.local`
   (if it doesn't exist) and append the bash glob pattern under the
@@ -310,9 +310,9 @@ N×duplication is acceptable cost for design simplicity.
 
 ## Relationship to Other Skills
 
-- **@workflow-auditor** — housekeeping may surface patterns that the auditor
+- **@gdd-workflow-audit** — housekeeping may surface patterns that the auditor
   should formalize as scripts or `ws` subcommands
-- **@creating-github-issues** — promoted items that become issues use this
+- **@gdd-github-issues** — promoted items that become issues use this
   skill for filing
 - **@gdd-orientation** — housekeeping updates the frontmatter that orientation
   reads on next session startup. The two skills form a cycle: orientation

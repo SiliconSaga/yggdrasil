@@ -12,7 +12,7 @@ A bundled hygiene pass that surfaces from the realms-and-hoards review cycle (PR
 - **Tooling fixes** — three small bash-script defects (`set -euo pipefail` placement, stale `Co-Authored-By` model default, router env-var clobber).
 - **Workspace tooling extension** — `ws status` walks `realms/` and `hoards/` in addition to `components/`.
 - **Permission system documentation** — new `docs/gdd/permissions.md` explaining the `.claude/settings.json` allowlist structure, the two-layer defense model, empirical matcher findings, and the cross-reference rule for keeping doc and config in sync.
-- **Permission management skill + skill updates** — new `permissions-management` skill for per-pattern safety analysis and "don't ask again" judgment; `gdd-orientation` gains a Thalamus-commit-cadence nudge plus a pointer at the new skill; `gdd-housekeeping` gains a permission-related-item hook.
+- **Permission management skill + skill updates** — new `gdd-permissions` skill for per-pattern safety analysis and "don't ask again" judgment; `gdd-orientation` gains a Thalamus-commit-cadence nudge plus a pointer at the new skill; `gdd-housekeeping` gains a permission-related-item hook.
 - **Doc cleanup** — relocate `docs/agent-security/` (predates GDD; reflects general AI-sandboxing exploration that's been superseded by internal corporate AI-sandboxing tooling) into `realms/realm-siliconsaga/docs/agent-security/` so it stays accessible but doesn't compete with the new permissions doc for shelf space.
 
 The pass is sized to land as a single PR. None of the items individually justifies its own arc; bundled, they form a coherent "post-#45 cleanup" landing.
@@ -28,7 +28,7 @@ The pass is sized to land as a single PR. None of the items individually justifi
 | 3 | Router env-var clobber (`scripts/ws` unconditional `ROOT_DIR`/etc) | Tooling fix | `scripts/ws` |
 | 4 | Relocate `docs/agent-security/` → realm | Doc move | `git mv` of nine files; new Thalamus pointer |
 | 5 | New permissions doc | New file | `docs/gdd/permissions.md` |
-| 6 | New permissions-management skill | New file | `.agent/skills/permissions-management/SKILL.md` |
+| 6 | New gdd-permissions skill | New file | `.agent/skills/gdd-permissions/SKILL.md` |
 | 7 | `gdd-orientation` updates — permissions skill pointer + commit-cadence nudge | Skill update | `.agent/skills/gdd-orientation/SKILL.md` |
 | 8 | `gdd-housekeeping` updates — permissions skill hook | Skill update | `.agent/skills/gdd-housekeeping/SKILL.md` |
 | 9 | `ws status` walks realms + hoards | Tooling extension | `scripts/ws-status.sh` |
@@ -168,7 +168,7 @@ If any internal yggdrasil docs link to `docs/agent-security/*` (verified absent 
 
 1. **Security-paranoid yggdrasil users** — humans who want to verify the safety claims for themselves before trusting an AI agent with the workspace. They want enough detail to read the actual `.claude/settings.json` and reason about each pattern.
 2. **Automated review tools** (CodeRabbit, etc.) — they crawl docs and use them as context when reviewing PRs that touch `.claude/settings.json`. The doc functions as a spec for what a "safe pattern" looks like.
-3. **Agents reading the doc on-demand** — the `permissions-management` skill points here for reference content; agents pull this in when reasoning about a specific pattern.
+3. **Agents reading the doc on-demand** — the `gdd-permissions` skill points here for reference content; agents pull this in when reasoning about a specific pattern.
 4. **Future maintainers** — context for why patterns are scoped the way they are, so subsequent edits don't accidentally widen things.
 
 **Sections:**
@@ -185,7 +185,7 @@ If any internal yggdrasil docs link to `docs/agent-security/*` (verified absent 
 
 ---
 
-## Permissions-management skill (item 6): `.agent/skills/permissions-management/SKILL.md`
+## gdd-permissions skill (item 6): `.agent/skills/gdd-permissions/SKILL.md`
 
 **When to use:**
 
@@ -209,7 +209,7 @@ If any internal yggdrasil docs link to `docs/agent-security/*` (verified absent 
 
 **Length target:** ~80-150 lines. Mostly bullets and tables. Points at the doc for reference content; doesn't duplicate.
 
-**Loading discipline:** On-demand only. NOT loaded by default at session start. `gdd-orientation` includes a one-line pointer ("for permission prompts during this session, consider invoking permissions-management") so the agent knows the skill exists; actual content loads only when invoked. Avoids preloading substantial content into every session's baseline.
+**Loading discipline:** On-demand only. NOT loaded by default at session start. `gdd-orientation` includes a one-line pointer ("for permission prompts during this session, consider invoking gdd-permissions") so the agent knows the skill exists; actual content loads only when invoked. Avoids preloading substantial content into every session's baseline.
 
 ---
 
@@ -217,7 +217,7 @@ If any internal yggdrasil docs link to `docs/agent-security/*` (verified absent 
 
 Two additions:
 
-**A. Pointer at permissions-management skill.** A short paragraph in the existing orientation flow noting that the `permissions-management` skill exists for permission-prompt decisions during the session. Doesn't preload; just primes.
+**A. Pointer at gdd-permissions skill.** A short paragraph in the existing orientation flow noting that the `gdd-permissions` skill exists for permission-prompt decisions during the session. Doesn't preload; just primes.
 
 **B. Thalamus commit-cadence nudge.**
 
@@ -249,7 +249,7 @@ Below threshold or clean: silent (no mention at all in orientation; clean noise 
 
 ## `gdd-housekeeping` updates (item 8)
 
-Add a step to the existing housekeeping flow: when reviewing items in the Thalamus, if any item mentions permissions / `.claude/settings.json` / a permission prompt the user wants to follow up on, prompt the user to walk through it via the `permissions-management` skill.
+Add a step to the existing housekeeping flow: when reviewing items in the Thalamus, if any item mentions permissions / `.claude/settings.json` / a permission prompt the user wants to follow up on, prompt the user to walk through it via the `gdd-permissions` skill.
 
 This is a single short bullet inserted into the existing per-item review process. Not a new mode; just an added invocation hook.
 
@@ -277,7 +277,7 @@ Pure additive. Nothing existed to compete with.
 
 **Skill updates (7–8):**
 
-`gdd-orientation` adds a new behavior (commit-cadence nudge) gated on a frontmatter field that defaults to a sensible value. Existing thalami without the field get the default-2-days behavior. The pointer-at-permissions-management is a short paragraph; doesn't change orientation flow.
+`gdd-orientation` adds a new behavior (commit-cadence nudge) gated on a frontmatter field that defaults to a sensible value. Existing thalami without the field get the default-2-days behavior. The pointer-at-gdd-permissions is a short paragraph; doesn't change orientation flow.
 
 `gdd-housekeeping` gets one new bullet in the per-item review.
 

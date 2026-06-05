@@ -23,7 +23,7 @@ Two deliverables:
 
 1. **`scripts/ws`** — A unified CLI entry point that dispatches subcommands and
    provides component-aware command execution.
-2. **`.agent/skills/workflow-auditor/SKILL.md`** — A skill for detecting
+2. **`.agent/skills/gdd-workflow-audit/SKILL.md`** — A skill for detecting
    repeated workflow patterns and proposing utility scripts.
 
 ---
@@ -186,7 +186,7 @@ Add a section to `docs/dev-setup.md` covering:
 
 ### Location
 
-`.agent/skills/workflow-auditor/SKILL.md`
+`.agent/skills/gdd-workflow-audit/SKILL.md`
 
 ### Purpose
 
@@ -198,7 +198,7 @@ scripts or workflow improvements.
 - **Self-trigger:** When the agent notices 3+ instances of the same awkward
   pattern in a session (repeated `cd`, manual JSON formatting, same multi-step
   command sequence, retried commands with the same fix)
-- **User-invoked:** `/workflow-auditor` or "check for workflow patterns"
+- **User-invoked:** `/gdd-workflow-audit` or "check for workflow patterns"
 - **Session wrap-up:** When a session is ending, review the conversation for
   repeated patterns worth addressing
 

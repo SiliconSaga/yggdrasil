@@ -1,9 +1,9 @@
 ---
-name: creating-github-issues
+name: gdd-github-issues
 description: Use when deciding to file a GitHub issue, filing a deferred task, or capturing work that a fresh agent in a new session should be able to complete independently in a single repo
 ---
 
-# Creating GitHub Issues
+# GDD GitHub Issues
 
 ## Overview
 

@@ -105,15 +105,15 @@ gdd (orchestrator)
 ├── gdd-autonomous    — permission-bounded independent work
 │
 │  Practice skills (the actual work)
-├── bdd               — Gherkin scenarios, step definitions, runner integration
-│   ├── bdd-go        — godog integration for Go components
-│   ├── bdd-python    — pytest-bdd or behave for Python components
-│   └── bdd-kuttl     — infrastructure BDD via kuttl (already exists)
+├── gdd-bdd           — Gherkin scenarios, step definitions, runner integration
+│   ├── gdd-bdd-go    — godog integration for Go components
+│   ├── gdd-bdd-pytest — pytest-bdd for Python components (the actual shipped runner — `bdd-python` was the speculative-design name)
+│   └── gdd-bdd-kuttl — infrastructure BDD via kuttl (already exists)
 │
 ├── tdd               — red-green-refactor (superpowers skill, already exists)
-├── workflow-auditor   — detect repeated patterns (already exists)
-├── topic-branch-workflow — Git discipline (already exists)
-└── creating-github-issues — issue pipeline (already exists)
+├── gdd-workflow-audit   — detect repeated patterns (already exists)
+├── gdd-branch-workflow — Git discipline (already exists)
+└── gdd-github-issues — issue pipeline (already exists)
 ```
 
 **Not every skill needs to be built.** The orchestrator and BDD skill are the
@@ -155,7 +155,7 @@ appropriately-sized work based on available time.
 | Layer | What's Built | Status |
 |-------|-------------|--------|
 | Workflow engine | `ws` CLI, permission tiers, `.claude/settings.json` | Functional |
-| Process skills | TDD, workflow-auditor, topic-branch, issue filing | Functional |
+| Process skills | TDD, gdd-workflow-audit, topic-branch, issue filing | Functional |
 | BDD artifacts | 20 .feature files across ymir, mimir, vordu | Written, partial automation |
 | Visualization | Vordu ingests Cucumber JSON, renders roadmap | Designed, early implementation |
 | Session recovery | Memory system (MEMORY.md + memory files) | Functional |

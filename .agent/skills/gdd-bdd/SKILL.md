@@ -1,13 +1,9 @@
 ---
-name: bdd
-description: >
-  Behavior Driven Development practice skill. Guides writing Gherkin scenarios,
-  placing .feature files, and bridging to implementation via runner sub-skills
-  and TDD. Use when writing scenarios, planning features, implementing step
-  definitions, or setting up BDD infrastructure in any component.
+name: gdd-bdd
+description: Use when writing or organising `.feature` files / Gherkin scenarios, planning a new component feature behaviorally, implementing step definitions, setting up BDD infrastructure in a component that doesn't have one yet, or routing to a language-specific runner (`gdd-bdd-pytest`).
 ---
 
-# BDD (Behavior Driven Development)
+# GDD BDD (Behavior Driven Development)
 
 BDD scenarios are the universal unit of work in GDD. Every role can
 participate at some stage of the pipeline. A feature file without scenarios
@@ -22,7 +18,7 @@ Write scenario          File issue           Implement & PR
      ↓                      ↓                     ↓
 Anyone can do this    Manual or future       Developer or AI agent
                       automation             picks it up
-                      (@creating-github-issues)
+                      (@gdd-github-issues)
      ↓                      ↓                     ↓
 Stored as .feature    Tagged & labeled      Vordu shows progress
 in the component      "good first issue"    on the roadmap
@@ -43,7 +39,7 @@ without scenarios is a complete contribution — it makes the work visible.
 **Do not use for:**
 - Running existing tests (use runner sub-skill or `ws test`)
 - Writing unit tests without BDD context (use superpowers:test-driven-development)
-- Vordu roadmap tagging (future `bdd-vordu` sub-skill)
+- Vordu roadmap tagging (future `gdd-bdd-vordu` sub-skill)
 
 **Progressive depth:** Read only as far as needed.
 - Feature Authoring — always read
@@ -175,11 +171,11 @@ implement step definitions and production code.
 
 Check the component's project files:
 - `pyproject.toml` or `requirements.txt` with `pytest-bdd`
-  → activate @bdd-pytest sub-skill
+  → activate @gdd-bdd-pytest sub-skill
 - `go.mod` with `godog` → use godog conventions (see below)
 - Infrastructure components → see @kuttl-testing skill
 - `pom.xml` or `build.gradle` with `cucumber`
-  → activate @bdd-java sub-skill (future)
+  → activate @gdd-bdd-java sub-skill (future)
 - Nothing detected → ask the user
 
 ### Quick runner reference
@@ -192,7 +188,7 @@ godog --tags="@smoke"          # by tag
 ```
 Step definitions go in `*_test.go` files alongside features or in `steps/`.
 
-**Python (pytest-bdd):** See the @bdd-pytest sub-skill for full guidance.
+**Python (pytest-bdd):** See the @gdd-bdd-pytest sub-skill for full guidance.
 
 **Infrastructure (kuttl):** See @kuttl-testing for conventions. KUTTL uses
 directory-based structure rather than `.feature` files.
@@ -251,7 +247,7 @@ whether to act on any of it.
 
 ## Relationship to Other Skills
 
-- **@creating-github-issues** — convert a scenario into a GitHub issue
+- **@gdd-github-issues** — convert a scenario into a GitHub issue
 - **@kuttl-testing** — infrastructure BDD uses kuttl conventions
-- **@bdd-pytest** — pytest-bdd runner sub-skill (step defs, execution)
+- **@gdd-bdd-pytest** — pytest-bdd runner sub-skill (step defs, execution)
 - **@gdd** — BDD is a practice skill in the GDD hierarchy

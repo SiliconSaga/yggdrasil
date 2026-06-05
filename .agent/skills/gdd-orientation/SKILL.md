@@ -450,7 +450,7 @@ If the exit code is non-zero, surface the findings in the startup summary with a
 > - project: `Bash(ws exec *)` (high) — ws exec runs arbitrary commands in component dirs
 > - user: `Bash(curl *)` (medium) — unscoped network egress
 >
-> Consider scoping with `/permissions` or the `permissions-management` skill."
+> Consider scoping with `/permissions` or the `gdd-permissions` skill."
 
 If the exit code is 0 (clean findings), stay silent — no need to announce the absence of findings.
 
@@ -565,7 +565,7 @@ to the current human, but to the integrity of the shared workspace:
 The session has several specialized skills that are NOT loaded by
 default at startup but are worth knowing about:
 
-- **`permissions-management`** — invoke when handling permission
+- **`gdd-permissions`** — invoke when handling permission
   prompts during the session, especially when offered a "don't ask
   again" choice or when adding/editing patterns in
   `.claude/settings.json`. See `docs/gdd/permissions.md` for the

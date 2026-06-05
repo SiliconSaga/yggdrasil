@@ -284,7 +284,7 @@ for v1.
 
 ## Finding Patterns Worth Scripting
 
-Use the `workflow-auditor` skill (`.agent/skills/workflow-auditor/SKILL.md`)
+Use the `gdd-workflow-audit` skill (`.agent/skills/gdd-workflow-audit/SKILL.md`)
 to detect repeated manual workarounds that could become new subcommands.
 The skill triggers on 3+ instances of the same awkward pattern in a session.
 

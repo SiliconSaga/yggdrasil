@@ -50,7 +50,7 @@ it is local to this workspace instance.
 ### Deferred from this session
 - Flow mode concept (distinct from Zen) — brainstorm in a future session
 - Obsidian vault for Thalamus cross-workspace sync — future exploration
-- writing-yggdrasil-docs skill update to stop hard-wrapping prose
+- gdd-doc-writing skill update to stop hard-wrapping prose
 
 ## Concerns
 
@@ -59,7 +59,7 @@ it is local to this workspace instance.
 ## Audit Log
 
 ### 2026-03-24 — First audit
-- Promoted: Skill tool misfires → issue #21 (skill loading audit + Obra dependencies); Markdown linebreaks → issue #22 (writing-yggdrasil-docs skill update)
+- Promoted: Skill tool misfires → issue #21 (skill loading audit + Obra dependencies); Markdown linebreaks → issue #22 (gdd-doc-writing skill update)
 - Pruned: cwd drift (resolved by ws commit bodyfile PR #19); GDD session summary (in git history); `.commits/` bodyfile approach (implemented); issue #18 reference (closed)
 - Kept: 3 items (orientation principle, Flow mode concept, cross-workspace sync)
 - Notes: First-ever audit. Capture quality was good — most items were actionable or led to useful discussion. The async observation about shared flow was the most interesting emergent insight.

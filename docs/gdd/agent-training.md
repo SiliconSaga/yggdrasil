@@ -167,4 +167,4 @@ The audit log captures the hook's *decisions* — it doesn't see commands that w
 - [Hook README](../../.claude/hooks/README.md) — the technical spec: tier-by-tier decision rules, `hook-rules` config format, registration, troubleshooting.
 - [Permissions reference](permissions.md) — `.claude/settings.json` patterns and the two-layer defense model that allow rules rely on.
 - [GDD trust & safety](trust-and-safety.md) — where the hook fits in the broader trust hierarchy.
-- [`permissions-management` skill](../../.agent/skills/permissions-management/SKILL.md) — operational guide for adding or narrowing allow patterns.
+- [`gdd-permissions` skill](../../.agent/skills/gdd-permissions/SKILL.md) — operational guide for adding or narrowing allow patterns.

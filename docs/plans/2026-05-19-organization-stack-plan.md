@@ -273,7 +273,7 @@ Create `docs/gdd/organization-stack.md` with these sections, in order:
 7. **`## Start small`** — the incremental-adoption path (Vault only → + Thalami → + Docs/GitHub) from the design doc's "Incremental adoption" section.
 8. A closing line linking the full design doc: `Full design and rationale: [organization-stack design doc](../plans/2026-05-19-organization-stack-design.md).`
 
-Do not invent new content — every section is a restatement of the named design-doc section in user-facing prose. Keep prose unwrapped (one paragraph per line) per the writing-yggdrasil-docs convention.
+Do not invent new content — every section is a restatement of the named design-doc section in user-facing prose. Keep prose unwrapped (one paragraph per line) per the gdd-doc-writing convention.
 
 - [ ] **Step 2: Verify links and diagram**
 

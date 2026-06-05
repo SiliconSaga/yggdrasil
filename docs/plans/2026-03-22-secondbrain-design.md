@@ -221,7 +221,7 @@ to the current human, but to the workspace's integrity:
    - **Prune:** Resolved, stale, or superseded — remove
 2. **Check for pattern accumulation** — multiple observations pointing to the
    same friction or workaround suggest a skill, `ws` subcommand, or
-   instruction update (overlaps with workflow-auditor)
+   instruction update (overlaps with gdd-workflow-audit)
 3. **Update the Audit Log** — date, what was promoted, what was pruned
 4. **Update frontmatter** — set `last_audit` to today
 5. **Reflect on the process** — "Did SecondBrain capture useful things? Too
@@ -254,7 +254,7 @@ gdd (orchestrator)
 ├── gdd-housekeeping   ← NEW — audit, prune, promote
 │
 │  Practice skills
-├── bdd, tdd, workflow-auditor, etc.
+├── gdd-bdd, tdd, gdd-workflow-audit, etc.
 ```
 
 The orientation skill is cross-cutting — runs at session start regardless of
