@@ -141,7 +141,7 @@ ws_thalami_publish() {
             echo "  $arc_id notes:"; _wt_sweep "$vault" "$arc_id" | sed 's/^/    /'
         done <<< "$ids"
         printf 'Proceed? [y/N] '
-        local reply; read -r reply
+        local reply=""; read -r reply || reply=""
         [[ "$reply" =~ ^[Yy]$ ]] || { echo "Aborted — nothing written."; return 0; }
     fi
 

@@ -95,3 +95,10 @@ setup() { init_publish_workspace; }
     [ "$status" -eq 0 ]
     [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/testhost-thalamus.md" ]
 }
+
+@test "publish without --yes and no stdin aborts gracefully (status 0)" {
+    run bash -c "bash '$WS_THALAMI_BIN' publish </dev/null"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Aborted"* ]]
+    [ ! -d "$HOARDS_DIR/team-thalami-cfr/Cervator" ]
+}
