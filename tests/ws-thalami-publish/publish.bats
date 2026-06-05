@@ -102,3 +102,9 @@ setup() { init_publish_workspace; }
     [[ "$output" == *"Aborted"* ]]
     [ ! -d "$HOARDS_DIR/team-thalami-cfr/Cervator" ]
 }
+
+@test "publish resolves a workspace-relative vault against ROOT_DIR" {
+    run_publish --vault hoards/obsidian-Cervator --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"notes/meeting1.md"* ]]
+}

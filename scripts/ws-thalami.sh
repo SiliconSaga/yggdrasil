@@ -108,6 +108,8 @@ ws_thalami_publish() {
     local fm_vault; fm_vault="$(printf '%s\n' "$fm" | yq '.vault // ""')"
     vault="${vault:-$fm_vault}"
     [[ -n "$vault" ]] || { echo "ERROR: no Vault source. Set 'vault:' in your thalamus frontmatter or pass --vault <path>." >&2; return 1; }
+    # A workspace-relative vault path is anchored to the workspace root.
+    [[ "$vault" = /* ]] || vault="$ROOT_DIR/$vault"
     [[ -d "$vault" ]] || { echo "ERROR: vault path '$vault' is not a directory." >&2; return 1; }
 
     echo "context: host=$host user=$user team=$team vault=$vault dry=$dry yes=$yes"
