@@ -85,23 +85,24 @@ Superpowers — only the `superpowers:*` plugin skills are unavailable.
 
 | Skill Name | Description | Source / Reference |
 | :--- | :--- | :--- |
-| **GDD (Orchestrator)** | Guardian Driven Development — detects roles/modes, delegates to practice and mode skills | [SKILL.md](./.agent/skills/gdd/SKILL.md) |
-| **GDD Orientation** | Session startup — reads Thalamus.md, trust verification of component instructions, mode/role setup | [SKILL.md](./.agent/skills/gdd-orientation/SKILL.md) |
-| **GDD Housekeeping** | Audit Thalamus.md — review, promote, prune observations and concerns with the human | [SKILL.md](./.agent/skills/gdd-housekeeping/SKILL.md) |
-| **GDD Review Triage** | Multi-reviewer CR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
-| **GDD Mentoring Mode** | AI explains decisions and teaches practices in context — request for any unfamiliar area | [SKILL.md](./.agent/skills/gdd-mentoring/SKILL.md) |
-| **GDD Quick Mode** | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
-| **GDD Zen Mode** | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
-| **GDD Flow Mode** | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
-| **GDD Scribe** | Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. Auto-loads for `role: scribe`; other roles dip in on capture-intent keywords. | [SKILL.md](./.agent/skills/gdd-scribe/SKILL.md) |
-| **BDD** | Gherkin scenarios, feature authoring, planning features, runner integration, and BDD conventions | [SKILL.md](./.agent/skills/gdd-bdd/SKILL.md) |
-| **BDD pytest Runner** | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/gdd-bdd-pytest/SKILL.md) |
-| **Creating GitHub Issues** | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/gdd-github-issues/SKILL.md) |
-| **KUTTL Testing** | Guidelines for writing and running KUTTL tests | [SKILL.md](./.agent/skills/kuttl-testing/SKILL.md) |
-| **Topic Branch Workflow** | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/gdd-branch-workflow/SKILL.md) |
-| **Workflow Auditor** | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/gdd-workflow-audit/SKILL.md) |
-| **Writing Yggdrasil Docs** | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/gdd-doc-writing/SKILL.md) |
-| **MCP Usage** | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/gdd-mcp/SKILL.md) |
+| GDD (Orchestrator) | Guardian Driven Development — detects roles/modes, delegates to practice and mode skills | [SKILL.md](./.agent/skills/gdd/SKILL.md) |
+| GDD Orientation | Session startup — reads Thalamus.md, trust verification of component instructions, mode/role setup | [SKILL.md](./.agent/skills/gdd-orientation/SKILL.md) |
+| GDD Housekeeping | Audit Thalamus.md — review, promote, prune observations and concerns with the human | [SKILL.md](./.agent/skills/gdd-housekeeping/SKILL.md) |
+| GDD Review Triage | Multi-reviewer CR coordination — fetch, deduplicate, and triage findings from CodeRabbit, Copilot, and others | [SKILL.md](./.agent/skills/gdd-review-triage/SKILL.md) |
+| GDD Mentoring Mode | AI explains decisions and teaches practices in context — request for any unfamiliar area | [SKILL.md](./.agent/skills/gdd-mentoring/SKILL.md) |
+| GDD Quick Mode | Minimal ceremony for short sessions — small tasks, fast context recovery | [SKILL.md](./.agent/skills/gdd-quick/SKILL.md) |
+| GDD Zen Mode | Deep single-topic focus — full ceremony, defer distractions until completion | [SKILL.md](./.agent/skills/gdd-zen/SKILL.md) |
+| GDD Flow Mode | Productive multi-topic drift — adaptive ceremony, incorporate tangents, live Thalamus collaboration | [SKILL.md](./.agent/skills/gdd-flow/SKILL.md) |
+| GDD Scribe | Obsidian vault conventions: PARA, frontmatter, daily notes, wikilinks, inbox capture, daily review, weekly synthesis. Auto-loads for `role: scribe`; other roles dip in on capture-intent keywords. | [SKILL.md](./.agent/skills/gdd-scribe/SKILL.md) |
+| GDD BDD | Gherkin scenarios, feature authoring, planning features, runner integration, and BDD conventions | [SKILL.md](./.agent/skills/gdd-bdd/SKILL.md) |
+| GDD BDD pytest Runner | pytest-bdd step definitions, test execution, and Cucumber JSON output | [SKILL.md](./.agent/skills/gdd-bdd-pytest/SKILL.md) |
+| GDD GitHub Issues | Pre-flight checks, issue templates, and filing process for deferring work to GitHub issues | [SKILL.md](./.agent/skills/gdd-github-issues/SKILL.md) |
+| KUTTL Testing | Guidelines for writing and running KUTTL tests | [SKILL.md](./.agent/skills/kuttl-testing/SKILL.md) |
+| GDD Branch Workflow | Branch naming, commit/push workflow, utility scripts, and when direct push to main is acceptable | [SKILL.md](./.agent/skills/gdd-branch-workflow/SKILL.md) |
+| GDD Workflow Audit | Detect repeated manual workarounds (3+ instances) and propose utility scripts or ws subcommands | [SKILL.md](./.agent/skills/gdd-workflow-audit/SKILL.md) |
+| GDD Doc Writing | Documentation conventions: the Component Documentation Convention (four-Shape graduation ladder), no-hard-wrap rule, Mermaid diagram rules, terminology, and cluster layer naming | [SKILL.md](./.agent/skills/gdd-doc-writing/SKILL.md) |
+| GDD MCP | Agent behaviour when MCP servers are present — auth patterns, tool calling, realm deferral | [SKILL.md](./.agent/skills/gdd-mcp/SKILL.md) |
+| GDD Permissions | Allowlist/deny patterns in `.claude/settings.json`: per-pattern safety analysis, "don't ask again" judgment at permission prompts, and code-review of settings.json changes. Operational companion to `docs/gdd/permissions.md`. | [SKILL.md](./.agent/skills/gdd-permissions/SKILL.md) |
 
 ---
 
