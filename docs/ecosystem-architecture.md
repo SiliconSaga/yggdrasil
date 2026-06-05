@@ -45,7 +45,7 @@ Arrows read as **"provides the foundation for"** — each tier only knows about 
 | **2** | Platform services | `nidavellir` (platform app-of-apps), plus capability components like observability / data / notifications |
 | **3** | End-user applications | The apps real people actually interact with |
 
-For the concrete SiliconSaga stack — what's in each tier, the GitOps model, the alert pipeline, the cluster-identity pattern — see `realms/realm-siliconsaga/docs/stack.md` (and the per-tier docs alongside it). Other realms describe their own stacks the same way.
+For the concrete SiliconSaga stack — what's in each tier, the GitOps model, the alert pipeline, the cluster-identity pattern — see the realm-side narrative at [SiliconSaga/realm-siliconsaga: `docs/stack.md`](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) (and the per-tier docs alongside it). If you've cloned the realm via `ws realm`, the same file is at `realms/realm-siliconsaga/docs/stack.md` locally. Other realms describe their own stacks the same way.
 
 ## Workspace Structure
 
@@ -77,14 +77,14 @@ Configuration is assembled from three layers, merged in order:
 ```text
 ecosystem.yaml (upstream Yggdrasil — generic defaults)
     ↓ deep merge
-realm/ecosystem.yaml (community config — components, identity)
+realms/<active>/ecosystem.yaml (community config — components, identity)
     ↓ deep merge
 ecosystem.local.yaml (per-developer overrides)
 ```
 
 All `ws` commands read the merged result. Realms own the component list; upstream provides methodology and tooling.
 
-> **Inheritance future:** the merge generalizes to N layers if multi-realm chains land later (e.g. corp → dept → team). No new identifier needed — the same upstream → realm(s) → local pattern with child-wins semantics. See [Realms and Hoards Design](plans/2026-04-24-realms-and-hoards-design.md#future-directions).
+> **Inheritance future:** the merge generalizes to N layers if multi-realm chains land later (e.g. corp → dept → team). No new identifier needed — the same upstream → realm(s) → local pattern with child-wins semantics. See [Realms and Hoards Design](../plans/2026-04-24-realms-and-hoards-design.md#future-directions).
 
 ## Realms — Where Stack Choice Lives
 
@@ -122,4 +122,4 @@ The `scripts/ws-resolve.sh` script auto-detects which mode applies per component
 - [`docs/gdd/index.md`](gdd/index.md) — Guardian Driven Development overview.
 - [`docs/dev-setup.md`](dev-setup.md) — required tools (bash, git, yq, jq, gh/glab, optional uv).
 - [`docs/ws-cli-guide.md`](ws-cli-guide.md) — full `ws` CLI reference.
-- For the SiliconSaga-flavoured concrete stack: `realms/realm-siliconsaga/docs/stack.md` and the per-tier docs alongside it (if you've got the realm cloned).
+- For the SiliconSaga-flavoured concrete stack: [SiliconSaga/realm-siliconsaga: `docs/stack.md`](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) and the per-tier docs alongside it (locally at `realms/realm-siliconsaga/docs/stack.md` once you've cloned the realm).
