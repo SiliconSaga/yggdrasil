@@ -82,3 +82,16 @@ setup() { init_publish_workspace; }
     run_publish --yes
     [ ! -f "$d/notes/meeting1.md" ]
 }
+
+@test "publish without --yes aborts on 'n' and writes nothing" {
+    run bash -c "printf 'n\n' | bash '$WS_THALAMI_BIN' publish"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Aborted"* ]]
+    [ ! -d "$HOARDS_DIR/team-thalami-cfr/Cervator" ]
+}
+
+@test "publish without --yes proceeds on 'y'" {
+    run bash -c "printf 'y\n' | bash '$WS_THALAMI_BIN' publish"
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/testhost-thalamus.md" ]
+}
