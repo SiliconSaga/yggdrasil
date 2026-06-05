@@ -758,7 +758,7 @@ and used before they can be designed well:
 - **Designer onboarding** — low-barrier scenario writing without local tooling
   or Git knowledge. Deferred until BDD workflows are stable enough to
   simplify for non-technical contributors.
-- **BDD sub-skills** (gdd-bdd-go, gdd-bdd-python, gdd-bdd-kuttl) — the GDD design shows
+- **BDD sub-skills** (gdd-bdd-go, gdd-bdd-pytest, gdd-bdd-kuttl) — the GDD design shows
   these as separate skills under BDD. This plan consolidates them into a
   single BDD skill (Task 15) for simplicity. Split into sub-skills when
   language-specific guidance grows complex enough to warrant it.

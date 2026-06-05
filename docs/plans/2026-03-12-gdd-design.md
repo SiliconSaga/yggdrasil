@@ -107,7 +107,7 @@ gdd (orchestrator)
 │  Practice skills (the actual work)
 ├── gdd-bdd           — Gherkin scenarios, step definitions, runner integration
 │   ├── gdd-bdd-go    — godog integration for Go components
-│   ├── gdd-bdd-python — pytest-bdd or behave for Python components
+│   ├── gdd-bdd-pytest — pytest-bdd for Python components (the actual shipped runner — `bdd-python` was the speculative-design name)
 │   └── gdd-bdd-kuttl — infrastructure BDD via kuttl (already exists)
 │
 ├── tdd               — red-green-refactor (superpowers skill, already exists)

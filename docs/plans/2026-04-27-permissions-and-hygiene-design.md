@@ -185,7 +185,7 @@ If any internal yggdrasil docs link to `docs/agent-security/*` (verified absent 
 
 ---
 
-## Permissions-management skill (item 6): `.agent/skills/gdd-permissions/SKILL.md`
+## gdd-permissions skill (item 6): `.agent/skills/gdd-permissions/SKILL.md`
 
 **When to use:**
 

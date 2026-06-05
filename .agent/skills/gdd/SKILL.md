@@ -44,7 +44,7 @@ in the Developer role.
 | **Scribe** | Note-taking and vault work | PARA layout, frontmatter, daily notes, capture-process-organize loop |
 | **AI Agent** | Guided work | Any of the above, bounded by permissions |
 
-The **Scribe** role auto-loads `.agent/skills/scribe/SKILL.md`. Other roles can dip into the scribe skill on capture-intent keywords without switching role.
+The **Scribe** role auto-loads `.agent/skills/gdd-scribe/SKILL.md`. Other roles can dip into the gdd-scribe skill on capture-intent keywords without switching role.
 
 ## Modes
 

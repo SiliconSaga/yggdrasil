@@ -283,7 +283,7 @@ Match the component's existing pattern. Common conventions:
 
 ```python
 import pytest
-from pytest_gdd-bdd import scenario, given, when, then, parsers
+from pytest_bdd import scenario, given, when, then, parsers
 
 FEATURE = "features/<name>.feature"
 
