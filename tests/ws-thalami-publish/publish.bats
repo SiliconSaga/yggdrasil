@@ -57,3 +57,27 @@ setup() { init_publish_workspace; }
     run diff "$f" "$BATS_TEST_TMPDIR/first"
     [ "$status" -eq 0 ]
 }
+
+@test "publish mirrors tagged notes and skips #private notes" {
+    run_publish --yes
+    [ "$status" -eq 0 ]
+    local d="$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements"
+    [ -f "$d/notes/meeting1.md" ]
+    [ ! -f "$d/notes/secret.md" ]
+    [ ! -f "$d/notes/other.md" ]
+}
+
+@test "publish --dry-run lists the notes it would copy, excludes private" {
+    run_publish --dry-run
+    [[ "$output" == *"notes/meeting1.md"* ]]
+    [[ "$output" != *"notes/secret.md"* ]]
+}
+
+@test "un-tagging a note removes it from the arc subfolder on re-publish" {
+    run_publish --yes
+    local d="$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements"
+    [ -f "$d/notes/meeting1.md" ]
+    printf 'untagged now\n' > "$HOARDS_DIR/obsidian-Cervator/notes/meeting1.md"
+    run_publish --yes
+    [ ! -f "$d/notes/meeting1.md" ]
+}
