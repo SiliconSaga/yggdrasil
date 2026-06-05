@@ -662,3 +662,20 @@ Then: `ws commit yggdrasil .commits/ws-thalami-docs.md`
 **Placeholder scan:** every step ships real bash/bats/markdown. The Task 2 Step 3 fallback (set `hoards.thalami` selector if detection needs it) is a concrete conditional, not a placeholder.
 
 **Type/name consistency:** `_wt_frontmatter`, `_wt_resolve_team_hoard`, `_wt_projection`, `_wt_published_ids`, `_wt_sweep` are defined once and reused; `ws_thalami_publish` flags (`--to/--vault/--user/--dry-run/--yes`) are consistent across tasks and tests; fixture paths (`hoards/thalami/testhost-thalamus.md`, `hoards/obsidian-Cervator`, `hoards/team-thalami-cfr`, user `Cervator`) are consistent across all tests.
+
+---
+
+## Implementation notes — deviations & review follow-ups (as built)
+
+Changes made during subagent-driven implementation, beyond the task text above (all test-backed):
+
+- **Sourcing:** `ws-thalami.sh` sources only `ws-hoard.sh` (which transitively provides the `ws-realm.sh` helpers), not both — avoids a double EXIT trap / `_RESOLVED_ECOSYSTEM` reset. Strict-mode and the dispatch block are guarded with the `[[ "${BASH_SOURCE[0]}" == "${0}" ]]` idiom so the handler can be sourced for its functions.
+- **`yq` preflight:** `ws_thalami_publish` errors clearly if `yq` is absent (instead of a silent `set -e` abort).
+- **Confirm prompt EOF:** `read -r reply || reply=""` so a closed/empty stdin (non-interactive run without `--yes`) aborts gracefully (status 0, "Aborted — nothing written.") rather than a silent non-zero exit. Covered by a `</dev/null` test.
+- **Relative `vault:` paths** are anchored to `$ROOT_DIR` (workspace root), so the quickstart's `vault: hoards/obsidian-<you>` works from any directory. Covered by a regression test.
+- **Test fixture** isolates `REALMS_DIR` so resolution can't walk the real `realms/`.
+
+Deferred hardening surfaced by the final review (low-risk; not blocking the MVP, file as follow-ups when the engine graduates past dogfooding):
+
+- `_wt_sweep` uses a fixed-string substring match on `#team/<arc-id>`, so prefix-related arc ids (e.g. `obs` vs `obs-v2`) could over-include a note in both arcs' subfolders. Over-inclusion within one user's published set, not a privacy leak. Harden with a trailing boundary later.
+- The `#private`/`#noteam` denylist is an unanchored substring grep, so it also excludes `#privatebeta` etc. Errs toward *exclusion* (the safe direction). Tighten later if it bites.
