@@ -241,6 +241,12 @@ YAML
     run_ws orient
     [ "$status" -eq 0 ]
     [[ "$output" == *"badyaml"* ]]
+    # Pin the diagnostic text so a regression that silently swallows
+    # the parse failure (returning empty commands and rendering "no
+    # commands wired") instead of surfacing the actual problem fails
+    # this test. Per CodeRabbit on PR #89.
+    [[ "$output" == *"adapter present but YAML parse failed"* ]]
+    [[ "$output" == *"badyaml.yaml"* ]]
     [[ "$output" == *"Skills"* ]]
 }
 
@@ -260,6 +266,12 @@ MD
     _seed_skill "$WORK/.agent/skills" sibling-skill "Should still appear despite the sibling's broken frontmatter."
     run_ws orient
     [ "$status" -eq 0 ]
+    # The broken skill must still render via the dir-name fallback —
+    # not just "didn't abort". Per CodeRabbit on PR #89: pin the
+    # fallback path explicitly so a regression that silently drops
+    # broken skills (e.g. via `continue` instead of `name=basename`)
+    # would fail this test.
+    [[ "$output" == *"broken-skill"* ]]
     # The good skill's description must still render — proves orient
     # didn't abort mid-walk over the broken sibling.
     [[ "$output" == *"sibling-skill"* ]]
