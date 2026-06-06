@@ -26,6 +26,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # the script clobbering the test's exported override.
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
+# Explicit yq presence check matching ws-list / ws-test / ws-lint —
+# under `set -euo pipefail` a missing yq would otherwise surface as
+# a cryptic 127 from inside `_emit_one_adapter` rather than as a
+# helpful diagnostic at startup.
+if ! command -v yq &>/dev/null; then
+    echo "ERROR: yq (v4+) is required." >&2
+    echo "  Install: see docs/dev-setup.md or 'ws preflight' for the platform-specific hint." >&2
+    exit 1
+fi
+
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
