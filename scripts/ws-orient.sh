@@ -86,12 +86,34 @@ resolve|generating ArgoCD Application manifests from declared components
 SURVEY
 }
 
+# Active realm — same detection logic gdd-orientation Step 0c uses
+# (ecosystem.local.yaml `realm:` selector, else a single realm-*).
+# Prints a status line + pointer to the realm's AGENTS.md guide; the
+# realm's skill enumeration lands separately in 4e so the index
+# duties stay in one place.
+emit_active_realm() {
+    printf '\n'
+    local active_realm
+    active_realm="$(ws_detect_realm)"
+    if [[ -z "$active_realm" ]]; then
+        echo "Active realm: none"
+        echo "  Adopt one with \`ws realm <git-url>\` or scaffold the tutorial via \`ws realm init\`."
+        return
+    fi
+    echo "Active realm: $active_realm"
+    local realm_agents="$REALMS_DIR/$active_realm/AGENTS.md"
+    if [[ -f "$realm_agents" ]]; then
+        echo "  Guide: $realm_agents"
+    fi
+}
+
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats
 # so a future rename surfaces the doc/help drift here first.
 echo "Workspace toolset (\`ws orient\`)"
 
 emit_subcommand_survey
+emit_active_realm
 
 echo ""
-echo "(Phase 1 Task 4 in progress — active realm, adapter enumeration,"
-echo "and skill index land in sub-steps 4c-4e.)"
+echo "(Phase 1 Task 4 in progress — adapter enumeration + skill index"
+echo "land in sub-steps 4d-4e.)"

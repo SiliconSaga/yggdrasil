@@ -66,3 +66,34 @@ setup() {
         [[ "$output" == *"$verb"* ]] || { echo "missing survey row: $verb"; return 1; }
     done
 }
+
+# ─── 4c — active realm detection ────────────────────────────────────
+
+@test "ws orient: prints 'Active realm: none' when no realm is present" {
+    # init_workspace creates an empty realms/ directory, so the
+    # detect helper returns empty. The empty case must still
+    # produce a clear status line — silence would be ambiguous.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm: none"* ]]
+}
+
+@test "ws orient: surfaces the active realm name when one is present" {
+    # Drop a fixture realm; auto-detection picks the single
+    # non-template realm-* directory under realms/.
+    mkdir -p "$WORK/realms/realm-fixture"
+    cat > "$WORK/realms/realm-fixture/ecosystem.yaml" <<'YAML'
+identity:
+  human_account: testuser
+components: {}
+YAML
+    cat > "$WORK/realms/realm-fixture/AGENTS.md" <<'MD'
+# realm-fixture
+MD
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm: realm-fixture"* ]]
+    # Pointer to the realm's AGENTS.md so the agent can navigate
+    # to the canonical realm guide without further discovery.
+    [[ "$output" == *"AGENTS.md"* ]]
+}
