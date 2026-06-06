@@ -97,3 +97,63 @@ MD
     # to the canonical realm guide without further discovery.
     [[ "$output" == *"AGENTS.md"* ]]
 }
+
+# ─── 4d — per-component adapters with resolved command ──────────────
+
+# Helper: drop a fixture realm + a cloned component dir. Used by the
+# adapter tests below so each test can opt into wiring an adapter
+# (or not).
+_seed_realm_and_component() {
+    local comp="$1"
+    mkdir -p "$WORK/realms/realm-fixture/adapters"
+    cat > "$WORK/realms/realm-fixture/ecosystem.yaml" <<'YAML'
+identity:
+  human_account: testuser
+components: {}
+YAML
+    # .git as a real dir marks the component as cloned for orient's
+    # enumeration. No actual git operations happen — orient is
+    # read-only and never invokes git on the component.
+    mkdir -p "$WORK/components/$comp/.git"
+}
+
+@test "ws orient: wired adapter surfaces 'ws test [runs: …]' with the resolved command" {
+    _seed_realm_and_component knarrlike
+    cat > "$WORK/realms/realm-fixture/adapters/knarrlike.yaml" <<'YAML'
+commands:
+  test: "python3 -m pytest --ignore=tests/features"
+  lint: "python3 -m ruff check src/ tests/"
+YAML
+    run_ws orient
+    [ "$status" -eq 0 ]
+    # Adapter-trust mitigation per design § Adapter trust: the
+    # executed command must be visible from `ws orient` output, not
+    # hidden behind the ws wrapper. Pin both the `runs:` token and
+    # the actual command tail so an agent can verify what fires.
+    [[ "$output" == *"ws test"* ]]
+    [[ "$output" == *"runs: python3 -m pytest --ignore=tests/features"* ]]
+    [[ "$output" == *"ws lint"* ]]
+    [[ "$output" == *"runs: python3 -m ruff check"* ]]
+}
+
+@test "ws orient: cloned component without an adapter prints the wire-it hint" {
+    _seed_realm_and_component bareclone
+    # No adapter file. The orient output should call this out
+    # explicitly so the unwired state is discoverable, not silent.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"bareclone"* ]]
+    [[ "$output" == *"no test/lint adapter"* ]]
+    [[ "$output" == *"realm-fixture/adapters/bareclone.yaml"* ]]
+}
+
+@test "ws orient: components section is present even when no clones exist" {
+    # init_workspace alone — no components cloned. Section must
+    # still be emitted with a clear "(no components cloned)"
+    # status so agents can distinguish "section was rendered but
+    # empty" from "section is missing because of a regression."
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Components"* ]]
+    [[ "$output" == *"no components cloned"* ]]
+}

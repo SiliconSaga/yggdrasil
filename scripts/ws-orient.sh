@@ -86,6 +86,65 @@ resolve|generating ArgoCD Application manifests from declared components
 SURVEY
 }
 
+# Per-component adapter enumeration with the resolved command
+# surfaced. The "runs:" form is the adapter-trust mitigation from
+# the design (§ Adapter trust): when `ws test` runs, the actual
+# command the wrapper dispatches must be auditable from `ws orient`
+# output. Otherwise the wrapper hides the executable-config surface.
+#
+# Discovery: iterate $COMPONENTS_DIR/*/ that look cloned (any .git
+# entry — handles both real .git dirs and worktree-pointer .git
+# files). For each, look up the realm-side adapter at
+# realms/<active>/adapters/<comp>.yaml and surface what's wired.
+emit_component_adapters() {
+    printf '\nComponents (cloned) — adapter wiring:\n'
+    local active_realm
+    active_realm="$(ws_detect_realm)"
+
+    local found=0 comp_dir comp
+    if [[ -d "$COMPONENTS_DIR" ]]; then
+        for comp_dir in "$COMPONENTS_DIR"/*/; do
+            [[ -d "$comp_dir" ]] || continue
+            [[ -e "$comp_dir/.git" ]] || continue
+            comp="$(basename "$comp_dir")"
+            _emit_one_adapter "$comp" "$active_realm"
+            found=1
+        done
+    fi
+    if [[ $found -eq 0 ]]; then
+        echo "  (no components cloned)"
+    fi
+}
+
+# Render one component's adapter wiring. Walks the three plan-named
+# verbs explicitly (test/lint/build) so a typo in the YAML doesn't
+# silently swallow a missing slot — the diagnostic message stays
+# loud either way.
+_emit_one_adapter() {
+    local comp="$1" active_realm="$2"
+    echo "  $comp"
+    local adapter_file=""
+    if [[ -n "$active_realm" ]]; then
+        adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
+    fi
+    if [[ -z "$adapter_file" || ! -f "$adapter_file" ]]; then
+        local hint="realms/${active_realm:-<active>}/adapters/$comp.yaml"
+        echo "    no test/lint adapter (wire: $hint)"
+        return
+    fi
+    local verb cmd any=0
+    for verb in test lint build; do
+        cmd="$(yq -r ".commands.$verb // \"\"" "$adapter_file" 2>/dev/null)"
+        if [[ -n "$cmd" && "$cmd" != "null" ]]; then
+            printf '    ws %s [runs: %s]\n' "$verb" "$cmd"
+            any=1
+        fi
+    done
+    if [[ $any -eq 0 ]]; then
+        echo "    (adapter present but no commands.{test,lint,build} wired)"
+    fi
+}
+
 # Active realm — same detection logic gdd-orientation Step 0c uses
 # (ecosystem.local.yaml `realm:` selector, else a single realm-*).
 # Prints a status line + pointer to the realm's AGENTS.md guide; the
@@ -113,7 +172,7 @@ echo "Workspace toolset (\`ws orient\`)"
 
 emit_subcommand_survey
 emit_active_realm
+emit_component_adapters
 
 echo ""
-echo "(Phase 1 Task 4 in progress — adapter enumeration + skill index"
-echo "land in sub-steps 4d-4e.)"
+echo "(Phase 1 Task 4 in progress — skill index lands in sub-step 4e.)"
