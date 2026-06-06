@@ -209,3 +209,59 @@ YAML
     [[ "$output" == *"Skills"* ]]
     [[ "$output" == *"no skills"* ]]
 }
+
+# ─── resilience: ambiguous realm + malformed YAML survive ───────────
+
+@test "ws orient: ambiguous realm renders a clear status, not a hard exit" {
+    # ws_detect_realm exits 1 when multiple non-template realm-*
+    # dirs are present and no ecosystem.local.yaml `realm:` selector
+    # picks one. Orient should catch that, render an "ambiguous"
+    # status with the resolution hint, and continue rendering the
+    # rest of the output — not die mid-section.
+    mkdir -p "$WORK/realms/realm-alpha" "$WORK/realms/realm-beta"
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm: ambiguous"* ]]
+    [[ "$output" == *"ecosystem.local.yaml"* ]]
+    # Subsequent sections must still render — Skills header proves
+    # we didn't bail at the realm step.
+    [[ "$output" == *"Skills"* ]]
+}
+
+@test "ws orient: malformed adapter YAML does not abort orient" {
+    _seed_realm_and_component badyaml
+    # Garbage YAML — yq will fail to parse. With strict mode, an
+    # unguarded yq call would propagate the failure and kill orient
+    # mid-render. The component should still appear with a clear
+    # diagnostic, and following sections must still render.
+    cat > "$WORK/realms/realm-fixture/adapters/badyaml.yaml" <<'YAML'
+commands:
+  test: "missing close quote
+YAML
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"badyaml"* ]]
+    [[ "$output" == *"Skills"* ]]
+}
+
+@test "ws orient: malformed skill frontmatter does not abort orient" {
+    # SKILL.md with broken frontmatter — yq fails on the parse.
+    # Orient should fall back to the dir name (already done) and
+    # keep walking; other skills must still appear.
+    mkdir -p "$WORK/.agent/skills/broken-skill"
+    cat > "$WORK/.agent/skills/broken-skill/SKILL.md" <<'MD'
+---
+name: broken-skill
+description: "unterminated quote
+---
+
+# broken-skill
+MD
+    _seed_skill "$WORK/.agent/skills" sibling-skill "Should still appear despite the sibling's broken frontmatter."
+    run_ws orient
+    [ "$status" -eq 0 ]
+    # The good skill's description must still render — proves orient
+    # didn't abort mid-walk over the broken sibling.
+    [[ "$output" == *"sibling-skill"* ]]
+    [[ "$output" == *"Should still appear"* ]]
+}

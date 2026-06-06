@@ -99,6 +99,29 @@ resolve|generating ArgoCD Application manifests from declared components
 SURVEY
 }
 
+# Resolve the active realm once for the whole orient run, classifying
+# the result so each emit_* function consumes a stable state rather
+# than re-invoking ws_detect_realm (which exits 1 on multi-realm —
+# without this catch, the rest of orient never renders).
+#
+# Status values: ok | none | ambiguous
+_ORIENT_REALM=""
+_ORIENT_REALM_STATUS="none"
+_resolve_orient_realm() {
+    local rc=0
+    _ORIENT_REALM="$(ws_detect_realm 2>/dev/null)" || rc=$?
+    if [[ $rc -ne 0 ]]; then
+        _ORIENT_REALM=""
+        _ORIENT_REALM_STATUS="ambiguous"
+        return
+    fi
+    if [[ -n "$_ORIENT_REALM" ]]; then
+        _ORIENT_REALM_STATUS="ok"
+    else
+        _ORIENT_REALM_STATUS="none"
+    fi
+}
+
 # Per-component adapter enumeration with the resolved command
 # surfaced. The "runs:" form is the adapter-trust mitigation from
 # the design (§ Adapter trust): when `ws test` runs, the actual
@@ -111,8 +134,6 @@ SURVEY
 # realms/<active>/adapters/<comp>.yaml and surface what's wired.
 emit_component_adapters() {
     printf '\nComponents (cloned) — adapter wiring:\n'
-    local active_realm
-    active_realm="$(ws_detect_realm)"
 
     local found=0 comp_dir comp
     if [[ -d "$COMPONENTS_DIR" ]]; then
@@ -120,7 +141,7 @@ emit_component_adapters() {
             [[ -d "$comp_dir" ]] || continue
             [[ -e "$comp_dir/.git" ]] || continue
             comp="$(basename "$comp_dir")"
-            _emit_one_adapter "$comp" "$active_realm"
+            _emit_one_adapter "$comp" "$_ORIENT_REALM"
             found=1
         done
     fi
@@ -145,15 +166,24 @@ _emit_one_adapter() {
         echo "    no test/lint adapter (wire: $hint)"
         return
     fi
-    local verb cmd any=0
+    local verb cmd rc=0 any=0 parse_failed=0
     for verb in test lint build; do
-        cmd="$(yq -r ".commands.$verb // \"\"" "$adapter_file" 2>/dev/null)"
+        rc=0
+        cmd="$(yq -r ".commands.$verb // \"\"" "$adapter_file" 2>/dev/null)" || rc=$?
+        if [[ $rc -ne 0 ]]; then
+            # Don't let one malformed adapter file abort the whole
+            # orient run — surface a diagnostic, keep walking.
+            parse_failed=1
+            continue
+        fi
         if [[ -n "$cmd" && "$cmd" != "null" ]]; then
             printf '    ws %s [runs: %s]\n' "$verb" "$cmd"
             any=1
         fi
     done
-    if [[ $any -eq 0 ]]; then
+    if [[ $parse_failed -eq 1 ]]; then
+        echo "    (adapter present but YAML parse failed — fix $adapter_file)"
+    elif [[ $any -eq 0 ]]; then
         echo "    (adapter present but no commands.{test,lint,build} wired)"
     fi
 }
@@ -166,15 +196,12 @@ _emit_one_adapter() {
 # dozens of skills.
 emit_skill_index() {
     printf '\nSkills (workspace + active realm):\n'
-    local active_realm
-    active_realm="$(ws_detect_realm)"
-
     local any=0
     if [[ -d "$ROOT_DIR/.agent/skills" ]]; then
         _emit_skills_in "$ROOT_DIR/.agent/skills" "workspace" && any=1
     fi
-    if [[ -n "$active_realm" && -d "$REALMS_DIR/$active_realm/.agent/skills" ]]; then
-        _emit_skills_in "$REALMS_DIR/$active_realm/.agent/skills" "realm:$active_realm" && any=1
+    if [[ -n "$_ORIENT_REALM" && -d "$REALMS_DIR/$_ORIENT_REALM/.agent/skills" ]]; then
+        _emit_skills_in "$REALMS_DIR/$_ORIENT_REALM/.agent/skills" "realm:$_ORIENT_REALM" && any=1
     fi
     if [[ $any -eq 0 ]]; then
         echo "  (no skills found in workspace or active realm)"
@@ -194,8 +221,11 @@ _emit_skills_in() {
         # document in a multi-doc stream by default, which on
         # SKILL.md files (front-matter only at the top) yields the
         # frontmatter map directly without a body read.
-        name="$(yq -r '.name // ""' "$skill_file" 2>/dev/null)"
-        description="$(yq -r '.description // ""' "$skill_file" 2>/dev/null)"
+        # Tolerate malformed frontmatter — fall back to the dir
+        # name and an empty description rather than aborting the
+        # whole walk over one broken SKILL.md.
+        name="$(yq -r '.name // ""' "$skill_file" 2>/dev/null)" || name=""
+        description="$(yq -r '.description // ""' "$skill_file" 2>/dev/null)" || description=""
         # Fallback to the dir name if the frontmatter is missing /
         # malformed so the row still surfaces something useful.
         [[ -z "$name" || "$name" == "null" ]] && name="$(basename "$(dirname "$skill_file")")"
@@ -214,18 +244,25 @@ _emit_skills_in() {
 # (ecosystem.local.yaml `realm:` selector, else a single realm-*).
 # Prints a status line + pointer to the realm's AGENTS.md guide; the
 # realm's skill enumeration lands separately in 4e so the index
-# duties stay in one place.
+# duties stay in one place. Consumes the cached _ORIENT_REALM state
+# resolved by _resolve_orient_realm so the multi-realm exit-1 case
+# is rendered as a clear status, not propagated as a script crash.
 emit_active_realm() {
     printf '\n'
-    local active_realm
-    active_realm="$(ws_detect_realm)"
-    if [[ -z "$active_realm" ]]; then
-        echo "Active realm: none"
-        echo "  Adopt one with \`ws realm <git-url>\` or scaffold the tutorial via \`ws realm init\`."
-        return
-    fi
-    echo "Active realm: $active_realm"
-    local realm_agents="$REALMS_DIR/$active_realm/AGENTS.md"
+    case "$_ORIENT_REALM_STATUS" in
+        ambiguous)
+            echo "Active realm: ambiguous (multiple non-template realms found)"
+            echo "  Set \`realm: <name>\` in ecosystem.local.yaml to pick one."
+            return
+            ;;
+        none)
+            echo "Active realm: none"
+            echo "  Adopt one with \`ws realm <git-url>\` or scaffold the tutorial via \`ws realm init\`."
+            return
+            ;;
+    esac
+    echo "Active realm: $_ORIENT_REALM"
+    local realm_agents="$REALMS_DIR/$_ORIENT_REALM/AGENTS.md"
     if [[ -f "$realm_agents" ]]; then
         echo "  Guide: $realm_agents"
     fi
@@ -234,6 +271,12 @@ emit_active_realm() {
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats
 # so a future rename surfaces the doc/help drift here first.
 echo "Workspace toolset (\`ws orient\`)"
+
+# Resolve realm state once so emit_active_realm + emit_component_adapters
+# + emit_skill_index can all consume the same answer without re-invoking
+# ws_detect_realm (which exits 1 on multi-realm and would otherwise
+# kill orient mid-render).
+_resolve_orient_realm
 
 emit_subcommand_survey
 emit_active_realm
