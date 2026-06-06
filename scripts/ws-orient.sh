@@ -46,9 +46,52 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
     orient_help
 fi
 
+# Subcommand survey — authored per the plan (Task 4b). The "use when"
+# phrasing is judgment that lives here, in one place, not scattered
+# across each subcommand script. Format is `name|use-when` so the
+# table stays trivially editable; a future `--json` or `--names-only`
+# flag can re-emit the same rows in a different shape.
+emit_subcommand_survey() {
+    printf '\n%s\n' "Subcommands (name — use when …):"
+    while IFS='|' read -r name use_when; do
+        # Skip blank lines + comment rows so the heredoc can carry
+        # section dividers without polluting output.
+        [[ -z "$name" || "$name" == \#* ]] && continue
+        printf '  %-18s — %s\n' "$name" "$use_when"
+    done <<'SURVEY'
+list|surveying what's declared in the ecosystem (clones, tiers, repos)
+orient|starting a session, recovering from compaction, or switching tasks
+status|checking git state across every cloned component at a glance
+clone|materializing a component locally (clone-fork for cross-org forks)
+pull|refreshing every cloned component from its remote
+commit|finalizing a change — required to attach Co-Authored-By + bodyfile
+test|running the component's test suite via its adapter
+lint|running the component's linter via its adapter
+push|sending a topic branch to your fork remote
+cr|opening a code-review request (PR / MR) from the current branch
+review|triaging review comments + resolving threads on an open CR
+issue|filing a tracker issue with a bodyfile + labels
+log|checking what commits are on the current branch versus main
+clean|sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/
+exec|running a one-off command inside a component dir
+actions|inspecting which adapter commands a component has wired
+realm|adopting or switching the active community config
+hoard|managing personal cross-workspace artifacts (thalami, vaults)
+component|scaffolding a new component from a template flavor
+preflight|verifying workspace prerequisites (bash, git, yq, jq, gh/glab)
+diagnose|investigating push/cr failures — remote + token coverage
+audit-permissions|reviewing your Bash allowlist for over-broad patterns
+gitlab-auth|configuring glab + git credentials from .env tokens
+resolve|generating ArgoCD Application manifests from declared components
+SURVEY
+}
+
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats
 # so a future rename surfaces the doc/help drift here first.
 echo "Workspace toolset (\`ws orient\`)"
+
+emit_subcommand_survey
+
 echo ""
-echo "(Phase 1 Task 4 scaffold — subcommand survey, active realm,"
-echo "adapter enumeration, and skill index land in sub-steps 4b-4e.)"
+echo "(Phase 1 Task 4 in progress — active realm, adapter enumeration,"
+echo "and skill index land in sub-steps 4c-4e.)"

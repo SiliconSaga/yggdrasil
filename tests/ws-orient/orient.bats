@@ -44,3 +44,25 @@ setup() {
     # where orient grows expensive (e.g. tree-walks every component).
     [ "$status" -ne 124 ]
 }
+
+# ─── 4b — subcommand survey ─────────────────────────────────────────
+
+@test "ws orient: prints a subcommand survey with the 'use when' phrase" {
+    run_ws orient
+    [ "$status" -eq 0 ]
+    # The plan specifies the 'use when' framing for each row — pin
+    # the literal so a future cosmetic rephrase surfaces here first.
+    [[ "$output" == *"use when"* ]]
+}
+
+@test "ws orient: subcommand survey lists the headline verbs (commit, test, lint, orient)" {
+    # Plan-mandated rows (Task 4b assertions). Other rows live in
+    # the authored survey table and can drift; these four are
+    # pinned because they're the verbs the surrounding plan tasks
+    # (5/6/7/8) revolve around.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    for verb in commit test lint orient; do
+        [[ "$output" == *"$verb"* ]] || { echo "missing survey row: $verb"; return 1; }
+    done
+}
