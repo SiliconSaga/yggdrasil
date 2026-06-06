@@ -713,6 +713,9 @@ case "$COMMAND" in
     list)
         bash "$SCRIPT_DIR/ws-list.sh" "$@"
         ;;
+    orient)
+        bash "$SCRIPT_DIR/ws-orient.sh" "$@"
+        ;;
     status)
         bash "$SCRIPT_DIR/ws-status.sh" "$@"
         ;;
