@@ -61,7 +61,7 @@ Two things make an arc publishable:
 The destination is team-visible, so a single mis-applied tag must never leak a sensitive note. Publishing a note requires it to pass **all three** gates:
 
 1. **Association** — the note carries `#team/<arc-id>` for an arc that is itself `published: true`.
-2. **Denylist (machine backstop)** — the note is not excluded. A note carrying an exclusion tag (`#private` / `#noteam`, configurable) or matching a configured exclude-glob is **never** copied, even if it bears the association tag. The denylist wins over the tag. (An allowlist mode — only sweep notes under a designated publishable folder — is an alternative the plan can offer; denylist is the default.)
+2. **Denylist (machine backstop)** — the note is not excluded. A note carrying an exclusion tag (`#private` / `#noteam`, configurable) or matching a configured exclude-glob is **never** copied, even if it bears the association tag — recognized either inline (`#private`) or as a frontmatter `tags:` list item (`- private`); a bare prose mention of the word is not enough. The denylist wins over the tag. (An allowlist mode — only sweep notes under a designated publishable folder — is an alternative the plan can offer; denylist is the default.)
 3. **Human confirm (human backstop)** — `ws thalami publish` lists every file it will copy, with full source and destination paths, and waits for confirmation before writing anything.
 
 Neither gate is trusted alone: the denylist catches mis-tagging mechanically, the confirm catches everything else.

@@ -141,3 +141,12 @@ setup() { init_publish_workspace; }
     run_publish --yes
     [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/v2.md" ]
 }
+
+@test "publish sweeps an inline-flow frontmatter tag (tags: [team/...])" {
+    mkdir -p "$HOARDS_DIR/obsidian-Cervator/proj"
+    printf -- '---\ntags: [team/observability-improvements]\n---\n# Note\n' \
+        > "$HOARDS_DIR/obsidian-Cervator/proj/flow.md"
+    run_publish --yes
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/flow.md" ]
+}
