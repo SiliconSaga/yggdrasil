@@ -708,6 +708,45 @@ if [[ ( "$COMMAND" == "help" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ) &
     set -- "--help" "$@"
 fi
 
+# Detect a help variant in the remaining args so the post-dispatch
+# footer can suppress for per-subcommand help (e.g. `ws hoard --help`)
+# the same way it suppresses for the top-level help command.
+_WS_IS_HELP=0
+for _arg in "$@"; do
+    case "$_arg" in --help|-h|help) _WS_IS_HELP=1; break ;; esac
+done
+
+# One-line stderr nudge appended after every successful subcommand
+# dispatch — keeps the `ws orient` meta-rule discoverable for both
+# humans and agents who entered mid-session without reading
+# AGENTS.md. Stderr so it never contaminates captured stdout (e.g.
+# `var=$(ws log --oneline)`). Suppressed for orient itself (no
+# recursive recommendation), for help variants (the user is reading,
+# not doing), and via the WS_FOOTER_DISABLE env var (agents and
+# scripts that want quiet output). With `set -e` enabled at the top
+# of this file, the footer naturally doesn't fire on error paths —
+# the script exits before reaching the call.
+_ws_footer() {
+    # Explicit opt-out for agents and scripts that want quiet
+    # stderr from every ws subcommand.
+    [[ -n "${WS_FOOTER_DISABLE:-}" ]] && return 0
+    # Auto-skip in bats test runs so output-shape assertions across
+    # the bats suite don't pick up the stderr footer as noise. The
+    # footer's purpose is human/agent discoverability mid-session;
+    # automated tests are neither. Footer-focused tests opt back in
+    # by clearing `BATS_TEST_NAME` for the child process via
+    # `env -u BATS_TEST_NAME ...`.
+    [[ -n "${BATS_TEST_NAME:-}" ]] && return 0
+    case "$COMMAND" in
+        orient|help|--help|-h) return 0 ;;
+    esac
+    [[ "$_WS_IS_HELP" -eq 1 ]] && return 0
+    # Dim ANSI so the line is visually subordinate to the
+    # subcommand's own output, but the text stays readable in
+    # non-color terminals and captured logs.
+    printf $'\e[2m↪ switching tasks? `ws orient` lists the toolset for what is here.\e[0m\n' >&2
+}
+
 case "$COMMAND" in
     help|--help|-h)
         ws_help
@@ -804,3 +843,5 @@ case "$COMMAND" in
         exit 1
         ;;
 esac
+
+_ws_footer
