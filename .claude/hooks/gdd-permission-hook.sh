@@ -39,12 +39,12 @@
 #
 # This script is security-sensitive: a permissive pattern here lets
 # the agent skip user confirmation for commands matching that pattern.
-# Keep deny logic conservative (Tiers 1-2 below) and allow logic narrow
-# (Tiers 4-5). Note Tier 1 (composition) is an unconditional deny, while
-# Tier 2 (redirect) is a training-aid deny with a human-approved bypass —
-# do not treat Tier 2 as a hard security floor. When uncertain, default to
-# passthrough — the harness's own prompt is the safety net, not a fallback
-# to be eliminated.
+# Keep deny logic conservative (Tiers 1-3 below) and allow logic narrow
+# (Tiers 5-6). Note Tier 1 (composition) is an unconditional deny, while
+# Tiers 2 and 3 (redirect + adapter-redirect) are training-aid denies
+# with human-approved bypass — do not treat them as a hard security
+# floor. When uncertain, default to passthrough — the harness's own
+# prompt is the safety net, not a fallback to be eliminated.
 #
 # ─── DECISION TIERS (in order) ──────────────────────────────────────
 #
@@ -73,16 +73,29 @@
 #   BYPASS-ALLOW to the audit log
 #   with the slug + optional reason.
 #
-# Tier 3 — Ask-list from hook-rules [ask-commands] (ASK)
+# Tier 3 — Adapter-aware redirect (DENY-OR-NUDGE, with per-slug bypass)
+#   Commands matching an [adapter-redirect-commands] entry route based
+#   on whether the realm's adapter file declares the verb wired:
+#     - $cwd inside components/<comp>/ AND adapter has commands.<verb>
+#       → DENY with a `ws <verb> <comp>` pointer (same bypass-marker
+#       shape as Tier 2).
+#     - $cwd inside components/<comp>/ AND adapter missing or no
+#       commands.<verb> → emit one stderr nudge, fall through to
+#       later tiers (the agent's allowlist may still let the raw
+#       command run).
+#     - $cwd outside any component → rule doesn't fire (workspace-
+#       level raw runner invocations are left alone).
+#
+# Tier 4 — Ask-list from hook-rules [ask-commands] (ASK)
 #   Destructive commands that should always prompt, even under
 #   acceptEdits. Any match → ask.
 #
-# Tier 4 — Per-project allowlist from .claude/settings.json (ALLOW)
+# Tier 5 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
 #   too. Glob-match each pattern against the command. Any match → allow.
 #
-# Tier 5 — [allow-extras] from hook-rules.local (ALLOW, optional)
+# Tier 6 — [allow-extras] from hook-rules.local (ALLOW, optional)
 #   Personal per-machine glob patterns declared in hook-rules.local's
 #   [allow-extras] section. Parsed into allow_extras above. Any
 #   match → allow. Silently absent if hook-rules.local has no section.
@@ -293,7 +306,7 @@ deny() {
 }
 
 # ask() — force a permission prompt without blocking. Used by the
-# Tier 3 ask-list for destructive-but-sometimes-legitimate commands.
+# Tier 4 ask-list for destructive-but-sometimes-legitimate commands.
 # Unlike deny(), the agent can still run the command once the human
 # approves; unlike allow(), it never auto-runs. The `ask` decision
 # overrides the harness's permission mode — it prompts even under
@@ -326,11 +339,13 @@ ask() {
 # Parsed by pure bash — no yq/jq dependency for config. Four sections:
 #   [scratch-dirs]      — Edit/Write auto-allow path prefixes (Tier consumer)
 #   [redirect-commands] — Tier 2 redirect-deny entries (slug | pattern | suggestion)
-#   [ask-commands]      — Tier 3 ask-list glob patterns
-#   [allow-extras]      — Tier 5 allow glob patterns (hook-rules.local ONLY;
+#   [adapter-redirect-commands] — Tier 3 adapter-aware deny-or-nudge entries
+#                          (slug | pattern | verb)
+#   [ask-commands]      — Tier 4 ask-list glob patterns
+#   [allow-extras]      — Tier 6 allow glob patterns (hook-rules.local ONLY;
 #                         an [allow-extras] section in the committed hook-rules
 #                         is silently inert — only per-machine local files may
-#                         grant Tier 5 allows)
+#                         grant Tier 6 allows)
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
@@ -823,7 +838,7 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     fi
 done
 
-# ─── Tier 2.5: Adapter-aware redirect — raw test/lint runners ───────
+# ─── Tier 3: Adapter-aware redirect — raw test/lint runners ─────────
 #
 # When a [adapter-redirect-commands] pattern matches AND the agent's
 # $cwd resolves to a component under $project_root/components/<comp>/,
@@ -934,20 +949,20 @@ for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"};
             # Break after the first unwired match so an overlapping
             # glob in hook-rules doesn't emit a second nudge / audit
             # entry for the same command (Copilot finding on PR #90).
-            # The break exits this for loop; later tiers (Tier 3
-            # ask-list, allow evaluation, passthrough prompt) still
-            # run because we didn't emit a JSON decision or exit.
+            # The break exits this for loop; later tiers (Tier 4
+            # ask-list, Tier 5-6 allow evaluation, passthrough prompt)
+            # still run because we didn't emit a JSON decision or exit.
             break
         fi
     fi
 done
 
-# ─── Tier 3: Ask-list — force a prompt for destructive commands ─────
+# ─── Tier 4: Ask-list — force a prompt for destructive commands ─────
 #
 # A match emits `ask`: the harness prompts regardless of permission
 # mode (acceptEdits included), but the agent may still run the command
 # once the human approves. The ask-list is a safety FLOOR — it is
-# checked before the Tier 4/5 allow logic, so a destructive command
+# checked before the Tier 5/6 allow logic, so a destructive command
 # prompts even if some allowlist entry would otherwise pass it.
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     # shellcheck disable=SC2053
@@ -995,7 +1010,7 @@ for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     fi
 done
 
-# ─── Tier 4: Match against settings.json `permissions.allow` ────────
+# ─── Tier 5: Match against settings.json `permissions.allow` ────────
 #
 # Walk up from $cwd looking for .claude/settings.json files. Closer
 # files (project-specific) come first; the user-level file at
@@ -1068,7 +1083,7 @@ while IFS= read -r raw; do
     fi
 done < <(collect_patterns)
 
-# ─── Tier 5: Allow via [allow-extras] from hook-rules.local ─────────
+# ─── Tier 6: Allow via [allow-extras] from hook-rules.local ─────────
 #
 # Personal allow-patterns the user trusts on this machine — declared
 # in the [allow-extras] section of hook-rules.local (gitignored,

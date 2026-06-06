@@ -16,7 +16,7 @@ bats (`gdd-permission-hook.bats`) verifies the hook's *output*. It cannot verify
 |---|---------|-----------------|
 | 1 | `rm -rf .tmp/acceptance-probe` | `ask` prompt — reason mentions the ask-list **and** carries the symlink caution |
 | 2 | `git -C .tmp/acceptance-repo reset --hard HEAD` | `ask` prompt — reason mentions the ask-list, **no** symlink caution |
-| 3 | `ls -la` | **not** an ask prompt. Three valid paths: Tier 4 silent auto-allow (if `ls *` is in `[allow-extras]`), normal harness prompt, or silent allow from Claude Code's session-scoped read trust if the harness has already accepted reads against the directory. The shape of the user-facing response varies; the invariant to verify is in the audit log — see "Confirmation" below. |
+| 3 | `ls -la` | **not** an ask prompt. Three valid paths: Tier 6 silent auto-allow (if `ls *` is in `[allow-extras]`), normal harness prompt, or silent allow from Claude Code's session-scoped read trust if the harness has already accepted reads against the directory. The shape of the user-facing response varies; the invariant to verify is in the audit log — see "Confirmation" below. |
 | 4 | `echo hi && echo bye` | composition **deny** — blocked with the shell-composition message, NOT an ask |
 | 5 | `rm -rf .tmp/acceptance-probe-2` | `ask` prompt **still appears** despite `acceptEdits` mode — the core regression check |
 

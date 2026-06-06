@@ -45,9 +45,9 @@ git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-r
 gh-pr-create | gh pr create*  | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions, picks the right token + remote. `ws hook-bypass gh-pr-create` for a session-scoped bypass.
 
 [adapter-redirect-commands]
-# Raw test/lint/build runners with a ws equivalent. The hook resolves
-# the component from $cwd (must be under components/<comp>/) and the
-# active realm, then checks the realm's adapter file at
+# Tier 3 — raw test/lint/build runners with a ws equivalent. The hook
+# resolves the component from $cwd (must be under components/<comp>/)
+# and the active realm, then checks the realm's adapter file at
 # realms/<realm>/adapters/<comp>.yaml:
 #
 #   adapter has commands.<verb> wired → deny with ws <verb> <comp> pointer

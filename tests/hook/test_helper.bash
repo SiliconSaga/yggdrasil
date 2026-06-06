@@ -169,7 +169,7 @@ run_hook_with_session() {
 }
 
 # Set up an active realm + component dir under $WORK so the adapter-
-# aware redirect tier (Tier 2.5) has something to resolve.
+# aware redirect tier (Tier 3) has something to resolve.
 #   $1 — component name (e.g. "knarrlike")
 #   $2 — adapter content (multi-line YAML); empty string = no adapter
 #         file written at all (the "unwired" case where the file is

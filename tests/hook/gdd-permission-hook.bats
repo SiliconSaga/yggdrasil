@@ -4,14 +4,15 @@
 #
 # Coverage:
 #   - Tier 1: deny shell composition (each operator) with specific reason
-#   - Tier 2: ask-tier — destructive commands matching [ask-commands]
-#   - Tier 3: allow via project .claude/settings.json
+#   - Tier 2: redirect-deny for raw commands with a `ws` wrapper
+#   - Tier 3: adapter-aware deny/nudge for raw test/lint runners
+#   - Tier 4: ask-tier — destructive commands matching [ask-commands]
+#   - Tier 5: allow via project .claude/settings.json
 #       - bare command vs verbose pattern (symmetric normalization)
 #       - verbose command vs bare pattern (symmetric normalization)
 #       - CRLF line endings in settings.json don't break matching
-#   - Tier 3: allow via settings.json `permissions.allow` (unchanged logic)
-#   - Tier 4: allow via [allow-extras] section of hook-rules.local
-#   - Tier 4: legacy safe-bash-extras file is ignored (no longer consulted)
+#   - Tier 6: allow via [allow-extras] section of hook-rules.local
+#   - legacy safe-bash-extras file is ignored (no longer consulted)
 #   - Passthrough: no match → exit 0 with no JSON
 #   - WS_HOOK_DISABLE bypass
 #   - Timeout safety: no infinite loops on Windows-style absolute paths
@@ -205,7 +206,7 @@ setup() {
     [[ "$output" == *"File-descriptor merges"* ]]
 }
 
-# ─── Tier 3: symmetric normalization against settings.json ──────────
+# ─── Tier 5: symmetric normalization against settings.json ──────────
 
 @test "allow via settings: bare command matches verbose pattern" {
     write_project_settings 'Bash(bash scripts/ws status)'
@@ -248,7 +249,7 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# ─── Tier 4: [allow-extras] from hook-rules.local ───────────────────
+# ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
 
 @test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {
     write_project_hook_rules ""
@@ -481,7 +482,7 @@ figlet *"
     [ "$status" -ne 124 ]
 }
 
-# ─── Tier 2: ask-list ───────────────────────────────────────────────
+# ─── Tier 4: ask-list ───────────────────────────────────────────────
 
 @test "ask: rm -rf matches the baseline ask-list and emits ask" {
     write_project_hook_rules "[ask-commands]
@@ -594,7 +595,7 @@ rm -rf*"
     [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
 }
 
-# ─── Tier 4 vs legacy safe-bash-extras ──────────────────────────────
+# ─── Tier 6 vs legacy safe-bash-extras ──────────────────────────────
 
 @test "allow-extras: a hook-rules.local [allow-extras] pattern allows" {
     write_project_hook_rules ""
@@ -759,7 +760,7 @@ EOF
     [[ "$output" != *"Use ws commit"* ]]
 }
 
-# ─── Tier 2.5 — adapter-aware test/lint redirects (Task 6) ──────────
+# ─── Tier 3 — adapter-aware test/lint redirects (Task 6) ────────────
 
 # When `[adapter-redirect-commands]` matches (pytest, ruff, etc.) and
 # $cwd resolves to a component with a wired adapter, the hook denies
@@ -834,7 +835,7 @@ EOF
     seed_adapter_fixture "barecomp" ""
     run_hook 'pytest tests/' "$WORK/components/barecomp"
     [ "$status" -eq 0 ]
-    # Falls through — no deny / no allow emitted by Tier 2.5.
+    # Falls through — no deny / no allow emitted by Tier 3.
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
     # Nudge on stderr — bats `run` merges fd1+fd2, so the message is
     # visible in $output even though it's printed to stderr.
@@ -920,7 +921,7 @@ EOF
     write_project_settings "Bash(ls *)"
     run_hook "ls -la"
     [ "$status" -eq 0 ]
-    # Settings.json allow at Tier 4 should still match
+    # Settings.json allow at Tier 5 should still match
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
@@ -992,7 +993,7 @@ EOF
     [[ "$output" == *"Shell composition"* ]]
 }
 
-@test "bypass: marker does NOT override Tier 3 ask-list" {
+@test "bypass: marker does NOT override Tier 4 ask-list" {
     write_project_hook_rules "$(cat <<'EOF'
 [redirect-commands]
 git-commit | git commit* | Use ws commit
@@ -1031,7 +1032,7 @@ gh-pr-create | gh pr create* | Use ws cr
 ws hook-bypass [a-z]*
 EOF
 )"
-    # Each known slug invocation should hit Tier 3 ask, NOT Tier 2 deny.
+    # Each known slug invocation should hit Tier 4 ask, NOT Tier 2 deny.
     for slug in git-commit git-push gh-pr-create; do
         echo "# testing slug: $slug"   # surfaces which iteration failed
         run_hook "ws hook-bypass $slug"
