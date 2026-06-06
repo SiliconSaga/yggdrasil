@@ -69,11 +69,14 @@ _wt_sweep() {
     local vault="$1" arc_id="$2" f rel
     while IFS= read -r f; do
         [[ -n "$f" ]] || continue
-        # denylist: skip notes carrying an exclusion tag
-        grep -qE '#private|#noteam' "$f" && continue
+        # Denylist: skip notes carrying an exclusion tag — inline #private/#noteam,
+        # or a frontmatter list item `- private` / `- noteam`. A bare prose word
+        # like "private" must NOT trigger exclusion, so we require the # (inline)
+        # or an exact YAML list-item line (frontmatter).
+        grep -qE '(^|[^A-Za-z0-9_/-])#(private|noteam)([^A-Za-z0-9_/-]|$)|^[[:space:]]*-[[:space:]]*(private|noteam)[[:space:]]*$' "$f" && continue
         rel="${f#"$vault"/}"
         echo "$rel"
-    done < <(grep -rlF "#team/$arc_id" "$vault" --include='*.md' 2>/dev/null | sort)
+    done < <(grep -rlE "(^|[^A-Za-z0-9_/-])#?team/$arc_id([^A-Za-z0-9_/-]|\$)" "$vault" --include='*.md' 2>/dev/null | sort)
 }
 
 ws_thalami_publish() {

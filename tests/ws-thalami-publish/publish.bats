@@ -108,3 +108,36 @@ setup() { init_publish_workspace; }
     [ "$status" -eq 0 ]
     [[ "$output" == *"notes/meeting1.md"* ]]
 }
+
+@test "publish sweeps a frontmatter (no-#) team tag" {
+    mkdir -p "$HOARDS_DIR/obsidian-Cervator/proj"
+    printf -- '---\ntags:\n  - team/observability-improvements\n---\n# Note\n' \
+        > "$HOARDS_DIR/obsidian-Cervator/proj/fm-note.md"
+    run_publish --yes
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/fm-note.md" ]
+}
+
+@test "publish skips a note with a frontmatter private tag" {
+    mkdir -p "$HOARDS_DIR/obsidian-Cervator/proj"
+    printf -- '---\ntags:\n  - team/observability-improvements\n  - private\n---\n# Secret\n' \
+        > "$HOARDS_DIR/obsidian-Cervator/proj/fm-secret.md"
+    run_publish --yes
+    [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/fm-secret.md" ]
+}
+
+@test "publish does not exclude a note that only mentions 'private' in prose" {
+    mkdir -p "$HOARDS_DIR/obsidian-Cervator/proj"
+    printf -- '---\ntags:\n  - team/observability-improvements\n---\n# Note\nThis cluster is private to the team.\n' \
+        > "$HOARDS_DIR/obsidian-Cervator/proj/prose.md"
+    run_publish --yes
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/prose.md" ]
+}
+
+@test "publish team-tag match respects boundaries (no prefix bleed)" {
+    mkdir -p "$HOARDS_DIR/obsidian-Cervator/proj"
+    printf -- '#team/observability-improvements-v2\n' \
+        > "$HOARDS_DIR/obsidian-Cervator/proj/v2.md"
+    run_publish --yes
+    [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/v2.md" ]
+}

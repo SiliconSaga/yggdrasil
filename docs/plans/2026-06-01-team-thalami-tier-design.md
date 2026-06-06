@@ -54,7 +54,7 @@ Publishing is **arc-anchored**: a doc is published *because* it belongs to a pub
 Two things make an arc publishable:
 
 1. **The flag.** The arc frontmatter gains `published: true`. This is a *flag*, orthogonal to `status` — a published arc keeps its real lifecycle status (`active`/`review`/…). It is deliberately **not** a new `status` value, both to avoid colliding with the existing terminal `promoted` status and to preserve the dashboard's status-driven decay vibes.
-2. **The doc tag.** Associated docs are collected by a **namespaced tag keyed to the arc id**: `#team/<arc-id>`, applied to **Vault notes** (not thalami-hoard files). The sync sweeps the Vault the active Thalamus points to for notes bearing that tag and mirrors copies of them into the team hoard under that arc. The arc id is already the stable cross-host slug, so this adds no bookkeeping; namespacing avoids a generic `#publish` tag bleeding across arcs, and un-publishing a single doc is just removing its tag.
+2. **The doc tag.** Associated docs are collected by a **namespaced tag keyed to the arc id**: `#team/<arc-id>`, applied to **Vault notes** (not thalami-hoard files). The sync sweeps the Vault the active Thalamus points to for notes bearing that tag and mirrors copies of them into the team hoard under that arc. The arc id is already the stable cross-host slug, so this adds no bookkeeping; namespacing avoids a generic `#publish` tag bleeding across arcs, and un-publishing a single doc is just removing its tag. The tag is recognized in either Obsidian form: a frontmatter `tags:` entry (`team/<arc-id>`, no `#`) or an inline `#team/<arc-id>` in the body.
 
 ### Privacy guardrails — copying to a shared repo is gated three ways
 

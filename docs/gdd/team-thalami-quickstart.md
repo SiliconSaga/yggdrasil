@@ -21,7 +21,7 @@ A minimal loop for promoting a personal arc to a shared team-thalami hoard.
 
 ## The loop
 
-1. Drop meeting notes as `.md` in the vault, each containing the tag line `#team/observability-improvements`. To keep a note out of the team hoard even if it carries that tag, add `#private` or `#noteam` — these are built-in exclusion tags the publish sweep always skips (you don't configure them).
+1. Tag a note for the arc — either in **frontmatter** (the Obsidian-idiomatic form, no `#`: a `tags:` list item `- team/observability-improvements`, or inline `tags: [team/observability-improvements]`) or as an **inline** `#team/observability-improvements` tag in the body. To keep a note out even if it carries the team tag, add a `private` or `noteam` tag (frontmatter `- private`, or inline `#private`) — built-in exclusion tags the sweep always skips (a bare mention of the word "private" in prose does not exclude).
 2. Preview: `ws thalami publish --dry-run`.
 3. Publish: `ws thalami publish` (review the file list, confirm), or `--yes` to skip the prompt.
 4. Look: open the team hoard's `TeamArcDashboard.md` in Obsidian; browse `team-thalami-cfr/<you>/observability-improvements/` for the mirrored notes.
