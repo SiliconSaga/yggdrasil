@@ -105,6 +105,14 @@ emit_subcommand_survey() {
 #   kind=func  → ref is a function name (e.g. ws_push)
 # Alias-group labels (help|--help|-h) and the catchall `*)` are
 # skipped — those aren't user-facing subcommand names.
+# Portability note: every awk script in this file sticks to POSIX-awk
+# constructs (regex match, sub, substr, RSTART/RLENGTH). The gawk-only
+# 3-arg array-capture form of match (where the third arg is a named
+# array that receives capture groups) is deliberately avoided so
+# orient stays functional under mawk and BSD awk — `ws orient` is now
+# a MUST-run on session start (per AGENTS.md), so any portability gap
+# here is a session-blocker on macOS / Linux distros that ship mawk
+# as the default awk. See scripts/ws-review.sh for the same precedent.
 _orient_parse_dispatch() {
     local ws_file="$1"
     [[ -f "$ws_file" ]] || return 0
@@ -115,18 +123,27 @@ _orient_parse_dispatch() {
         !in_case { next }
         # Match a bare label: `    name)` — leading whitespace,
         # lowercase-and-hyphen name, closing paren, no alias group.
-        match($0, /^[[:space:]]+([a-z][a-z0-9-]*)\)[[:space:]]*$/, m) {
-            pending = m[1]
+        /^[[:space:]]+[a-z][a-z0-9-]*\)[[:space:]]*$/ {
+            name = $0
+            sub(/^[[:space:]]+/, "", name)
+            sub(/\).*$/, "", name)
+            pending = name
             next
         }
         # Body line after a label: extract the handler shape.
+        # POSIX match() sets RSTART/RLENGTH for the whole match; we
+        # then peel the captured token off with substr() + sub().
         pending != "" {
             line = $0
             sub(/^[[:space:]]+/, "", line)
-            if (match(line, /bash "\$SCRIPT_DIR\/(ws-[a-z-]+\.sh)"/, sm)) {
-                printf "%s\tbash:%s\n", pending, sm[1]
-            } else if (match(line, /^(ws_[a-z_]+)/, fm)) {
-                printf "%s\tfunc:%s\n", pending, fm[1]
+            if (match(line, /bash "\$SCRIPT_DIR\/ws-[a-z-]+\.sh"/)) {
+                m = substr(line, RSTART, RLENGTH)
+                sub(/^bash "\$SCRIPT_DIR\//, "", m)
+                sub(/".*$/, "", m)
+                printf "%s\tbash:%s\n", pending, m
+            } else if (match(line, /^ws_[a-z_]+/)) {
+                m = substr(line, RSTART, RLENGTH)
+                printf "%s\tfunc:%s\n", pending, m
             }
             pending = ""
         }
@@ -147,15 +164,26 @@ _orient_find_use_when_script() {
         # Keyed form: `# ws:use-when:<name> <text>`. Only fires for
         # an exact name match; non-matching keyed markers are skipped
         # so a shared script can declare distinct text per subcommand.
-        match($0, /^#[[:space:]]*ws:use-when:([a-z][a-z0-9-]*)[[:space:]]+(.+)$/, m) {
-            if (m[1] == target) { print m[2]; exit }
+        # The bare-form rule below requires whitespace right after
+        # `ws:use-when`, so the colon in this pattern naturally
+        # disambiguates the two shapes — no extra guard needed.
+        /^#[[:space:]]*ws:use-when:[a-z][a-z0-9-]*[[:space:]]+/ {
+            line = $0
+            sub(/^#[[:space:]]*ws:use-when:/, "", line)
+            keyname = line
+            sub(/[[:space:]].*$/, "", keyname)
+            text = line
+            sub(/^[a-z][a-z0-9-]*[[:space:]]+/, "", text)
+            if (keyname == target) { print text; exit }
             next
         }
         # Bare form: `# ws:use-when <text>`. Applies to whatever the
-        # caller asked about. The keyed-form rule above already
-        # short-circuits keyed markers so we never confuse the two.
-        match($0, /^#[[:space:]]*ws:use-when[[:space:]]+(.+)$/, m) {
-            print m[1]; exit
+        # caller asked about.
+        /^#[[:space:]]*ws:use-when[[:space:]]+/ {
+            text = $0
+            sub(/^#[[:space:]]*ws:use-when[[:space:]]+/, "", text)
+            print text
+            exit
         }
     ' "$file"
 }
@@ -172,12 +200,23 @@ _orient_find_use_when_func() {
         in_func && /^}/ { exit }
         in_func {
             # See _orient_find_use_when_script for marker shape notes.
-            if (match($0, /^[[:space:]]*#[[:space:]]*ws:use-when:([a-z][a-z0-9-]*)[[:space:]]+(.+)$/, m)) {
-                if (m[1] == target) { print m[2]; exit }
+            # In-function markers carry leading whitespace from the
+            # function body indent, so the regexes here allow it.
+            if ($0 ~ /^[[:space:]]*#[[:space:]]*ws:use-when:[a-z][a-z0-9-]*[[:space:]]+/) {
+                line = $0
+                sub(/^[[:space:]]*#[[:space:]]*ws:use-when:/, "", line)
+                keyname = line
+                sub(/[[:space:]].*$/, "", keyname)
+                text = line
+                sub(/^[a-z][a-z0-9-]*[[:space:]]+/, "", text)
+                if (keyname == target) { print text; exit }
                 next
             }
-            if (match($0, /^[[:space:]]*#[[:space:]]*ws:use-when[[:space:]]+(.+)$/, m)) {
-                print m[1]; exit
+            if ($0 ~ /^[[:space:]]*#[[:space:]]*ws:use-when[[:space:]]+/) {
+                text = $0
+                sub(/^[[:space:]]*#[[:space:]]*ws:use-when[[:space:]]+/, "", text)
+                print text
+                exit
             }
         }
     ' "$ws_file"
