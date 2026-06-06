@@ -148,6 +148,24 @@ setup() {
     [[ "$output" != *"switching tasks"* ]]
 }
 
+@test "footer: no ANSI escape sequences when stderr isn't a terminal" {
+    # bats' `run` pipes stderr — !isatty(2) — so the footer must
+    # emit plain text. Captured logs / CI output / `2> file`
+    # redirects all hit this branch; raw escape sequences in those
+    # contexts are visible garbage. (Copilot finding on PR #90.)
+    run bash -c "env -u BATS_TEST_NAME $TIMEOUT_BIN 10 bash $WS_BIN status 2>$BATS_TEST_TMPDIR/stderr.txt"
+    [ "$status" -eq 0 ]
+    local stderr_content
+    stderr_content="$(cat "$BATS_TEST_TMPDIR/stderr.txt")"
+    [[ "$stderr_content" == *"switching tasks"* ]]
+    # The dim/reset ANSI sequence escape characters must NOT appear.
+    # $'\e' is the bash-evaluated escape literal; grep -F treats it
+    # as a fixed substring (no regex), so it triggers only on the
+    # actual ESC byte, not on the printable backslash-e form.
+    ! grep -qF $'\e[2m' "$BATS_TEST_TMPDIR/stderr.txt"
+    ! grep -qF $'\e[0m' "$BATS_TEST_TMPDIR/stderr.txt"
+}
+
 @test "ws hoard --help: exits 0 (subcommand-level help)" {
     run_ws hoard --help
     [ "$status" -eq 0 ]
