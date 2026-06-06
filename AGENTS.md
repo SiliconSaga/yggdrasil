@@ -10,9 +10,12 @@ This file is the **L0 menu** — the slim contract that loads into every session
 
 ## Session Start
 
-On every session start, after compaction, or when dispatched fresh:
+On every session start, after compaction, or when dispatched fresh, you **MUST** do BOTH:
 
-**Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence.
+1. **Execute `ws orient`** for initial discovery of workspace utilities, the active realm, per-component adapter wiring, and the skill index. This is the deterministic answer to "what's here right now?" — verbs, realm, adapters, skills.
+2. **Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence — Thalamus parsing, trust verification, mode/role setup, staleness checks.
+
+`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids.
 
 Two conventions you need before anything else:
 
@@ -47,7 +50,7 @@ The adapter wiring per component lives in `realms/<active>/adapters/<comp>.yaml`
 
 ## ws orient — the L1 discovery surface
 
-For anything not covered above — what subcommands exist, what the active realm is, which components are cloned, which skills are available — run `ws orient`. It's deterministic and frontmatter-only for skill bodies (cheap even with dozens of skills). Output sections:
+Already MUST-run at session start (see above). Also run it mid-session when switching tasks, picking up a new component, or unsure what's available. Output is deterministic and frontmatter-only for skill bodies (cheap even with dozens of skills). Sections:
 
 - **Subcommand survey** ("use when …" per ws verb)
 - **Active realm** name + pointer at its `AGENTS.md`
@@ -78,7 +81,7 @@ Reference forms in skill bodies:
 
 ## Operational Rules
 
-1. **Orientation skill first** at session start, after compaction, or when dispatched fresh.
+1. **MUST run `ws orient` AND read the orientation skill** at session start, after compaction, or when dispatched fresh. Both are prerequisites — see Session Start.
 2. **`ws orient`** when switching tasks or unsure what's available — it's the discovery surface.
 3. **`ws <cmd>`** in preference to raw `git` / `gh` / `glab` / runners (see Reflex Contract).
 4. **One command at a time.** Don't bundle with `;` `&&` `|`. The PreToolUse hook denies shell composition — use separate tool calls and native `ws` flags (`--compact`, `--limit N`, `--output <phrase>`) instead of pipes.

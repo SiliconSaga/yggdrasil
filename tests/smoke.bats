@@ -62,3 +62,13 @@
     # discovery surface so the L0→L1 transition is explicit.
     grep -q "ws orient" "${BATS_TEST_DIRNAME}/../AGENTS.md"
 }
+
+@test "AGENTS.md mandates ws orient at session start (MUST language)" {
+    # Pin the firmer session-start directive: agents must EXECUTE
+    # `ws orient` on every fresh dispatch, not treat it as a loose
+    # discovery aid. The MUST keyword + Execute pair surfaces in
+    # the Session Start block and again in Operational Rules.
+    local agents="${BATS_TEST_DIRNAME}/../AGENTS.md"
+    grep -q "MUST" "$agents"
+    grep -q "Execute \`ws orient\`" "$agents"
+}
