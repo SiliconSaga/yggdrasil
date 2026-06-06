@@ -759,6 +759,137 @@ EOF
     [[ "$output" != *"Use ws commit"* ]]
 }
 
+# ─── Tier 2.5 — adapter-aware test/lint redirects (Task 6) ──────────
+
+# When `[adapter-redirect-commands]` matches (pytest, ruff, etc.) and
+# $cwd resolves to a component with a wired adapter, the hook denies
+# with a bypass-pointer. When the adapter is unwired (file absent or
+# missing the commands.<verb> entry), the hook emits a stderr nudge
+# and falls through to the normal allow/ask evaluation. Outside a
+# component dir, the rule doesn't fire at all.
+
+@test "adapter-redirect: raw pytest in a component WITH commands.test denies" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest      | pytest*            | test
+pytest-mod  | python* -m pytest* | test
+ruff        | ruff*              | lint
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  test: "python3 -m pytest tests/"
+  lint: "python3 -m ruff check src/"
+YAML
+)"
+    run_hook 'pytest tests/test_foo.py' "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test wiredcomp"* ]]
+    [[ "$output" == *"ws hook-bypass pytest"* ]]
+}
+
+@test "adapter-redirect: raw python -m pytest matches the pytest-mod pattern" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest      | pytest*            | test
+pytest-mod  | python* -m pytest* | test
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  test: "python3 -m pytest tests/"
+YAML
+)"
+    run_hook 'python3 -m pytest tests/' "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test wiredcomp"* ]]
+}
+
+@test "adapter-redirect: raw ruff in a component WITH commands.lint denies" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+ruff | ruff* | lint
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  lint: "python3 -m ruff check src/"
+YAML
+)"
+    run_hook 'ruff check src/' "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws lint wiredcomp"* ]]
+}
+
+@test "adapter-redirect: raw pytest in a component WITHOUT an adapter file emits nudge and falls through" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    # Empty adapter content = no adapter file at all.
+    seed_adapter_fixture "barecomp" ""
+    run_hook 'pytest tests/' "$WORK/components/barecomp"
+    [ "$status" -eq 0 ]
+    # Falls through — no deny / no allow emitted by Tier 2.5.
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    # Nudge on stderr — bats `run` merges fd1+fd2, so the message is
+    # visible in $output even though it's printed to stderr.
+    [[ "$output" == *"No \`ws test\` adapter for barecomp"* ]]
+}
+
+@test "adapter-redirect: adapter present but missing commands.<verb> still emits nudge" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+ruff   | ruff*   | lint
+EOF
+)"
+    # Adapter file exists but only has commands.lint (test is missing).
+    seed_adapter_fixture "lintonly" "$(cat <<'YAML'
+commands:
+  lint: "ruff check ."
+YAML
+)"
+    run_hook 'pytest tests/' "$WORK/components/lintonly"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"No \`ws test\` adapter for lintonly"* ]]
+}
+
+@test "adapter-redirect: pytest outside any component dir doesn't fire the rule" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    # cwd = $WORK (project root, not inside components/).
+    run_hook "pytest tests/" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"No \`ws test\` adapter"* ]]
+}
+
+@test "adapter-redirect: bypass marker turns wired-deny into allow" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  test: "python3 -m pytest tests/"
+YAML
+)"
+    write_bypass_marker "pytest" "session-xyz" "running a single test directly"
+    run_hook_with_session "pytest tests/test_one.py::test_x" "session-xyz" "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 @test "redirect: command outside [redirect-commands] passes through Tier 2" {
     write_project_hook_rules "$(cat <<'EOF'
 [redirect-commands]

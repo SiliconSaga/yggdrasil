@@ -336,6 +336,7 @@ scratch_dirs=()
 ask_commands=()
 allow_extras=()
 redirect_commands=()  # entries: "<slug>|<pattern>|<suggestion>"
+adapter_redirect_commands=()  # entries: "<slug>|<pattern>|<verb>"
 
 # Parse one rules file, appending entries to the section arrays.
 # $1 = file path; $2 = non-empty when parsing hook-rules.local (local).
@@ -396,6 +397,44 @@ _parse_rules_file() {
                         fi
                         # Pack as "slug|pattern|suggestion" (internal separator, never displayed)
                         redirect_commands+=("$slug|$pattern|$suggestion")
+                        ;;
+                    adapter-redirect-commands)
+                        # Parse three pipe-separated columns: slug | pattern | verb.
+                        # Verb is one of test/lint/build — the ws subcommand the
+                        # raw command maps to, AND the key under `commands.` in
+                        # the realm's adapter file (realms/<r>/adapters/<comp>.yaml).
+                        local ar_slug ar_pattern ar_verb ar_rest
+                        if [[ "$line" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [adapter-redirect-commands] entry, missing separator): $file" >> "$audit_log"
+                            continue
+                        fi
+                        ar_slug="${line%% | *}"
+                        ar_rest="${line#* | }"
+                        if [[ "$ar_rest" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [adapter-redirect-commands] entry, only two columns): $file" >> "$audit_log"
+                            continue
+                        fi
+                        ar_pattern="${ar_rest%% | *}"
+                        ar_verb="${ar_rest#* | }"
+                        ar_slug="${ar_slug%"${ar_slug##*[![:space:]]}"}"
+                        ar_pattern="${ar_pattern%"${ar_pattern##*[![:space:]]}"}"
+                        ar_verb="${ar_verb%"${ar_verb##*[![:space:]]}"}"
+                        ar_verb="${ar_verb#"${ar_verb%%[![:space:]]*}"}"
+                        if [[ ! "$ar_slug" =~ ^[a-z][a-z0-9-]*$ ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [adapter-redirect-commands] entry, bad slug '$ar_slug'): $file" >> "$audit_log"
+                            continue
+                        fi
+                        # Verb must be a known ws action surface — keeps the
+                        # adapter lookup predictable and prevents typos from
+                        # silently degrading to "no commands.X found".
+                        case "$ar_verb" in
+                            test|lint|build) ;;
+                            *)
+                                echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [adapter-redirect-commands] entry, bad verb '$ar_verb' — must be test/lint/build): $file" >> "$audit_log"
+                                continue
+                                ;;
+                        esac
+                        adapter_redirect_commands+=("$ar_slug|$ar_pattern|$ar_verb")
                         ;;
                     *)
                         if [[ -z "$section" ]]; then
@@ -781,6 +820,120 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
             exit 0
         fi
         deny "$_t2_suggestion"
+    fi
+done
+
+# ─── Tier 2.5: Adapter-aware redirect — raw test/lint runners ───────
+#
+# When a [adapter-redirect-commands] pattern matches AND the agent's
+# $cwd resolves to a component under $project_root/components/<comp>/,
+# consult the active realm's adapter (realms/<realm>/adapters/<comp>.yaml)
+# to decide:
+#   - commands.<verb> wired  → deny-with-bypass pointing at `ws <verb> <comp>`
+#   - commands.<verb> missing → emit a stderr nudge, fall through
+# If $cwd is not in a component dir, the rule doesn't fire at all
+# (raw pytest at the workspace root is a legitimate workspace-test
+# invocation — leave it alone).
+#
+# yq is required for the adapter parse. The hook script's outer
+# bash-runner already has it (workspace prereq via ws preflight).
+
+# Resolve the active realm from a project root. Mirrors ws_detect_realm's
+# logic minus the heavy error handling — we either find one or skip
+# the rule. Returns 0 and prints the realm dir name on success.
+_ar_resolve_realm() {
+    local root="$1"
+    local local_file="$root/ecosystem.local.yaml"
+    if [[ -f "$local_file" ]] && command -v yq >/dev/null 2>&1; then
+        local sel
+        sel="$(yq -r '.realm // ""' "$local_file" 2>/dev/null || echo "")"
+        if [[ -n "$sel" && "$sel" != "null" && -d "$root/realms/$sel" ]]; then
+            echo "$sel"
+            return 0
+        fi
+    fi
+    # Auto-detect: single non-template realm-* dir.
+    local d dname count=0 found=""
+    if [[ -d "$root/realms" ]]; then
+        for d in "$root"/realms/realm-*/; do
+            [[ -d "$d" ]] || continue
+            dname="$(basename "$d")"
+            [[ "$dname" == "realm-template" ]] && continue
+            found="$dname"
+            count=$((count + 1))
+        done
+    fi
+    [[ $count -eq 1 ]] && { echo "$found"; return 0; }
+    return 1
+}
+
+# Resolve the component name from $cwd. Returns 0 + prints the name
+# if $cwd is under $root/components/<comp>/, else returns 1.
+_ar_resolve_component() {
+    local cwd="$1" root="$2"
+    if [[ "$cwd" == "$root/components/"* ]]; then
+        local rest="${cwd#$root/components/}"
+        echo "${rest%%/*}"
+        return 0
+    fi
+    return 1
+}
+
+# Walk the adapter-redirect entries. The bypass marker check + the
+# wired/unwired branch live inline so the tier's flow reads top-to-
+# bottom without jumping helpers.
+for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"}; do
+    _ar_slug="${_entry%%|*}"
+    _ar_rest="${_entry#*|}"
+    _ar_pattern="${_ar_rest%%|*}"
+    _ar_verb="${_ar_rest#*|}"
+    _ar_match_pattern="$(normalize_for_match "$_ar_pattern")"
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $_ar_match_pattern ]]; then
+        # Component anchor required — raw pytest outside components/
+        # is fine, the rule only applies inside a component.
+        _ar_comp="$(_ar_resolve_component "$cwd" "$_t2_project_root" 2>/dev/null)" || continue
+        # Realm required for adapter path resolution.
+        _ar_realm="$(_ar_resolve_realm "$_t2_project_root" 2>/dev/null)" || continue
+        _ar_adapter_file="$_t2_project_root/realms/$_ar_realm/adapters/$_ar_comp.yaml"
+        # yq is the parser. Missing yq, missing file, or missing key
+        # all collapse to "unwired".
+        _ar_cmd_value=""
+        if [[ -f "$_ar_adapter_file" ]] && command -v yq >/dev/null 2>&1; then
+            _ar_cmd_value="$(yq -r ".commands.$_ar_verb // \"\"" "$_ar_adapter_file" 2>/dev/null || echo "")"
+        fi
+        if [[ -n "$_ar_cmd_value" && "$_ar_cmd_value" != "null" ]]; then
+            # WIRED — deny with bypass pointer (matches Tier 2 shape).
+            _ar_marker_path="$_t2_project_root/.tmp/hook-bypass/$_ar_slug.bypass"
+            _ar_bypass_ok=0
+            if [[ -f "$_ar_marker_path" ]]; then
+                _ar_marker_sid=$(grep '^session_id:' "$_ar_marker_path" 2>/dev/null | sed 's/^session_id: *//' || true)
+                _ar_marker_reason=$(grep '^reason:' "$_ar_marker_path" 2>/dev/null | sed 's/^reason: *//' || true)
+                if [[ -n "$_t2_session_id" && "$_ar_marker_sid" == "$_t2_session_id" ]]; then
+                    _ar_bypass_ok=1
+                fi
+            fi
+            if [[ "$_ar_bypass_ok" == "1" ]]; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [$_ar_slug] reason=\"$(audit_safe "$_ar_marker_reason")\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+                if [[ "$event" == "PermissionRequest" ]]; then
+                    printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+                else
+                    printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+                fi
+                exit 0
+            fi
+            deny "Use \`ws $_ar_verb $_ar_comp\` — adapter wired for this component (realms/$_ar_realm/adapters/$_ar_comp.yaml). \`ws $_ar_verb --help\` for filters. \`ws hook-bypass $_ar_slug\` for a session-scoped bypass if you genuinely need raw access."
+        else
+            # UNWIRED — emit stderr nudge and fall through to later
+            # tiers. No JSON output here — the harness then applies
+            # the normal ask/allow evaluation (ask-list, allowlist,
+            # or passthrough prompt). The audit log captures the
+            # nudge for later workflow-audit review.
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] UNWIRED-NUDGE [$_ar_slug] no commands.$_ar_verb in realms/$_ar_realm/adapters/$_ar_comp.yaml [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+            echo "↪ No \`ws $_ar_verb\` adapter for $_ar_comp yet. Wire one at realms/$_ar_realm/adapters/$_ar_comp.yaml with \`commands.$_ar_verb: ...\` and \`ws $_ar_verb $_ar_comp\` will dispatch it. Running raw this time." >&2
+            # Continue the for loop so later entries can still match,
+            # then fall through to Tier 3.
+        fi
     fi
 done
 
