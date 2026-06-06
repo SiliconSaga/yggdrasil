@@ -56,10 +56,9 @@ nav:
     - Code Style: code-style.md
     - Git Provider Setup: git-provider-setup.md
     - MCP Setup: mcp-setup.md
-    - Cross-Fork CR Internals: cr-internals.md
-    - Multi-Repo Workflow: multi-repo-workflow.md
   - Guardian Driven Development:
     - Overview: gdd/index.md
+    - Cross-Fork CR Internals: gdd/cr-internals.md
     - Features Tour: gdd/features.md
     - Roles and Modes: gdd/roles-and-modes.md
     - Skills Reference: gdd/skills-reference.md

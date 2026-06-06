@@ -1,180 +1,73 @@
 # Yggdrasil Ecosystem Architecture
 
-## Overview
+> 🌱 **Yggdrasil** is the **GDD framework + workspace tooling** root — realm-agnostic and not a deployable itself. It holds the methodology, the agent skills, the `ws` CLI, and the configuration that lets *any* community realm declare its own stack on top.
 
-The Yggdrasil ecosystem is a self-hosted, cloud-portable platform organized as three
-deployment tiers, each sitting on top of the previous. A single Kubernetes cluster
-(GKE or k3s/k3d) runs all tiers via GitOps, managed by one ArgoCD instance that
-Nordri bootstraps.
+## A Bit of History
 
-**Yggdrasil itself** is the conceptual and documentary root — not a deployable. It holds
-architecture docs, agent skills, workflow strategies, and the project constellation map
-that makes sense of everything else.
+Yggdrasil started as a platform-engineering experiment — a single workspace where one human (with AI collaborators) could design and deploy a homelab + cloud stack end-to-end across a constellation of repos. That original experiment grew into the **SiliconSaga** realm, which now carries the actual platform components (Norðri, Nidavellir, Heimdall, Mimir, etc. — they have great names so they get a shout-out and stay as the canonical worked-examples throughout the docs).
 
-## Three-Tier Architecture
+As the experiment matured, the methodology generalized. The patterns for "how an AI agent + a human collaborate across a multi-repo workspace" turned out to be useful well beyond any one homelab. That methodology is now **Guardian Driven Development (GDD)**, and it lives here in upstream Yggdrasil. Stack-specific details (which components, which adapters, which infrastructure) live in realm repos.
+
+The result: this Yggdrasil repo is now focused on **realm-agnostic** concerns — the GDD framework, the `ws` CLI, the docs that explain both. The original SiliconSaga platform components moved to their own org and a community realm so the upstream stays lean enough to be adopted by anyone who wants to run their own stack.
+
+## The Three-Tier Model
+
+GDD's view of a deployable realm is a three-tier stack, regardless of what the realm chooses to put in each tier:
 
 ```mermaid
 graph BT
-    YGG["🌳 Yggdrasil<br/>Docs · Skills · Config · Workflows"]
+    YGG["🌱 Yggdrasil<br/>Methodology · Skills · ws CLI · Config"]
 
-    subgraph BOOT["Bootstrap — Layers 2–3"]
-        direction LR
-        GITEA["Gitea<br/>Seed GitOps"] --> ARGO["ArgoCD<br/>GitOps engine"]
+    subgraph T1["Tier 1 — Foundation"]
+        F["Cluster substrate · ingress · GitOps · storage · platform API"]
     end
 
-    subgraph NORDRI["Tier 1 — Nordri — Cluster Substrate"]
-        N["Traefik · Crossplane · Velero · Longhorn · Garage"]
+    subgraph T2["Tier 2 — Platform Services"]
+        P["Observability · data · identity · notifications · networking"]
     end
 
-    subgraph NIDAVELLIR["Tier 2 — Nidavellir — Platform"]
-        P["Vegvísir · Mimir · Keycloak · Heimdall · Vörðu · OpenBAO"]
+    subgraph T3["Tier 3 — End-User Applications"]
+        A["What real people interact with"]
     end
 
-    subgraph DEMICRACY["Tier 3 — Demicracy — End-User Platform"]
-        D["Backstage · Tafl · Federation"]
-    end
-
-    ARGO --> N
-    N --> P
-    P --> D
-    YGG -. "informs" .-> ARGO
+    F --> P
+    P --> A
+    YGG -. "informs" .-> F
+    YGG -. "informs" .-> P
+    YGG -. "informs" .-> A
 ```
 
-The arrows read as **"provides the foundation for"**:
-- ArgoCD (bootstrapped) deploys Nordri's cluster substrate
-- Nordri deploys Nidavellir as its app-of-apps
-- Nidavellir deploys Demicracy as its app-of-apps
+Arrows read as **"provides the foundation for"** — each tier only knows about the tier directly above it.
 
-Each tier only holds the reference to the tier directly above it. Nordri has no
-knowledge of Demicracy.
+| Tier | Role | SiliconSaga realm example |
+|------|------|---------------------------|
+| **1** | Foundation — cluster substrate | `nordri` (ingress, GitOps controller, storage, platform API) |
+| **2** | Platform services | `nidavellir` (platform app-of-apps), plus capability components like observability / data / notifications |
+| **3** | End-user applications | The apps real people actually interact with |
 
-## Tier Breakdown
-
-### Tier 1: Nordri — Cluster Substrate
-**Repo**: `nordri` / github.com/SiliconSaga/nordri
-
-Nordri is one of the dwarves that holds up the sky in Norse mythology. All other tiers depend on this:
-
-| Component | Purpose | Environment |
-|-----------|---------|-------------|
-| Traefik | Gateway controller + LoadBalancer | All |
-| Crossplane | Infrastructure vending (Kubernetes, Helm) | All |
-| Velero | Cluster backups to object storage | All |
-| Longhorn | Distributed block storage | Homelab only |
-| Garage S3 | Self-hosted object storage | Homelab only |
-
-Nordri's `platform/argocd/` holds one entry-point Application per tier above it:
-currently `nidavellir-apps.yaml` (pointing at `nidavellir/apps/`).
-
-### Tier 2: Nidavellir — Platform
-**Repo**: `nidavellir` / github.com/SiliconSaga/nidavellir
-
-The Star Forge — the developer platform everything is built on:
-
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| Vegvísir | Shared Traefik Gateway + cert-manager + TLS | Active |
-| Mimir | Data services (PostgreSQL, MySQL, MongoDB, Kafka, Valkey) | Active |
-| Heimdall | Observability (Prometheus, Grafana, Loki, Tempo, Thanos) | Planned |
-| Keycloak | Identity and SSO | Planned |
-| Vörðu | BDD roadmap visualization | Active |
-| OpenBAO | Secrets management | Planned |
-
-Nidavellir's `apps/` directory holds one Application manifest per component, plus the
-`demicracy-apps.yaml` entry point that bootstraps Tier 3.
-
-**Deployment ordering** within Tier 2 is controlled by ArgoCD sync waves:
-
-| Wave | Component | Notes |
-|------|-----------|-------|
-| 5 | Vegvisir | Gateway + TLS must be available first |
-| 7 | Mimir | Data services for Keycloak and applications |
-| 10 | Heimdall | Observability; no hard dependency on Mimir |
-| 10 | Keycloak | Identity; consumes Mimir Postgres |
-| — | OpenBAO, Vordu | Not yet deployed |
-
-### Tier 3: Demicracy — End-User Platform
-**Repo**: `demicracy` / github.com/SiliconSaga/demicracy
-
-Civics, collaboration, and community tooling:
-
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| Backstage | Developer portal and service catalog | Planned |
-| Tafl + Agones | Game server hosting and routing | Planned |
-| Bifrost | Cross-game federation API | Planned |
-| Federation tooling | ActivityPub / decentralized infra | Future |
-
-## Bootstrap Layers
-
-The bootstrap sequence uses numbered **layers** (distinct from the three deployment
-**tiers** above — see terminology note below):
-
-```
-Local machine
-  └── bootstrap.sh [gke|homelab]
-        ├── L2   Install Gitea in cluster
-        ├── L2   Mirror local repos to Gitea (nordri, nidavellir, ...)
-        ├── L2.5 Install Gateway API CRDs (kubectl apply)
-        ├── L2.5 Install Crossplane (Helm, pre-ArgoCD)
-        ├── L2.6 Install Traefik (Helm, pre-ArgoCD, provides IngressRoute CRDs)
-        ├── L2.7 Install Crossplane providers + functions (wait Healthy)
-        ├── L2.8 Install Crossplane ProviderConfigs + RBAC
-        ├── L3   Install ArgoCD (Helm)
-        └── L4   Apply nordri root-app.yaml → ArgoCD takes over:
-                    ├── layer4-fundamentals (Nordri Tier 1 components)
-                    └── nidavellir (Nidavellir Tier 2 app-of-apps)
-                              ├── vegvisir (Gateway + TLS)
-                              ├── mimir (data services)
-                              ├── ... (Keycloak, Heimdall, etc.)
-                              └── demicracy (Demicracy Tier 3 app-of-apps)
-                                        ├── backstage
-                                        └── ...
-```
-
-## Terminology Note
-
-Two separate numbering schemes exist:
-
-| Term | Meaning | Example |
-|------|---------|---------|
-| **Layer** (L2, L2.5, L3...) | Bootstrap sequence step | "Layer 2.6 pre-installs Traefik" |
-| **Tier** (1, 2, 3) | App-of-apps deployment group | "Nidavellir is Tier 2" |
-
-## Repository Map
-
-| Repo | Tier | Role |
-|------|------|------|
-| `yggdrasil` | — | Docs, skills, config, workspace root |
-| `nordri` | Tier 1 | Cluster substrate app-of-apps |
-| `nidavellir` | Tier 2 | Platform app-of-apps; deploys Tier 3 |
-| `mimir` | Tier 2 component | Data services (Crossplane + operators) |
-| `heimdall` | Tier 2 component | Observability stack |
-| `vordu` | Tier 2 component | Roadmap visualization web app |
-| `demicracy` | Tier 3 | End-user platform app-of-apps |
-| `tafl` | Tier 3 component | Game server orchestration |
+For the concrete SiliconSaga stack — what's in each tier, the GitOps model, the alert pipeline, the cluster-identity pattern — see the realm-side narrative at [SiliconSaga/realm-siliconsaga: `docs/stack.md`](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) (and the per-tier docs alongside it). If you've cloned the realm via `ws realm`, the same file is at `realms/realm-siliconsaga/docs/stack.md` locally. Other realms describe their own stacks the same way.
 
 ## Workspace Structure
 
-Component repos live inside yggdrasil under `components/`. Community-specific
-configuration lives in realm repos under `realms/`.
+Component repos live inside yggdrasil under `components/`. Community-specific configuration lives in realm repos under `realms/`.
 
 ```text
 yggdrasil/
   ecosystem.yaml            # Upstream defaults (generic, no components)
   ecosystem.local.yaml      # Per-developer overrides (gitignored)
   components/
-    nordri/                  # Independent Git repo (gitignored)
-    nidavellir/
+    nordri/                 # Independent Git repo (gitignored)
+    heimdall/
     mimir/
     ...
   realms/
-    realm-siliconsaga/       # Community realm (gitignored, independent repo)
-      ecosystem.yaml         # Components, identity, defaults
-      adapters/              # Per-component build/test commands
-    realm-template/          # Tutorial realm
+    realm-siliconsaga/      # Community realm (gitignored, independent repo)
+      ecosystem.yaml        # Components, identity, defaults
+      adapters/             # Per-component build/test commands
+      docs/                 # Realm-side narrative + tier docs
+    realm-template/         # Tutorial realm
   .generated/
-    applications/            # ArgoCD manifests from ws-resolve.sh (gitignored)
+    applications/           # ArgoCD manifests from ws-resolve.sh (gitignored)
 ```
 
 ### Three-Layer Config Merge
@@ -184,23 +77,25 @@ Configuration is assembled from three layers, merged in order:
 ```text
 ecosystem.yaml (upstream Yggdrasil — generic defaults)
     ↓ deep merge
-realm/ecosystem.yaml (community config — components, identity)
+realms/<active>/ecosystem.yaml (community config — components, identity)
     ↓ deep merge
 ecosystem.local.yaml (per-developer overrides)
 ```
 
-All `ws` commands read the merged result. Realms own the component list;
-upstream provides methodology and tooling.
+All `ws` commands read the merged result. Realms own the component list; upstream provides methodology and tooling.
 
-> **Inheritance future:** the merge generalizes to N layers if multi-realm
-> chains land later (e.g. corp → dept → team). No new identifier needed —
-> the same upstream → realm(s) → local pattern with child-wins semantics.
-> See [Realms and Hoards Design](plans/2026-04-24-realms-and-hoards-design.md#future-directions).
+> **Inheritance future:** the merge generalizes to N layers if multi-realm chains land later (e.g. corp → dept → team). No new identifier needed — the same upstream → realm(s) → local pattern with child-wins semantics. See [Realms and Hoards Design](plans/2026-04-24-realms-and-hoards-design.md#future-directions).
 
-### Realms
+## Realms — Where Stack Choice Lives
 
-A realm is a small git repo containing community-specific configuration.
-Use `ws realm` to manage them:
+A realm is a small git repo containing community-specific configuration. The GDD-side conceptual model (what realms are, how `ws realm` works, how adapters wire per-component commands, how identity / authentication is configured) lives with the GDD methodology docs:
+
+- [`docs/gdd/realms.md`](gdd/realms.md) — realms concept + lifecycle
+- [`docs/gdd/adapters.md`](gdd/adapters.md) — per-component adapters
+- [`docs/gdd/access.md`](gdd/access.md) — identity / authentication
+- [`docs/gdd/cr-internals.md`](gdd/cr-internals.md) — cross-fork CR mechanics + the two-token model
+
+`ws realm` quick reference:
 
 ```bash
 ws realm init              # Clone the template realm (tutorials)
@@ -209,37 +104,22 @@ ws realm list              # Show available realms
 ws realm use <name>        # Switch active realm
 ```
 
-See the [original overlay architecture design (now realms)](plans/2026-03-26-overlay-architecture-design.md)
-and the [realms and hoards design](plans/2026-04-24-realms-and-hoards-design.md)
-for the full specifications.
-
-### Dual-Mode Source Resolution
+## Dual-Mode Source Resolution
 
 Each component can be consumed in two ways:
 
-1. **Source mode** (local Git checkout exists): ArgoCD syncs from the Git repo
-   (via internal Gitea mirror). Used during development.
-2. **Chart mode** (no local checkout): ArgoCD installs a pre-built Helm chart
-   from the OCI registry. Used for stable dependencies you aren't actively changing.
+1. **Source mode** (local Git checkout exists): ArgoCD syncs from the Git repo (via internal Gitea mirror). Used during development.
+2. **Chart mode** (no local checkout): ArgoCD installs a pre-built Helm chart from the OCI registry. Used for stable dependencies you aren't actively changing.
 
-The `scripts/ws-resolve.sh` script auto-detects which mode applies per component
-and generates the appropriate ArgoCD Application manifests.
+The `scripts/ws-resolve.sh` script auto-detects which mode applies per component and generates the appropriate ArgoCD Application manifests. Developers can override resolution per-component via `ecosystem.local.yaml`:
 
-Developers can override resolution per-component via `ecosystem.local.yaml`:
 - `forceChart: true` — use chart even when local source exists
 - Override `values:` for local environment specifics
 - Toggle `disabled` to include/exclude components
 
-## Environments
-
-| Environment | Kubernetes | Storage | Notes |
-|-------------|-----------|---------|-------|
-| `homelab` | k3d (local) | Longhorn + Garage S3 | Traefik built-in to k3s disabled; Nordri installs its own |
-| `gke` | GKE (cloud) | GCS | No Garage/Longhorn; cert-manager may be pre-installed |
-
 ## Related Docs
 
-- `project-constellation.md` — Detailed narrative description of each project
-- `nidavellir/vegvisir/README.md` — Vegvísir routing/TLS ownership and GitHub transition
-- `nordri/docs/bootstrap.md` — Nordri bootstrap runbook
-- `nordri/scripts/gke-provision.sh` — GKE test cluster provisioning
+- [`docs/gdd/index.md`](gdd/index.md) — Guardian Driven Development overview.
+- [`docs/dev-setup.md`](dev-setup.md) — required tools (bash, git, yq, jq, gh/glab, optional uv).
+- [`docs/ws-cli-guide.md`](ws-cli-guide.md) — full `ws` CLI reference.
+- For the SiliconSaga-flavoured concrete stack: [SiliconSaga/realm-siliconsaga: `docs/stack.md`](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) and the per-tier docs alongside it (locally at `realms/realm-siliconsaga/docs/stack.md` once you've cloned the realm).
