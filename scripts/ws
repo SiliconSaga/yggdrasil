@@ -7,6 +7,8 @@
 #
 # Commands:
 #   list              List ecosystem components (tier, repo, clone status)
+#   orient            Deterministic "what can I do here?" menu — workspace
+#                     toolset + active realm + adapters + skill index
 #   status [--verbose] Git status across workspace
 #   clone [comp|--all|--url <url> [--name N] [--add-eco]] Clone components
 #   clone-fork <comp>  Fork-aware clone: ensure fork exists, clone fork, wire

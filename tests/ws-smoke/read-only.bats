@@ -24,6 +24,18 @@ setup() {
     [[ "$output" == *"ws <command>"* ]]
 }
 
+@test "ws help: lists every registered subcommand" {
+    # Regression guard for the omission CodeRabbit caught on PR #88:
+    # `orient` was wired into the dispatcher but absent from the help
+    # text. Pin the headline commands here so a new subcommand can't
+    # land without being announced.
+    run_ws help
+    [ "$status" -eq 0 ]
+    for cmd in list orient status clone pull push cr commit test lint review log clean exec realm hoard component actions preflight; do
+        [[ "$output" == *"$cmd"* ]] || { echo "missing in help: $cmd"; return 1; }
+    done
+}
+
 @test "ws --help: exits 0 and prints usage" {
     run_ws --help
     [ "$status" -eq 0 ]
