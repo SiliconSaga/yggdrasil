@@ -24,6 +24,55 @@ setup() {
     [[ "$output" == *"ws <command>"* ]]
 }
 
+@test "ws help: lists every dispatched subcommand from scripts/ws" {
+    # Regression guard for the omission CodeRabbit caught on PR #88
+    # (`orient` was wired into the dispatcher but absent from help)
+    # AND the follow-up finding on PR #89 that a hard-pinned list
+    # missed 11 dispatched commands. Derive the expected list from
+    # the dispatcher's `case "$COMMAND" in` block so every new
+    # subcommand auto-enrolls into the regression guard — no
+    # hand-edit needed when adding one.
+    #
+    # Parsing rules: extract each label line (`    <name>)`), strip
+    # whitespace + trailing `)`, split alias groups on `|`, keep
+    # only bare lowercase-and-hyphen names (drops `*)`, `--help`,
+    # `-h`, etc. — those are flag forms or fallbacks, not commands).
+    local dispatched=() line label labels label_group
+    while IFS= read -r line; do
+        # Match "    <label-group>)" where label-group may contain
+        # alias delimiters (`|`), wildcards (`*`), and hyphens.
+        # The captured group strips leading whitespace + trailing
+        # ) and beyond in one step — avoids the bash-${var## } trap
+        # of stripping only a single literal space character.
+        if [[ "$line" =~ ^[[:space:]]+([a-zA-Z*][a-zA-Z0-9_|*-]*)\) ]]; then
+            label_group="${BASH_REMATCH[1]}"
+            IFS='|' read -ra labels <<<"$label_group"
+            for label in "${labels[@]}"; do
+                # Bare lowercase-and-hyphen labels are dispatched
+                # subcommands; everything else (`--help`, `-h`,
+                # `*`) is a flag form / fallback.
+                [[ "$label" =~ ^[a-z][a-z0-9-]*$ ]] && dispatched+=("$label")
+            done
+        fi
+    done < <(awk '/^case .*COMMAND.* in/,/^esac/' "$WS_BIN")
+
+    # Sanity: if the parser pulled nothing, the dispatcher's case
+    # shape changed and this test silently became a no-op. Fail loud.
+    [ "${#dispatched[@]}" -gt 0 ] || { echo "dispatch parser found no commands — case-block shape changed?"; return 1; }
+
+    run_ws help
+    [ "$status" -eq 0 ]
+    # Match space-delimited so `clone` doesn't false-positive on
+    # `clone-fork` (Copilot finding on PR #89). The help block
+    # format always puts the command between leading indent
+    # whitespace and either an argument hint or an aligned
+    # description — both shapes carry a trailing space after the
+    # command token.
+    for cmd in "${dispatched[@]}"; do
+        [[ "$output" == *" $cmd "* ]] || { echo "missing in ws help: $cmd"; return 1; }
+    done
+}
+
 @test "ws --help: exits 0 and prints usage" {
     run_ws --help
     [ "$status" -eq 0 ]
