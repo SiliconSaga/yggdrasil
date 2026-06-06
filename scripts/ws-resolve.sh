@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-resolve.sh — Generate ArgoCD Application manifests from ecosystem.yaml
+# ws:use-when generating ArgoCD Application manifests from declared components
 #
 # Resolution logic per component:
 #   1. If forceChart is set (via ecosystem.local.yaml), use chart mode

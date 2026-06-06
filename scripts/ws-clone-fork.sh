@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-clone-fork.sh — Fork-aware clone for ecosystem components
+# ws:use-when fork-aware clone — ensures your personal fork exists then sets both remotes
 #
 # Usage: ws-clone-fork.sh <component>
 #

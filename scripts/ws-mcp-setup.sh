@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # ws-mcp-setup.sh — Generate .mcp.json for Claude Code from realm mcp.servers declarations
+# ws:use-when:mcp-setup generating .mcp.json from realm mcp.servers declarations
+# ws:use-when:mcp-status checking which MCP servers are currently configured
 #
 # Usage:
 #   ws-mcp-setup.sh [--dry-run] [--status]

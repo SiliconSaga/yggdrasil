@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-orient.sh — deterministic "what can I do here?" menu.
+# ws:use-when starting a session, recovering from compaction, or switching tasks
 #
 # `ws orient` is the L1 layer of the progressive-disclosure buffet
 # documented in `docs/plans/2026-06-02-gdd-orientation-and-attribution-design.md`:
@@ -61,44 +62,125 @@ if ! command -v yq &>/dev/null; then
     exit 1
 fi
 
-# Subcommand survey — authored per the plan (Task 4b). The "use when"
-# phrasing is judgment that lives here, in one place, not scattered
-# across each subcommand script. Format is `name|use-when` so the
-# table stays trivially editable; a future `--json` or `--names-only`
-# flag can re-emit the same rows in a different shape.
+# Subcommand survey — built dynamically by scanning each handler for
+# its `# ws:use-when …` docstring. Two awk passes: parse_dispatch
+# maps subcommand-name → handler (a script file or a function inside
+# scripts/ws); find_use_when locates the marker inside that handler.
+# Marker shape:
+#   # ws:use-when <text>             — single subcommand-per-handler (bare)
+#   # ws:use-when:<name> <text>      — one handler, many subcommands (keyed)
+# The keyed form uses a colon-separated subcommand name so the parser
+# never confuses a bare-text marker whose first word happens to look
+# like a kebab identifier with a keyed marker for some other subcommand.
+# A handler without any marker shows as "(no `ws:use-when` marker)"
+# so the gap is visible at orient time rather than discoverable only
+# via grep — keeps the inventory honest as new subcommands land.
 emit_subcommand_survey() {
     printf '\n%s\n' "Subcommands (name — use when …):"
-    while IFS='|' read -r name use_when; do
-        # Skip blank lines + comment rows so the heredoc can carry
-        # section dividers without polluting output.
-        [[ -z "$name" || "$name" == \#* ]] && continue
-        printf '  %-18s — %s\n' "$name" "$use_when"
-    done <<'SURVEY'
-list|surveying what's declared in the ecosystem (clones, tiers, repos)
-orient|starting a session, recovering from compaction, or switching tasks
-status|checking git state across every cloned component at a glance
-clone|materializing a component locally (clone-fork for cross-org forks)
-pull|refreshing every cloned component from its remote
-commit|finalizing a change — required to attach Co-Authored-By + bodyfile
-test|running the component's test suite via its adapter
-lint|running the component's linter via its adapter
-push|sending a topic branch to your fork remote
-cr|opening a code-review request (PR / MR) from the current branch
-review|triaging review comments + resolving threads on an open CR
-issue|filing a tracker issue with a bodyfile + labels
-log|checking what commits are on the current branch versus main
-clean|sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/
-exec|running a one-off command inside a component dir
-actions|inspecting which adapter commands a component has wired
-realm|adopting or switching the active community config
-hoard|managing personal cross-workspace artifacts (thalami, vaults)
-component|scaffolding a new component from a template flavor
-preflight|verifying workspace prerequisites (bash, git, yq, jq, gh/glab)
-diagnose|investigating push/cr failures — remote + token coverage
-audit-permissions|reviewing your Bash allowlist for over-broad patterns
-gitlab-auth|configuring glab + git credentials from .env tokens
-resolve|generating ArgoCD Application manifests from declared components
-SURVEY
+    local name handler kind ref use_when
+    while IFS=$'\t' read -r name handler; do
+        [[ -z "$name" ]] && continue
+        kind="${handler%%:*}"
+        ref="${handler#*:}"
+        use_when=""
+        case "$kind" in
+            bash)
+                use_when="$(_orient_find_use_when_script "$SCRIPT_DIR/$ref" "$name")"
+                ;;
+            func)
+                use_when="$(_orient_find_use_when_func "$SCRIPT_DIR/ws" "$ref" "$name")"
+                ;;
+        esac
+        if [[ -n "$use_when" ]]; then
+            printf '  %-18s — %s\n' "$name" "$use_when"
+        else
+            printf '  %-18s — (no `ws:use-when` marker — add one to %s)\n' "$name" "$ref"
+        fi
+    done < <(_orient_parse_dispatch "$SCRIPT_DIR/ws")
+}
+
+# Parse the `case "$COMMAND" in … esac` block in scripts/ws.
+# Output: tab-separated <name>\t<kind>:<ref>
+#   kind=bash  → ref is a script filename (e.g. ws-list.sh)
+#   kind=func  → ref is a function name (e.g. ws_push)
+# Alias-group labels (help|--help|-h) and the catchall `*)` are
+# skipped — those aren't user-facing subcommand names.
+_orient_parse_dispatch() {
+    local ws_file="$1"
+    [[ -f "$ws_file" ]] || return 0
+    awk '
+        BEGIN { in_case = 0; pending = "" }
+        /^case .*COMMAND.* in/ { in_case = 1; next }
+        /^esac/ { exit }
+        !in_case { next }
+        # Match a bare label: `    name)` — leading whitespace,
+        # lowercase-and-hyphen name, closing paren, no alias group.
+        match($0, /^[[:space:]]+([a-z][a-z0-9-]*)\)[[:space:]]*$/, m) {
+            pending = m[1]
+            next
+        }
+        # Body line after a label: extract the handler shape.
+        pending != "" {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            if (match(line, /bash "\$SCRIPT_DIR\/(ws-[a-z-]+\.sh)"/, sm)) {
+                printf "%s\tbash:%s\n", pending, sm[1]
+            } else if (match(line, /^(ws_[a-z_]+)/, fm)) {
+                printf "%s\tfunc:%s\n", pending, fm[1]
+            }
+            pending = ""
+        }
+    ' "$ws_file"
+}
+
+# Scan the first 60 lines of a script file for a `# ws:use-when`
+# marker. Looks for the name-keyed form first (so a shared script
+# can declare different "use when" text per dispatched subcommand —
+# e.g. ws-mcp-setup.sh handles both `mcp-setup` and `mcp-status`),
+# then falls back to the bare form.
+_orient_find_use_when_script() {
+    local file="$1" name="$2"
+    [[ -f "$file" ]] || return 0
+    awk -v target="$name" '
+        { line_count++ }
+        line_count > 60 { exit }
+        # Keyed form: `# ws:use-when:<name> <text>`. Only fires for
+        # an exact name match; non-matching keyed markers are skipped
+        # so a shared script can declare distinct text per subcommand.
+        match($0, /^#[[:space:]]*ws:use-when:([a-z][a-z0-9-]*)[[:space:]]+(.+)$/, m) {
+            if (m[1] == target) { print m[2]; exit }
+            next
+        }
+        # Bare form: `# ws:use-when <text>`. Applies to whatever the
+        # caller asked about. The keyed-form rule above already
+        # short-circuits keyed markers so we never confuse the two.
+        match($0, /^#[[:space:]]*ws:use-when[[:space:]]+(.+)$/, m) {
+            print m[1]; exit
+        }
+    ' "$file"
+}
+
+# Scan a function body inside scripts/ws for a `# ws:use-when` marker.
+# Function definition shape: `<name>() {` at the start of a line.
+# Function close: `}` at column 0. Anything in between is the body.
+_orient_find_use_when_func() {
+    local ws_file="$1" func_name="$2" sub_name="$3"
+    [[ -f "$ws_file" ]] || return 0
+    awk -v fn="$func_name" -v target="$sub_name" '
+        in_func == 0 && $0 ~ "^" fn "[[:space:]]*\\(\\)[[:space:]]*\\{" { in_func = 1; next }
+        in_func == 0 { next }
+        in_func && /^}/ { exit }
+        in_func {
+            # See _orient_find_use_when_script for marker shape notes.
+            if (match($0, /^[[:space:]]*#[[:space:]]*ws:use-when:([a-z][a-z0-9-]*)[[:space:]]+(.+)$/, m)) {
+                if (m[1] == target) { print m[2]; exit }
+                next
+            }
+            if (match($0, /^[[:space:]]*#[[:space:]]*ws:use-when[[:space:]]+(.+)$/, m)) {
+                print m[1]; exit
+            }
+        }
+    ' "$ws_file"
 }
 
 # Resolve the active realm once for the whole orient run, classifying

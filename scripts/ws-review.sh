@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-review.sh — CR review comments and thread management
+# ws:use-when triaging review comments + resolving threads on an open CR
 #
 # Usage:
 #   ws-review.sh <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]

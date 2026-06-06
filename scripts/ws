@@ -106,6 +106,7 @@ ws_resolve_fork_org() {
 }
 
 ws_exec() {
+    # ws:use-when running a one-off command inside a component dir
     if [[ $# -lt 2 ]]; then
         echo "Usage: ws exec <component> <command...>" >&2
         exit 1
@@ -122,6 +123,7 @@ ws_exec() {
 }
 
 ws_push() {
+    # ws:use-when sending git changes to its remote repo
     # Detect --help/-h anywhere in args (e.g. `ws push my-comp --help`),
     # not just $1, so the typical UNIX-y "any position" form works.
     local _arg
@@ -167,6 +169,7 @@ HELP
 }
 
 ws_cr() {
+    # ws:use-when opening a code-review request (PR / MR) - must use bodyfile from change.md template
     if [[ $# -lt 3 || $# -gt 4 ]]; then
         echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
         exit 1
@@ -185,6 +188,7 @@ ws_cr() {
 
 
 ws_log() {
+    # ws:use-when checking what commits are on the current branch versus main
     # Detect --help anywhere in args.
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
@@ -292,6 +296,7 @@ HELP
 }
 
 ws_clean() {
+    # ws:use-when sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/
     local force=0
     local arg
     for arg in "$@"; do
@@ -405,6 +410,7 @@ ws_clean() {
 }
 
 ws_issue() {
+    # ws:use-when filing a tracker issue with labels and a bodyfile - must use issue.md template
     if [[ $# -lt 4 || $# -gt 5 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
         echo "  remote auto-detects if single remote, uses forkOrg if multiple." >&2
@@ -426,6 +432,7 @@ ws_issue() {
 }
 
 ws_diagnose() {
+    # ws:use-when investigating push/cr failures — remote + token coverage
     if [[ $# -lt 1 ]]; then
         echo "Usage: ws diagnose <component|yggdrasil>" >&2
         echo "  Shows ecosystem config, clone status, remotes, provider, and token coverage." >&2
@@ -554,6 +561,7 @@ ws_diagnose() {
 }
 
 ws_gitlab_auth() {
+    # ws:use-when configuring glab + git credentials from .env tokens
     local eco
     eco=$(ws_resolve_ecosystem)
 

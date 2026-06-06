@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # ws-realm.sh — Realm management and shared config merge functions
+# ws:use-when:realm adopting or switching the active community config
+# ws:use-when:actions inspecting which adapter commands a component has wired
 #
 # Subcommands (called via ws realm):
 #   init            Clone template realm for tutorials

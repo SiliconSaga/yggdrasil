@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-component.sh — Component management
+# ws:use-when scaffolding a new component from a template flavor
 #
 # Subcommands (called via ws component):
 #   init <flavor> [name] [template-args]   Scaffold a new component locally

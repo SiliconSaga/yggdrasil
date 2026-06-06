@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-status.sh — Show Git status for all cloned components
+# ws:use-when checking git state across every cloned component at a glance
 #
 # Usage:
 #   ws-status.sh             Short status (branch, dirty flag, up to 10 changed files)

@@ -67,6 +67,29 @@ setup() {
     done
 }
 
+@test "ws orient: subcommand survey resolves bare ws:use-when markers from script handlers" {
+    # The dynamic inventory is the whole point of the survey: a
+    # `# ws:use-when <text>` marker in scripts/ws-orient.sh must
+    # surface here verbatim, so adding a new subcommand never means
+    # editing a hardcoded list. Pin the text from ws-orient.sh's
+    # own marker — if someone deletes it, this test fails and the
+    # gap is visible immediately, not via a stale survey row.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"orient"*"starting a session"* ]]
+}
+
+@test "ws orient: subcommand survey resolves name-keyed markers (mcp-setup vs mcp-status)" {
+    # When one handler dispatches multiple subcommands (ws-mcp-setup.sh
+    # serves both `mcp-setup` and `mcp-status`), each row must pick
+    # up its own keyed marker rather than collapsing onto the same
+    # text. Asserts both rows render the distinct keyed text.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"mcp-setup"*"generating .mcp.json"* ]]
+    [[ "$output" == *"mcp-status"*"checking which MCP servers"* ]]
+}
+
 # ─── 4c — active realm detection ────────────────────────────────────
 
 @test "ws orient: prints 'Active realm: none' when no realm is present" {

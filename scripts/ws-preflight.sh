@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-preflight.sh — Check that workspace prerequisites are installed.
+# ws:use-when verifying workspace prerequisites (bash, git, yq, jq, gh/glab)
 #
 # Reports per-tool status (✓ found / ✗ missing / ⚠ wrong-version) plus
 # an install hint for the detected OS when something is missing. Exit
