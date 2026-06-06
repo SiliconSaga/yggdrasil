@@ -47,6 +47,8 @@ What ongoing responsibility does this area cover?
 
 What does "good" look like here? Cadence, quality bar, definition of done for routine work.
 
+## Links
+
 ## Active Projects
 
 ```dataview
@@ -72,7 +74,26 @@ SORT
 |---|---|---|
 |  |  |  |
 
-## Someday Projects
+## Recurring Responsibilities
+
+*Tasks without specific due dates (maintenance).*
+
+```tasks
+not done
+tag includes #area/<% tp.file.title.toLowerCase().replace(/ /g, "-") %>
+path does not include <% tp.file.path(true) %>
+hide backlink
+```
+
+## Resources
+
+Reference material specific to this area.
+
+## Someday
+
+*Open-ended someday backlog for this area — both `someday`-status project notes and individual `#someday` tasks tagged this area's `#area/...` tag. Lives at the bottom by design; nothing here is committed, and it stays off the global Dashboard.*
+
+**Projects**
 
 ```dataview
 TABLE WITHOUT ID
@@ -83,19 +104,12 @@ WHERE area = this.file.link OR area.area = this.file.link
 SORT file.mtime DESC
 ```
 
-## Recurring Responsibilities
-
-*Tasks without specific due dates (maintenance).*
+**Tasks**
 
 ```tasks
 not done
-(path includes <% tp.file.path(true) %>) OR (tag includes #area/<% tp.file.title.toLowerCase().replace(/ /g, "-") %>)
-hide backlink
+tag includes #someday
+tag includes #area/<% tp.file.title.toLowerCase().replace(/ /g, "-") %>
+hide task count
 ```
-
-## Resources
-
-Reference material specific to this area.
-
-## Links
 

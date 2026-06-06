@@ -38,3 +38,7 @@ When a project goes untouched for long enough, the agent proposes a status flip 
 Binary `active` / `archive` forces a project to be either a current commitment or dead. Most projects are neither — they have momentum that ebbs. The intermediate tiers (`next`, `soon`, `someday`) let a project lose energy gracefully without a binary "you failed" signal, and let the agent propose realistic drift instead of demanding you defend every stalled item. `waiting` is separated out because a blocked project shouldn't decay — it's parked for a reason, not for lack of will.
 
 `done` and `cancelled` are folder destinations (`40_Archive/Projects/`), not active-query statuses — moving the file is the canonical "this is finished" signal.
+
+## `#someday` tasks vs the `someday` status
+
+The `someday` above is a **project** status — a whole project note parked in `40_Archive/Backlog/`. An individual loose **task** can also be deferred without becoming a project: tag it `#someday` alongside its area tag (`#area/<slug>`), and it surfaces in that area note's `## Someday` section while staying off the global Dashboard. Rule of thumb: project status for whole initiatives, the `#someday` task tag for one-off "maybe later" actions.

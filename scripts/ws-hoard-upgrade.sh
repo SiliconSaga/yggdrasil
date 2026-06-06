@@ -23,7 +23,7 @@
 # _ws_hoard_upgrade_from_template stays as a thin alias to
 # _ws_hoard_apply_manifest, so `ws hoard init`'s post-copy call is unchanged.
 #
-# Deferred (yggdrasil#54): plugin data.json is still overwrite-on-apply (no
+# Deferred (yggdrasil#77): plugin data.json is still overwrite-on-apply (no
 # three-way merge yet), so a user's in-hoard data.json tweaks don't survive.
 
 # Sourced by ws-hoard.sh; do not enable strict mode here.
