@@ -22,3 +22,43 @@
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
 }
+
+# ─── AGENTS.md L0 contract (Task 7 of gdd-orientation-capability-index) ─
+
+# AGENTS.md is the L0 layer of the progressive-disclosure buffet:
+# slim utilities menu + reflex contract + hard pointer at the
+# orientation skill. Deeper content (skills table, full workspace
+# CLI, code style, etc.) is discoverable via `ws orient` + per-
+# subcommand `--help` rather than inline. These tests pin the
+# load-bearing markers so a future edit that loses them surfaces
+# here first.
+
+@test "AGENTS.md exists at the workspace root" {
+    [ -f "${BATS_TEST_DIRNAME}/../AGENTS.md" ]
+}
+
+@test "AGENTS.md carries the reflex contract marker" {
+    # The reflex contract is the heart of L0 — it's what agents
+    # consult mid-session before reaching for raw git/gh/glab.
+    # Pin both the section heading and a representative verb so a
+    # rename surfaces this test.
+    local agents="${BATS_TEST_DIRNAME}/../AGENTS.md"
+    grep -q "Reflex Contract" "$agents"
+    grep -q "ws commit" "$agents"
+    grep -q "ws push" "$agents"
+}
+
+@test "AGENTS.md points at the orientation skill" {
+    # The single hard pointer to gdd-orientation is the only
+    # session-start reach AGENTS.md mandates. If this line ever
+    # drops, agents miss the orientation flow entirely.
+    grep -q ".agent/skills/gdd-orientation/SKILL.md" "${BATS_TEST_DIRNAME}/../AGENTS.md"
+}
+
+@test "AGENTS.md points at ws orient as the discovery surface" {
+    # ws orient is the L1 of the buffet — the deterministic menu
+    # agents fall back to mid-session when not sure what verbs /
+    # adapters / skills exist. AGENTS.md must surface it as the
+    # discovery surface so the L0→L1 transition is explicit.
+    grep -q "ws orient" "${BATS_TEST_DIRNAME}/../AGENTS.md"
+}
