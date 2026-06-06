@@ -873,6 +873,27 @@ EOF
     [[ "$output" != *"No \`ws test\` adapter"* ]]
 }
 
+@test "adapter-redirect: overlapping unwired patterns emit only one nudge" {
+    # Two entries whose globs both match `pytest tests/` (same verb,
+    # same component). Without the break-on-first-match guard, the
+    # unwired branch would emit two nudges and two audit entries for
+    # a single invocation (Copilot finding on PR #90). Pin the
+    # one-nudge contract here.
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest      | pytest*  | test
+pytest-narrow | pytest * | test
+EOF
+)"
+    seed_adapter_fixture "barecomp" ""
+    run_hook "pytest tests/" "$WORK/components/barecomp"
+    [ "$status" -eq 0 ]
+    # Count how many times the nudge phrase appears. Should be 1.
+    local nudge_count
+    nudge_count="$(printf '%s\n' "$output" | grep -c "No \`ws test\` adapter for barecomp" || true)"
+    [ "$nudge_count" -eq 1 ] || { echo "expected 1 nudge, got $nudge_count"; return 1; }
+}
+
 @test "adapter-redirect: bypass marker turns wired-deny into allow" {
     write_project_hook_rules "$(cat <<'EOF'
 [adapter-redirect-commands]

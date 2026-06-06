@@ -931,8 +931,13 @@ for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"};
             # nudge for later workflow-audit review.
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] UNWIRED-NUDGE [$_ar_slug] no commands.$_ar_verb in realms/$_ar_realm/adapters/$_ar_comp.yaml [$event]: $(audit_safe "$cmd")" >> "$audit_log"
             echo "↪ No \`ws $_ar_verb\` adapter for $_ar_comp yet. Wire one at realms/$_ar_realm/adapters/$_ar_comp.yaml with \`commands.$_ar_verb: ...\` and \`ws $_ar_verb $_ar_comp\` will dispatch it. Running raw this time." >&2
-            # Continue the for loop so later entries can still match,
-            # then fall through to Tier 3.
+            # Break after the first unwired match so an overlapping
+            # glob in hook-rules doesn't emit a second nudge / audit
+            # entry for the same command (Copilot finding on PR #90).
+            # The break exits this for loop; later tiers (Tier 3
+            # ask-list, allow evaluation, passthrough prompt) still
+            # run because we didn't emit a JSON decision or exit.
+            break
         fi
     fi
 done
