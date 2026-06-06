@@ -26,16 +26,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # the script clobbering the test's exported override.
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Explicit yq presence check matching ws-list / ws-test / ws-lint —
-# under `set -euo pipefail` a missing yq would otherwise surface as
-# a cryptic 127 from inside `_emit_one_adapter` rather than as a
-# helpful diagnostic at startup.
-if ! command -v yq &>/dev/null; then
-    echo "ERROR: yq (v4+) is required." >&2
-    echo "  Install: see docs/dev-setup.md or 'ws preflight' for the platform-specific hint." >&2
-    exit 1
-fi
-
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
@@ -57,6 +47,18 @@ HELP
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
     orient_help
+fi
+
+# Explicit yq presence check matching ws-list / ws-test / ws-lint —
+# under `set -euo pipefail` a missing yq would otherwise surface as
+# a cryptic 127 from inside `_emit_one_adapter` rather than as a
+# helpful diagnostic at startup. Deliberately AFTER the --help
+# short-circuit so a fresh-machine user can still discover `ws orient`
+# before installing every prerequisite (Copilot finding on PR #89).
+if ! command -v yq &>/dev/null; then
+    echo "ERROR: yq (v4+) is required." >&2
+    echo "  Install: see docs/dev-setup.md or 'ws preflight' for the platform-specific hint." >&2
+    exit 1
 fi
 
 # Subcommand survey — authored per the plan (Task 4b). The "use when"
@@ -104,15 +106,39 @@ SURVEY
 # than re-invoking ws_detect_realm (which exits 1 on multi-realm —
 # without this catch, the rest of orient never renders).
 #
-# Status values: ok | none | ambiguous
+# Status values: ok | none | ambiguous | error
+#   ok        — exactly one realm-* directory or selector picked one
+#   none      — no realms present (and no selector pointing at one)
+#   ambiguous — multiple realm-* dirs and no selector to disambiguate
+#   error     — any OTHER detection failure (YAML parse, file I/O, …)
+#
+# `ambiguous` and `error` are split deliberately: ws_detect_realm
+# exits 1 on both multi-realm AND on a malformed ecosystem.local.yaml.
+# Conflating them would point the user at the wrong fix path
+# (Copilot finding on PR #89). The split keys off the canonical
+# "Multiple non-template realms" stderr message from
+# ws_detect_realm; anything else is classified as a generic error
+# and the actual stderr first line surfaces to the user.
 _ORIENT_REALM=""
 _ORIENT_REALM_STATUS="none"
+_ORIENT_REALM_ERROR=""
 _resolve_orient_realm() {
-    local rc=0
-    _ORIENT_REALM="$(ws_detect_realm 2>/dev/null)" || rc=$?
+    local rc=0 stderr_file
+    stderr_file="$(mktemp 2>/dev/null || echo "/tmp/orient.stderr.$$")"
+    _ORIENT_REALM="$(ws_detect_realm 2>"$stderr_file")" || rc=$?
+    local first_err=""
+    if [[ -f "$stderr_file" ]]; then
+        first_err="$(head -n1 "$stderr_file" 2>/dev/null || true)"
+        rm -f "$stderr_file"
+    fi
     if [[ $rc -ne 0 ]]; then
         _ORIENT_REALM=""
-        _ORIENT_REALM_STATUS="ambiguous"
+        if [[ "$first_err" == *"Multiple non-template realms"* ]]; then
+            _ORIENT_REALM_STATUS="ambiguous"
+        else
+            _ORIENT_REALM_STATUS="error"
+            _ORIENT_REALM_ERROR="$first_err"
+        fi
         return
     fi
     if [[ -n "$_ORIENT_REALM" ]]; then
@@ -250,6 +276,13 @@ _emit_skills_in() {
 emit_active_realm() {
     printf '\n'
     case "$_ORIENT_REALM_STATUS" in
+        error)
+            echo "Active realm: error (detection failed)"
+            if [[ -n "$_ORIENT_REALM_ERROR" ]]; then
+                echo "  $_ORIENT_REALM_ERROR"
+            fi
+            return
+            ;;
         ambiguous)
             echo "Active realm: ambiguous (multiple non-template realms found)"
             echo "  Set \`realm: <name>\` in ecosystem.local.yaml to pick one."

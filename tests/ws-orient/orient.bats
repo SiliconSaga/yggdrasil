@@ -250,6 +250,46 @@ YAML
     [[ "$output" == *"Skills"* ]]
 }
 
+@test "ws orient --help works when yq is not on PATH" {
+    # Fresh-machine contract: --help must short-circuit before the
+    # yq dependency check so a newcomer can discover the command
+    # before installing every prerequisite. Per Copilot finding on
+    # PR #89.
+    #
+    # Strip yq from PATH by pointing to system bin dirs only. If
+    # those happen to contain yq on this host (rare — most installs
+    # land in /usr/local/bin or ~/.local/bin), skip rather than
+    # produce a false positive.
+    local minimal_path="/usr/bin:/bin"
+    if PATH="$minimal_path" command -v yq >/dev/null 2>&1; then
+        skip "yq is in /usr/bin or /bin on this host — cannot simulate missing-yq"
+    fi
+    run env "PATH=$minimal_path" "$TIMEOUT_BIN" 10 bash "$WS_BIN" orient --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage:"* ]]
+}
+
+@test "ws orient: ecosystem.local.yaml parse failure renders 'error' (not 'ambiguous')" {
+    # Per Copilot finding on PR #89: a YAML parse failure in
+    # ecosystem.local.yaml shouldn't be misreported as multi-realm
+    # ambiguity — that sends the user down the wrong fix path.
+    # Distinguish via the stderr content from ws_detect_realm.
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+identity:
+  human_account: "broken
+  unterminated: scalar
+realm: "missing close
+YAML
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm: error"* ]]
+    # No misleading multi-realm guidance — that'd be the
+    # wrong-fix-path Copilot warned about.
+    [[ "$output" != *"Active realm: ambiguous"* ]]
+    # Subsequent sections must still render.
+    [[ "$output" == *"Skills"* ]]
+}
+
 @test "ws orient: malformed skill frontmatter does not abort orient" {
     # SKILL.md with broken frontmatter — yq fails on the parse.
     # Orient should fall back to the dir name (already done) and
