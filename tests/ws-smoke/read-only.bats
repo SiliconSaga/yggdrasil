@@ -62,8 +62,14 @@ setup() {
 
     run_ws help
     [ "$status" -eq 0 ]
+    # Match space-delimited so `clone` doesn't false-positive on
+    # `clone-fork` (Copilot finding on PR #89). The help block
+    # format always puts the command between leading indent
+    # whitespace and either an argument hint or an aligned
+    # description — both shapes carry a trailing space after the
+    # command token.
     for cmd in "${dispatched[@]}"; do
-        [[ "$output" == *"$cmd"* ]] || { echo "missing in ws help: $cmd"; return 1; }
+        [[ "$output" == *" $cmd "* ]] || { echo "missing in ws help: $cmd"; return 1; }
     done
 }
 
