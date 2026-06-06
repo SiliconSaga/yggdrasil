@@ -21,7 +21,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Honor a pre-set ROOT_DIR (matches scripts/ws + ws-commit.sh) so the
+# bats smoke suite can point ws-orient at an isolated $WORK without
+# the script clobbering the test's exported override.
+: "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
@@ -145,6 +148,58 @@ _emit_one_adapter() {
     fi
 }
 
+# Skill index — workspace + active-realm scopes only. Component
+# skills are surfaced indirectly via the component's adapter rows
+# above (the ai_context paths); listing them here would explode the
+# section into noise. Frontmatter-only parsing — the SKILL.md body
+# stays unread, so the index is cheap even on a workspace with
+# dozens of skills.
+emit_skill_index() {
+    printf '\nSkills (workspace + active realm):\n'
+    local active_realm
+    active_realm="$(ws_detect_realm)"
+
+    local any=0
+    if [[ -d "$ROOT_DIR/.agent/skills" ]]; then
+        _emit_skills_in "$ROOT_DIR/.agent/skills" "workspace" && any=1
+    fi
+    if [[ -n "$active_realm" && -d "$REALMS_DIR/$active_realm/.agent/skills" ]]; then
+        _emit_skills_in "$REALMS_DIR/$active_realm/.agent/skills" "realm:$active_realm" && any=1
+    fi
+    if [[ $any -eq 0 ]]; then
+        echo "  (no skills found in workspace or active realm)"
+    fi
+}
+
+# Render every SKILL.md under the given dir. Returns 0 if at least
+# one skill rendered, 1 if the dir was empty — lets the caller
+# decide whether to surface the "no skills" fallback.
+_emit_skills_in() {
+    local skills_dir="$1" scope="$2"
+    local skill_file rendered=0
+    for skill_file in "$skills_dir"/*/SKILL.md; do
+        [[ -f "$skill_file" ]] || continue
+        local name description
+        # Parse the frontmatter only — `yq` reads the first YAML
+        # document in a multi-doc stream by default, which on
+        # SKILL.md files (front-matter only at the top) yields the
+        # frontmatter map directly without a body read.
+        name="$(yq -r '.name // ""' "$skill_file" 2>/dev/null)"
+        description="$(yq -r '.description // ""' "$skill_file" 2>/dev/null)"
+        # Fallback to the dir name if the frontmatter is missing /
+        # malformed so the row still surfaces something useful.
+        [[ -z "$name" || "$name" == "null" ]] && name="$(basename "$(dirname "$skill_file")")"
+        [[ "$description" == "null" ]] && description=""
+        if [[ -n "$description" ]]; then
+            printf '  [%s] %s — %s\n' "$scope" "$name" "$description"
+        else
+            printf '  [%s] %s\n' "$scope" "$name"
+        fi
+        rendered=1
+    done
+    [[ $rendered -eq 1 ]]
+}
+
 # Active realm — same detection logic gdd-orientation Step 0c uses
 # (ecosystem.local.yaml `realm:` selector, else a single realm-*).
 # Prints a status line + pointer to the realm's AGENTS.md guide; the
@@ -173,6 +228,4 @@ echo "Workspace toolset (\`ws orient\`)"
 emit_subcommand_survey
 emit_active_realm
 emit_component_adapters
-
-echo ""
-echo "(Phase 1 Task 4 in progress — skill index lands in sub-step 4e.)"
+emit_skill_index

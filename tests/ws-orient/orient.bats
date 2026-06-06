@@ -157,3 +157,55 @@ YAML
     [[ "$output" == *"Components"* ]]
     [[ "$output" == *"no components cloned"* ]]
 }
+
+# ─── 4e — skill index ───────────────────────────────────────────────
+
+# Helper: drop a SKILL.md with the given name + description into the
+# target dir. Mirrors the on-disk convention every workspace +
+# realm skill uses (`.agent/skills/<slug>/SKILL.md` with a YAML
+# frontmatter carrying `name:` and `description:`).
+_seed_skill() {
+    local skills_root="$1" slug="$2" description="$3"
+    mkdir -p "$skills_root/$slug"
+    cat > "$skills_root/$slug/SKILL.md" <<MD
+---
+name: $slug
+description: $description
+---
+
+# $slug
+MD
+}
+
+@test "ws orient: surfaces a workspace skill name and its description" {
+    _seed_skill "$WORK/.agent/skills" fixture-skill "Use when running the orient skill-index test."
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"fixture-skill"* ]]
+    [[ "$output" == *"orient skill-index test"* ]]
+}
+
+@test "ws orient: surfaces an active-realm skill alongside workspace skills" {
+    mkdir -p "$WORK/realms/realm-fixture"
+    cat > "$WORK/realms/realm-fixture/ecosystem.yaml" <<'YAML'
+identity:
+  human_account: testuser
+components: {}
+YAML
+    _seed_skill "$WORK/.agent/skills" ws-skill "Workspace-tier skill"
+    _seed_skill "$WORK/realms/realm-fixture/.agent/skills" realm-skill "Realm-tier skill"
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ws-skill"* ]]
+    [[ "$output" == *"realm-skill"* ]]
+}
+
+@test "ws orient: skills section is present even when no skills exist" {
+    # init_workspace alone has no .agent/skills/ dirs anywhere.
+    # Section header must still render so a future regression that
+    # silently drops the whole index is visible.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Skills"* ]]
+    [[ "$output" == *"no skills"* ]]
+}
