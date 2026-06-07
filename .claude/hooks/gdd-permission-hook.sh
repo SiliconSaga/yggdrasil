@@ -884,11 +884,21 @@ _ar_resolve_realm() {
 
 # Resolve the component name from $cwd. Returns 0 + prints the name
 # if $cwd is under $root/components/<comp>/, else returns 1.
+#
+# The pattern `"$root/components/"*` also matches `$cwd == "$root/components/"`
+# itself (empty tail after the prefix strip), which would produce an
+# empty component name — Tier 3 would then treat the workspace-level
+# `components/` directory as a "component", emit a blank-component
+# nudge, and look up `realms/<realm>/adapters/.yaml`. Guard against
+# that by rejecting an empty first segment so the rule only fires
+# under a real `components/<comp>/` path.
 _ar_resolve_component() {
     local cwd="$1" root="$2"
     if [[ "$cwd" == "$root/components/"* ]]; then
         local rest="${cwd#$root/components/}"
-        echo "${rest%%/*}"
+        local comp="${rest%%/*}"
+        [[ -n "$comp" ]] || return 1
+        echo "$comp"
         return 0
     fi
     return 1

@@ -874,6 +874,28 @@ EOF
     [[ "$output" != *"No \`ws test\` adapter"* ]]
 }
 
+@test "adapter-redirect: pytest at the bare components/ root falls through (no blank-component nudge)" {
+    # Pin the _ar_resolve_component edge case: the pattern
+    # `"$root/components/"*` also matches `$root/components/` itself
+    # (empty tail). Without the empty-segment guard the resolver
+    # would emit a nudge for a blank component name and try to look
+    # up `adapters/.yaml`. Guard ensures the rule only fires under
+    # an actual `components/<comp>/` path. Copilot finding on PR #90.
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    mkdir -p "$WORK/components"
+    run_hook "pytest tests/" "$WORK/components"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    # No blank-component nudge: a regression that surfaces `No ws
+    # test adapter for ...` (with empty or whitespace-only name)
+    # would fail here.
+    [[ "$output" != *"No \`ws test\` adapter for "* ]]
+}
+
 @test "adapter-redirect: overlapping unwired patterns emit only one nudge" {
     # Two entries whose globs both match `pytest tests/` (same verb,
     # same component). Without the break-on-first-match guard, the
