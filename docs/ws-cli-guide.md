@@ -1,7 +1,6 @@
 # Workspace CLI (`ws`) — Contributor Guide
 
-How to add new subcommands, classify their permission level, and maintain
-the security model.
+How to add new subcommands, classify their permission level, and maintain the security model.
 
 ## Purpose
 
@@ -15,8 +14,7 @@ Over time as more common patterns are detected they can result in new convenienc
 - **Delegates** to an existing `scripts/*.sh` script (e.g. `ws list` → `ws-list.sh`)
 - **Wraps** a script with component-directory resolution (e.g. `ws push mimir` → `cd components/mimir && git-push.sh`)
 
-The dispatcher handles argument parsing, component validation, and help text.
-Existing scripts remain standalone and unchanged.
+The dispatcher handles argument parsing, component validation, and help text. Existing scripts remain standalone and unchanged.
 
 ## Adding a New Subcommand
 
@@ -34,8 +32,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 In `scripts/ws`, add three things:
 
-**a) Help text** — add a `#` comment line in the header block (between
-`# Commands:` and the blank line):
+**a) Help text** — add a `#` comment line in the header block (between `# Commands:` and the blank line):
 
 ```bash
 #   mycommand [args]  Description of what it does
@@ -74,19 +71,15 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions` |
-| **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs) |
+| **Safe** | Yes (allow) | No | `orient`, `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `lint`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions`, `audit-permissions`, `preflight` |
+| **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs), `hook-bypass` (ask-tier enforced — even with an allow pattern present, the hook always force-prompts) |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
-**Safe:** Read-only or creates local files only. Add to the `allow` list in
-`.claude/settings.json`.
+**Safe:** Read-only or creates local files only. Add to the `allow` list in `.claude/settings.json`.
 
-**Side-effect:** Modifies external state (pushes code, creates issues/PRs,
-sends messages). Prompts by default but users *can* whitelist for bulk
-operations. Do NOT add a deny rule — let users decide.
+**Side-effect:** Modifies external state (pushes code, creates issues/PRs, sends messages). Prompts by default but users *can* whitelist for bulk operations. Do NOT add a deny rule — let users decide.
 
-**Arbitrary execution:** Takes user-provided commands and runs them. Must have
-a deny rule in `.claude/settings.json`. Currently only `exec` is in this tier.
+**Arbitrary execution:** Takes user-provided commands and runs them. Must have a deny rule in `.claude/settings.json`. Currently only `exec` is in this tier.
 
 ### 4. Update `.claude/settings.json`
 
@@ -131,15 +124,11 @@ These apply to all subcommands:
 
 ### Why `exec` always requires human approval
 
-`ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were
-auto-approvable, a compromised prompt or injected instruction could run
-anything on the system. The deny rule in `.claude/settings.json` ensures
-every `exec` invocation requires human approval, regardless of user settings.
+`ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were auto-approvable, a compromised prompt or injected instruction could run anything on the system. The deny rule in `.claude/settings.json` ensures every `exec` invocation requires human approval, regardless of user settings.
 
 ### Component name validation
 
-Component names pass through `yq` expressions (`.components.$name`). The
-regex `^[a-z][a-z0-9-]*$` prevents:
+Component names pass through `yq` expressions (`.components.$name`). The regex `^[a-z][a-z0-9-]*$` prevents:
 - Path traversal (`../../etc`)
 - Shell metacharacters (`;`, `|`, `$`, etc.)
 - Newline injection (bash `=~` matches full string, not per-line)
@@ -157,9 +146,7 @@ The workspace name `yggdrasil` appears as a special case in `ws_validate_compone
 4. Update the domain in `ecosystem.yaml`
 5. Update `.mcp.json` if you change component names that host MCP servers
 
-The name is intentionally not stored in a variable — it's a single check in a
-security-sensitive function, and indirection would add complexity for a one-time
-operation.
+The name is intentionally not stored in a variable — it's a single check in a security-sensitive function, and indirection would add complexity for a one-time operation.
 
 #### Reserved component names
 
@@ -170,18 +157,13 @@ The following names are reserved and cannot be used as component names:
 | `yggdrasil` | `ws_validate_component`, `ws-review.sh` | Refers to the workspace root itself |
 | `help` | `ws-review.sh` | Subcommand keyword — `ws review help` shows usage |
 
-If you add new subcommand keywords to any `ws-*.sh` script, guard them before
-the component name validation block (see the `help` check in `ws-review.sh` as
-a pattern).
+If you add new subcommand keywords to any `ws-*.sh` script, guard them before the component name validation block (see the `help` check in `ws-review.sh` as a pattern).
 
 ## Local Permission Overrides for Bulk Operations
 
 Side-effect commands (`push`, `cr`, `issue`) prompt for approval by default. (`ws commit` is **allowlisted by default** — see [ws commit](#ws-commit) below — so it needs no local override.) For bulk operations (filing multiple issues, pushing several components), you can auto-approve the rest in your local settings.
 
-**Setup:** Create `.claude/settings.local.json` (gitignored) and add the
-patterns you want to auto-approve. In Claude Code permission
-rules, each `*` matches **one argument** (not multiple). So multi-argument
-commands need one `*` per argument:
+**Setup:** Create `.claude/settings.local.json` (gitignored) and add the patterns you want to auto-approve. In Claude Code permission rules, each `*` matches **one argument** (not multiple). So multi-argument commands need one `*` per argument:
 
 ```json
 {
@@ -202,9 +184,20 @@ commands need one `*` per argument:
 | `Bash(bash scripts/ws cr * * *)` | CR with component + title + bodyfile | `ws cr mimir "feat: add X" .crs/x.md` |
 | `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
 
-**Note:** `ws exec` **always requires human approval** — the project-level
-deny rule in `.claude/settings.json` cannot be overridden by local settings.
-See "Why exec always requires human approval" above.
+**Note:** `ws exec` **always requires human approval** — the project-level deny rule in `.claude/settings.json` cannot be overridden by local settings. See "Why exec always requires human approval" above.
+
+## ws orient
+
+`ws orient` is the L1 layer of the progressive-disclosure surface (L0 is `AGENTS.md`, L2 is per-subcommand `ws <cmd> --help`). It prints a deterministic discovery menu:
+
+- **Subcommand survey** — every dispatched subcommand with its `# ws:use-when …` docstring, built dynamically by scanning the dispatcher in `scripts/ws`.
+- **Active realm** — the auto-detected or `ecosystem.local.yaml`-selected realm, with a pointer at its `AGENTS.md` guide.
+- **Per-component adapter wiring** — for each cloned component with a realm-side adapter file, the wired verbs (`ws test`, `ws lint`, `ws build`) and the **resolved command** each dispatches (`runs: ./gradlew test`). Components without an adapter file are suppressed so the section stays signal-rich.
+- **Skill index** — workspace skills (`/.agent/skills/`) and active-realm skills (`realms/<r>/.agent/skills/`), parsed from each SKILL.md frontmatter.
+
+The output stays cheap even with dozens of skills — frontmatter-only parsing on SKILL.md bodies, single-line per row. Read-only; no flags yet. Run at session start, after compaction, or whenever you're unsure what's available.
+
+A post-dispatch stderr footer on every other `ws` subcommand keeps `ws orient` discoverable mid-session. Suppressed for `orient` itself, `--help` variants, and under bats. Opt out with `WS_FOOTER_DISABLE=1`.
 
 ## ws commit
 
@@ -267,11 +260,7 @@ Behavior:
 7. Prints educational output explaining the local-first → upstream-when-
    ready flow plus a flavor-appropriate `gh repo create` suggestion.
 
-`ecosystem.local.yaml` is the per-developer (gitignored) layer of the
-three-layer merge. The new component is immediately usable from this
-workspace; when ready to share with the community, move the entry into
-the realm's `ecosystem.yaml` with realm-appropriate fields (tier,
-chartVersion, etc.) and push the realm.
+`ecosystem.local.yaml` is the per-developer (gitignored) layer of the three-layer merge. The new component is immediately usable from this workspace; when ready to share with the community, move the entry into the realm's `ecosystem.yaml` with realm-appropriate fields (tier, chartVersion, etc.) and push the realm.
 
 Currently shipped flavors:
 
@@ -279,14 +268,10 @@ Currently shipped flavors:
   default GitHub Jekyll theme. Comprehensive README walks the user
   through the edit → PR → bot-review → merge → see-it-live demo loop.
 
-Per-flavor flag handling is hardcoded in `scripts/ws-component.sh`
-for v1.
+Per-flavor flag handling is hardcoded in `scripts/ws-component.sh` for v1.
 
 ## Finding Patterns Worth Scripting
 
-Use the `gdd-workflow-audit` skill (`.agent/skills/gdd-workflow-audit/SKILL.md`)
-to detect repeated manual workarounds that could become new subcommands.
-The skill triggers on 3+ instances of the same awkward pattern in a session.
+Use the `gdd-workflow-audit` skill (`.agent/skills/gdd-workflow-audit/SKILL.md`) to detect repeated manual workarounds that could become new subcommands. The skill triggers on 3+ instances of the same awkward pattern in a session.
 
-Common progression: manual workaround → noticed by auditor → proposed as
-script → reviewed → added to `ws` → classified and permissioned.
+Common progression: manual workaround → noticed by auditor → proposed as script → reviewed → added to `ws` → classified and permissioned.

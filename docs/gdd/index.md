@@ -1,21 +1,24 @@
 # Guardian Driven Development (GDD)
 
-Guardian Driven Development is a methodology for human-AI collaboration in
-software projects. It wraps existing development practices — BDD, TDD, code
-review — in a layer of structured guidance that adapts to who's working, what
-role they're filling, and how much time they have.
+Guardian Driven Development is a methodology for human-AI collaboration in software projects. It wraps existing development practices — BDD, TDD, code review — in a layer of structured guidance that adapts to who's working, what role they're filling, and how much time they have.
 
 ## The Core Insight
 
-AI agents and newer contributors need similar things: clear boundaries,
-incremental tasks, safety rails, and enough context to be productive without
-close supervision. A methodology that serves one can serve both.
+AI agents and newer contributors need similar things: clear boundaries, incremental tasks, safety rails, and enough context to be productive without close supervision. A methodology that serves one can serve both.
 
 GDD grew out of open-source community work, where contributors range from experienced maintainers to first-time coders, and where AI is reshaping how people learn and contribute. As traditional mentorship paths erode — in both OSS and commercial settings — GDD is an attempt to put something helpful out there: a way for humans and AI to collaborate productively, where the AI teaches alongside generating, and the framework keeps everyone safe while they learn.
 
 It also encourages what researchers call the "cyborg" approach to AI collaboration ([Bhargava, 2026](https://www.businessinsider.com/ai-impact-on-thinking-cognitive-skills-researcher-2026-3); [Mollick, 2023](https://www.oneusefulthing.org/p/centaurs-and-cyborgs-on-the-jagged)) — rather than outsourcing thinking to AI or using it as an echo chamber, you develop an iterative back-and-forth where both human and agent build on each other's contributions. The [Thalamus](thalamus.md) serves as shared working memory for this collaboration. This has been the author's experience while developing the framework.
 
 The name "Guardian" reflects this protective intent. The AI isn't just a code generator — it's a patient collaborator that explains its reasoning, flags risks, and helps people grow. In a world where it's tempting to use AI purely as a throughput amplifier, GDD asks: what if we also used it to make the experience of building software more human?
+
+## Calibrated Autonomy
+
+GDD sits deliberately in the middle of the AI-collaboration spectrum. On one end, AI as fancy auto-complete — useful, but the human still writes every meaningful decision. On the other end, vibe coding or autonomous swarms where the human launches work and comes back to an agent-provided summary plus passing tests, trusting the result without reviewing line-by-line. Both ends work for their use cases — plenty of people are happy with one or the other, and home / internal / lower-stakes software often doesn't need anything heavier than that. GDD doesn't try to replace either extreme.
+
+What it tunes for is the middle band: software you intend to maintain, learn from while building, and grow with — your code, your agent, and (when you have one) your community evolving together. The human stays involved at a regular cadence — not every commit (the agent often increments through several before a review pause), but every PR title and merge decision is a deliberate human call; pushes to topic branches are often comfortable to auto-approve once the workflow's familiar. The [PreToolUse hook](agent-training.md), the `ws orient` discovery surface, and the wrapper-first reflex contract together support this rhythm — the structural reason a human and an agent can stay in sync without ceremony getting in the way.
+
+This positioning enables a community angle that the other extremes don't naturally surface. An agent paired with a project and the humans around it can become a meaningful participant — not just a code generator for one human, but a collaborator that respects shared workspace integrity, flags risks that affect other contributors, and refuses to participate in actions that would compromise the project (while making clear the human is free to act on their own). That pattern is a workflow choice; GDD is built to make it natural when you want it.
 
 ## Key Concepts
 

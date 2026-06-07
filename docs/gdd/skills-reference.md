@@ -1,24 +1,14 @@
 # Skills Reference
 
-The yggdrasil workspace ships a set of **skills** — markdown files
-under `.agent/skills/<name>/SKILL.md` that capture how the agent
-should approach specific situations. Skills are discovered during
-GDD orientation and read as plain markdown; they are *not* invoked
-through plugin tools. See the [Self-Improving Loop](self-improving-loop.md)
-for how the catalog evolves over time.
+The yggdrasil workspace ships a set of **skills** — markdown files under `.agent/skills/<name>/SKILL.md` that capture how the agent should approach specific situations. Skills are discovered during GDD orientation and read as plain markdown; they are *not* invoked through plugin tools. See the [Self-Improving Loop](self-improving-loop.md) for how the catalog evolves over time.
 
-This page is the catalog: what ships, grouped by purpose. For
-day-to-day use, the orchestrator skill (`gdd`) decides which other
-skills apply at any moment based on the active mode, role, and
-context.
+This page is the catalog: what ships, grouped by purpose. For day-to-day use, the orchestrator skill (`gdd`) decides which other skills apply at any moment based on the active mode, role, and context.
 
 ---
 
 ## Modes — *how* to work
 
-Modes set the ceremony level for a session. Most sessions sit in
-exactly one mode; the active mode lives in the per-machine thalamus
-frontmatter.
+Modes set the ceremony level for a session. Most sessions sit in exactly one mode; the active mode lives in the per-machine thalamus frontmatter.
 
 | Skill | Use when |
 |---|---|
@@ -48,7 +38,7 @@ Skills that handle session-level coordination — start, end, cross-cutting work
 | Skill | Use when |
 |---|---|
 | **gdd** | The top-level orchestrator. Detects active mode/role and delegates to the right skills. |
-| **gdd-orientation** | Session start, or when new components are discovered. Reads thalamus, verifies trust, sets mode/role. |
+| **gdd-orientation** | Session start, after compaction, or when new components / realms are discovered. Greets newcomer-aware, runs `ws orient` (delegates workspace facts), refreshes `.env`'s `CLAUDE_MODEL` default if stale, scans adapter command strings on realm activation, verifies trust, sets mode/role. |
 | **gdd-housekeeping** | Triage thalamus content — review observations and concerns, promote to issues/skills, prune resolved items. |
 | **gdd-review-triage** | After pushing, when CR review comments arrive (CodeRabbit, Copilot, others). Dedupes and triages. |
 | **gdd-branch-workflow** | About to commit and push; deciding direct-to-main vs topic branch. |
@@ -87,15 +77,9 @@ Skills tied to specific workspace operations.
 .agent/skills/<name>/SKILL.md
 ```
 
-Each skill has a frontmatter block (name, description) and the
-markdown body. Some skills include subdirectories with reference
-material (templates, examples, sub-skills).
+Each skill has a frontmatter block (name, description) and the markdown body. Some skills include subdirectories with reference material (templates, examples, sub-skills).
 
-To read a skill: open the file. To author a new skill or change an
-existing one: edit the file. Skills are plain documentation —
-there's no "load skill" tool to invoke. The orchestrator and
-orientation skills walk this directory at session start and decide
-what's relevant to surface.
+To read a skill: open the file. To author a new skill or change an existing one: edit the file. Skills are plain documentation — there's no "load skill" tool to invoke. The orchestrator and orientation skills walk this directory at session start and decide what's relevant to surface.
 
 ---
 

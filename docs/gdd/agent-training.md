@@ -4,6 +4,34 @@ A user-facing companion to the technical reference at [`.claude/hooks/README.md`
 
 ---
 
+## The progressive-disclosure buffet (L0 / L1 / L2)
+
+The workspace trains agents through three concentric layers, each loaded only when needed. The shape is "buffet, not banquet" — agents take what's relevant when it's relevant rather than swallowing everything up front.
+
+| Layer | Surface | Purpose |
+|---|---|---|
+| **L0** | [`AGENTS.md`](../../AGENTS.md) — slim menu, always loaded | The reflex contract: which `ws` verbs to use instead of raw `git`/`gh`, the meta-rule for adapter-routed verbs, hard pointers at the deeper surfaces. ~100 lines. |
+| **L1** | `ws orient` — run at session start | The deterministic discovery menu: subcommands with "use when …" docstrings, active realm, per-component adapter wiring (with the resolved command surfaced), and the skill index across workspace + realm scopes. |
+| **L2** | `ws <cmd> --help` — on demand | Per-subcommand depth: flags, bodyfile shapes, environment variables. Source of truth for command behavior — skills defer to it rather than restating. |
+
+**The reflex contract** at L0 names the unconditional verbs (`ws commit`, `ws push`, `ws cr`, `ws issue`, `ws clone`, `ws exec`) and the adapter-routed verbs (`ws test`, `ws lint`, `ws build`) that consult `ws orient` first. A fresh agent's instinct is to reach for raw `git commit` / `git push` / `gh pr create` — the contract redirects that reflex to the workspace wrappers, which handle attribution, auth, remote selection, and bodyfile-driven flows that raw tools don't.
+
+### The per-command footer keeps L1 discoverable
+
+Every successful `ws` subcommand prints a dim one-line nudge to stderr:
+
+```text
+↪ switching tasks? `ws orient` lists available tools.
+```
+
+Suppressed for `orient` itself, `--help` variants, and under bats (so test output stays clean). Opt out per-session with `WS_FOOTER_DISABLE=1`. The footer is the mid-session reminder that L1 exists — without it, agents tend to discover `ws orient` once at session start and forget the surface mid-task.
+
+### The hook as a Claude-only backstop
+
+The PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) is Claude-specific — it's a Claude Code feature, not a portable agent contract. The deny-and-correct training loop only runs in Claude sessions. For Codex, Gemini CLI, Cursor, and other agents, the load-bearing layers are the portable ones: `AGENTS.md`'s reflex contract (read at session start), `ws orient`'s discovery menu, and the per-command footer (all `ws`-wrapped, all portable). Treat the hook as "Claude's training wheels" rather than the workspace's safety floor.
+
+---
+
 ## Errors you may see
 
 When a fresh session begins, the agent often reaches for shell patterns that aren't allowed here — `cmd | head`, `something > out`, `grep -E 'a|b'`, `cmd 2>&1`. Each one gets blocked by the workspace's PreToolUse hook with a corrective message:
