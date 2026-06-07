@@ -81,7 +81,7 @@ HAD_FAILURES=0
 
 if [[ -n "${1:-}" ]]; then
     # Single named arg — could be component, realm, or hoard.
-    # ws_validate_component handles all three since PR #44 (sets COMPONENT_DIR).
+    # ws_validate_component handles all three (sets COMPONENT_DIR).
     if ! ws_validate_component "$1"; then
         exit 1
     fi

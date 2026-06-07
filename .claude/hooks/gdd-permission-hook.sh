@@ -961,10 +961,10 @@ for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"};
             echo "↪ No \`ws $_ar_verb\` adapter for $_ar_comp yet. Wire one at realms/$_ar_realm/adapters/$_ar_comp.yaml with \`commands.$_ar_verb: ...\` and \`ws $_ar_verb $_ar_comp\` will dispatch it. Running raw this time." >&2
             # Break after the first unwired match so an overlapping
             # glob in hook-rules doesn't emit a second nudge / audit
-            # entry for the same command (Copilot finding on PR #90).
-            # The break exits this for loop; later tiers (Tier 4
-            # ask-list, Tier 5-6 allow evaluation, passthrough prompt)
-            # still run because we didn't emit a JSON decision or exit.
+            # entry for the same command. The break exits this for
+            # loop; later tiers (Tier 4 ask-list, Tier 5-6 allow
+            # evaluation, passthrough prompt) still run because we
+            # didn't emit a JSON decision or exit.
             break
         fi
     fi

@@ -751,9 +751,9 @@ _ws_footer() {
     [[ "$_WS_IS_HELP" -eq 1 ]] && return 0
     # Use dim ANSI only when stderr is a terminal — captured logs and
     # CI output should see plain text instead of raw `\e[2m...\e[0m`
-    # escape sequences (Copilot finding on PR #90). The visible text
-    # stays identical in both branches so search/grep on the message
-    # works the same way regardless of styling.
+    # escape sequences. The visible text stays identical in both
+    # branches so search/grep on the message works the same way
+    # regardless of styling.
     if [[ -t 2 ]]; then
         printf $'\e[2m↪ switching tasks? `ws orient` lists available tools.\e[0m\n' >&2
     else

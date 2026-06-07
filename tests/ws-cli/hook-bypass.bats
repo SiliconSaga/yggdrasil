@@ -119,7 +119,6 @@ EOF
     # users to bypass via `ws hook-bypass <slug>`. The script must
     # accept those slugs too — otherwise the deny message tells users
     # to do something the script refuses to do. Pin the contract.
-    # Copilot low-confidence finding on PR #90.
     cat > "$WORK/.claude/hooks/hook-rules" <<'EOF'
 [redirect-commands]
 git-commit          | git commit*    | Use ws commit

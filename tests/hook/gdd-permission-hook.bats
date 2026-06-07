@@ -760,7 +760,7 @@ EOF
     [[ "$output" != *"Use ws commit"* ]]
 }
 
-# ─── Tier 3 — adapter-aware test/lint redirects (Task 6) ────────────
+# ─── Tier 3 — adapter-aware test/lint redirects ─────────────────────
 
 # When `[adapter-redirect-commands]` matches (pytest, ruff, etc.) and
 # $cwd resolves to a component with a wired adapter, the hook denies
@@ -880,7 +880,7 @@ EOF
     # (empty tail). Without the empty-segment guard the resolver
     # would emit a nudge for a blank component name and try to look
     # up `adapters/.yaml`. Guard ensures the rule only fires under
-    # an actual `components/<comp>/` path. Copilot finding on PR #90.
+    # an actual `components/<comp>/` path.
     write_project_hook_rules "$(cat <<'EOF'
 [adapter-redirect-commands]
 pytest | pytest* | test
@@ -900,8 +900,7 @@ EOF
     # Two entries whose globs both match `pytest tests/` (same verb,
     # same component). Without the break-on-first-match guard, the
     # unwired branch would emit two nudges and two audit entries for
-    # a single invocation (Copilot finding on PR #90). Pin the
-    # one-nudge contract here.
+    # a single invocation. Pin the one-nudge contract here.
     write_project_hook_rules "$(cat <<'EOF'
 [adapter-redirect-commands]
 pytest      | pytest*  | test

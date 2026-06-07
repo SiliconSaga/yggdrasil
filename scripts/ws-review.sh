@@ -453,9 +453,8 @@ review_comments() {
     # Copilot's reviewer bot wraps "low confidence" findings inside the
     # leading review body as a collapsed <details> block — they never
     # land as inline threads and they don't show up in any auth'd
-    # comments fetch. They're real, often actionable findings (the
-    # one on PR #90 flagged a gap in ws-hook-bypass's slug enumeration),
-    # so promote the count to the Index alongside the CodeRabbit patterns.
+    # comments fetch. They're real, often actionable findings, so
+    # promote the count to the Index alongside the CodeRabbit patterns.
     n_low_conf=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Comments suppressed due to low confidence')
 
     echo "=== Index ==="

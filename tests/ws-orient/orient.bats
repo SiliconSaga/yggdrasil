@@ -1,19 +1,9 @@
 #!/usr/bin/env bats
 
-# Tests for `ws orient` — the deterministic discovery menu (Phase 1,
-# Task 4 of the GDD orientation + capability index arc).
-#
-# Task 4a scope (this file initially): scaffold + dispatch + header.
-# Sub-steps 4b-4e bolt on additional assertions as those sections
-# land:
-#   4b — subcommand survey rows
-#   4c — active realm detection
-#   4d — per-component adapter enumeration with resolved-command surfacing
-#   4e — skill index
-#
-# Reuses the ws-smoke test_helper so the dispatcher and timeout
-# behavior match the rest of the smoke suite — `ws orient` is a
-# read-only discovery command, same shape as `ws status` / `ws list`.
+# Tests for `ws orient` — the deterministic discovery menu. Reuses
+# the ws-smoke test_helper so the dispatcher and timeout behavior
+# match the rest of the smoke suite — `ws orient` is a read-only
+# discovery command, same shape as `ws status` / `ws list`.
 
 load ../ws-smoke/test_helper
 
@@ -21,7 +11,7 @@ setup() {
     init_workspace
 }
 
-# ─── 4a — scaffold + dispatch + header ─────────────────────────────
+# ─── scaffold + dispatch + header ──────────────────────────────────
 
 @test "ws orient: runs and prints a titled header" {
     run_ws orient
@@ -45,7 +35,7 @@ setup() {
     [ "$status" -ne 124 ]
 }
 
-# ─── 4b — subcommand survey ─────────────────────────────────────────
+# ─── subcommand survey ─────────────────────────────────────────────
 
 @test "ws orient: prints a subcommand survey with the 'use when' phrase" {
     run_ws orient
@@ -56,10 +46,9 @@ setup() {
 }
 
 @test "ws orient: subcommand survey lists the headline verbs (commit, test, lint, orient)" {
-    # Plan-mandated rows (Task 4b assertions). Other rows live in
-    # the authored survey table and can drift; these four are
-    # pinned because they're the verbs the surrounding plan tasks
-    # (5/6/7/8) revolve around.
+    # Other rows in the dynamically-built survey can drift; these
+    # four are pinned because they're the verbs the surrounding
+    # workflow (commit, test, lint, orient) hinges on.
     run_ws orient
     [ "$status" -eq 0 ]
     for verb in commit test lint orient; do
@@ -106,7 +95,7 @@ setup() {
     [[ "$output" == *"mcp-status"*"checking which MCP servers"* ]]
 }
 
-# ─── 4c — active realm detection ────────────────────────────────────
+# ─── active realm detection ────────────────────────────────────────
 
 @test "ws orient: prints 'Active realm: none' when no realm is present" {
     # init_workspace creates an empty realms/ directory, so the
@@ -137,7 +126,7 @@ MD
     [[ "$output" == *"AGENTS.md"* ]]
 }
 
-# ─── 4d — per-component adapters with resolved command ──────────────
+# ─── per-component adapters with resolved command ──────────────────
 
 # Helper: drop a fixture realm + a cloned component dir. Used by the
 # adapter tests below so each test can opt into wiring an adapter
@@ -175,15 +164,36 @@ YAML
     [[ "$output" == *"runs: python3 -m ruff check"* ]]
 }
 
-@test "ws orient: cloned component without an adapter prints the wire-it hint" {
+@test "ws orient: cloned component without an adapter file is suppressed (signal-over-noise)" {
     _seed_realm_and_component bareclone
-    # No adapter file. The orient output should call this out
-    # explicitly so the unwired state is discoverable, not silent.
+    # No adapter file. The "no test/lint adapter" row for every
+    # unwired clone was noise that diluted the wired-adapter signal,
+    # so the row is suppressed entirely. Components with an adapter
+    # *file* but no wired commands still surface (covered by the
+    # malformed-adapter-YAML test below + the dedicated empty-
+    # commands case below this one).
     run_ws orient
     [ "$status" -eq 0 ]
-    [[ "$output" == *"bareclone"* ]]
-    [[ "$output" == *"no test/lint adapter"* ]]
-    [[ "$output" == *"realm-fixture/adapters/bareclone.yaml"* ]]
+    [[ "$output" != *"bareclone"* ]]
+    [[ "$output" != *"no test/lint adapter"* ]]
+    # No components have wired adapters, but one is cloned — the
+    # section should call that out rather than render as silent.
+    [[ "$output" == *"no cloned component has an adapter wired"* ]]
+}
+
+@test "ws orient: adapter file present but no commands wired still surfaces" {
+    _seed_realm_and_component partialwired
+    # Adapter file exists but contains no commands — a real
+    # discoverable gap (someone started wiring and stopped). Keep
+    # this row even though we suppress the no-file-at-all case.
+    cat > "$WORK/realms/realm-fixture/adapters/partialwired.yaml" <<'YAML'
+ai_context:
+  test_dir: tests/
+YAML
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"partialwired"* ]]
+    [[ "$output" == *"adapter present but no commands"* ]]
 }
 
 @test "ws orient: components section is present even when no clones exist" {
@@ -197,7 +207,7 @@ YAML
     [[ "$output" == *"no components cloned"* ]]
 }
 
-# ─── 4e — skill index ───────────────────────────────────────────────
+# ─── skill index ───────────────────────────────────────────────────
 
 # Helper: drop a SKILL.md with the given name + description into the
 # target dir. Mirrors the on-disk convention every workspace +
@@ -283,7 +293,7 @@ YAML
     # Pin the diagnostic text so a regression that silently swallows
     # the parse failure (returning empty commands and rendering "no
     # commands wired") instead of surfacing the actual problem fails
-    # this test. Per CodeRabbit on PR #89.
+    # this test.
     [[ "$output" == *"adapter present but YAML parse failed"* ]]
     [[ "$output" == *"badyaml.yaml"* ]]
     [[ "$output" == *"Skills"* ]]
@@ -292,8 +302,7 @@ YAML
 @test "ws orient --help works when yq is not on PATH" {
     # Fresh-machine contract: --help must short-circuit before the
     # yq dependency check so a newcomer can discover the command
-    # before installing every prerequisite. Per Copilot finding on
-    # PR #89.
+    # before installing every prerequisite.
     #
     # Strip yq from PATH by pointing to system bin dirs only. If
     # those happen to contain yq on this host (rare — most installs
@@ -309,10 +318,10 @@ YAML
 }
 
 @test "ws orient: ecosystem.local.yaml parse failure renders 'error' (not 'ambiguous')" {
-    # Per Copilot finding on PR #89: a YAML parse failure in
-    # ecosystem.local.yaml shouldn't be misreported as multi-realm
-    # ambiguity — that sends the user down the wrong fix path.
-    # Distinguish via the stderr content from ws_detect_realm.
+    # A YAML parse failure in ecosystem.local.yaml shouldn't be
+    # misreported as multi-realm ambiguity — that sends the user
+    # down the wrong fix path. Distinguish via the stderr content
+    # from ws_detect_realm.
     cat > "$WORK/ecosystem.local.yaml" <<'YAML'
 identity:
   human_account: "broken
@@ -322,8 +331,8 @@ YAML
     run_ws orient
     [ "$status" -eq 0 ]
     [[ "$output" == *"Active realm: error"* ]]
-    # No misleading multi-realm guidance — that'd be the
-    # wrong-fix-path Copilot warned about.
+    # No misleading multi-realm guidance — that's the wrong fix
+    # path and we deliberately classify this as `error`, not `ambiguous`.
     [[ "$output" != *"Active realm: ambiguous"* ]]
     # Subsequent sections must still render.
     [[ "$output" == *"Skills"* ]]
@@ -346,10 +355,9 @@ MD
     run_ws orient
     [ "$status" -eq 0 ]
     # The broken skill must still render via the dir-name fallback —
-    # not just "didn't abort". Per CodeRabbit on PR #89: pin the
-    # fallback path explicitly so a regression that silently drops
-    # broken skills (e.g. via `continue` instead of `name=basename`)
-    # would fail this test.
+    # not just "didn't abort". Pin the fallback path explicitly so
+    # a regression that silently drops broken skills (e.g. via
+    # `continue` instead of `name=basename`) would fail this test.
     [[ "$output" == *"broken-skill"* ]]
     # The good skill's description must still render — proves orient
     # didn't abort mid-walk over the broken sibling.

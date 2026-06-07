@@ -2,8 +2,7 @@
 # ws-orient.sh — deterministic "what can I do here?" menu.
 # ws:use-when starting a session, recovering from compaction, or switching tasks
 #
-# `ws orient` is the L1 layer of the progressive-disclosure buffet
-# documented in `docs/plans/2026-06-02-gdd-orientation-and-attribution-design.md`:
+# `ws orient` is the L1 layer of the progressive-disclosure buffet:
 #
 #   L0  slim AGENTS.md + reflex contract       — always-loaded reminder
 #   L1  ws orient                              — this command
@@ -12,12 +11,7 @@
 # The goal is one deterministic place an agent (or a human) can run
 # to see: the workspace toolset + the active realm + per-component
 # adapter wiring (with the resolved command surfaced) + the skill
-# index. Phase 1 Task 4 of the gdd-orientation-capability-index arc.
-#
-# This file is the Task 4a scaffold: header only. Sub-steps 4b-4e
-# layer additional sections on top (subcommand survey, active realm,
-# adapters, skill index) — see the plan for the per-step interface
-# contracts.
+# index.
 
 set -euo pipefail
 
@@ -40,8 +34,7 @@ skill index. Run after compaction, on a fresh dispatch, or when
 switching tasks. Pairs with the per-command `ws orient` footer
 nudge that fires after every subcommand.
 
-Read-only. No flags yet — Phase 1 Task 4 sub-steps fill in
-sections incrementally.
+Read-only. No flags yet.
 HELP
     exit 0
 }
@@ -55,7 +48,7 @@ fi
 # a cryptic 127 from inside `_emit_one_adapter` rather than as a
 # helpful diagnostic at startup. Deliberately AFTER the --help
 # short-circuit so a fresh-machine user can still discover `ws orient`
-# before installing every prerequisite (Copilot finding on PR #89).
+# before installing every prerequisite.
 if ! command -v yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     echo "  Install: see docs/dev-setup.md or 'ws preflight' for the platform-specific hint." >&2
@@ -235,11 +228,10 @@ _orient_find_use_when_func() {
 #
 # `ambiguous` and `error` are split deliberately: ws_detect_realm
 # exits 1 on both multi-realm AND on a malformed ecosystem.local.yaml.
-# Conflating them would point the user at the wrong fix path
-# (Copilot finding on PR #89). The split keys off the canonical
-# "Multiple non-template realms" stderr message from
-# ws_detect_realm; anything else is classified as a generic error
-# and the actual stderr first line surfaces to the user.
+# Conflating them would point the user at the wrong fix path. The
+# split keys off the canonical "Multiple non-template realms" stderr
+# message from ws_detect_realm; anything else is classified as a
+# generic error and the actual stderr first line surfaces to the user.
 _ORIENT_REALM=""
 _ORIENT_REALM_STATUS="none"
 _ORIENT_REALM_ERROR=""
@@ -282,18 +274,32 @@ _resolve_orient_realm() {
 emit_component_adapters() {
     printf '\nComponents (cloned) — adapter wiring:\n'
 
-    local found=0 comp_dir comp
+    local cloned=0 emitted=0 comp_dir comp adapter_file
     if [[ -d "$COMPONENTS_DIR" ]]; then
         for comp_dir in "$COMPONENTS_DIR"/*/; do
             [[ -d "$comp_dir" ]] || continue
             [[ -e "$comp_dir/.git" ]] || continue
+            cloned=1
             comp="$(basename "$comp_dir")"
+            # Skip components that have no adapter file at all — the
+            # "no test/lint adapter" rows for every unwired clone
+            # were noise that diluted the wired-adapter signal. The
+            # two remaining unwired states (YAML parse failure,
+            # adapter present but no commands wired) are real
+            # diagnostics and still render via _emit_one_adapter.
+            adapter_file=""
+            if [[ -n "$_ORIENT_REALM" ]]; then
+                adapter_file="$REALMS_DIR/$_ORIENT_REALM/adapters/$comp.yaml"
+            fi
+            [[ -f "$adapter_file" ]] || continue
             _emit_one_adapter "$comp" "$_ORIENT_REALM"
-            found=1
+            emitted=1
         done
     fi
-    if [[ $found -eq 0 ]]; then
+    if [[ $cloned -eq 0 ]]; then
         echo "  (no components cloned)"
+    elif [[ $emitted -eq 0 ]]; then
+        echo "  (no cloned component has an adapter wired)"
     fi
 }
 
@@ -301,18 +307,14 @@ emit_component_adapters() {
 # verbs explicitly (test/lint/build) so a typo in the YAML doesn't
 # silently swallow a missing slot — the diagnostic message stays
 # loud either way.
+#
+# Caller (emit_component_adapters) is responsible for skipping
+# components with no adapter file at all; by the time we get here,
+# adapter_file is guaranteed to exist on disk.
 _emit_one_adapter() {
     local comp="$1" active_realm="$2"
     echo "  $comp"
-    local adapter_file=""
-    if [[ -n "$active_realm" ]]; then
-        adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
-    fi
-    if [[ -z "$adapter_file" || ! -f "$adapter_file" ]]; then
-        local hint="realms/${active_realm:-<active>}/adapters/$comp.yaml"
-        echo "    no test/lint adapter (wire: $hint)"
-        return
-    fi
+    local adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     local verb cmd rc=0 any=0 parse_failed=0
     for verb in test lint build; do
         rc=0

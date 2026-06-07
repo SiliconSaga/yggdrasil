@@ -25,11 +25,10 @@ setup() {
 }
 
 @test "ws help: lists every dispatched subcommand from scripts/ws" {
-    # Regression guard for the omission CodeRabbit caught on PR #88
-    # (`orient` was wired into the dispatcher but absent from help)
-    # AND the follow-up finding on PR #89 that a hard-pinned list
-    # missed 11 dispatched commands. Derive the expected list from
-    # the dispatcher's `case "$COMMAND" in` block so every new
+    # Regression guard: subcommands wired into the dispatcher must
+    # also appear in `ws help`, and the expected list must stay in
+    # sync with what's actually dispatched. Derive the expected list
+    # from the dispatcher's `case "$COMMAND" in` block so every new
     # subcommand auto-enrolls into the regression guard — no
     # hand-edit needed when adding one.
     #
@@ -63,8 +62,8 @@ setup() {
     run_ws help
     [ "$status" -eq 0 ]
     # Match space-delimited so `clone` doesn't false-positive on
-    # `clone-fork` (Copilot finding on PR #89). The help block
-    # format always puts the command between leading indent
+    # `clone-fork` (which would silently pass without the bracket).
+    # The help block format always puts the command between leading indent
     # whitespace and either an argument hint or an aligned
     # description — both shapes carry a trailing space after the
     # command token.
@@ -79,7 +78,7 @@ setup() {
     [[ "$output" == *"ws <command>"* ]]
 }
 
-# ─── command-output footer (Task 5) ─────────────────────────────────
+# ─── command-output footer ──────────────────────────────────────────
 
 # The footer is a one-line stderr nudge appended after every
 # successful `ws` subcommand dispatch — keeps the `ws orient` meta-
@@ -152,7 +151,7 @@ setup() {
     # bats' `run` pipes stderr — !isatty(2) — so the footer must
     # emit plain text. Captured logs / CI output / `2> file`
     # redirects all hit this branch; raw escape sequences in those
-    # contexts are visible garbage. (Copilot finding on PR #90.)
+    # contexts are visible garbage.
     run bash -c "env -u BATS_TEST_NAME $TIMEOUT_BIN 10 bash $WS_BIN status 2>$BATS_TEST_TMPDIR/stderr.txt"
     [ "$status" -eq 0 ]
     local stderr_content

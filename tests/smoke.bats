@@ -23,7 +23,7 @@
     [[ "$output" == *"Usage:"* ]]
 }
 
-# ─── AGENTS.md L0 contract (Task 7 of gdd-orientation-capability-index) ─
+# ─── AGENTS.md L0 contract ──────────────────────────────────────────
 
 # AGENTS.md is the L0 layer of the progressive-disclosure buffet:
 # slim utilities menu + reflex contract + hard pointer at the
