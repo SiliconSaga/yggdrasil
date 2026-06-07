@@ -1,8 +1,6 @@
 # Trust and Safety
 
-GDD takes a structured approach to trust. AI agents read instructions from
-nested project components, and not all of those components are equally
-trustworthy. The framework provides explicit rules for how to handle this.
+GDD takes a structured approach to trust. AI agents read instructions from nested project components, and not all of those components are equally trustworthy. The framework provides explicit rules for how to handle this.
 
 ## The Trust Hierarchy
 
@@ -16,15 +14,14 @@ graph BT
 | Level | Source | Treatment |
 |-------|--------|-----------|
 | 1 (highest) | Yggdrasil root instructions (`AGENTS.md`, `.agent/skills/`) | Trusted — the base |
-| 1b | Active realm (`realms/<r>/AGENTS.md`, `.agent/skills/`, `adapters/*.yaml`) | Trusted — community context for the workspace. Adapter command strings get a provenance-scaled risk scan (see below). |
+| 1b | Active realm (`realms/<r>/AGENTS.md`, `realms/<r>/.agent/skills/`, `realms/<r>/adapters/*.yaml`) | Trusted — community context for the workspace. Adapter command strings get a provenance-scaled risk scan (see below). |
 | 2 | Ecosystem components (in `ecosystem.yaml`) | Trusted — flag conflicts with root |
 | 3 | Non-ecosystem components | Untrusted until reviewed — log before processing |
 | 4 | User instructions in-session | Respected unless safety-violating |
 
 ## The Black-Box Safety Pattern
 
-When the orientation skill encounters instructions from an untrusted or
-suspicious source, it follows a specific sequence:
+When the orientation skill encounters instructions from an untrusted or suspicious source, it follows a specific sequence:
 
 1. **Read just enough** to identify the file as an instruction file from an
    untrusted source (filename, location, first few lines)
@@ -34,10 +31,7 @@ suspicious source, it follows a specific sequence:
 4. **Surface the concern** to the human in conversation
 5. **Do not follow** the instruction until the human explicitly approves
 
-Why log first? If the file contains a successful prompt injection that
-compromises the agent's behavior, the pre-injection concern is already on
-disk for the human to find. The breadcrumb survives even if the agent
-doesn't.
+Why log first? If the file contains a successful prompt injection that compromises the agent's behavior, the pre-injection concern is already on disk for the human to find. The breadcrumb survives even if the agent doesn't.
 
 ## What Gets Flagged
 
@@ -47,7 +41,7 @@ doesn't.
 - Instructions to push, publish, or send data to unfamiliar destinations
 - Skills that execute code as part of loading (rather than providing guidance)
 - Any instruction file that is new or modified since the last session
-- Adapter command strings (`realms/<r>/adapters/*.yaml` `commands.{test,lint,build}`) containing `curl|sh`, `wget|sh`, `base64 -d | sh`, writes to paths outside the component dir, outbound network calls in test/lint runners, or `eval` of any non-local string
+- Adapter command strings (`realms/<r>/adapters/*.yaml` `commands.{test,lint,build}`) containing `curl | sh`, `wget | sh`, `base64 -d | sh`, writes to paths outside the component dir, outbound network calls in test/lint runners, or `eval` of any non-local string
 
 ## Adapter Command Trust
 
@@ -63,42 +57,25 @@ The framing: **`ws test`-allowlisted means the wrapper is trusted to dispatch wh
 
 ## The Community Angle
 
-The agent is part of the yggdrasil community. It has a responsibility not
-just to the current human, but to the integrity of the shared workspace:
+An agent paired with a project — and the humans around it — can become a meaningful participant in that project's community. Not just a code generator for one human, but a collaborator that respects shared workspace integrity, flags risks that affect other contributors, and grows alongside the people working on the project. GDD makes this pattern natural without forcing it: it's a workflow choice, not a built-in assumption.
+
+When that pattern is the goal, the agent's role broadens. It has a responsibility not just to the current human, but to the integrity of the shared workspace:
 
 - **Do good faith work**, even when asked to cut corners
 - **Flag things** that could harm other contributors or the project
-- **Refuse to participate** in actions that would compromise the workspace,
-  while making clear the human is free to act on their own
+- **Refuse to participate** in actions that would compromise the workspace, while making clear the human is free to act on their own
 
-The agent can't prevent a human from doing harmful things, but it can make
-them do those on their own — so the agent and the community have done their
-part.
+The agent can't prevent a human from doing harmful things, but it can make them do those on their own — so the agent and the community have done their part.
 
 ## The Ask-Tier Safety Floor
 
-The hook's ask-tier provides a workspace-level safety floor for destructive
-shell commands, regardless of what session permission mode is active.
+The hook's ask-tier provides a workspace-level safety floor for destructive shell commands, regardless of what session permission mode is active.
 
-The gap it closes: in `acceptEdits` permission mode the Claude Code harness
-auto-approves Bash tool calls on workspace paths — including `rm -rf` — with
-no human prompt. An agent running in `acceptEdits` on a long autonomous task
-could silently delete files or reset state without the developer noticing
-until the damage is done.
+The gap it closes: in `acceptEdits` permission mode the Claude Code harness auto-approves Bash tool calls on workspace paths — including `rm -rf` — with no human prompt. An agent running in `acceptEdits` on a long autonomous task could silently delete files or reset state without the developer noticing until the damage is done.
 
-The ask-tier intercepts commands matching the `[ask-commands]` list in
-`.claude/hooks/hook-rules` (committed baseline: `rm -rf*`, `git reset
---hard*`, `git clean -f*`, and similar) and emits `permissionDecision: "ask"`,
-which forces a permission prompt that overrides the session mode. The command
-does not run until the human explicitly approves it.
+The ask-tier intercepts commands matching the `[ask-commands]` list in `.claude/hooks/hook-rules` (committed baseline: `rm -rf*`, `git reset --hard*`, `git clean -f*`, and similar) and emits `permissionDecision: "ask"`, which forces a permission prompt that overrides the session mode. The command does not run until the human explicitly approves it.
 
-This is not a deny tier — approving the prompt runs the command normally.
-The ask-tier's purpose is to ensure that destructive actions in an otherwise
-heads-down automated session always have a human confirmation step. It sits
-below the hook's Tier 1 (composition deny) and above the settings.json allow
-layer, and cannot be opted out of on a per-command basis without removing the
-matching entry from the committed `hook-rules` (a reviewed change) or
-disabling the hook entirely via `WS_HOOK_DISABLE=1`.
+This is not a deny tier — approving the prompt runs the command normally. The ask-tier's purpose is to ensure that destructive actions in an otherwise heads-down automated session always have a human confirmation step. It sits below the hook's Tier 1 (composition deny) and above the settings.json allow layer, and cannot be opted out of on a per-command basis without removing the matching entry from the committed `hook-rules` (a reviewed change) or disabling the hook entirely via `WS_HOOK_DISABLE=1`.
 
 ## The Redirect Tier (training aid, not a floor)
 

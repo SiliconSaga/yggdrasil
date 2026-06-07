@@ -19,8 +19,7 @@ Claude Code reads two settings files for each workspace:
   Shared across everyone working in the workspace.
 - **`.claude/settings.local.json`** — per-user, gitignored. Not shared.
 
-Both are merged at startup. Where they conflict on a single key, local
-wins. The relevant top-level structure is:
+Both are merged at startup. Where they conflict on a single key, local wins. The relevant top-level structure is:
 
 ```json
 {
@@ -31,10 +30,7 @@ wins. The relevant top-level structure is:
 }
 ```
 
-`permissions.allow` and `permissions.deny` are lists of pattern strings.
-A command is checked against `deny` first; if it matches, it's blocked
-regardless of `allow`. Otherwise, if it matches any `allow`, it's
-auto-approved. Otherwise the user is prompted.
+`permissions.allow` and `permissions.deny` are lists of pattern strings. A command is checked against `deny` first; if it matches, it's blocked regardless of `allow`. Otherwise, if it matches any `allow`, it's auto-approved. Otherwise the user is prompted.
 
 ### Managed-config layer (corporate / enterprise environments)
 
@@ -102,7 +98,7 @@ match an allow pattern (prompt suppressed) and then run with an attacker-control
 
 `ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They are allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and is surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
 
-The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `realms/<r>/adapters/*.yaml`'s `commands.{test,lint,build}` and flags `curl|sh`, `wget|sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor (light for your own / team realms, heavy for community / wild realms). See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `realms/<r>/adapters/*.yaml`'s `commands.{test,lint,build}` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor (light for your own / team realms, heavy for community / wild realms). See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
 
 #### Tier 3 adapter-redirect (allow-with-nudge / deny-with-bypass)
 
@@ -171,19 +167,11 @@ Full tool names, no wildcard. MCP names are already specific enough.
 
 ## The two-layer defense
 
-Every allow pattern in `.claude/settings.json` should be safe even if a
-single layer fails. We rely on two:
+Every allow pattern in `.claude/settings.json` should be safe even if a single layer fails. We rely on two:
 
 ### Layer 1: subcommand-level
 
-The chosen subcommand for each pattern is read-only at the porcelain
-level. `git show`, `git log`, `git diff`, `git status`, `git ls-tree`,
-`git grep` — all read-only. There is no flag combination that mutates
-state. We deliberately don't grant a wildcard pattern to subcommands
-that DO have mutating flag-forms — `git branch -d` (deletes branches),
-`git remote add` (adds a remote), `git push` (writes to a remote).
-For those, we either pin to an exact safe form (`git -C * branch
---show-current`, `git -C * remote -v`) or don't grant at all.
+The chosen subcommand for each pattern is read-only at the porcelain level. `git show`, `git log`, `git diff`, `git status`, `git ls-tree`, `git grep` — all read-only. There is no flag combination that mutates state. We deliberately don't grant a wildcard pattern to subcommands that DO have mutating flag-forms — `git branch -d` (deletes branches), `git remote add` (adds a remote), `git push` (writes to a remote). For those, we either pin to an exact safe form (`git -C * branch --show-current`, `git -C * remote -v`) or don't grant at all.
 
 ### Layer 2: matcher-level
 
@@ -213,17 +201,13 @@ The matcher scopes wildcards correctly:
   dir like `.outputs/` — see `ws review --output` for the
   reference implementation.
 
-Both layers must hold. If Claude Code's matcher behavior changes —
-for instance, if compound commands stopped being per-segment validated
-— a "safe" pattern could become unsafe. That's the case for
-automated regression testing tracked at issue #46.
+Both layers must hold. If Claude Code's matcher behavior changes — for instance, if compound commands stopped being per-segment validated — a "safe" pattern could become unsafe. That's the case for automated regression testing tracked at issue #46.
 
 ---
 
 ## Empirical matcher findings
 
-Verified in interactive testing. Each row is a (pattern, attempted
-command, expected outcome) triple:
+Verified in interactive testing. Each row is a (pattern, attempted command, expected outcome) triple:
 
 | Pattern | Command | Expected outcome | Notes |
 |---------|---------|------------------|-------|
@@ -253,11 +237,7 @@ command, expected outcome) triple:
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
 
-When you add a new allow pattern, also add at least one positive case
-(matches → allowed) and one negative case (close-but-not-quite →
-prompts) to this table. Mismatches between the table and observed
-behavior are PR-blocking — they indicate either a stale doc or a
-matcher behavior change.
+When you add a new allow pattern, also add at least one positive case (matches → allowed) and one negative case (close-but-not-quite → prompts) to this table. Mismatches between the table and observed behavior are PR-blocking — they indicate either a stale doc or a matcher behavior change.
 
 ---
 
@@ -300,14 +280,9 @@ The two artifacts are paired:
 - `docs/gdd/permissions.md` (this file) is what humans, automated
   reviewers, and the agent reason against.
 
-Drift between them is a real bug — humans trust the doc, agents trust
-the doc, and a stale doc gives false confidence. PR review for
-`.claude/settings.json` changes should call out a missing doc update
-as blocking.
+Drift between them is a real bug — humans trust the doc, agents trust the doc, and a stale doc gives false confidence. PR review for `.claude/settings.json` changes should call out a missing doc update as blocking.
 
-The `gdd-permissions` skill enforces this rule operationally:
-when an agent adds a pattern, the skill includes the doc update as
-part of the same change.
+The `gdd-permissions` skill enforces this rule operationally: when an agent adds a pattern, the skill includes the doc update as part of the same change.
 
 ---
 

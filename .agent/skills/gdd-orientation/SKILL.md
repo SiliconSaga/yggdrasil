@@ -145,13 +145,13 @@ If they decline or don't respond, continue at the current mode without further m
 
 You know your own running model. Read `.env` if it exists. Find:
 
-```
-export CLAUDE_MODEL="${CLAUDE_MODEL:-<value>}"
+```bash
+export CLAUDE_MODEL="${CLAUDE_MODEL:-Opus 4.8}"
 ```
 
-If `<value>` differs from your running model name (e.g. `.env` pins `Opus 4.7`, you're running `Opus 4.8`), rewrite **just that token**. Preserve the `${CLAUDE_MODEL:-…}` shape so inline overrides still win:
+If the default token (`Opus 4.8` above) differs from your running model name, rewrite **just that token**. Preserve the `${CLAUDE_MODEL:-…}` shape so inline overrides still win:
 
-```
+```bash
 CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>
 ```
 
@@ -177,7 +177,7 @@ Trust levels:
 
 Read `realms/<active>/adapters/*.yaml` `commands.test` / `commands.lint` / `commands.build`. Flag patterns:
 
-- `curl … | sh` / `wget … | sh` — fetch-and-execute
+- `curl … | sh` / `wget … | sh` — fetch-and-execute (the pipeline form, not regex alternation)
 - `base64 -d | sh` and variants
 - Writes to paths outside the component dir (`> /etc/…`, `> ~/.ssh/…`)
 - Outbound network calls in test/lint runners
