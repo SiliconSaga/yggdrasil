@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# ws-hook-bypass.sh — write a session-scoped bypass marker for a Tier 2
+# ws-hook-bypass.sh — write a session-scoped bypass marker for a
+# Tier 2 [redirect-commands] or Tier 3 [adapter-redirect-commands]
+# slug. The marker lets the matching command run for the rest of
+# the current Claude Code session.
+#
 # ws:use-when requesting a session-scoped bypass of a Tier 2 or Tier 3 redirect-deny
-# or Tier 3 redirect-deny slug. The marker lets the matching command
-# run for the rest of the current Claude Code session.
 #
 # Usage:
 #   ws hook-bypass <slug> [--reason "<text>"]

@@ -895,7 +895,10 @@ _ar_resolve_realm() {
 _ar_resolve_component() {
     local cwd="$1" root="$2"
     if [[ "$cwd" == "$root/components/"* ]]; then
-        local rest="${cwd#$root/components/}"
+        # Quote $root inside the expansion so a root path with glob
+        # metacharacters (e.g. /home/user/my[project]) is matched
+        # literally rather than as a pattern. shellcheck SC2295.
+        local rest="${cwd#"$root"/components/}"
         local comp="${rest%%/*}"
         [[ -n "$comp" ]] || return 1
         echo "$comp"
