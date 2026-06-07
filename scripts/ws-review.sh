@@ -447,9 +447,16 @@ review_comments() {
     local review_states=""
     review_states=$(printf '%s\n' "$reviews" | _list_review_states)
 
-    local n_outside n_embedded_nits
+    local n_outside n_embedded_nits n_low_conf
     n_outside=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Outside diff range comments')
     n_embedded_nits=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Nitpick comments')
+    # Copilot's reviewer bot wraps "low confidence" findings inside the
+    # leading review body as a collapsed <details> block — they never
+    # land as inline threads and they don't show up in any auth'd
+    # comments fetch. They're real, often actionable findings (the
+    # one on PR #90 flagged a gap in ws-hook-bypass's slug enumeration),
+    # so promote the count to the Index alongside the CodeRabbit patterns.
+    n_low_conf=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Comments suppressed due to low confidence')
 
     echo "=== Index ==="
     echo "  Reviews:         $n_reviews"
@@ -465,14 +472,17 @@ review_comments() {
     # misjudge). Pure `if` statements keep the control flow
     # unambiguous — no compound that might trip `errexit` if the count
     # happens to be 0.
-    if (( n_outside > 0 )) || (( n_embedded_nits > 0 )); then
+    if (( n_outside > 0 )) || (( n_embedded_nits > 0 )) || (( n_low_conf > 0 )); then
         echo ""
         echo "  ! Special finds inside review bodies (NOT as separate threads):"
         if (( n_outside > 0 )); then
-            echo "      Outside diff range comments: $n_outside"
+            echo "      Outside diff range comments:        $n_outside"
         fi
         if (( n_embedded_nits > 0 )); then
-            echo "      Embedded nitpick comments:   $n_embedded_nits"
+            echo "      Embedded nitpick comments:          $n_embedded_nits"
+        fi
+        if (( n_low_conf > 0 )); then
+            echo "      Suppressed (low confidence) finds:  $n_low_conf"
         fi
     fi
     echo ""
