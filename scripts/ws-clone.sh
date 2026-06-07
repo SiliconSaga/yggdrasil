@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-clone.sh — Clone ecosystem components or arbitrary repos into components/
+# ws:use-when materializing a component locally from its declared remote
 #
 # Usage:
 #   ws-clone.sh <component>                          Clone a declared component

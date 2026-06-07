@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-vscode.sh — Generate a VS Code workspace file from cloned components
+# ws:use-when generating the VS Code multi-root workspace file
 #
 # Usage:
 #   ws-vscode.sh                   Generate yggdrasil.code-workspace

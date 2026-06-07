@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-pull.sh — Pull latest changes for cloned components, realms, and hoards
+# ws:use-when refreshing every cloned component from its remote
 #
 # Usage:
 #   ws-pull.sh             Pull all cloned components/realms/hoards (skips dirty repos)

@@ -43,3 +43,27 @@ ws hook-bypass [a-z]*
 git-commit   | git commit*    | Use `ws commit <comp> <bodyfile>` — handles Co-Authored-By trailer + bodyfile-driven staging. See `ws help commit`. If `ws commit` doesn't fit (rare), run `ws hook-bypass git-commit` to request a session-scoped bypass.
 git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-remote selection from identity.forkOrg and sets upstream on first push. `ws hook-bypass git-push` for a session-scoped bypass.
 gh-pr-create | gh pr create*  | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions, picks the right token + remote. `ws hook-bypass gh-pr-create` for a session-scoped bypass.
+
+[adapter-redirect-commands]
+# Tier 3 — raw test/lint/build runners with a ws equivalent. The hook
+# resolves the component from $cwd (must be under components/<comp>/)
+# and the active realm, then checks the realm's adapter file at
+# realms/<realm>/adapters/<comp>.yaml:
+#
+#   adapter has commands.<verb> wired → deny with ws <verb> <comp> pointer
+#                                       (matching the [redirect-commands] tier)
+#   adapter missing or no commands.<verb> → emit a stderr nudge, fall through
+#                                            to normal allow/ask evaluation
+#   $cwd outside any component → rule doesn't fire (raw runner at workspace
+#                                root is a legitimate workspace-test invocation)
+#
+# Format: <slug> | <pattern> | <verb>. Verb is one of test/lint/build —
+# the ws subcommand the raw command maps to AND the key under `commands.`
+# in the adapter file. Slug is kebab-case; doubles as the bypass-marker
+# filename and the ws hook-bypass argument.
+pytest      | pytest*            | test
+pytest-mod  | python* -m pytest* | test
+gradle-test | gradle test*       | test
+ruff        | ruff*              | lint
+black       | black*             | lint
+mypy        | mypy*              | lint

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-commit.sh — Commit with Co-Authored-By trailer (bodyfile-driven)
+# ws:use-when finalizing a change — must use bodyfile from commit.md template
 #
 # Usage:
 #   ws-commit.sh <component> <bodyfile>

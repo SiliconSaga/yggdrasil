@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-lint.sh — Run the linter for a component
+# ws:use-when running the component's linter via its adapter
 #
 # Usage:
 #   ws-lint.sh <component> [args...]

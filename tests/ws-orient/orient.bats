@@ -67,6 +67,45 @@ setup() {
     done
 }
 
+@test "ws orient: subcommand survey resolves bare ws:use-when markers from script handlers" {
+    # The dynamic inventory is the whole point of the survey: a
+    # `# ws:use-when <text>` marker in scripts/ws-orient.sh must
+    # surface here verbatim, so adding a new subcommand never means
+    # editing a hardcoded list. Pin the text from ws-orient.sh's
+    # own marker — if someone deletes it, this test fails and the
+    # gap is visible immediately, not via a stale survey row.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"orient"*"starting a session"* ]]
+}
+
+@test "ws orient: awk parsers stay POSIX (no gawk-only match(re, arr) form)" {
+    # Portability gate: `match($0, /re/, arr)` with the array-capture
+    # third arg is gawk-only and breaks on mawk / BSD awk, which
+    # several Linux distros and macOS ship as the default. Since
+    # AGENTS.md mandates `ws orient` at session start, that gap
+    # would be a session-blocker. Pin the contract — any new awk
+    # block that reintroduces the form fails this test.
+    #
+    # scripts/ws-review.sh notes the same precedent. Source-of-truth
+    # for the rule lives at the top of ws-orient.sh.
+    local script="$REPO_ROOT/scripts/ws-orient.sh"
+    run grep -nE 'match\([^,]+,[^,]+,[[:space:]]*[a-zA-Z_]' "$script"
+    # grep exits 1 when no match — that's the passing path.
+    [ "$status" -eq 1 ]
+}
+
+@test "ws orient: subcommand survey resolves name-keyed markers (mcp-setup vs mcp-status)" {
+    # When one handler dispatches multiple subcommands (ws-mcp-setup.sh
+    # serves both `mcp-setup` and `mcp-status`), each row must pick
+    # up its own keyed marker rather than collapsing onto the same
+    # text. Asserts both rows render the distinct keyed text.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"mcp-setup"*"generating .mcp.json"* ]]
+    [[ "$output" == *"mcp-status"*"checking which MCP servers"* ]]
+}
+
 # ─── 4c — active realm detection ────────────────────────────────────
 
 @test "ws orient: prints 'Active realm: none' when no realm is present" {

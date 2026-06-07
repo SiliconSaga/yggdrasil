@@ -25,7 +25,7 @@ Human confirms:
 
 ## Step 2 — `ws hook-bypass git-commit` force-prompts
 
-Agent announces: *"Now `ws hook-bypass git-commit --reason \"acceptance test\"`. Expect a Tier 3 ask prompt (force-prompt, not a silent run), and on approval, a marker file under `.tmp/hook-bypass/git-commit.bypass`."*
+Agent announces: *"Now `ws hook-bypass git-commit --reason \"acceptance test\"`. Expect a Tier 4 ask prompt (force-prompt, not a silent run), and on approval, a marker file under `.tmp/hook-bypass/git-commit.bypass`."*
 
 Agent runs: `ws hook-bypass git-commit --reason "acceptance test"`
 

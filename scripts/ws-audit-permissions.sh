@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-audit-permissions.sh — audit permissions.allow patterns for breadth.
+# ws:use-when reviewing your Bash allowlist for over-broad patterns
 #
 # Inspects Claude Code's three permission-config scopes and reports any
 # entries matching a curated watchlist of patterns that are usually too

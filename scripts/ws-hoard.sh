@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-hoard.sh — Hoard management
+# ws:use-when managing oddly shaped (non-code) collections (thalami, vaults)
 #
 # Subcommands (called via ws hoard):
 #   init [template] [args...]   Scaffold a new hoard locally

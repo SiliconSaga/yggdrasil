@@ -167,3 +167,31 @@ run_hook_with_session() {
         '{session_id:$sid, tool_input:{command:$cmd}, cwd:$cwd}')
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
+
+# Set up an active realm + component dir under $WORK so the adapter-
+# aware redirect tier (Tier 3) has something to resolve.
+#   $1 — component name (e.g. "knarrlike")
+#   $2 — adapter content (multi-line YAML); empty string = no adapter
+#         file written at all (the "unwired" case where the file is
+#         missing entirely).
+#   $3 — realm name (default "realm-fixture")
+#
+# Creates: $WORK/components/<comp>/ (cwd anchor for tests),
+#          $WORK/realms/<realm>/ + ecosystem.yaml, optional adapter
+#          file. Auto-detection picks the single non-template realm-*
+#          dir so no ecosystem.local.yaml selector is needed.
+seed_adapter_fixture() {
+    local comp="$1"
+    local adapter_yaml="$2"
+    local realm="${3:-realm-fixture}"
+    mkdir -p "$WORK/components/$comp"
+    mkdir -p "$WORK/realms/$realm/adapters"
+    cat > "$WORK/realms/$realm/ecosystem.yaml" <<'YAML'
+identity:
+  human_account: testuser
+components: {}
+YAML
+    if [[ -n "$adapter_yaml" ]]; then
+        printf '%s\n' "$adapter_yaml" > "$WORK/realms/$realm/adapters/$comp.yaml"
+    fi
+}

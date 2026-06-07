@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-list.sh — List all ecosystem components and their local status
+# ws:use-when surveying what's declared in the ecosystem (clones, tiers, repos)
 #
 # Usage:
 #   ws-list.sh

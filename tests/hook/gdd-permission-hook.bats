@@ -4,14 +4,15 @@
 #
 # Coverage:
 #   - Tier 1: deny shell composition (each operator) with specific reason
-#   - Tier 2: ask-tier — destructive commands matching [ask-commands]
-#   - Tier 3: allow via project .claude/settings.json
+#   - Tier 2: redirect-deny for raw commands with a `ws` wrapper
+#   - Tier 3: adapter-aware deny/nudge for raw test/lint runners
+#   - Tier 4: ask-tier — destructive commands matching [ask-commands]
+#   - Tier 5: allow via project .claude/settings.json
 #       - bare command vs verbose pattern (symmetric normalization)
 #       - verbose command vs bare pattern (symmetric normalization)
 #       - CRLF line endings in settings.json don't break matching
-#   - Tier 3: allow via settings.json `permissions.allow` (unchanged logic)
-#   - Tier 4: allow via [allow-extras] section of hook-rules.local
-#   - Tier 4: legacy safe-bash-extras file is ignored (no longer consulted)
+#   - Tier 6: allow via [allow-extras] section of hook-rules.local
+#   - legacy safe-bash-extras file is ignored (no longer consulted)
 #   - Passthrough: no match → exit 0 with no JSON
 #   - WS_HOOK_DISABLE bypass
 #   - Timeout safety: no infinite loops on Windows-style absolute paths
@@ -205,7 +206,7 @@ setup() {
     [[ "$output" == *"File-descriptor merges"* ]]
 }
 
-# ─── Tier 3: symmetric normalization against settings.json ──────────
+# ─── Tier 5: symmetric normalization against settings.json ──────────
 
 @test "allow via settings: bare command matches verbose pattern" {
     write_project_settings 'Bash(bash scripts/ws status)'
@@ -248,7 +249,7 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# ─── Tier 4: [allow-extras] from hook-rules.local ───────────────────
+# ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
 
 @test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {
     write_project_hook_rules ""
@@ -481,7 +482,7 @@ figlet *"
     [ "$status" -ne 124 ]
 }
 
-# ─── Tier 2: ask-list ───────────────────────────────────────────────
+# ─── Tier 4: ask-list ───────────────────────────────────────────────
 
 @test "ask: rm -rf matches the baseline ask-list and emits ask" {
     write_project_hook_rules "[ask-commands]
@@ -594,7 +595,7 @@ rm -rf*"
     [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
 }
 
-# ─── Tier 4 vs legacy safe-bash-extras ──────────────────────────────
+# ─── Tier 6 vs legacy safe-bash-extras ──────────────────────────────
 
 @test "allow-extras: a hook-rules.local [allow-extras] pattern allows" {
     write_project_hook_rules ""
@@ -759,6 +760,180 @@ EOF
     [[ "$output" != *"Use ws commit"* ]]
 }
 
+# ─── Tier 3 — adapter-aware test/lint redirects (Task 6) ────────────
+
+# When `[adapter-redirect-commands]` matches (pytest, ruff, etc.) and
+# $cwd resolves to a component with a wired adapter, the hook denies
+# with a bypass-pointer. When the adapter is unwired (file absent or
+# missing the commands.<verb> entry), the hook emits a stderr nudge
+# and falls through to the normal allow/ask evaluation. Outside a
+# component dir, the rule doesn't fire at all.
+
+@test "adapter-redirect: raw pytest in a component WITH commands.test denies" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest      | pytest*            | test
+pytest-mod  | python* -m pytest* | test
+ruff        | ruff*              | lint
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  test: "python3 -m pytest tests/"
+  lint: "python3 -m ruff check src/"
+YAML
+)"
+    run_hook 'pytest tests/test_foo.py' "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test wiredcomp"* ]]
+    [[ "$output" == *"ws hook-bypass pytest"* ]]
+}
+
+@test "adapter-redirect: raw python -m pytest matches the pytest-mod pattern" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest      | pytest*            | test
+pytest-mod  | python* -m pytest* | test
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  test: "python3 -m pytest tests/"
+YAML
+)"
+    run_hook 'python3 -m pytest tests/' "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test wiredcomp"* ]]
+}
+
+@test "adapter-redirect: raw ruff in a component WITH commands.lint denies" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+ruff | ruff* | lint
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  lint: "python3 -m ruff check src/"
+YAML
+)"
+    run_hook 'ruff check src/' "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws lint wiredcomp"* ]]
+}
+
+@test "adapter-redirect: raw pytest in a component WITHOUT an adapter file emits nudge and falls through" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    # Empty adapter content = no adapter file at all.
+    seed_adapter_fixture "barecomp" ""
+    run_hook 'pytest tests/' "$WORK/components/barecomp"
+    [ "$status" -eq 0 ]
+    # Falls through — no deny / no allow emitted by Tier 3.
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    # Nudge on stderr — bats `run` merges fd1+fd2, so the message is
+    # visible in $output even though it's printed to stderr.
+    [[ "$output" == *"No \`ws test\` adapter for barecomp"* ]]
+}
+
+@test "adapter-redirect: adapter present but missing commands.<verb> still emits nudge" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+ruff   | ruff*   | lint
+EOF
+)"
+    # Adapter file exists but only has commands.lint (test is missing).
+    seed_adapter_fixture "lintonly" "$(cat <<'YAML'
+commands:
+  lint: "ruff check ."
+YAML
+)"
+    run_hook 'pytest tests/' "$WORK/components/lintonly"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"No \`ws test\` adapter for lintonly"* ]]
+}
+
+@test "adapter-redirect: pytest outside any component dir doesn't fire the rule" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    # cwd = $WORK (project root, not inside components/).
+    run_hook "pytest tests/" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"No \`ws test\` adapter"* ]]
+}
+
+@test "adapter-redirect: pytest at the bare components/ root falls through (no blank-component nudge)" {
+    # Pin the _ar_resolve_component edge case: the pattern
+    # `"$root/components/"*` also matches `$root/components/` itself
+    # (empty tail). Without the empty-segment guard the resolver
+    # would emit a nudge for a blank component name and try to look
+    # up `adapters/.yaml`. Guard ensures the rule only fires under
+    # an actual `components/<comp>/` path. Copilot finding on PR #90.
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    mkdir -p "$WORK/components"
+    run_hook "pytest tests/" "$WORK/components"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    # No blank-component nudge: a regression that surfaces `No ws
+    # test adapter for ...` (with empty or whitespace-only name)
+    # would fail here.
+    [[ "$output" != *"No \`ws test\` adapter for "* ]]
+}
+
+@test "adapter-redirect: overlapping unwired patterns emit only one nudge" {
+    # Two entries whose globs both match `pytest tests/` (same verb,
+    # same component). Without the break-on-first-match guard, the
+    # unwired branch would emit two nudges and two audit entries for
+    # a single invocation (Copilot finding on PR #90). Pin the
+    # one-nudge contract here.
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest      | pytest*  | test
+pytest-narrow | pytest * | test
+EOF
+)"
+    seed_adapter_fixture "barecomp" ""
+    run_hook "pytest tests/" "$WORK/components/barecomp"
+    [ "$status" -eq 0 ]
+    # Count how many times the nudge phrase appears. Should be 1.
+    local nudge_count
+    nudge_count="$(printf '%s\n' "$output" | grep -c "No \`ws test\` adapter for barecomp" || true)"
+    [ "$nudge_count" -eq 1 ] || { echo "expected 1 nudge, got $nudge_count"; return 1; }
+}
+
+@test "adapter-redirect: bypass marker turns wired-deny into allow" {
+    write_project_hook_rules "$(cat <<'EOF'
+[adapter-redirect-commands]
+pytest | pytest* | test
+EOF
+)"
+    seed_adapter_fixture "wiredcomp" "$(cat <<'YAML'
+commands:
+  test: "python3 -m pytest tests/"
+YAML
+)"
+    write_bypass_marker "pytest" "session-xyz" "running a single test directly"
+    run_hook_with_session "pytest tests/test_one.py::test_x" "session-xyz" "$WORK/components/wiredcomp"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 @test "redirect: command outside [redirect-commands] passes through Tier 2" {
     write_project_hook_rules "$(cat <<'EOF'
 [redirect-commands]
@@ -768,7 +943,7 @@ EOF
     write_project_settings "Bash(ls *)"
     run_hook "ls -la"
     [ "$status" -eq 0 ]
-    # Settings.json allow at Tier 4 should still match
+    # Settings.json allow at Tier 5 should still match
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
@@ -840,7 +1015,7 @@ EOF
     [[ "$output" == *"Shell composition"* ]]
 }
 
-@test "bypass: marker does NOT override Tier 3 ask-list" {
+@test "bypass: marker does NOT override Tier 4 ask-list" {
     write_project_hook_rules "$(cat <<'EOF'
 [redirect-commands]
 git-commit | git commit* | Use ws commit
@@ -879,7 +1054,7 @@ gh-pr-create | gh pr create* | Use ws cr
 ws hook-bypass [a-z]*
 EOF
 )"
-    # Each known slug invocation should hit Tier 3 ask, NOT Tier 2 deny.
+    # Each known slug invocation should hit Tier 4 ask, NOT Tier 2 deny.
     for slug in git-commit git-push gh-pr-create; do
         echo "# testing slug: $slug"   # surfaces which iteration failed
         run_hook "ws hook-bypass $slug"

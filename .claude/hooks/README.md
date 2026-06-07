@@ -34,9 +34,11 @@ The format is flat sectioned text: `[section]` headers, one entry per line, `#` 
 
 **`[scratch-dirs]`** — workspace-relative paths under which Edit/Write tool calls auto-allow. Keeps in lockstep with the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore). Entries in `hook-rules.local` add to the baseline; they never replace it.
 
-**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 3 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
+**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 4 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
 
-**`[allow-extras]`** — personal Bash glob patterns auto-allowed on this machine without prompting (Tier 5). Only valid in `hook-rules.local`, never in the committed baseline. An entry here will not win over an "ask command" entry.
+**`[adapter-redirect-commands]`** — Tier 3 patterns for raw test/lint/build runners. The hook resolves the component from `$cwd` and the active realm's adapter file; wired adapters get a deny-with-bypass, missing adapters get a one-line stderr nudge and fall through. See `[adapter-redirect-commands]` in `hook-rules` for the format.
+
+**`[allow-extras]`** — personal Bash glob patterns auto-allowed on this machine without prompting (Tier 6). Only valid in `hook-rules.local`, never in the committed baseline. An entry here will not win over an "ask command" entry.
 
 ### Setting up per-machine overrides
 
@@ -58,7 +60,7 @@ The Tier 2 redirect-deny channels three raw commands toward the workspace's `ws`
 | `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkOrg`, sets upstream on first push |
 | `gh-pr-create` | `gh pr create*` | `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions |
 
-A deny here is a *training* signal, not a safety floor (that's Tier 3 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, the right token. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:
+A deny here is a *training* signal, not a safety floor (that's Tier 4 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, the right token. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:
 
 1. Agent hits the deny; corrective message names `ws hook-bypass <slug>` as the escape hatch.
 2. Agent runs `ws hook-bypass <slug> --reason "<why>"`. The subcommand is on the ask-list, so the human gets a permission prompt — tailored to name the slug being bypassed and surface the `--reason`, so the human sees what they're approving rather than a generic "destructive command" line.

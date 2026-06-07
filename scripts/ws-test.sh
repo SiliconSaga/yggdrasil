@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ws-test.sh — Run tests for a component
+# ws:use-when running the component's test suite via its adapter
 #
 # Usage:
 #   ws-test.sh <component> [test-name | args...]
