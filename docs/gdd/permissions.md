@@ -100,7 +100,19 @@ match an allow pattern (prompt suppressed) and then run with an attacker-control
 
 #### `ws test` / `ws lint` under the realm trust model
 
-`ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They are allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and is surfaced to the agent at session start (by `ws orient`, a forthcoming Phase 1 feature) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
+`ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They are allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and is surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
+
+The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `realms/<r>/adapters/*.yaml`'s `commands.{test,lint,build}` and flags `curl|sh`, `wget|sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor (light for your own / team realms, heavy for community / wild realms). See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+
+#### Tier 3 adapter-redirect (allow-with-nudge / deny-with-bypass)
+
+The PreToolUse hook has a separate **Tier 3 adapter-redirect** for raw test/lint runners (`pytest`, `python -m pytest`, `gradle test`, `ruff`, `black`, `mypy` — see `.claude/hooks/hook-rules` `[adapter-redirect-commands]`). When the raw command matches a pattern AND `$cwd` resolves to a component under `components/<comp>/`:
+
+- **Wired** (`realms/<r>/adapters/<comp>.yaml` has `commands.<verb>`): hook denies with `Use \`ws <verb> <comp>\`` plus a `ws hook-bypass <slug>` pointer. Reuses the existing bypass-marker machinery — every bypass creation force-prompts the human via the ask-tier.
+- **Unwired** (adapter file missing OR no `commands.<verb>`): hook emits a one-line stderr nudge (`↪ No \`ws test\` adapter for <comp> yet. Wire one at realms/<r>/adapters/<comp>.yaml…`) and falls through to normal allow/ask evaluation. The raw command runs; the nudge is the audit-log breadcrumb.
+- **Outside a component dir** OR **bare `components/` root**: rule doesn't fire. Raw `pytest` at the workspace root is legitimate (workspace-level test runs); the resolver rejects the bare-components edge case to avoid blank-component nudges.
+
+Tier 3 is a separate classification from Tier 2 ([redirect-commands]) because the unwired-adapter state is a legitimate intermediate. Conflating would either over-deny (force every component to wire an adapter first) or under-deny (defeat the wrapper-first reflex contract).
 
 ## Pattern shapes
 

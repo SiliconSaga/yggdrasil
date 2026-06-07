@@ -96,12 +96,9 @@ selector for you.
 
 ## Trust level
 
-Realm content is **trusted at the workspace root level** —
-`AGENTS.md`, `.agent/skills/`, ecosystem config, and adapter commands
-all flow into your sessions as community-curated instructions. That
-means cloning a realm is a higher-trust act than cloning an arbitrary
-component; only clone realms from communities you're committing to.
-See [Trust and Safety](trust-and-safety.md) for the full hierarchy.
+A realm is an extension of your own hoards (when you author it) or of the team you joined (when you adopt one). Realm content sits at **trust level 1b** in the hierarchy — community context for the workspace, trusted alongside the workspace root for `AGENTS.md`, `.agent/skills/`, and ecosystem config. The risk surface that distinguishes a realm from the root is its **adapter command strings** (`realms/<r>/adapters/*.yaml` `commands.{test,lint,build}`) — these are executable config, and `gdd-orientation`'s risk scan reads them on activation with provenance-scaled rigor (light for your own / your team's realms; heavy for community / wild realms).
+
+Cloning a realm is a higher-trust act than cloning an arbitrary component — only clone realms from communities you're committing to. See [Trust and Safety](trust-and-safety.md) for the full hierarchy and [Adapter Trust](adapters.md#adapter-trust-executable-config-is-config-that-executes) for the executable-config-surface framing.
 
 ---
 

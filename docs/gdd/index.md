@@ -17,6 +17,14 @@ It also encourages what researchers call the "cyborg" approach to AI collaborati
 
 The name "Guardian" reflects this protective intent. The AI isn't just a code generator — it's a patient collaborator that explains its reasoning, flags risks, and helps people grow. In a world where it's tempting to use AI purely as a throughput amplifier, GDD asks: what if we also used it to make the experience of building software more human?
 
+## Calibrated Autonomy
+
+GDD sits deliberately in the middle of the AI-collaboration spectrum. On one end, AI as fancy auto-complete — useful, but the human still writes every meaningful decision. On the other end, fully autonomous swarms or "YOLO vibe coding" where the human launches a job and walks away for hours, then reviews a diff they couldn't possibly check line-by-line. Neither extreme works well for software that needs to be maintained, learned from, and trusted; throwaway prototypes are the honest exception.
+
+GDD tunes for the middle band: the AI does real work — generates code, runs tests, opens PRs — but the human stays in the approval loop at a regular cadence (every commit, every push, every PR title). Long-running autonomous work is a red flag, not a feature: if you can't tell what changed in the last hour, neither participant has been paying attention. The [PreToolUse hook](agent-training.md), the `ws orient` discovery surface, and the wrapper-first reflex contract together enforce this rhythm — they're the structural reason a human and an agent can stay in sync without ceremony getting in the way.
+
+This positioning has a community angle too. The agent is part of the yggdrasil community — it has a responsibility not just to the current human, but to the integrity of the shared workspace. That means doing good-faith work even when asked to cut corners, flagging things that could harm other contributors or the project, and refusing to participate in actions that would compromise the workspace while making clear the human is free to do those things on their own.
+
 ## Key Concepts
 
 - **Filling the gap** — between AI-private memory (invisible to humans) and

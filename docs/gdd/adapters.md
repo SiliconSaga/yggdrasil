@@ -51,6 +51,27 @@ the workspace.
 
 ---
 
+## Adapter trust — executable config is config that executes
+
+An adapter file is **executable configuration**: when `ws test` runs, the string in `commands.test` is what actually gets exec'd in the component dir. That makes the adapter file a trust boundary, not just a config surface. Allowlisting `ws test` / `ws lint` by default is reasonable because the *wrapper* is trusted to dispatch what the realm wires — but the wrapped command itself comes from a YAML file the realm author controls.
+
+**`ws orient` surfaces the resolved command** for every wired component so the executable-config surface stays auditable:
+
+```text
+nordri
+  ws test [runs: make test]
+  ws lint [runs: make lint]
+ting
+  ws test [runs: .venv/bin/python -m pytest tests/unit tests/integration -v]
+  ws lint [runs: .venv/bin/python -m ruff check src/ tests/]
+```
+
+If you can't audit what `ws test` will actually run from `ws orient` output, the wrapper is hiding the executable-config surface — that's the regression the `runs:` form prevents.
+
+The orientation skill runs a **risk scan** on every realm activation, flagging adapter commands that contain `curl|sh` / `wget|sh`, base64 decode-execute, writes outside the component dir, outbound network calls in test/lint runners, or `eval`. Rigor scales by realm provenance — light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+
+---
+
 ## `ws actions <component>`
 
 Inspect what's wired up for a given component:

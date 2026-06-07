@@ -74,7 +74,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions` |
+| **Safe** | Yes (allow) | No | `orient`, `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `lint`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions`, `audit-permissions`, `preflight`, `hook-bypass` (ask-tier enforced) |
 | **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs) |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 
@@ -205,6 +205,19 @@ commands need one `*` per argument:
 **Note:** `ws exec` **always requires human approval** — the project-level
 deny rule in `.claude/settings.json` cannot be overridden by local settings.
 See "Why exec always requires human approval" above.
+
+## ws orient
+
+`ws orient` is the L1 layer of the progressive-disclosure surface (L0 is `AGENTS.md`, L2 is per-subcommand `ws <cmd> --help`). It prints a deterministic discovery menu:
+
+- **Subcommand survey** — every dispatched subcommand with its `# ws:use-when …` docstring, built dynamically by scanning the dispatcher in `scripts/ws`.
+- **Active realm** — the auto-detected or `ecosystem.local.yaml`-selected realm, with a pointer at its `AGENTS.md` guide.
+- **Per-component adapter wiring** — for each cloned component with a realm-side adapter file, the wired verbs (`ws test`, `ws lint`, `ws build`) and the **resolved command** each dispatches (`runs: ./gradlew test`). Components without an adapter file are suppressed so the section stays signal-rich.
+- **Skill index** — workspace skills (`/.agent/skills/`) and active-realm skills (`realms/<r>/.agent/skills/`), parsed from each SKILL.md frontmatter.
+
+The output stays cheap even with dozens of skills — frontmatter-only parsing on SKILL.md bodies, single-line per row. Read-only; no flags yet. Run at session start, after compaction, or whenever you're unsure what's available.
+
+A post-dispatch stderr footer on every other `ws` subcommand keeps `ws orient` discoverable mid-session. Suppressed for `orient` itself, `--help` variants, and under bats. Opt out with `WS_FOOTER_DISABLE=1`.
 
 ## ws commit
 

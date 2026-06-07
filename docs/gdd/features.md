@@ -12,8 +12,11 @@ Yggdrasil is a *meta workspace* — a top-level directory that contains a shared
 
 The `ws` CLI is the shared interface for both humans and AI agents. Add `scripts/` to your PATH to run `ws <cmd>` directly; otherwise `bash scripts/ws <cmd>` works without setup. Run `ws help` to see all subcommands; `ws <subcommand> --help` for per-command details. Skills and instructions defer to the help system as the source of truth so they don't drift out of date.
 
+The discoverability layer — `ws orient` (run at session start), the per-command stderr footer, and the wrapper-first reflex contract in [AGENTS.md](../../AGENTS.md) — keeps the CLI navigable as it grows. See [Agent Training § The progressive-disclosure buffet](agent-training.md#the-progressive-disclosure-buffet-l0-l1-l2) for the L0/L1/L2 framing.
+
 **Common subcommands:**
 
+- `ws orient` — Deterministic discovery menu: subcommands, active realm, per-component adapter wiring (with the resolved command surfaced), skill index. Run at session start, after compaction, or when switching tasks.
 - `ws status` — Git status across the workspace (yggdrasil + components + realms + hoards).
 - `ws clone <component>` — Clone a component declared in ecosystem config.
 - `ws commit <component> <bodyfile>` — Bodyfile-driven commit (auto-stages, adds Co-Authored-By trailer).
