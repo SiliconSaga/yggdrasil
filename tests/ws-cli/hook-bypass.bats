@@ -113,3 +113,41 @@ EOF
     [[ "$output" == *"Unknown slug"* ]]
     [ ! -d "$WORK/.tmp/hook-bypass" ]
 }
+
+@test "adapter-redirect slugs are accepted (Tier 3 alongside Tier 2)" {
+    # The Tier 3 [adapter-redirect-commands] deny message instructs
+    # users to bypass via `ws hook-bypass <slug>`. The script must
+    # accept those slugs too — otherwise the deny message tells users
+    # to do something the script refuses to do. Pin the contract.
+    # Copilot low-confidence finding on PR #90.
+    cat > "$WORK/.claude/hooks/hook-rules" <<'EOF'
+[redirect-commands]
+git-commit          | git commit*    | Use ws commit
+
+[adapter-redirect-commands]
+adapter-redirect-pytest  | pytest*       | test
+adapter-redirect-ruff    | ruff*         | lint
+EOF
+    run bash "$SCRIPT" adapter-redirect-pytest --reason "investigating raw pytest"
+    [ "$status" -eq 0 ]
+    [ -f "$WORK/.tmp/hook-bypass/adapter-redirect-pytest.bypass" ]
+    grep -q '^slug: adapter-redirect-pytest$' "$WORK/.tmp/hook-bypass/adapter-redirect-pytest.bypass"
+}
+
+@test "unknown-slug error lists both [redirect-commands] and [adapter-redirect-commands] slugs" {
+    # Make sure the helpful-message branch enumerates BOTH tiers so a
+    # user typing an adapter-redirect slug close to but not matching
+    # an entry sees its real cousins, not just the Tier 2 list.
+    cat > "$WORK/.claude/hooks/hook-rules" <<'EOF'
+[redirect-commands]
+git-commit          | git commit*    | Use ws commit
+
+[adapter-redirect-commands]
+adapter-redirect-pytest  | pytest*       | test
+EOF
+    run bash "$SCRIPT" no-such-slug
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown slug"* ]]
+    [[ "$output" == *"git-commit"* ]]
+    [[ "$output" == *"adapter-redirect-pytest"* ]]
+}

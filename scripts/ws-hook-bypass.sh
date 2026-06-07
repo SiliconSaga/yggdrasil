@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # ws-hook-bypass.sh — write a session-scoped bypass marker for a Tier 2
 # ws:use-when requesting a session-scoped bypass of a Tier 2 or Tier 3 redirect-deny
-# redirect-deny slug. The marker lets the matching command run for the
-# rest of the current Claude Code session.
+# or Tier 3 redirect-deny slug. The marker lets the matching command
+# run for the rest of the current Claude Code session.
 #
 # Usage:
 #   ws hook-bypass <slug> [--reason "<text>"]
 #
 # <slug> must appear as column 1 of a row in .claude/hooks/hook-rules
-# under [redirect-commands]. The script writes
-# .tmp/hook-bypass/<slug>.bypass with frontmatter the PreToolUse hook
-# parses (session_id, slug, created_at, reason).
+# under [redirect-commands] (Tier 2) or [adapter-redirect-commands]
+# (Tier 3). The script writes .tmp/hook-bypass/<slug>.bypass with
+# frontmatter the PreToolUse hook parses
+# (session_id, slug, created_at, reason).
 #
 # The subcommand pattern `ws hook-bypass [a-z]*` is on the committed
 # [ask-commands] baseline, so every invocation force-prompts the human —
@@ -31,7 +32,8 @@ usage() {
 Usage: ws hook-bypass <slug> [--reason "<text>"]
 
   <slug>           Bypass slug — must match a row in [redirect-commands]
-                   in .claude/hooks/hook-rules. Run with an unknown slug
+                   (Tier 2) or [adapter-redirect-commands] (Tier 3) in
+                   .claude/hooks/hook-rules. Run with an unknown slug
                    to see the list of known slugs.
   --reason "<txt>" Optional. Captured in the marker file and echoed into
                    each BYPASS-ALLOW audit-log entry for retro grep.
@@ -82,11 +84,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Enumerate known slugs from hook-rules. This is a deliberately minimal
-# re-implementation of the [redirect-commands] parse in the hook itself
-# (gdd-permission-hook.sh _parse_rules_file) — we only need column 1
-# (the slug), not the full slug|pattern|suggestion unpack. Keep the
-# shared bits (CRLF strip, section detection, slug regex) in sync if the
-# hook-rules format changes.
+# re-implementation of the [redirect-commands] + [adapter-redirect-commands]
+# parses in the hook itself (gdd-permission-hook.sh _parse_rules_file) —
+# we only need column 1 (the slug), not the full slug|pattern|...
+# unpack. Keep the shared bits (CRLF strip, section detection, slug
+# regex) in sync if the hook-rules format changes.
+#
+# Both sections share the slug shape and column-1 position, so a single
+# parse with a section-membership check covers both tiers. Tier 3
+# adapter-redirect denies instruct users to bypass via `ws hook-bypass`,
+# so the script must accept those slugs too — otherwise the deny message
+# tells users to do something the script refuses to do.
 known_slugs=()
 if [[ -f "$HOOK_RULES" ]]; then
     in_section=""
@@ -100,7 +108,8 @@ if [[ -f "$HOOK_RULES" ]]; then
             in_section="${in_section%\]}"
             continue
         fi
-        if [[ "$in_section" == "redirect-commands" ]]; then
+        if [[ "$in_section" == "redirect-commands" \
+              || "$in_section" == "adapter-redirect-commands" ]]; then
             # Column 1 (slug) — substring up to first " | "
             if [[ "$line" == *" | "* ]]; then
                 s="${line%% | *}"
@@ -132,7 +141,7 @@ if [[ "$slug_ok" != "1" ]]; then
             echo "  - $s" >&2
         done
     else
-        echo "No [redirect-commands] entries found in $HOOK_RULES." >&2
+        echo "No [redirect-commands] or [adapter-redirect-commands] entries found in $HOOK_RULES." >&2
     fi
     exit 1
 fi
