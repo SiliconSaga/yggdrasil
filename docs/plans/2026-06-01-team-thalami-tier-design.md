@@ -37,7 +37,7 @@ team-thalami-cfr/
     ...
 ```
 
-Per-host files are retained as the storage substrate (forward-compat for anyone using more than one workspace, and a mechanically clean promotion target — a published arc row mirrors from `personal/<host>-thalamus.md` to `team/<username>/<host>-thalamus.md`). The *team audience* is person-centric, so the dashboard keys on user and demotes host to a detail column (see Dashboards).
+Per-host files are retained as the storage substrate (forward-compat for anyone using more than one workspace, and a mechanically clean promotion target — a published arc row mirrors from `personal/<host>-thalamus.md` to `team/<username>/<host>-thalamus.md`). The *team audience* is person-centric, so the dashboard keys on user and drops the Host column (see Dashboards).
 
 ### Where source docs live — the Vault, not the hoard
 
@@ -126,7 +126,7 @@ Notes on the cascade:
 **`TeamArcDashboard.md`** (in the team hoard) — a person-primary variant of the existing query:
 
 - **User** column derived from `file.folder` (or a `user:` frontmatter field) becomes the row key.
-- **Host** demoted to a secondary detail column (so a teammate with three workspaces doesn't fragment into three unrelated rows).
+- **Host** column dropped — the owner (User) is the team identity; per-host data remains in the underlying `<host>-thalamus.md` if ever needed.
 - **No publish filter needed** — the team hoard only ever *contains* published arcs, so presence in the repo *is* the published state. `FROM ""` over the team hoard projects exactly the published set.
 
 Otherwise it reuses the existing Dataview projection (status vibes, freshness decay, filter/sort/refresh controls).

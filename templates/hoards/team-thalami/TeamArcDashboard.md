@@ -11,7 +11,7 @@ Live person-keyed view of in-flight work published by the team. Renders when thi
 
 Each row is one published (user, arc) pair. The **User** column reads the per-arc file's `user:` frontmatter, falling back to its containing folder name.
 
-**Filter** `INPUT[text:filter]` · **Sort by** `INPUT[inlineSelect(option(User), option(Status), option(Touched, Last touched), option(Arc), option(Host), option(Age), option(Impact), option(Urgency)):sortby]` · **Desc** `INPUT[toggle:descending]`
+**Filter** `INPUT[text:filter]` · **Sort by** `INPUT[inlineSelect(option(User), option(Status), option(Touched, Last touched), option(Arc), option(Age), option(Impact), option(Urgency)):sortby]` · **Desc** `INPUT[toggle:descending]`
 
 ```dataview
 TABLE WITHOUT ID
@@ -30,14 +30,13 @@ TABLE WITHOUT ID
   choice(user, user, file.folder) AS "User",
   arc.impact AS "Impact",
   arc.urgency AS "Urgency",
-  regexreplace(file.name, "-thalamus$", "") AS "Host",
   arc.last_touched AS "Touched",
   (date(today) - date(arc.started)).days AS "Age"
 FROM ""
 WHERE arcs
 FLATTEN arcs AS arc
 WHERE this.filter = null OR this.filter = "" OR contains(lower(string(arc.id) + " " + string(arc.name) + " " + string(arc.status) + " " + string(choice(user, user, file.folder)) + " " + string(arc.tags)), lower(this.filter))
-FLATTEN choice(this.sortby = "Arc", arc.id, choice(this.sortby = "User", choice(user, user, file.folder), choice(this.sortby = "Host", regexreplace(file.name, "-thalamus$", ""), choice(this.sortby = "Age", (date(today) - date(arc.started)).days, choice(this.sortby = "Touched", arc.last_touched, choice(this.sortby = "Impact", choice(arc.impact = "high", 0, choice(arc.impact = "medium", 1, choice(arc.impact = "low", 2, 3))), choice(this.sortby = "Urgency", choice(arc.urgency = "asap", 0, choice(arc.urgency = "next", 1, choice(arc.urgency = "soon", 2, choice(arc.urgency = "later", 3, 4)))), arc.status))))))) AS sortkey
+FLATTEN choice(this.sortby = "Arc", arc.id, choice(this.sortby = "User", choice(user, user, file.folder), choice(this.sortby = "Age", (date(today) - date(arc.started)).days, choice(this.sortby = "Touched", arc.last_touched, choice(this.sortby = "Impact", choice(arc.impact = "high", 0, choice(arc.impact = "medium", 1, choice(arc.impact = "low", 2, 3))), choice(this.sortby = "Urgency", choice(arc.urgency = "asap", 0, choice(arc.urgency = "next", 1, choice(arc.urgency = "soon", 2, choice(arc.urgency = "later", 3, 4)))), arc.status)))))) AS sortkey
 SORT choice(this.descending, null, sortkey) ASC, choice(this.descending, sortkey, null) DESC, arc.last_touched DESC
 ```
 

@@ -18,12 +18,13 @@ setup() { init_workspace; }
     [[ "$output" == *"team-thalami"* ]]
 }
 
-@test "TeamArcDashboard is person-keyed (User column, no publish filter)" {
+@test "TeamArcDashboard is person-keyed, host dropped (User column, no publish filter)" {
     local f="$REPO_ROOT/templates/hoards/team-thalami/TeamArcDashboard.md"
     grep -q 'choice(user, user, file.folder) AS "User"' "$f"
     grep -q 'option(User)' "$f"
-    # Host retained as a secondary detail column
-    grep -q 'AS "Host"' "$f"
+    # Host column dropped — owner is the team identity
+    ! grep -q 'AS "Host"' "$f"
+    ! grep -q 'option(Host)' "$f"
 }
 
 @test "ws hoard init team-thalami scaffolds files without machine seeding" {
