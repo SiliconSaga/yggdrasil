@@ -8,6 +8,7 @@ A minimal loop for promoting a personal arc to a shared team-thalami hoard.
    (push it to a shared remote when you want teammates to clone it).
 2. **Notes vault:** `ws hoard init obsidian-vault --name obsidian-<you>` — where meeting notes / tab dumps live.
 3. **Point your thalamus at the vault:** in your active `hoards/thalami/<host>-thalamus.md` frontmatter, set `vault: hoards/obsidian-<you>` — an absolute path, or a path relative to the workspace root (resolved against it, so it works from any directory).
+   Your team identity defaults to your `identity.human_account` from ecosystem config — set a top-level `user:` in your thalamus only if you need to override it.
 4. **Create the arc:** add an arc to that frontmatter, e.g.
    ```yaml
    - id: observability-improvements

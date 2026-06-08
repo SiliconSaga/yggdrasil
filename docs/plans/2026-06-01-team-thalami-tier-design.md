@@ -110,7 +110,7 @@ It must resolve two things — the **source** (where the Vault prose lives, plus
 |------|------------------|-------------|
 | **Destination** — team hoard pointer + public-facing details | active **realm** | shared/public — belongs in the realm |
 | **Source Vault path** | per-arc `vault:` → thalamus-level `vault:` → active **thalami hoard** config → root **`Thalamus.md`** | **local** — never the realm |
-| **Identity** (which `<username>/` folder) | arc/thalamus `user:` → resolved username (OS user / hostname-derived) | local thalami / `Thalamus.md` |
+| **Identity** (which `<username>/` folder) | arc/thalamus `user:` → `identity.human_account` → resolved OS user | local thalami / `Thalamus.md` |
 
 Notes on the cascade:
 

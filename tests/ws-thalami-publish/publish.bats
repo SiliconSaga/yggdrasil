@@ -142,6 +142,15 @@ setup() { init_publish_workspace; }
     [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/v2.md" ]
 }
 
+@test "publish falls back to identity.human_account when no frontmatter user" {
+    local t="$HOARDS_DIR/thalami/testhost-thalamus.md"
+    grep -v '^user:' "$t" > "$t.tmp"
+    mv "$t.tmp" "$t"
+    run_publish --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"user=testuser"* ]]
+}
+
 @test "publish sweeps an inline-flow frontmatter tag (tags: [team/...])" {
     mkdir -p "$HOARDS_DIR/obsidian-Cervator/proj"
     printf -- '---\ntags: [team/observability-improvements]\n---\n# Note\n' \

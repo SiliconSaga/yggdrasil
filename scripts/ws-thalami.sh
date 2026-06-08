@@ -103,9 +103,10 @@ ws_thalami_publish() {
     local team; team="$(_wt_resolve_team_hoard "$to")" || return 1
     local team_dir; team_dir="$HOARDS_DIR/$team"
 
-    # 3. User: --user > frontmatter user > $USER.
+    # 3. User identity: --user > frontmatter user: > identity.human_account > $USER.
     local fm_user; fm_user="$(printf '%s\n' "$fm" | yq '.user // ""')"
-    user="${user:-${fm_user:-${USER:-unknown}}}"
+    local acct; acct="$(ws_resolve_human_account 2>/dev/null || true)"
+    user="${user:-${fm_user:-${acct:-${USER:-unknown}}}}"
 
     # 4. Vault: --vault > frontmatter vault. (Per-arc override handled later.)
     local fm_vault; fm_vault="$(printf '%s\n' "$fm" | yq '.vault // ""')"
