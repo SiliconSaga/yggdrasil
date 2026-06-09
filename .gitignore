@@ -4,8 +4,10 @@
 
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
 # Only .gitkeep is tracked so the directory structure is preserved.
+# Exception: /components/adse is a permanent, in-repo component.
 /components/*
 !/components/.gitkeep
+!/components/adse
 
 # Realm repos — cloned by ws realm, ignored by yggdrasil's Git.
 /realms/*

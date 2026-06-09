@@ -1,0 +1,36 @@
+# Reusable Confluence publish CI job.
+# Include in any hoard that has .publish.yaml + notes with publish: true.
+#
+# Usage in your .gitlab-ci.yml:
+#   include:
+#     - project: gni-cfr/gdd/adse
+#       ref: main
+#       file: ci-templates/confluence-publish.yml
+#
+# Required CI variable: CONFLUENCE_TOKEN (masked, protected)
+# Set in repo variables: CONFLUENCE_USER, CONFLUENCE_BASE_URL
+
+variables:
+  CONFLUENCE_BASE_URL: https://nvidia.atlassian.net/wiki
+
+confluence-publish:
+  stage: deploy
+  image: python:3.12-slim
+  tags:
+    - os/linux
+    - type/docker
+  before_script:
+    - apt-get update -qq && apt-get install -y --no-install-recommends curl tar ca-certificates
+    - >
+      curl -sSL
+      "https://github.com/kovetskiy/mark/releases/download/v16.3.0/mark_Linux_x86_64.tar.gz"
+      | tar -xz -C /usr/local/bin mark
+  script:
+    - python3 processors/confluence/preprocess.py --root .
+    - |
+      shopt -s nullglob
+      for f in .processed/*.md; do
+        mark -u "$CONFLUENCE_USER" -p "$CONFLUENCE_TOKEN" -b "$CONFLUENCE_BASE_URL" -f "$f"
+      done
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
