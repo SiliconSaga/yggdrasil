@@ -3,6 +3,12 @@
 Status: design (proposed)
 Extends: [Team Thalami tier](2026-06-01-team-thalami-tier-design.md), [Foundation plan](2026-06-01-team-thalami-foundation-plan.md), [Publish MVP plan](2026-06-04-team-thalami-publish-mvp-plan.md)
 
+## Status & prerequisites (v1 landed — read this first)
+
+This design builds on the **completed** v1 publish engine. On branch `feat/team-thalami-foundation` (not yet merged), the `team-thalami` template, the person-keyed `TeamArcDashboard` (Host column dropped), the arc schema (`published`/`user`/`vault`), the conditional 📡, and `ws thalami publish` are all built, reviewed, and green (full workspace suite passes). v1 refinements already in place: notes mirror **flat** as `<user>/<arc-id>/<basename>`, identity defaults to `identity.human_account`, and re-publishing an unchanged arc reports "No changes". So a fresh agent starts from a *working publish engine* — v2 is purely the **rendering layer** on top.
+
+**To pick this up, read:** the engine `scripts/ws-thalami.sh` (`ws_thalami_publish`); the [Publish MVP plan](2026-06-04-team-thalami-publish-mvp-plan.md) including its "Implementation notes — deviations & review follow-ups (as built)" appendix (the engine is 100% of that plan plus the v1 refinements); the [tier design](2026-06-01-team-thalami-tier-design.md) for the model; and the reference Quartz setup at `hoards/jcressy-notes` (`.quartz/quartz.config.ts`, `.gitlab-ci.yml`). (A later brainstorm produced a second site-related doc; reconcile it into this design when starting v2.)
+
 ## Problem
 
 A team lead wants to *open a URL in a browser* and see what the team has in flight — not clone a Git repo, and not install Obsidian. Today the team hoard is browsable two ways, both insufficient for that audience:
@@ -54,6 +60,21 @@ team-thalami-cfr/                 (Git repo + Quartz content + Pages build)
 - The Dataview `TeamArcDashboard.md` is **kept** for teammates who open the hoard in Obsidian, and **excluded** from the Quartz build via `ignorePatterns` (it would otherwise render as a dead query block).
 - The per-host `<host>-thalamus.md` projection files are **data, not pages** — also excluded from the build (the index is generated *from* them).
 - Status/freshness: the dashboard's decay vibe-icons are Obsidian-only; the generated index shows plain `status` + `last_touched` text. (A fancier site-side status visualization is a later nicety, not v2a.)
+
+Concrete shape (illustrative — the plan finalizes it), generated from each per-host projection's `arcs:` frontmatter + the flattened note files under `<user>/<arc-id>/`:
+
+```markdown
+# Team — in flight
+
+## rpraestholm
+- **silence-service-onboarding** — CFR hosting of Silence service · _active_ · next: summarize Jun-5 meeting
+  - [Grafana Silence Service Setup](rpraestholm/silence-service-onboarding/Grafana%20Silence%20Service%20Setup.md)
+
+## <next teammate>
+- ...
+```
+
+(Quartz slugifies note paths/filenames into clean URLs, so spaces in note names are fine.)
 
 ## Components & changes
 
