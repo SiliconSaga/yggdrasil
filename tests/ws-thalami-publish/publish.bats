@@ -62,9 +62,9 @@ setup() { init_publish_workspace; }
     run_publish --yes
     [ "$status" -eq 0 ]
     local d="$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements"
-    [ -f "$d/notes/meeting1.md" ]
-    [ ! -f "$d/notes/secret.md" ]
-    [ ! -f "$d/notes/other.md" ]
+    [ -f "$d/meeting1.md" ]
+    [ ! -f "$d/secret.md" ]
+    [ ! -f "$d/other.md" ]
 }
 
 @test "publish --dry-run lists the notes it would copy, excludes private" {
@@ -77,10 +77,10 @@ setup() { init_publish_workspace; }
 @test "un-tagging a note removes it from the arc subfolder on re-publish" {
     run_publish --yes
     local d="$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements"
-    [ -f "$d/notes/meeting1.md" ]
+    [ -f "$d/meeting1.md" ]
     printf 'untagged now\n' > "$HOARDS_DIR/obsidian-Cervator/notes/meeting1.md"
     run_publish --yes
-    [ ! -f "$d/notes/meeting1.md" ]
+    [ ! -f "$d/meeting1.md" ]
 }
 
 @test "publish without --yes aborts on 'n' and writes nothing" {
@@ -115,7 +115,7 @@ setup() { init_publish_workspace; }
         > "$HOARDS_DIR/obsidian-Cervator/proj/fm-note.md"
     run_publish --yes
     [ "$status" -eq 0 ]
-    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/fm-note.md" ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/fm-note.md" ]
 }
 
 @test "publish skips a note with a frontmatter private tag" {
@@ -123,7 +123,7 @@ setup() { init_publish_workspace; }
     printf -- '---\ntags:\n  - team/observability-improvements\n  - private\n---\n# Secret\n' \
         > "$HOARDS_DIR/obsidian-Cervator/proj/fm-secret.md"
     run_publish --yes
-    [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/fm-secret.md" ]
+    [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/fm-secret.md" ]
 }
 
 @test "publish does not exclude a note that only mentions 'private' in prose" {
@@ -131,7 +131,7 @@ setup() { init_publish_workspace; }
     printf -- '---\ntags:\n  - team/observability-improvements\n---\n# Note\nThis cluster is private to the team.\n' \
         > "$HOARDS_DIR/obsidian-Cervator/proj/prose.md"
     run_publish --yes
-    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/prose.md" ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/prose.md" ]
 }
 
 @test "publish team-tag match respects boundaries (no prefix bleed)" {
@@ -139,7 +139,7 @@ setup() { init_publish_workspace; }
     printf -- '#team/observability-improvements-v2\n' \
         > "$HOARDS_DIR/obsidian-Cervator/proj/v2.md"
     run_publish --yes
-    [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/v2.md" ]
+    [ ! -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/v2.md" ]
 }
 
 @test "publish falls back to identity.human_account when no frontmatter user" {
@@ -157,5 +157,28 @@ setup() { init_publish_workspace; }
         > "$HOARDS_DIR/obsidian-Cervator/proj/flow.md"
     run_publish --yes
     [ "$status" -eq 0 ]
-    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/proj/flow.md" ]
+    [ -f "$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements/flow.md" ]
+}
+
+@test "publish flattens notes to basename under the arc folder" {
+    run_publish --yes
+    local d="$HOARDS_DIR/team-thalami-cfr/Cervator/observability-improvements"
+    [ -f "$d/meeting1.md" ]
+    [ ! -d "$d/notes" ]
+}
+
+@test "re-publishing with no changes reports 'No changes'" {
+    run_publish --yes
+    run_publish --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No changes since last publish."* ]]
+}
+
+@test "publish errors on a basename collision within an arc" {
+    mkdir -p "$HOARDS_DIR/obsidian-Cervator/a" "$HOARDS_DIR/obsidian-Cervator/b"
+    printf '#team/observability-improvements\n' > "$HOARDS_DIR/obsidian-Cervator/a/dup.md"
+    printf '#team/observability-improvements\n' > "$HOARDS_DIR/obsidian-Cervator/b/dup.md"
+    run_publish --yes
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"flatten to the same name"* ]]
 }
