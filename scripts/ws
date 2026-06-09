@@ -35,6 +35,7 @@
 #   hoard list                 Show hoards and which thalami hoard is active
 #   hoard upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]  Provenance-tracked plugin/config upgrade
 #   thalami publish   Publish published:true arcs to a team-thalami hoard
+#   project <name> status|build [--pdf]  Section coverage + SADD assembly for a project hoard
 #   component init <flavor> [name]   Scaffold a new component from a template
 #   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component
@@ -855,6 +856,9 @@ case "$COMMAND" in
         ;;
     thalami)
         bash "$SCRIPT_DIR/ws-thalami.sh" "$@"
+        ;;
+    project)
+        bash "$SCRIPT_DIR/ws-project.sh" "$@"
         ;;
     *)
         echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2
