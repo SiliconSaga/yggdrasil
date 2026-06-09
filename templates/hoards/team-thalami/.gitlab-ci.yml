@@ -1,0 +1,7 @@
+# Team thalami hoard — Quartz static site.
+# Builds the generated index.md + mirrored arc notes into a browsable Pages site.
+# ws thalami publish keeps content current; CI renders it on every push to main.
+include:
+  - project: gni-cfr/gdd/adse
+    ref: main
+    file: ci-templates/pages-quartz.yml

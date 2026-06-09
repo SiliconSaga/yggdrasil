@@ -3,3 +3,6 @@
 .trash/
 # Upgrade backups (if ws hoard upgrade is ever wired for this flavor)
 .upgrade-backup/
+# Quartz build output and dependencies
+public/
+.quartz/node_modules/

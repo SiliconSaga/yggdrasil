@@ -1,0 +1,49 @@
+@use "./base.scss";
+
+// Link transitions
+a {
+  transition: color 0.15s ease, opacity 0.15s ease;
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
+// Accessible focus rings
+*:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+// Code block left border accent
+pre {
+  border-left: 3px solid var(--secondary);
+}
+
+// Graph view accent nodes
+.graph circle.node {
+  fill: var(--secondary);
+}
+
+// Explorer: smaller font + subtle separators + bullet dots for page links
+.explorer-content ul li {
+  border-bottom: 1px solid var(--lightgray);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  // Bullet dot for page links (not folders)
+  &:not(:has(.folder-container)) > a::before {
+    content: "\2022";
+    color: var(--gray);
+    margin-right: 0.4rem;
+  }
+}
+
+.folder-container div > a,
+.folder-container div > button span {
+  font-size: 0.85rem;
+}

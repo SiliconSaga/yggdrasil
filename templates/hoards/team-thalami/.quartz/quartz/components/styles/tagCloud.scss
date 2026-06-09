@@ -1,0 +1,36 @@
+.tag-cloud {
+  & h3 {
+    font-size: 1rem;
+    margin: 0 0 0.5rem 0;
+  }
+}
+
+.tag-cloud-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  line-height: 1.4;
+}
+
+.tag-cloud-item {
+  color: var(--secondary) !important;
+  opacity: 0.8;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+
+  &:hover {
+    opacity: 1;
+    color: var(--tertiary) !important;
+  }
+}
+
+.tag-cloud-see-all {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--gray) !important;
+
+  &:hover {
+    color: var(--secondary) !important;
+  }
+}

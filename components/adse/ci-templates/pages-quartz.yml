@@ -1,0 +1,31 @@
+# Reusable Quartz v4 → GitLab Pages CI job.
+# Requires a .quartz/ directory at the hoard root containing a pinned
+# Quartz v4 project (package.json, quartz.config.ts, quartz.layout.ts).
+#
+# Usage:
+#   include:
+#     - project: gni-cfr/gdd/adse
+#       ref: main
+#       file: ci-templates/pages-quartz.yml
+
+include:
+  - project: ngc-cfa/codehygiene
+    ref: main
+    file: common/workflow.yaml
+
+pages:
+  stage: build
+  image: node:22
+  tags:
+    - os/linux
+    - type/docker
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - cd .quartz && npm ci
+    - npx quartz build -d .. --output ../public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
