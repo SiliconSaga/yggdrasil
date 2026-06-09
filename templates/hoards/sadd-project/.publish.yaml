@@ -1,0 +1,7 @@
+# Confluence configuration — fill in if using ws project publish confluence.
+confluence:
+  space: ""          # Confluence space key or ~account-id
+  base_url: https://nvidia.atlassian.net/wiki
+  user: ""           # your NVIDIA email
+  source_url_base: "" # https://gitlab-master.nvidia.com/<group>/<repo>/-/blob/main
+  notes_dir: .       # publish everything with publish: true (not used for SADD path)

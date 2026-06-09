@@ -1,0 +1,10 @@
+# SADD project hoard — CI pipeline.
+# Quartz site builds on every push to main.
+# SADD PDF artifact builds on every git tag.
+include:
+  - project: gni-cfr/gdd/adse
+    ref: main
+    file: ci-templates/pages-quartz.yml
+  - project: gni-cfr/gdd/adse
+    ref: main
+    file: ci-templates/sadd-build.yml

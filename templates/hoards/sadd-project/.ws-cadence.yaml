@@ -1,0 +1,2 @@
+# Commit cadence threshold. SADD content changes less frequently than thalami notes.
+staleness_days: 7

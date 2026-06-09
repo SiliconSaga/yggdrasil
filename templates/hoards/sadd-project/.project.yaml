@@ -1,0 +1,42 @@
+# .project.yaml — ADSE project hoard configuration
+# This file is read by ws project status/build/publish/merge.
+# Replace placeholder values (marked with <>) before first build.
+
+template: sadd
+title: "<Project Name>"
+authors:
+  - name: "<Your Name>"
+    email: "<you@nvidia.com>"
+approvers: []
+  # - name: "<Approver Name>"
+  #   role: "<Role>"
+plc_template: "SWE-PLC-L1-002-BasicPLC-SADD-TMPL"
+
+# Sections that must be present for ws project build to succeed.
+# Build fails with a clear error if any mandatory section has no tagged file.
+mandatory: [purpose-scope, architecture]
+
+# Full section order for the assembled document.
+# Sections not present in the hoard are silently omitted (unless mandatory).
+sections:
+  - id: purpose-scope
+  - id: value-prop
+  - id: assumptions
+  - id: constraints
+  - id: dependencies
+  - id: glossary
+  - id: references
+  - id: architecture
+  - id: design-alternatives
+  - id: static-design
+  - id: dynamic-design
+  - id: security
+  - id: testing
+  - id: other-ha
+  - id: other-scalability
+  - id: other-future-work
+  - id: open-questions
+
+build_targets:
+  gdoc_id: ""         # set after ws project publish gdoc
+  confluence_space: "" # set if collab path used
