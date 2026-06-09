@@ -1,0 +1,43 @@
+# SADD build CI job — assembles section files into a single markdown document
+# and attaches a PDF as a GitLab artifact on every git tag.
+#
+# Requires:
+#   - .project.yaml at the repo root
+#   - Section .md files with sadd_section: frontmatter
+#   - components/adse available (via ADSE_PATH variable or default path)
+#
+# Usage in your .gitlab-ci.yml:
+#   include:
+#     - project: gni-cfr/gdd/adse
+#       ref: main
+#       file: ci-templates/sadd-build.yml
+#
+# NOTE (Plan B): Until adse has a GitLab remote, project hoards must vendor
+# adse/scripts/assemble.py and adse/processors/pdf/export.sh locally.
+# A future revision of this template will fetch them via artifacts or git clone.
+
+variables:
+  ADSE_IMAGE: python:3.12-slim
+
+sadd-build:
+  stage: build
+  image: $ADSE_IMAGE
+  tags:
+    - os/linux
+    - type/docker
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y --no-install-recommends pandoc texlive-xetex texlive-fonts-recommended
+  script:
+    - python3 $CI_PROJECT_DIR/scripts/assemble.py . --output .build/assembled.md
+    - bash $CI_PROJECT_DIR/processors/pdf/export.sh
+        --input .build/assembled.md
+        --output .build/${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.pdf
+  artifacts:
+    name: "$CI_PROJECT_NAME-$CI_COMMIT_TAG-sadd"
+    paths:
+      - .build/assembled.md
+      - .build/*.pdf
+    expire_in: never
+  rules:
+    - if: $CI_COMMIT_TAG
