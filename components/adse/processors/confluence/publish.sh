@@ -14,6 +14,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 ROOT="$(cd "$ROOT" && pwd)"
+CONF_CFG="$ROOT/.publish.yaml"
+
+[[ -f "$CONF_CFG" ]] || { echo "error: $CONF_CFG not found" >&2; exit 1; }
+
 PROCESSED="$ROOT/.processed"
 
 if [[ ! -d "$PROCESSED" ]]; then
@@ -26,9 +30,12 @@ if ! command -v mark &>/dev/null; then
     exit 1
 fi
 
-CONF_CFG="$ROOT/.publish.yaml"
 BASE_URL=$(grep 'base_url:' "$CONF_CFG" | head -1 | sed 's/.*base_url: *//')
 USER=$(grep 'user:' "$CONF_CFG" | head -1 | sed 's/.*user: *//')
+
+if ! $DRY_RUN; then
+    [[ -n "${CONFLUENCE_TOKEN:-}" ]] || { echo "error: CONFLUENCE_TOKEN is not set" >&2; exit 1; }
+fi
 
 for f in "$PROCESSED"/*.md; do
     [[ -f "$f" ]] || continue

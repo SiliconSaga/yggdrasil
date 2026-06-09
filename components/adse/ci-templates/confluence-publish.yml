@@ -9,6 +9,10 @@
 #
 # Required CI variable: CONFLUENCE_TOKEN (masked, protected)
 # Set in repo variables: CONFLUENCE_USER, CONFLUENCE_BASE_URL
+#
+# NOTE: Until adse has its own GitLab remote, calling hoards must vendor
+# processors/confluence/preprocess.py locally. A future revision will fetch it
+# via artifacts or include. See docs/plans/2026-06-09-adse-design.md.
 
 variables:
   CONFLUENCE_BASE_URL: https://nvidia.atlassian.net/wiki

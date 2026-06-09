@@ -75,9 +75,15 @@ def main():
 
     raw = parse_yaml_shallow(config_path.read_text())
     cfg = raw.get("confluence", {})
-    space = cfg["space"]
+    space = cfg.get("space")
+    if not space:
+        print("error: confluence.space is required in .publish.yaml", file=sys.stderr)
+        sys.exit(1)
     source_base = cfg.get("source_url_base", "").rstrip("/")
     notes_dir = root / cfg.get("notes_dir", "notes")
+    if not notes_dir.is_dir():
+        print(f"error: notes_dir '{notes_dir}' does not exist", file=sys.stderr)
+        sys.exit(1)
 
     if out_dir.exists():
         shutil.rmtree(out_dir)
