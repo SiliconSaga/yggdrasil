@@ -753,24 +753,15 @@ if [[ "$COMP" == "help" ]]; then
     exit 0
 fi
 
-# Validate component name (same regex as ws_validate_component)
-if [[ ! "$COMP" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
-    echo "ERROR: Invalid component name '$COMP'. Must be lowercase alphanumeric with hyphens/dots." >&2
-    exit 1
-fi
-
-# Resolve repo slug from component's remotes.
+# Resolve the target directory via the shared helper — accepts components,
+# realms, hoards, and 'yggdrasil' (workspace root), matching ws commit/push.
+# (Previously hardcoded components/<name>, which broke realm/hoard CR review —
+# the ws_resolve_target gap hit on realm-siliconsaga #9.)
 # Unlike push/issue (which target YOUR fork), review reads CRs that may live
 # on any remote (typically upstream). Strategy: extract the CR number from args,
 # try each remote's slug until the CR is found.
-COMP_DIR="$ROOT_DIR/components/$COMP"
-[[ "$COMP" == "yggdrasil" ]] && COMP_DIR="$ROOT_DIR"
-
-if [[ ! -d "$COMP_DIR" ]] || [[ ! -d "$COMP_DIR/.git" ]]; then
-    echo "ERROR: Component '$COMP' is not cloned locally." >&2
-    echo "  Run 'ws clone $COMP' first." >&2
-    exit 1
-fi
+ws_validate_component "$COMP"
+COMP_DIR="$COMPONENT_DIR"
 
 # Build list of candidate slugs from all remotes, grouped by provider
 _CANDIDATE_SLUGS=()
