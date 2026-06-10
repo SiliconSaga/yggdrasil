@@ -763,6 +763,15 @@ fi
 ws_validate_component "$COMP"
 COMP_DIR="$COMPONENT_DIR"
 
+# ws_validate_component guarantees the directory exists, not that it's a git
+# repo. Guard before the git-remote probing below so a bare folder fails with
+# a friendly message instead of a raw git fatal under set -e. rev-parse is
+# worktree-safe where a plain `-d .git` check is not.
+if ! git -C "$COMP_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "ERROR: '$COMP' at $COMP_DIR is not a git repository." >&2
+    exit 1
+fi
+
 # Build list of candidate slugs from all remotes, grouped by provider
 _CANDIDATE_SLUGS=()
 _CANDIDATE_PROVIDERS=()
