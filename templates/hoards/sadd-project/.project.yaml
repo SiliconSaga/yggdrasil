@@ -6,7 +6,7 @@ template: sadd
 title: "<Project Name>"
 authors:
   - name: "<Your Name>"
-    email: "<you@nvidia.com>"
+    email: "<you@example.com>"
 approvers: []
   # - name: "<Approver Name>"
   #   role: "<Role>"
@@ -14,10 +14,22 @@ plc_template: "SWE-PLC-L1-002-BasicPLC-SADD-TMPL"
 
 # Sections that must be present for ws project build to succeed.
 # Build fails with a clear error if any mandatory section has no tagged file.
-mandatory: [purpose-scope, architecture]
+mandatory:
+  - purpose-scope
+  - value-prop
+  - assumptions
+  - constraints
+  - architecture
+  - design-alternatives
+  - static-design
+  - dynamic-design
+  - security
+  - testing
 
 # Full section order for the assembled document.
-# Sections not present in the hoard are silently omitted (unless mandatory).
+# Optional sections (not in mandatory:) are silently omitted if not present.
+# Section files can live anywhere in the hoard (except working/) as long as
+# they carry a matching sadd_section: frontmatter key.
 sections:
   - id: purpose-scope
   - id: value-prop

@@ -6,7 +6,8 @@ status: draft
 
 # Architecture
 
-<!-- Replace this stub. Include a high-level block diagram and describe the major components and their relationships. Use Mermaid for diagrams. -->
+<!-- High-level block diagram and description of major components and their
+     relationships. Use Mermaid for diagrams. -->
 
 ```mermaid
 flowchart LR
