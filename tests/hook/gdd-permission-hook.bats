@@ -681,6 +681,7 @@ ws review * threads * --resolve*"
     run_hook 'ws review yggdrasil threads 94 --status'
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
 # ─── Drift detection ────────────────────────────────────────────────
