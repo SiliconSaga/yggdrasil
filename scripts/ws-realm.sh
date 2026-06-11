@@ -71,7 +71,7 @@ ws_validate_component() {
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "mimir\nevil" (CVE-style bypass).
     if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
-        echo "ERROR: Invalid component name '$name'. Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
+        echo "ERROR: Invalid target name '$name'. Components must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots); no realm or hoard dir matched it either." >&2
         exit 1
     fi
 
@@ -87,8 +87,9 @@ ws_validate_component() {
     local exists
     exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
     if [[ "$exists" == "missing" ]]; then
-        echo "ERROR: '$name' is not declared in ecosystem config." >&2
-        echo "  Run 'ws list' to see available components." >&2
+        echo "ERROR: no such target '$name' (looked for a component, realm, or hoard)." >&2
+        echo "  Components must be declared in ecosystem config — run 'ws list'." >&2
+        echo "  Realms live under realms/, hoards under hoards/ (must be cloned)." >&2
         exit 1
     fi
 
