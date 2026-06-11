@@ -31,6 +31,7 @@
 # Safe only while the hook's Tier 1 composition deny is active.
 # Uncomment the ones you're tired of approving.
 # ls *
+mkdir *
 # pwd
 # cat *
 # head *
@@ -42,6 +43,7 @@
 # grep *
 # jq *
 # yq *
+git status *
 # find for searching/listing is read-only and safe to allow broadly.
 # The destructive find forms (-delete, -exec) are on the ask-list in
 # hook-rules; Tier 3 (ask) runs before Tier 5 (allow-extras), so

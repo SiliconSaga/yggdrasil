@@ -663,7 +663,9 @@ ws_hoard_init() {
         esac
     done
 
-    if [[ ${#remaining_args[@]} -gt 0 ]]; then
+    if [[ ${#remaining_args[@]} -eq 1 ]]; then
+        custom_name="${remaining_args[0]}"
+    elif [[ ${#remaining_args[@]} -gt 1 ]]; then
         echo "ERROR: unexpected args for '$template' template: ${remaining_args[*]}" >&2
         exit 2
     fi

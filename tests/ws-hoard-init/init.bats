@@ -120,6 +120,19 @@ setup() {
     [[ "$output" == *"--name requires a value"* ]]
 }
 
+@test "positional name arg is accepted as shorthand for --name" {
+    run_hoard_init basic my-hoard
+    [ "$status" -eq 0 ]
+    [ -d "$HOARDS_DIR/my-hoard" ]
+    [ -d "$HOARDS_DIR/my-hoard/.git" ]
+}
+
+@test "two or more positional args are rejected as unexpected" {
+    run_hoard_init basic one two
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"unexpected args"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # Existing target dir
 # ---------------------------------------------------------------------------
