@@ -248,6 +248,14 @@ setup() {
     [[ "$output" == *"Usage: ws exec"* ]]
 }
 
+@test "ws diagnose --help: exits 0 and names all target kinds" {
+    run_ws diagnose --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws diagnose"* ]]
+    [[ "$output" == *"realm"* ]]
+    [[ "$output" == *"hoard"* ]]
+}
+
 @test "ws exec: --help inside the wrapped command is NOT intercepted" {
     # `ws exec <comp> git --help` must pass --help through to the
     # wrapped command, so only position-1 --help prints ws usage.

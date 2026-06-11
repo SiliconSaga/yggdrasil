@@ -483,8 +483,24 @@ HELP
 
 ws_diagnose() {
     # ws:use-when investigating push/cr failures — remote + token coverage
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws diagnose <component|realm|hoard|yggdrasil>
+
+  target  Any resolvable workspace target — a declared ecosystem
+          component, a realm dir, a hoard dir, or yggdrasil itself
+
+Shows ecosystem config (components only), clone status, remotes,
+provider, and token coverage. Run this when 'ws push' or 'ws cr'
+fails with auth or remote errors.
+HELP
+            return 0
+        fi
+    done
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws diagnose <component|yggdrasil>" >&2
+        echo "Usage: ws diagnose <component|realm|hoard|yggdrasil>" >&2
         echo "  Shows ecosystem config, clone status, remotes, provider, and token coverage." >&2
         echo "  Run this when 'ws push' or 'ws cr' fails with auth or remote errors." >&2
         exit 1
@@ -496,28 +512,27 @@ ws_diagnose() {
     echo "[ ws diagnose: $comp ]"
     echo ""
 
-    # Special case: yggdrasil is the workspace root, not a declared component
-    local comp_dir
+    # Resolve the target dir via the shared multi-kind helper (accepts
+    # component, realm, hoard, and yggdrasil). ws_validate_component exits
+    # non-zero with its own message if the name resolves to nothing.
+    ws_validate_component "$comp"
+    local comp_dir="$COMPONENT_DIR"
+
     if [[ "$comp" == "yggdrasil" ]]; then
-        comp_dir="$ROOT_DIR"
         echo "  Workspace root (not a declared ecosystem component)"
-    else
-        # Ecosystem entry
+    elif [[ "$comp_dir" == "$COMPONENTS_DIR/"* ]]; then
+        # Declared component — show ecosystem repo/tier.
         local repo tier
         repo=$(COMP="$comp" yq '.components[strenv(COMP)].repo // ""' "$eco" 2>/dev/null)
         [[ "$repo" == "null" ]] && repo=""
         tier=$(COMP="$comp" yq '.components[strenv(COMP)].tier // ""' "$eco" 2>/dev/null)
         [[ "$tier" == "null" ]] && tier=""
-
-        if [[ -z "$repo" ]]; then
-            echo "  ✗ Not declared in ecosystem config."
-            echo "    Add it to ecosystem.local.yaml under 'components:'."
-            echo "    Run 'ws list' to see declared components."
-            return 1
-        fi
-        echo "  Ecosystem repo : $repo"
+        [[ -n "$repo" ]] && echo "  Ecosystem repo : $repo"
         [[ -n "$tier" ]] && echo "  Tier           : $tier"
-        comp_dir="$COMPONENTS_DIR/$comp"
+    else
+        # Realm or hoard — no ecosystem entry; remotes + token coverage below
+        # are what matter for push/cr diagnosis.
+        echo "  Realm/hoard target (not a declared ecosystem component)"
     fi
     if [[ -d "$comp_dir/.git" ]]; then
         local branch
