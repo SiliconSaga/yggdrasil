@@ -104,7 +104,7 @@ Project notes in `10_Projects/` (and dormant ones in `40_Archive/Backlog/`) carr
 
 ### Decay catalog
 
-A project untouched long enough is a candidate for a status flip. When you spot one during any ceremony (see Ceremony Layers below), **propose** the flip — never apply it silently. A flip to `someday` also moves the whole project folder to `40_Archive/Backlog/`; a flip to `done`/`cancelled` moves it to `40_Archive/Projects/`. The unit of motion is the project's subfolder (see PARA Structure above — "Each project lives in its own subfolder"), not just the note file.
+A project untouched long enough is a candidate for a status flip. When you spot one during any ceremony (see Ceremony Layers below), **propose** the flip — never apply it silently. A flip to `someday` also moves the whole project folder to `40_Archive/Backlog/`; a flip to `done`/`cancelled` moves it to `40_Archive/Projects/`. The unit of motion is the project's subfolder (see PARA Conventions above — "Each project lives in its own subfolder"), not just the note file.
 
 | Transition | Threshold (days untouched) |
 |------------|----------------------------|
