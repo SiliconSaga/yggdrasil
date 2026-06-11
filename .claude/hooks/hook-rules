@@ -32,6 +32,12 @@ find * -delete*
 find*-exec*
 find*-execdir*
 ws hook-bypass [a-z]*
+# ws review reads are allowlisted via Bash(ws review:*); the outward-
+# facing forms stay human-gated here (ask runs before the allow tier):
+# reply posts a comment to the PR, --resolve / --resolve-all mutate
+# review-thread state.
+ws review * reply *
+ws review * threads * --resolve*
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2

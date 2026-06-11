@@ -629,6 +629,60 @@ git*reset --hard*"
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
 
+# ─── ws review side-effect ask entries ──────────────────────────────
+#
+# With the review allowlist collapsed to Bash(ws review:*), the
+# outward-facing forms (reply posts to the PR; --resolve mutates
+# thread state) are kept human-gated via the ask-list, which runs
+# BEFORE the settings-allow tier. Read-only review stays frictionless.
+
+@test "ask: ws review reply forces a prompt despite the review:* allow" {
+    write_project_settings 'Bash(ws review:*)'
+    write_project_hook_rules "[ask-commands]
+ws review * reply *"
+    run_hook 'ws review yggdrasil reply 94 PRRT_x "done, thanks" --resolve'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: verbose ws review reply normalizes then asks" {
+    write_project_settings 'Bash(ws review:*)'
+    write_project_hook_rules "[ask-commands]
+ws review * reply *"
+    run_hook 'bash scripts/ws review yggdrasil reply 94 PRRT_x msg --resolve'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: ws review threads --resolve-all forces a prompt" {
+    write_project_settings 'Bash(ws review:*)'
+    write_project_hook_rules "[ask-commands]
+ws review * threads * --resolve*"
+    run_hook 'ws review yggdrasil threads 94 --resolve-all'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: read-only ws review does NOT trip the side-effect ask entries" {
+    write_project_settings 'Bash(ws review:*)'
+    write_project_hook_rules "[ask-commands]
+ws review * reply *
+ws review * threads * --resolve*"
+    run_hook 'ws review yggdrasil 94 --compact'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "ask: read-only threads --status does NOT trip the resolve ask entry" {
+    write_project_settings 'Bash(ws review:*)'
+    write_project_hook_rules "[ask-commands]
+ws review * threads * --resolve*"
+    run_hook 'ws review yggdrasil threads 94 --status'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
 # ─── Drift detection ────────────────────────────────────────────────
 
 @test "drift: hook-rules [scratch-dirs] stays in sync with .gitignore" {

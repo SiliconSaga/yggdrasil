@@ -135,7 +135,7 @@ produce a permission prompt.
 Bash(git -C * show *)
 Bash(git -C * log *)
 Bash(bash scripts/ws clone *)
-Bash(bash scripts/ws review * * --since *)
+Bash(bash tests/vendor/bats-core/bin/bats tests/*)
 ```
 
 Each `*` is a wildcard slot. The matcher binds each slot to a single
@@ -153,6 +153,8 @@ Bash(bash scripts/ws commit:*)
 ```
 
 The `:*` suffix is Claude Code's *prefix* form: the rule matches the literal text before the `:` followed by **anything at all** — any number of arguments, spaces included — in a single entry. `Bash(ws test:*)` matches `ws test`, `ws test knarr`, and `ws test knarr -k foo --verbose` alike. This differs from the spaced `*` wildcard above, where each `*` binds exactly one argument-shaped token (so `Bash(ws test *)` matches only `ws test <one-arg>`, and covering two args needs `Bash(ws test * *)`). Because the prefix match is anchored at the start of the command string, each dispatch form needs its own entry — `Bash(ws test:*)` does not cover `bash scripts/ws test …`, hence the separate `Bash(bash scripts/ws test:*)`. Reach for `:*` on always-trusted subcommands where any argument tail is safe; use the tighter spaced-`*` or exact forms when you need to bound *which* arguments are allowed (e.g. a subcommand with a mutating flag-form).
+
+A third option covers subcommands that are mostly read-only with a few side-effect forms: grant the broad `:*` allow and pin the side-effect forms on the hook's `[ask-commands]` list, which evaluates BEFORE the allow tier. `ws review` is the worked example — reads are frictionless under `Bash(ws review:*)`, while `reply` (posts to the PR) and `threads … --resolve*` (mutates thread state) force a human prompt via the committed ask entries. Note this gate lives in the hook: with the hook disabled, only the settings allowlist applies and the side-effect forms would auto-approve.
 
 ### MCP tool names
 
@@ -222,12 +224,14 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `Bash(ws preflight)` | `ws preflight` | Allowed without prompt | Exact-form for the bare prereq check |
 | `Bash(ws preflight --soft)` | `ws preflight --soft` | Allowed without prompt | Exact-form for the soft-exit variant |
 | `Bash(ws preflight)` | `ws preflight --json` | Prompted | Hypothetical flag not allowlisted; exact-form pinning honored |
-| `Bash(ws review * *)` | `ws review yggdrasil 52 > /tmp/r.txt` | Prompted | Stdout redirect treated as side-effect regardless of LHS — destination opaque to static analysis |
-| `Bash(ws review * * --output *)` | `ws review yggdrasil 52 --output snap` | Allowed without prompt | Wrapper-side `--output <phrase>` validates destination is under `.outputs/` — bounded blast radius |
-| `Bash(ws log * *)` | `ws log --oneline --limit=5` | Allowed without prompt | Two args; equals form binds to one wildcard slot |
-| `Bash(ws log * * *)` | `ws log --oneline --limit 5` | Allowed without prompt | Three args; spaced form needs the wider slot |
-| `Bash(ws log * * * *)` | `ws log mimir --oneline --limit 5` | Allowed without prompt | Four args; component + flags |
-| `Bash(ws log)` | `ws log --rebase` | Prompted | Hypothetical flag not allowlisted; bare-form pinning honored |
+| `Bash(ws review:*)` | `ws review yggdrasil 52 > /tmp/r.txt` | Prompted | Stdout redirect treated as side-effect regardless of LHS — destination opaque to static analysis |
+| `Bash(ws review:*)` | `ws review yggdrasil 52 --output snap` | Allowed without prompt | Colon-prefix covers the wrapper-side `--output <phrase>` form, which validates destination is under `.outputs/` — bounded blast radius |
+| `Bash(ws review:*)` | `ws review yggdrasil 94 --compact` | Allowed without prompt | Read-only triage is frictionless under the colon-prefix form |
+| `Bash(ws review:*)` + ask `ws review * reply *` | `ws review yggdrasil reply 94 <id> "msg" --resolve` | Prompted (ask) | The hook's ask-tier runs BEFORE the settings-allow tier — outward-facing reply/resolve stays human-gated despite the broad allow |
+| `Bash(ws review:*)` + ask `ws review * threads * --resolve*` | `ws review yggdrasil threads 94 --resolve-all` | Prompted (ask) | Same — bulk thread resolution is a side-effect |
+| `Bash(ws review:*)` + ask `ws review * threads * --resolve*` | `ws review yggdrasil threads 94 --status` | Allowed without prompt | `--status` doesn't match the resolve ask-glob; read path unaffected |
+| `Bash(ws log:*)` | `ws log --oneline --limit=5` | Allowed without prompt | Colon-prefix matches any argument tail in one entry |
+| `Bash(ws log:*)` | `ws log` | Allowed without prompt | Colon form also matches the bare command |
 | `Bash(git fetch *)` | `git fetch siliconsaga main` | Allowed without prompt | Read-only on the working tree; only writes refs/objects under `.git/` |
 | `Bash(git fetch *)` | `git fetch` | Prompted | Bare form has no trailing arg to bind to `*` — pattern requires at least one arg |
 | `Bash(ws commit:*)` | `ws commit yggdrasil .commits/x.md` | Allowed without prompt | `ws commit` allowlisted by default |
