@@ -34,18 +34,19 @@ _RESOLVED_ECOSYSTEM=""
 # Initialize only if unset so callers that set COMPONENT_DIR before sourcing
 # this file (e.g. git-issue.sh) keep their value. Without :=, sourcing this
 # file from such callers wiped COMPONENT_DIR and broke downstream validation.
-: "${COMPONENT_DIR:=""}"  # Set by ws_validate_component
+: "${COMPONENT_DIR:=""}"  # Set by ws_resolve_target
 
 # ---------------------------------------------------------------------------
 # Shared functions (used by ws-clone.sh, ws-list.sh, ws, etc.)
 # ---------------------------------------------------------------------------
 
-# Validate a component name against ecosystem.yaml.
-# Usage: ws_validate_component <name>
+# Resolve a workspace target name to its directory.
+# Usage: ws_resolve_target <name>
 # Sets: COMPONENT_DIR to the resolved path.
 # Accepts "yggdrasil" (workspace root), realm directory names, hoard
 # directory names, and components declared in the merged ecosystem config.
-ws_validate_component() {
+# Exits non-zero with a kind-neutral message when nothing resolves.
+ws_resolve_target() {
     local name="$1"
 
     # "yggdrasil" refers to the workspace root, not a component
@@ -71,7 +72,7 @@ ws_validate_component() {
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "mimir\nevil" (CVE-style bypass).
     if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
-        echo "ERROR: Invalid component name '$name'. Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
+        echo "ERROR: Invalid target name '$name'. Components must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots); no realm or hoard dir matched it either." >&2
         exit 1
     fi
 
@@ -87,8 +88,9 @@ ws_validate_component() {
     local exists
     exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
     if [[ "$exists" == "missing" ]]; then
-        echo "ERROR: '$name' is not declared in ecosystem config." >&2
-        echo "  Run 'ws list' to see available components." >&2
+        echo "ERROR: no such target '$name' (looked for a component, realm, or hoard)." >&2
+        echo "  Components must be declared in ecosystem config — run 'ws list'." >&2
+        echo "  Realms live under realms/, hoards under hoards/ (must be cloned)." >&2
         exit 1
     fi
 

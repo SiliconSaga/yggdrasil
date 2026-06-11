@@ -155,7 +155,7 @@ if ! $dry_run; then
     mkdir -p "$ROOT_DIR/.commits"
 fi
 
-ws_validate_component "$comp"
+ws_resolve_target "$comp"
 cd "$COMPONENT_DIR"
 
 # --- Parse bodyfile frontmatter for files to stage ---

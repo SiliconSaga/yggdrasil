@@ -62,7 +62,14 @@ audit_help() {
         echo ""
         echo "Output:"
         echo "  YAML list of findings. Empty list = clean."
-        echo "  Exit code equals the number of findings."
+        echo "  Exit code equals the number of UNACKNOWLEDGED findings."
+        echo ""
+        echo "Acknowledged allowances:"
+        echo "  An [audit-acknowledged] section in .claude/hooks/"
+        echo "  hook-rules.local (gitignored, per-machine) lists exact"
+        echo "  allow entries this workspace consciously accepts. They"
+        echo "  still appear in the YAML (acknowledged: true) but don't"
+        echo "  count toward the exit code or --names-only output."
         echo ""
         echo "Flags:"
         echo "  --names-only   Emit just the matched patterns (one per"
@@ -99,10 +106,11 @@ done
 # Each line: <glob-pattern>|<severity>|<rationale>
 #
 # Patterns use bash-glob semantics (compared via `[[ str == glob ]]`).
-# The Bash() wrapper is checked against the entry verbatim — both bare
-# `Bash(ws exec *)` and verbose `Bash(bash scripts/ws exec *)` variants
-# need their own watchlist entries because we deliberately want to
-# flag both.
+# Author ws-related patterns in the bare `Bash(ws …)` form only:
+# matching happens against the NORMALIZED entry (see scan_file), which
+# collapses verbose wrapper forms (`Bash(bash scripts/ws exec …)`) to
+# the bare form first — a verbose-form watchlist pattern would never
+# match anything.
 #
 # Keep ordered roughly critical → high → medium so output is naturally
 # sorted by severity when severity tiers tie on pattern match.
@@ -117,8 +125,7 @@ Bash(exec *)|critical|Replaces the shell with an arbitrary command. Same threat 
 Bash(ws exec *)|high|ws exec runs arbitrary commands in a component dir. The wildcard captures the command name.
 Bash(ws exec * *)|high|ws exec with one arg after the component (same threat as Bash(ws exec *) but matches different arg counts).
 Bash(ws exec * * *)|high|ws exec with multiple args (same threat).
-Bash(bash scripts/ws exec *)|high|Verbose form of ws exec — same arbitrary-command threat.
-Bash(bash scripts/ws exec * *)|high|Verbose form, multi-arg.
+Bash(ws:*)|high|Subcommand-less ws catch-all auto-approves EVERY ws subcommand including push/cr/issue/exec. Pin the subcommand (e.g. Bash(ws commit:*)) instead.
 Bash(bash *)|high|Allows running any bash script or inline bash invocation. Effectively wildcards out the hook.
 Bash(sh *)|high|Same as bash * but for sh.
 Bash(rm -rf *)|high|Recursive force-delete with any target. Wildcards a destructive verb.
@@ -131,6 +138,37 @@ Bash(npm install *)|medium|Package install can run arbitrary postinstall scripts
 Bash(pip install *)|medium|Same as npm install — postinstall hooks run arbitrary code.
 WATCHLIST
 )
+
+# ─── Acknowledged per-workspace allowances ──────────────────────────
+#
+# hook-rules.local (gitignored, per-machine — the same file the hook
+# reads for [allow-extras]) may carry an [audit-acknowledged] section
+# listing EXACT allow entries this workspace has consciously accepted.
+# Matching findings are still emitted in the YAML (acknowledged: true,
+# original severity kept) but do not count toward the exit code, so a
+# deliberate local allowance stops reading as a problem at every
+# session start. Local-only by design: an [audit-acknowledged] section
+# in the COMMITTED hook-rules is ignored — project policy must not
+# silence the audit for everyone.
+ACK_RAW=""
+_ack_file="$ROOT_DIR/.claude/hooks/hook-rules.local"
+if [[ -f "$_ack_file" ]]; then
+    ACK_RAW=$(awk '/^\[audit-acknowledged\]/{f=1;next} /^\[/{f=0} f && NF && $0 !~ /^[[:space:]]*#/' "$_ack_file")
+fi
+
+# Exact-match check against the acknowledged list (no globbing — an
+# acknowledgment covers one known entry, not a shape).
+is_acknowledged() {
+    local entry="$1"
+    [[ -z "$ACK_RAW" ]] && return 1
+    local ack
+    while IFS= read -r ack; do
+        ack="${ack%$'\r'}"
+        [[ -z "$ack" ]] && continue
+        [[ "$entry" == "$ack" ]] && return 0
+    done <<< "$ACK_RAW"
+    return 1
+}
 
 # ─── Findings collection ────────────────────────────────────────────
 
@@ -161,6 +199,34 @@ scan_file() {
         # CRLF tolerance — same reasoning as the hook script.
         entry="${entry%$'\r'}"
 
+        # Normalize the ws wrapper form to the bare `ws` form before
+        # matching, mirroring the PreToolUse hook. This collapses
+        # `Bash(bash scripts/ws <sub>)` and `Bash(bash <abs>/scripts/ws <sub>)`
+        # to `Bash(ws <sub>)`, so a narrow per-subcommand allow no longer
+        # trips the broad `Bash(bash *)` watchlist entry, while the
+        # subcommand-less catch-all (`...ws:*` → `ws:*`) still matches the
+        # new high-severity entry. Original `$entry` is preserved for output.
+        # Consequence for watchlist authors: ws-related patterns must use
+        # the bare `Bash(ws …)` form — the wrapper form never survives to
+        # the comparison.
+        #
+        # Same treatment for the vendored bats runner, but ONLY when its
+        # target is inside tests/ — running the reviewed test tree is
+        # risk-equivalent to the allowlisted `ws test`, while pointing the
+        # runner at an arbitrary path executes arbitrary .bats shell and
+        # must keep matching Bash(bash *).
+        #
+        # Entries containing `..` are never normalized: a traversal in
+        # either the script path (`bash ../elsewhere/scripts/ws`) or the
+        # bats target (`bats tests/../tmp/evil/`) points outside the
+        # reviewed tree, so those keep flagging via Bash(bash *).
+        local match_entry="$entry"
+        if [[ "$entry" != *..* ]]; then
+            match_entry=$(printf '%s' "$entry" | sed -E \
+                -e 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#' \
+                -e 's#bash ([A-Za-z]:)?[^ )]*tests/vendor/bats-core/bin/bats tests/#bats tests/#')
+        fi
+
         # Test entry against every watchlist pattern.
         #
         # Pattern is UNQUOTED on the RHS — bash treats it as a glob
@@ -175,8 +241,10 @@ scan_file() {
         while IFS='|' read -r pattern severity rationale; do
             [[ -z "$pattern" ]] && continue
             # shellcheck disable=SC2053
-            if [[ "$entry" == $pattern ]]; then
-                FINDINGS+=("$scope|$file|$entry|$severity|$rationale")
+            if [[ "$match_entry" == $pattern ]]; then
+                local ack="false"
+                is_acknowledged "$entry" && ack="true"
+                FINDINGS+=("$scope|$file|$entry|$severity|$rationale|$ack")
                 # Don't break — an entry could match multiple watchlist
                 # rules and the user might want to see each. Cheap.
             fi
@@ -192,9 +260,12 @@ scan_file "project-local" "$ROOT_DIR/.claude/settings.local.json"
 
 if $names_only; then
     # One pattern per line, for shell pipelines / quick scan.
+    # Acknowledged findings are skipped — this mode feeds pipelines
+    # about problems, and an acknowledged entry isn't one.
     for f in "${FINDINGS[@]:-}"; do
         [[ -z "$f" ]] && continue
-        IFS='|' read -r _scope _file pattern _severity _rationale <<< "$f"
+        IFS='|' read -r _scope _file pattern _severity _rationale _ack <<< "$f"
+        [[ "$_ack" == "true" ]] && continue
         echo "$pattern"
     done
 else
@@ -212,7 +283,7 @@ else
         echo "[]"
     else
         for f in "${FINDINGS[@]}"; do
-            IFS='|' read -r scope file pattern severity rationale <<< "$f"
+            IFS='|' read -r scope file pattern severity rationale ack <<< "$f"
             # Escape values for the YAML quote style being used:
             #   - single-quoted string: ' → ''
             #   - double-quoted string: \ → \\, " → \"
@@ -230,12 +301,23 @@ else
             echo "  pattern: '$escaped_pattern'"
             echo "  severity: $severity"
             echo "  rationale: \"$escaped_rationale\""
+            # Acknowledged per-workspace allowance (hook-rules.local
+            # [audit-acknowledged]) — shown for transparency, excluded
+            # from the exit code.
+            [[ "$ack" == "true" ]] && echo "  acknowledged: true"
         done
     fi
 fi
 
-# Exit code = findings count, capped at 255 (shell exit code limit).
-# Callers can check `[[ $? -gt 0 ]]` for "there were findings."
-exit_code="${#FINDINGS[@]}"
+# Exit code = UNACKNOWLEDGED findings count, capped at 255 (shell exit
+# code limit). Callers can check `[[ $? -gt 0 ]]` for "there were
+# findings worth attention" — acknowledged allowances don't count.
+exit_code=0
+for f in "${FINDINGS[@]:-}"; do
+    [[ -z "$f" ]] && continue
+    IFS='|' read -r _scope _file _pattern _severity _rationale _ack <<< "$f"
+    [[ "$_ack" == "true" ]] && continue
+    exit_code=$((exit_code + 1))
+done
 [[ "$exit_code" -gt 255 ]] && exit_code=255
 exit "$exit_code"

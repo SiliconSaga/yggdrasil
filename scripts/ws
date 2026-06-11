@@ -81,7 +81,7 @@ export ECOSYSTEM_LOCAL
 # without requiring `source .env` before every ws invocation.
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
-# Source shared functions (ws_validate_component, ws_detect_realm,
+# Source shared functions (ws_resolve_target, ws_detect_realm,
 # ws_resolve_ecosystem, COMPONENT_DIR, etc.)
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
@@ -107,6 +107,20 @@ ws_resolve_fork_org() {
 
 ws_exec() {
     # ws:use-when running a one-off command inside a component dir
+    # --help only as $1 — anywhere-in-args would intercept flags meant
+    # for the wrapped command (e.g. `ws exec nordri git --help`).
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'HELP'
+Usage: ws exec <component> <command...>
+
+  component  Component, realm, or hoard whose dir to run in
+  command    Command + args (max 6 args) to run inside that dir
+
+Runs a one-off command inside the target dir without manual cd.
+For complex commands, use a Makefile target or shell script.
+HELP
+        return 0
+    fi
     if [[ $# -lt 2 ]]; then
         echo "Usage: ws exec <component> <command...>" >&2
         exit 1
@@ -118,7 +132,7 @@ ws_exec() {
     fi
     local comp="$1"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     cd "$COMPONENT_DIR" && "$@"
 }
 
@@ -158,7 +172,7 @@ HELP
             *) branch="$arg" ;;
         esac
     done
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     # Pass forkOrg as push remote hint (only if set and not already overridden)
     local fork_org
     fork_org=$(ws_resolve_fork_org)
@@ -170,13 +184,30 @@ HELP
 
 ws_cr() {
     # ws:use-when opening a code-review request (PR / MR) - must use bodyfile from change.md template
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws cr <component> [--upstream] <title> <bodyfile>
+
+  component   Component, realm, or hoard to open the CR against
+  --upstream  Target the upstream repo instead of the fork remote
+  title       CR (PR / MR) title
+  bodyfile    Path (relative to workspace root) to a change bodyfile
+              — see templates/change.md
+
+Opens a code-review request on the current branch via git-cr.sh.
+HELP
+            return 0
+        fi
+    done
     if [[ $# -lt 3 || $# -gt 4 ]]; then
         echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     # Resolve bodyfile path before cd (last arg is always the bodyfile)
     local args=("$@")
     local last_idx=$(( ${#args[@]} - 1 ))
@@ -247,7 +278,7 @@ HELP
     done
 
     if [[ -n "$comp" ]]; then
-        ws_validate_component "$comp"
+        ws_resolve_target "$comp"
     else
         COMPONENT_DIR="$ROOT_DIR"
     fi
@@ -411,6 +442,25 @@ ws_clean() {
 
 ws_issue() {
     # ws:use-when filing a tracker issue with labels and a bodyfile - must use issue.md template
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws issue <component> [remote] <title> <label> <bodyfile>
+
+  component  Component, realm, or hoard to file the issue against
+  remote     Optional; auto-detects if a single remote, else uses
+             identity.forkOrg
+  title      Issue title
+  label      Issue label (must exist on the repo)
+  bodyfile   Path (relative to workspace root) to an issue bodyfile
+             — see templates/issue.md
+
+Files a tracker issue with the Co-Authored-By context via git-issue.sh.
+HELP
+            return 0
+        fi
+    done
     if [[ $# -lt 4 || $# -gt 5 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
         echo "  remote auto-detects if single remote, uses forkOrg if multiple." >&2
@@ -418,7 +468,7 @@ ws_issue() {
     fi
     local comp="$1"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     local remote=""
     if [[ $# -eq 4 ]]; then
         remote="$1"
@@ -433,8 +483,24 @@ ws_issue() {
 
 ws_diagnose() {
     # ws:use-when investigating push/cr failures — remote + token coverage
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws diagnose <component|realm|hoard|yggdrasil>
+
+  target  Any resolvable workspace target — a declared ecosystem
+          component, a realm dir, a hoard dir, or yggdrasil itself
+
+Shows ecosystem config (components only), clone status, remotes,
+provider, and token coverage. Run this when 'ws push' or 'ws cr'
+fails with auth or remote errors.
+HELP
+            return 0
+        fi
+    done
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws diagnose <component|yggdrasil>" >&2
+        echo "Usage: ws diagnose <component|realm|hoard|yggdrasil>" >&2
         echo "  Shows ecosystem config, clone status, remotes, provider, and token coverage." >&2
         echo "  Run this when 'ws push' or 'ws cr' fails with auth or remote errors." >&2
         exit 1
@@ -446,28 +512,27 @@ ws_diagnose() {
     echo "[ ws diagnose: $comp ]"
     echo ""
 
-    # Special case: yggdrasil is the workspace root, not a declared component
-    local comp_dir
+    # Resolve the target dir via the shared multi-kind helper (accepts
+    # component, realm, hoard, and yggdrasil). ws_resolve_target exits
+    # non-zero with its own message if the name resolves to nothing.
+    ws_resolve_target "$comp"
+    local comp_dir="$COMPONENT_DIR"
+
     if [[ "$comp" == "yggdrasil" ]]; then
-        comp_dir="$ROOT_DIR"
         echo "  Workspace root (not a declared ecosystem component)"
-    else
-        # Ecosystem entry
+    elif [[ "$comp_dir" == "$COMPONENTS_DIR/"* ]]; then
+        # Declared component — show ecosystem repo/tier.
         local repo tier
         repo=$(COMP="$comp" yq '.components[strenv(COMP)].repo // ""' "$eco" 2>/dev/null)
         [[ "$repo" == "null" ]] && repo=""
         tier=$(COMP="$comp" yq '.components[strenv(COMP)].tier // ""' "$eco" 2>/dev/null)
         [[ "$tier" == "null" ]] && tier=""
-
-        if [[ -z "$repo" ]]; then
-            echo "  ✗ Not declared in ecosystem config."
-            echo "    Add it to ecosystem.local.yaml under 'components:'."
-            echo "    Run 'ws list' to see declared components."
-            return 1
-        fi
-        echo "  Ecosystem repo : $repo"
+        [[ -n "$repo" ]] && echo "  Ecosystem repo : $repo"
         [[ -n "$tier" ]] && echo "  Tier           : $tier"
-        comp_dir="$COMPONENTS_DIR/$comp"
+    else
+        # Realm or hoard — no ecosystem entry; remotes + token coverage below
+        # are what matter for push/cr diagnosis.
+        echo "  Realm/hoard target (not a declared ecosystem component)"
     fi
     if [[ -d "$comp_dir/.git" ]]; then
         local branch

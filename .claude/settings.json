@@ -42,6 +42,8 @@
       "Bash(bash scripts/ws test * * * * *)",
       "Bash(bash scripts/ws test * * * * * *)",
       "Bash(bash scripts/ws test * * * * * * *)",
+      "Bash(bash tests/vendor/bats-core/bin/bats tests/*)",
+      "Bash(bash tests/vendor/bats-core/bin/bats tests/* tests/*)",
       "Bash(bash scripts/ws lint *)",
       "Bash(bash scripts/ws lint * *)",
       "Bash(bash scripts/ws lint * * *)",

@@ -2,7 +2,7 @@
 #
 # Each test gets an isolated synthetic git repo under $BATS_TEST_TMPDIR
 # that ws-commit.sh treats as the "yggdrasil" component (which
-# ws_validate_component maps to $ROOT_DIR by special-case). Setting
+# ws_resolve_target maps to $ROOT_DIR by special-case). Setting
 # ROOT_DIR to the synthetic repo path keeps the validation
 # short-circuited without faking an ecosystem.yaml entry.
 #

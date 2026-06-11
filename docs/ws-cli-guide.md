@@ -60,7 +60,7 @@ Or if it needs component resolution:
 ws_mycommand() {
     local comp="${1:-.}"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/my-script.sh" "$@"
 }
 ```
@@ -116,11 +116,10 @@ Every subcommand falls into one of three tiers:
 These apply to all subcommands:
 
 1. **Never `eval`** — use `"$@"` for command passthrough
-2. **Validate component names** — use `ws_validate_component`, which checks
-   the regex `^[a-z][a-z0-9-]*$` and verifies against `ecosystem.yaml`
+2. **Validate target names** — use `ws_resolve_target`, which resolves realm/hoard directory names and checks component names against a strict regex plus the merged `ecosystem.yaml` (see Component name validation below)
 3. **Quote everything** — `"$target"`, `"$@"`, `"$ROOT_DIR"`
 4. **Don't source `.env` in the dispatcher** — only in scripts that need tokens
-5. **Bash 3.2 compatible** — no associative arrays, no `${var,,}`, no `readarray`
+5. **Bash 4+ is the floor** — `mapfile` and `${var,,}` are used (git-push.sh, git-cr.sh, git-issue.sh, ws). Git Bash on Windows and Linux distros qualify; macOS's system bash 3.2 does not — `brew install bash` (the `ws preflight` hint covers this). Defensive 3.2-safe idioms (e.g. `${arr[@]+"${arr[@]}"}` for empty arrays) are still used in hook and test-critical scripts so failures surface as preflight hints rather than crashes.
 
 ### Why `exec` always requires human approval
 
@@ -128,18 +127,18 @@ These apply to all subcommands:
 
 ### Component name validation
 
-Component names pass through `yq` expressions (`.components.$name`). The regex `^[a-z][a-z0-9-]*$` prevents:
-- Path traversal (`../../etc`)
+Component names pass through `yq` expressions via bracket-quoted lookups (`.components["$name"]`). The regex `^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$` allows dotted names (e.g. `movingblocks.github.com`) while preventing:
+- Path traversal (no slashes; `..` is impossible because every dot must be followed by a letter)
 - Shell metacharacters (`;`, `|`, `$`, etc.)
 - Newline injection (bash `=~` matches full string, not per-line)
-- yq expression injection (no dots, brackets, etc.)
+- yq expression injection (no quotes or brackets can appear in a name, so the bracket-quoted lookup can't be escaped)
 
 ### Forking and renaming
 
-The workspace name `yggdrasil` appears as a special case in `ws_validate_component`
+The workspace name `yggdrasil` appears as a special case in `ws_resolve_target`
 (one string comparison) and throughout documentation. To fork and rename:
 
-1. Change the `"yggdrasil"` check in `scripts/ws` → `ws_validate_component()`
+1. Change the `"yggdrasil"` check in `scripts/ws` → `ws_resolve_target()`
 2. Search docs for `yggdrasil` and update narrative references
 3. Update remote names and org prefixes in `scripts/git-push.sh` and
    `scripts/git-cr.sh` to match your fork's remote naming
@@ -154,7 +153,7 @@ The following names are reserved and cannot be used as component names:
 
 | Name | Reserved in | Reason |
 |---|---|---|
-| `yggdrasil` | `ws_validate_component`, `ws-review.sh` | Refers to the workspace root itself |
+| `yggdrasil` | `ws_resolve_target`, `ws-review.sh` | Refers to the workspace root itself |
 | `help` | `ws-review.sh` | Subcommand keyword — `ws review help` shows usage |
 
 If you add new subcommand keywords to any `ws-*.sh` script, guard them before the component name validation block (see the `help` check in `ws-review.sh` as a pattern).

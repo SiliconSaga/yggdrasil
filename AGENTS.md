@@ -42,6 +42,8 @@ A fresh agent's instinct is to reach for raw `git`, `gh`, `glab`, or test runner
 
 The PreToolUse hook denies `git commit` / `git push` / `gh pr create` at Tier 2 with a corrective pointer to the `ws` wrapper. Don't bypass — use the wrapper.
 
+Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint) also accept realm and hoard names, not just components.
+
 **Adapter-routed verbs — consult `ws orient` first:** `ws test` / `ws lint` / `ws build`.
 
 The adapter wiring per component lives in `realms/<active>/adapters/<comp>.yaml`. **Run `ws orient` to see what each component's adapter resolves to** — the output surfaces each row's executed command (`knarr → ws test [runs: python3 -m pytest --ignore=tests/features]`) so you can verify what `ws test` will actually run. When an adapter is wired, the hook redirects raw `pytest` / `ruff` / `gradle test` to the corresponding `ws` form. When no adapter exists, raw runs through with a one-time nudge.

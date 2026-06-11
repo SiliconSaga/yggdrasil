@@ -48,7 +48,9 @@ What is explicitly **not** required for 1.0: multi-agent parity, the Team Thalam
 
 ## GA Blockers (`B*`)
 
-### B1 — Target-kind generalization — 🟡 Largely landed (PR #92)
+### B1 — Target-kind generalization — ✅ Done
+
+**Status update (2026-06-11):** residual landed via `docs/plans/2026-06-10-gdd-ga-cleanups-plan.md`: `ws diagnose` routed through the shared resolver (with realm/hoard targets and a graceful path for repo-less component declarations), the miss-message is kind-neutral ("no such target … looked for a component, realm, or hoard"), the AGENTS.md/CLAUDE.md doc note is in, and the rename `ws_validate_component` → `ws_resolve_target` shipped clean (no alias) across scripts, tests, and the CLI guide.
 
 **Status update (2026-06-09):** The core gap is closed. The original framing ("no shared resolver exists; build `ws_resolve_target`") was wrong — a shared multi-kind resolver **already exists**: `ws_validate_component()` in `scripts/ws-realm.sh:48` resolves `yggdrasil` (workspace root), realm dirs, hoard dirs, and ecosystem components, setting `COMPONENT_DIR`. It's just **misnamed** (the "component" name hides that it handles all four kinds). Most target-taking subcommands already route through it — `ws commit`, `push`, `cr`, `log`, `issue`, `exec`, `test`, `lint`, `pull`. `ws review` was the notable holdout (the one realm-siliconsaga #9 / FG4 actually hit), and **PR #92 fixed it** by swapping the hardcoded `components/$COMP` for `ws_validate_component` + a worktree-safe `git rev-parse --is-inside-work-tree` guard. So `ws review <realm>` / `<hoard>` now works (the coincidental cross-workspace fix the author noticed).
 
@@ -104,7 +106,9 @@ The "git clone and go" promise is validated almost entirely on the author's prim
 
 **Approach:** Treat each trial system as a one-shot newcomer simulation; file findings as issues, fix, re-run. This is as much a GA *gate* as a feature — the promise is unproven until it runs green on a non-author machine.
 
-### B3 — `ws audit-permissions` de-noise — ⬜ Not started
+### B3 — `ws audit-permissions` de-noise — ✅ Done
+
+**Status update (2026-06-11):** landed via the GA-cleanups batch, TDD'd. The matcher now normalizes the ws-wrapper form (`bash [<path>/]scripts/ws …` → `ws …`) before watchlist comparison — mirroring the PreToolUse hook — so narrow per-subcommand allows no longer trip `Bash(bash *)`; a new high-severity `Bash(ws:*)` entry catches the genuinely-broad subcommand-less catch-all in both bare and wrapper forms. A clean config went from ~120 findings to 0–1. Follow-on: the vendored bats runner (`bash tests/vendor/bats-core/bin/bats tests/…`) is now allowlisted scoped to `tests/`, with matching normalization so the entries don't self-flag (a non-`tests/` target still flags). This unblocks `P3`/`P4` as predicted.
 
 `ws audit-permissions` runs at orientation (the startup ceremony) and currently floods a *clean* config with ~120 false-positive "high — wildcards out the hook" findings, exiting nonzero. This is the first thing a newcomer's first session surfaces.
 
@@ -115,7 +119,9 @@ The "git clone and go" promise is validated almost entirely on the author's prim
 
 **Approach:** Rewrite the matcher to flag broad *wildcard placement* in the allow itself, not glob-coincidence with a broad watchlist entry; apply the same `bash scripts/ws` → `ws` normalization the hook uses. Security-sensitive matcher logic → TDD (RED first: a clean settings.json must yield zero findings). This also unblocks the `P3` auto-approve narrowings and the `P4` ladder collapse, which the current over-matcher would otherwise flag.
 
-### B4 — Help-system uniformity + doc anchor/reference sweep — ⬜ Not started
+### B4 — Help-system uniformity + doc anchor/reference sweep — ✅ Done
+
+**Status update (2026-06-11):** `ws issue`, `ws cr`, `ws exec`, and `ws diagnose` gained the `--help`/`-h` detection their siblings had (`ws exec` checks position 1 only so wrapped-command flags pass through); smoke tests pin all of them. The anchor sweep checked every "see X above/below" reference under `.agent/skills/` + `docs/` against its file's actual headings — exactly one was stale (gdd-scribe's "PARA Structure" → "PARA Conventions"), now fixed.
 
 Two coherence gaps that read as "unfinished" to a public reader.
 
@@ -151,7 +157,9 @@ The tutorial is the literal front door for a public launch, and the `tutorial-ne
 
 **Approach:** Decide the versioning unit (recommendation: version the yggdrasil workspace + `ws` CLI together under SemVer; methodology docs ride along; realm/component repos keep their own). Add a root `CHANGELOG.md` (Keep-a-Changelog format), seed it with a curated history reconstructed from the merged-PR record, and tag `1.0.0` when the gate is met. Add a short "Versioning & Releases" doc (or section in `docs/gdd/`) stating the policy. Optionally a `ws version` subcommand surfacing the workspace version + active realm.
 
-### B7 — Confirm `ws hoard upgrade` is re-enabled — ⬜ Not started
+### B7 — Confirm `ws hoard upgrade` is re-enabled — ✅ Done
+
+**Status update (2026-06-11):** confirmed — no `WS_HOARD_UPGRADE_ENABLED` reference remains anywhere under `scripts/`, and `ws hoard upgrade --help` prints the full `--plan`/`--apply`/`--rollback` usage with exit 0. The gate was lifted by the hoard-upgrade-v2 work (PRs #74-76) as expected; the disable observation was stale. No code change needed.
 
 A command that's secretly gated off is a bad GA surprise.
 
@@ -277,3 +285,5 @@ This records the Thalamus observations folded into this doc and removed from the
 ## Suggested tracking
 
 Open a `gdd-ga-1.0` arc (shared `id` across hosts) whose `next:` references this doc. Mark each `B*`/`P*` item ✅ here as it lands; the arc closes when all `B*` are ✅ and `1.0.0` is tagged (`B6`). The `R*` items graduate to their own arcs when picked up — they are roadmap pointers, not arc-tracked here.
+
+**Sequencing note (2026-06-11):** the B1/B3/B4/B7 batch landed via `docs/plans/2026-06-10-gdd-ga-cleanups-plan.md`. The remaining GA blockers are **B2** (cross-platform runs — execute the checklist above on the two trial machines; it's a run-and-fix exercise, no plan needed) and **B6** (SemVer + CHANGELOG — needs the versioning-unit decision first, then the rest is mechanical), plus the **B5** tutorial/front-door pass tracked by its own arc. The **P\*** items are independent papercuts that can ride along with either; each **R\*** roadmap item needs its own brainstorm before any plan.

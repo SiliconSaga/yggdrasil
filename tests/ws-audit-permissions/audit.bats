@@ -266,3 +266,162 @@ Bash(curl *)"
     [ "$status" -eq 2 ]
     [[ "$output" == *"unknown flag"* ]] || [[ "$stderr" == *"unknown flag"* ]]
 }
+
+# ─── B3: ws-wrapper normalization + catch-all ───────────────────────
+#
+# Narrow per-subcommand allows written in the verbose wrapper form
+# (`Bash(bash scripts/ws <sub> ...)`) used to trip the broad
+# `Bash(bash *)` watchlist entry — ~120 false positives on a clean
+# config. The matcher now normalizes the wrapper form to the bare
+# `ws` form before matching (reporting still shows the original
+# entry), and the genuinely-broad subcommand-less catch-all
+# `Bash(ws:*)` / `Bash(bash scripts/ws:*)` gets its own high entry.
+
+@test "normalize: bash scripts/ws <subcommand> literals are NOT flagged" {
+    write_settings project "Bash(bash scripts/ws help)
+Bash(bash scripts/ws review * *)
+Bash(bash scripts/ws status)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "detect: Bash(bash scripts/ws:*) catch-all is high" {
+    write_settings project-local "Bash(bash scripts/ws:*)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+    # Original (un-normalized) entry is what gets REPORTED.
+    [[ "$output" == *"Bash(bash scripts/ws:*)"* ]]
+}
+
+@test "detect: normalized Bash(ws:*) catch-all is high" {
+    write_settings project-local "Bash(ws:*)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: subcommand-pinned :* is NOT flagged" {
+    write_settings project "Bash(bash scripts/ws commit:*)
+Bash(ws commit:*)
+Bash(bash scripts/ws test * *)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "normalize: ws exec danger is preserved through normalization" {
+    write_settings user "Bash(bash scripts/ws exec mimir rm)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+    [[ "$output" == *"ws exec runs arbitrary commands"* ]]
+}
+
+@test "normalize: absolute-path ws wrapper literal is NOT flagged" {
+    write_settings project-local "Bash(bash /d/Dev/GitWS/yggdrasil/scripts/ws status)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "normalize: vendored bats runner scoped to tests/ is NOT flagged" {
+    # The focused TDD loop (`bash tests/vendor/bats-core/bin/bats
+    # tests/<dir>/`) is risk-equivalent to the already-allowlisted
+    # `ws test` — same vendored runner, same reviewed test tree — so
+    # its allow entries shouldn't trip Bash(bash *).
+    write_settings project "Bash(bash tests/vendor/bats-core/bin/bats tests/*)
+Bash(bash tests/vendor/bats-core/bin/bats tests/ws-smoke/)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "normalize: bats runner against a NON-tests path still flags" {
+    # Outside the reviewed test tree the runner executes arbitrary
+    # .bats shell — keep the prompt.
+    write_settings project-local "Bash(bash tests/vendor/bats-core/bin/bats /tmp/evil/)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: path traversal in the bats target still flags" {
+    # tests/../ escapes the reviewed tree — normalization must not
+    # suppress the Bash(bash *) finding for it.
+    write_settings project-local "Bash(bash tests/vendor/bats-core/bin/bats tests/../tmp/evil/)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: path traversal in the ws wrapper path still flags" {
+    # A wrapper path that climbs out of the workspace is not our ws
+    # script — same traversal rule as the bats runner.
+    write_settings project-local "Bash(bash ../elsewhere/scripts/ws status)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+# ─── Acknowledged per-workspace allowances ──────────────────────────
+#
+# hook-rules.local (gitignored, per-machine) can carry an
+# [audit-acknowledged] section listing exact allow entries this
+# workspace has consciously accepted. Matching findings still appear
+# in the YAML (with acknowledged: true, severity kept) but don't
+# count toward the exit code — so a deliberate local allowance stops
+# reading as a problem at every session start.
+
+write_ack() {
+    mkdir -p "$WORK/.claude/hooks"
+    {
+        echo "[audit-acknowledged]"
+        printf '%s\n' "$@"
+    } > "$WORK/.claude/hooks/hook-rules.local"
+}
+
+@test "ack: acknowledged finding is reported but not counted" {
+    write_settings project-local "Bash(bash -n:*)"
+    write_ack "Bash(bash -n:*)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Bash(bash -n:*)"* ]]
+    [[ "$output" == *"acknowledged: true"* ]]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "ack: only the exact entry is acknowledged, others still count" {
+    write_settings project-local "Bash(bash -n:*)
+Bash(sudo *)"
+    write_ack "Bash(bash -n:*)"
+    run_audit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"severity: critical"* ]]
+}
+
+@test "ack: --names-only skips acknowledged findings" {
+    write_settings project-local "Bash(bash -n:*)
+Bash(sudo *)"
+    write_ack "Bash(bash -n:*)"
+    run_audit --names-only
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Bash(sudo *)"* ]]
+    [[ "$output" != *"bash -n"* ]]
+}
+
+@test "ack: [audit-acknowledged] in the COMMITTED hook-rules is ignored" {
+    # Acknowledgments are per-machine judgment — the committed baseline
+    # must not silence the audit for everyone (mirrors the allow-extras
+    # local-only rule).
+    write_settings project-local "Bash(bash -n:*)"
+    mkdir -p "$WORK/.claude/hooks"
+    {
+        echo "[audit-acknowledged]"
+        echo "Bash(bash -n:*)"
+    } > "$WORK/.claude/hooks/hook-rules"
+    run_audit
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"acknowledged: true"* ]]
+}
