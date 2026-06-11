@@ -132,7 +132,7 @@ ws_component_init() {
         echo "ERROR: 'yggdrasil' is the workspace root name; pick a different component name." >&2
         exit 1
     fi
-    # Match the regex used by ws_validate_component in ws-realm.sh — allows
+    # Match the regex used by ws_resolve_target in ws-realm.sh — allows
     # dotted segments (e.g. some.component) for parity with names already
     # accepted by the rest of the workspace's component handling.
     if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then

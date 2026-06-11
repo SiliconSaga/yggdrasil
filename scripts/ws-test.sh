@@ -111,7 +111,7 @@ fi
 
 comp="$1"
 shift
-ws_validate_component "$comp"
+ws_resolve_target "$comp"
 cd "$COMPONENT_DIR"
 
 # --- Detect test runner ---

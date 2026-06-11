@@ -81,8 +81,8 @@ HAD_FAILURES=0
 
 if [[ -n "${1:-}" ]]; then
     # Single named arg — could be component, realm, or hoard.
-    # ws_validate_component handles all three (sets COMPONENT_DIR).
-    if ! ws_validate_component "$1"; then
+    # ws_resolve_target handles all three (sets COMPONENT_DIR).
+    if ! ws_resolve_target "$1"; then
         exit 1
     fi
     pull_repo "$1" "$COMPONENT_DIR"

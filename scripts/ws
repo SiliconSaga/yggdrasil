@@ -81,7 +81,7 @@ export ECOSYSTEM_LOCAL
 # without requiring `source .env` before every ws invocation.
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
-# Source shared functions (ws_validate_component, ws_detect_realm,
+# Source shared functions (ws_resolve_target, ws_detect_realm,
 # ws_resolve_ecosystem, COMPONENT_DIR, etc.)
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
@@ -132,7 +132,7 @@ HELP
     fi
     local comp="$1"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     cd "$COMPONENT_DIR" && "$@"
 }
 
@@ -172,7 +172,7 @@ HELP
             *) branch="$arg" ;;
         esac
     done
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     # Pass forkOrg as push remote hint (only if set and not already overridden)
     local fork_org
     fork_org=$(ws_resolve_fork_org)
@@ -207,7 +207,7 @@ HELP
     fi
     local comp="$1"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     # Resolve bodyfile path before cd (last arg is always the bodyfile)
     local args=("$@")
     local last_idx=$(( ${#args[@]} - 1 ))
@@ -278,7 +278,7 @@ HELP
     done
 
     if [[ -n "$comp" ]]; then
-        ws_validate_component "$comp"
+        ws_resolve_target "$comp"
     else
         COMPONENT_DIR="$ROOT_DIR"
     fi
@@ -468,7 +468,7 @@ HELP
     fi
     local comp="$1"
     shift
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     local remote=""
     if [[ $# -eq 4 ]]; then
         remote="$1"
@@ -513,9 +513,9 @@ HELP
     echo ""
 
     # Resolve the target dir via the shared multi-kind helper (accepts
-    # component, realm, hoard, and yggdrasil). ws_validate_component exits
+    # component, realm, hoard, and yggdrasil). ws_resolve_target exits
     # non-zero with its own message if the name resolves to nothing.
-    ws_validate_component "$comp"
+    ws_resolve_target "$comp"
     local comp_dir="$COMPONENT_DIR"
 
     if [[ "$comp" == "yggdrasil" ]]; then

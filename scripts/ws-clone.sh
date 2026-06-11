@@ -99,7 +99,7 @@ clone_component() {
     local name="$1"
     local eco="$2"
 
-    # Validate component name (same pattern as ws_validate_component)
+    # Validate component name (same pattern as ws_resolve_target)
     if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
         echo "SKIP: $name (invalid component name)"
         return 0

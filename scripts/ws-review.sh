@@ -760,10 +760,10 @@ fi
 # Unlike push/issue (which target YOUR fork), review reads CRs that may live
 # on any remote (typically upstream). Strategy: extract the CR number from args,
 # try each remote's slug until the CR is found.
-ws_validate_component "$COMP"
+ws_resolve_target "$COMP"
 COMP_DIR="$COMPONENT_DIR"
 
-# ws_validate_component guarantees the directory exists, not that it's a git
+# ws_resolve_target guarantees the directory exists, not that it's a git
 # repo. Guard before the git-remote probing below so a bare folder fails with
 # a friendly message instead of a raw git fatal under set -e. rev-parse is
 # worktree-safe where a plain `-d .git` check is not.

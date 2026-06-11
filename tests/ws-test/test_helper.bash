@@ -1,7 +1,7 @@
 # Shared helpers for ws-test bats tests.
 #
 # Each test builds a synthetic workspace under $BATS_TEST_TMPDIR and uses
-# the "yggdrasil" component name, which ws_validate_component special-cases
+# the "yggdrasil" component name, which ws_resolve_target special-cases
 # to COMPONENT_DIR=$ROOT_DIR (short-circuiting ecosystem/clone checks — same
 # trick as the ws-commit tests). A single non-template realm (realm-test)
 # is created so ws_detect_realm resolves it, and an adapter YAML provides
