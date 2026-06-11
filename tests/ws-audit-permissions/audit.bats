@@ -319,8 +319,32 @@ Bash(bash scripts/ws test * *)"
     [[ "$output" == *"ws exec runs arbitrary commands"* ]]
 }
 
-@test "normalize: absolute-path ws wrapper literal is NOT flagged" {
-    write_settings project-local "Bash(bash /d/Dev/GitWS/yggdrasil/scripts/ws status)"
+@test "normalize: absolute IN-REPO ws wrapper literal is NOT flagged" {
+    # Absolute spelling of this workspace's own scripts/ws normalizes.
+    write_settings project-local "Bash(bash $ROOT_DIR/scripts/ws status)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "normalize: FOREIGN absolute ws wrapper path still flags" {
+    # Any scripts/ws outside this workspace is not our script — it
+    # must keep matching Bash(bash *), not normalize to Bash(ws …).
+    write_settings project-local "Bash(bash /opt/elsewhere/scripts/ws status)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: FOREIGN absolute bats runner path still flags" {
+    write_settings project-local "Bash(bash /opt/elsewhere/tests/vendor/bats-core/bin/bats tests/x/)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: absolute IN-REPO bats runner is NOT flagged" {
+    write_settings project "Bash(bash $ROOT_DIR/tests/vendor/bats-core/bin/bats tests/ws-smoke/)"
     run_audit
     [ "$status" -eq 0 ]
     [ "$output" = "[]" ]
