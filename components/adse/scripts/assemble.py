@@ -34,6 +34,7 @@ def parse_project_yaml(path):
     }
     in_authors = False
     in_approvers = False
+    in_mandatory = False
     current_person = {}
 
     for line in Path(path).read_text().splitlines():
@@ -44,7 +45,10 @@ def parse_project_yaml(path):
         indent = len(raw) - len(raw.lstrip())
         if stripped.startswith("- id:"):
             result["sections"].append(stripped[len("- id:"):].strip())
-            in_authors = in_approvers = False
+            in_authors = in_approvers = in_mandatory = False
+            continue
+        if indent > 0 and stripped.startswith("- ") and in_mandatory and not stripped.startswith("- name:"):
+            result["mandatory"].append(stripped[2:].strip().strip('"').strip("'"))
             continue
         if stripped.startswith("- name:") and indent > 0:
             if current_person:
@@ -71,8 +75,12 @@ def parse_project_yaml(path):
             key = key.strip(); val = val.strip()
             in_authors = key == "authors"
             in_approvers = key == "approvers"
+            in_mandatory = False
             if key == "mandatory":
-                result["mandatory"] = _parse_inline_list(val)
+                if val:
+                    result["mandatory"] = _parse_inline_list(val)
+                else:
+                    in_mandatory = True
             elif key in ("template", "title", "plc_template"):
                 result[key] = val.strip('"').strip("'")
 

@@ -130,14 +130,24 @@ ws_thalami_publish() {
     # --dry-run: preview the projection + the source notes that would be swept.
     if [[ "$dry" -eq 1 ]]; then
         echo "would publish to: $user_dir"
-        echo "projection ($out_name):"
-        printf '%s\n' "$projection" | sed 's/^/  /'
-        echo "published arcs: $(echo "$ids" | tr '\n' ' ')"
+        echo ""
+        echo "arcs to publish (tagged notes listed under each):"
         while IFS= read -r arc_id; do
             [[ -n "$arc_id" ]] || continue
-            echo "  $arc_id notes:"
-            _wt_sweep "$vault" "$arc_id" | sed 's/^/    /'
+            echo "  $arc_id"
+            local swept; swept="$(_wt_sweep "$vault" "$arc_id")"
+            if [[ -n "$swept" ]]; then
+                while IFS= read -r note; do
+                    [[ -n "$note" ]] || continue
+                    echo "    note: $note"
+                done <<< "$swept"
+            else
+                echo "    (no tagged notes)"
+            fi
         done <<< "$ids"
+        echo ""
+        echo "projection preview ($out_name):"
+        printf '%s\n' "$projection" | sed 's/^/  /'
         return 0
     fi
 
