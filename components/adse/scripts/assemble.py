@@ -36,6 +36,7 @@ def parse_project_yaml(path):
     in_approvers = False
     in_revisions = False
     in_mandatory = False
+    in_sections = False
     current_person = {}
     current_revision = {}
 
@@ -58,9 +59,12 @@ def parse_project_yaml(path):
         if not stripped or stripped.startswith("#"):
             continue
         indent = len(raw) - len(raw.lstrip())
-        if stripped.startswith("- id:"):
+        if stripped.startswith("- id:") and in_sections:  # legacy "- id: foo" form
             result["sections"].append(stripped[len("- id:"):].strip())
-            in_authors = in_approvers = in_revisions = in_mandatory = False
+            continue
+        if indent > 0 and stripped.startswith("- ") and in_sections \
+                and not stripped.startswith("- id:"):
+            result["sections"].append(stripped[2:].strip().strip('"').strip("'"))
             continue
         if indent > 0 and stripped.startswith("- ") and in_mandatory \
                 and not stripped.startswith("- name:") and not stripped.startswith("- version:"):
@@ -97,6 +101,7 @@ def parse_project_yaml(path):
             in_authors = key == "authors"
             in_approvers = key == "approvers"
             in_revisions = key == "revisions"
+            in_sections = key == "sections"
             in_mandatory = False
             if key == "mandatory":
                 if val:

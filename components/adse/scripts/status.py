@@ -26,29 +26,33 @@ def parse_project_yaml(path):
     """Parse .project.yaml with stdlib. Returns dict with mandatory (list) and sections (list of str ids)."""
     result = {"mandatory": [], "sections": [], "title": "", "template": "sadd"}
     in_mandatory = False
+    in_sections = False
     for line in Path(path).read_text().splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         indent = len(line) - len(line.lstrip())
-        # Indented block list items
         if indent > 0 and stripped.startswith("- "):
-            if stripped.startswith("- id:"):
+            if stripped.startswith("- id:"):  # legacy "- id: foo" form
                 result["sections"].append(stripped[len("- id:"):].strip())
+            elif in_sections:
+                result["sections"].append(stripped[2:].strip().strip('"').strip("'"))
             elif in_mandatory:
                 result["mandatory"].append(stripped[2:].strip().strip('"').strip("'"))
             continue
-        # Root-level key: value
         if ":" in stripped and indent == 0:
             key, _, val = stripped.partition(":")
             key = key.strip()
             val = val.strip()
             in_mandatory = False
+            in_sections = False
             if key == "mandatory":
                 if val:
                     result["mandatory"] = _parse_inline_list(val)
                 else:
                     in_mandatory = True
+            elif key == "sections":
+                in_sections = True
             elif key in ("template", "title"):
                 result[key] = val.strip('"').strip("'")
     return result

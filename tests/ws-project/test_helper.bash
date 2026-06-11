@@ -24,9 +24,9 @@ template: sadd
 title: "Test Project"
 mandatory: [purpose-scope, architecture]
 sections:
-  - id: purpose-scope
-  - id: architecture
-  - id: design-alternatives
+  - purpose-scope
+  - architecture
+  - design-alternatives
 YAML
 
     if [[ "$extras" == "--with-mandatory" ]]; then

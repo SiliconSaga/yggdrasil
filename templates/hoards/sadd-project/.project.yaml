@@ -22,6 +22,7 @@ revisions:
 
 # Sections that must be present for ws project build to succeed.
 # Build fails with a clear error if any mandatory section has no tagged file.
+# To promote an optional section to mandatory, move its id here from sections:.
 mandatory:
   - purpose-scope
   - value-prop
@@ -34,28 +35,35 @@ mandatory:
   - security
   - testing
 
-# Full section order for the assembled document.
-# Optional sections (not in mandatory:) are silently omitted if not present.
-# Section files can live anywhere in the hoard (except working/) as long as
-# they carry a matching sadd_section: frontmatter key.
+# Assembly order for the document. Sections not listed here are silently
+# omitted from the build even if a file carries that sadd_section: id.
+#
+# Sections listed here but not in mandatory: are optional — the build succeeds
+# whether or not a matching file exists.
+#
+# To add a custom section: create a .md file anywhere in the hoard (not
+# under working/) with sadd_section: <your-id> in its YAML frontmatter,
+# then add <your-id> here at the position you want it to appear.
+# Until you add it here the section shows as "? extra" in ws project status
+# and is excluded from the assembled output.
 sections:
-  - id: purpose-scope
-  - id: value-prop
-  - id: assumptions
-  - id: constraints
-  - id: dependencies
-  - id: glossary
-  - id: references
-  - id: architecture
-  - id: design-alternatives
-  - id: static-design
-  - id: dynamic-design
-  - id: security
-  - id: testing
-  - id: other-ha
-  - id: other-scalability
-  - id: other-future-work
-  - id: open-questions
+  - purpose-scope
+  - value-prop
+  - assumptions
+  - constraints
+  - dependencies
+  - glossary
+  - references
+  - architecture
+  - design-alternatives
+  - static-design
+  - dynamic-design
+  - security
+  - testing
+  - other-ha
+  - other-scalability
+  - other-future-work
+  - open-questions
 
 build_targets:
   gdoc_id: ""         # set after ws project publish gdoc
