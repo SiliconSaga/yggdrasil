@@ -84,6 +84,23 @@ Before committing any new pattern:
   patterns** section of `docs/gdd/permissions.md`? If you're departing
   from the doc's guidance, document the reason in the commit body.
 
+## Known-safe allowance candidates (per-system, human-approved)
+
+A few patterns are safe by *nature* but look broad to pattern-shape analysis — they trip the `ws audit-permissions` watchlist even though the underlying command cannot mutate anything. Agents should know these exist as legitimate candidates **before** any workspace has activated them, and may offer one when the relevant prompt friction comes up — but activation is always the human's call, per system, never preemptive.
+
+Current catalog (one entry; grow it as cases earn their way in):
+
+| Pattern | Why it looks dangerous | Why it's actually safe | Caveat for the human |
+|---|---|---|---|
+| `Bash(bash -n:*)` | Glob-matches the `Bash(bash *)` watchlist entry ("wildcards out the hook") | `bash -n` parses a script and exits — it **never executes** anything | Only the `-n` form is safe; approving this pattern auto-approves syntax checks, nothing else. Verify the pattern pins `-n` immediately after `bash`. |
+
+Activation procedure (both steps need explicit human approval):
+
+1. Add the pattern to `.claude/settings.local.json` `permissions.allow` — per-system judgment, never the committed `settings.json`.
+2. Acknowledge it in `.claude/hooks/hook-rules.local` under `[audit-acknowledged]` (exact entry string), so `ws audit-permissions` reports it as `acknowledged: true` instead of a standing finding. The audit keeps printing it for transparency; it just stops counting toward the exit code.
+
+When offering one of these, give the human the full picture: what the pattern auto-approves, why it's safe by nature, and that declining just means an occasional prompt. If the human declines, drop it — don't re-offer in the same session.
+
 ## Cross-reference rule
 
 When you modify `.claude/settings.json`'s `permissions.allow` (or
