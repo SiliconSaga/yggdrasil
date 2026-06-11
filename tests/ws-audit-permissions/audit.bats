@@ -325,3 +325,24 @@ Bash(bash scripts/ws test * *)"
     [ "$status" -eq 0 ]
     [ "$output" = "[]" ]
 }
+
+@test "normalize: vendored bats runner scoped to tests/ is NOT flagged" {
+    # The focused TDD loop (`bash tests/vendor/bats-core/bin/bats
+    # tests/<dir>/`) is risk-equivalent to the already-allowlisted
+    # `ws test` — same vendored runner, same reviewed test tree — so
+    # its allow entries shouldn't trip Bash(bash *).
+    write_settings project "Bash(bash tests/vendor/bats-core/bin/bats tests/*)
+Bash(bash tests/vendor/bats-core/bin/bats tests/ws-smoke/)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "normalize: bats runner against a NON-tests path still flags" {
+    # Outside the reviewed test tree the runner executes arbitrary
+    # .bats shell — keep the prompt.
+    write_settings project-local "Bash(bash tests/vendor/bats-core/bin/bats /tmp/evil/)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}

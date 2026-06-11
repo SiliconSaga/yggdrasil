@@ -169,8 +169,16 @@ scan_file() {
         # trips the broad `Bash(bash *)` watchlist entry, while the
         # subcommand-less catch-all (`...ws:*` → `ws:*`) still matches the
         # new high-severity entry. Original `$entry` is preserved for output.
+        #
+        # Same treatment for the vendored bats runner, but ONLY when its
+        # target is inside tests/ — running the reviewed test tree is
+        # risk-equivalent to the allowlisted `ws test`, while pointing the
+        # runner at an arbitrary path executes arbitrary .bats shell and
+        # must keep matching Bash(bash *).
         local match_entry
-        match_entry=$(printf '%s' "$entry" | sed -E 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#')
+        match_entry=$(printf '%s' "$entry" | sed -E \
+            -e 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#' \
+            -e 's#bash ([A-Za-z]:)?[^ )]*tests/vendor/bats-core/bin/bats tests/#bats tests/#')
 
         # Test entry against every watchlist pattern.
         #
