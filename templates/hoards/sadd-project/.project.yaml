@@ -12,6 +12,14 @@ approvers: []
   #   role: "<Role>"
 plc_template: "SWE-PLC-L1-002-BasicPLC-SADD-TMPL"
 
+# Revision history — add an entry each time you cut a meaningful version.
+# Rendered as the Revision History table in the assembled document.
+revisions:
+  - version: "0.1"
+    date: "YYYY-MM-DD"
+    author: "<Your Name>"
+    description: "Initial draft"
+
 # Sections that must be present for ws project build to succeed.
 # Build fails with a clear error if any mandatory section has no tagged file.
 mandatory:

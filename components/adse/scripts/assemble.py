@@ -30,12 +30,27 @@ def _parse_inline_list(val):
 def parse_project_yaml(path):
     result = {
         "mandatory": [], "sections": [], "title": "", "template": "sadd",
-        "authors": [], "approvers": [], "plc_template": "",
+        "authors": [], "approvers": [], "revisions": [], "plc_template": "",
     }
     in_authors = False
     in_approvers = False
+    in_revisions = False
     in_mandatory = False
     current_person = {}
+    current_revision = {}
+
+    def _flush_person():
+        if current_person:
+            if in_authors:
+                result["authors"].append(current_person.copy())
+            elif in_approvers:
+                result["approvers"].append(current_person.copy())
+        current_person.clear()
+
+    def _flush_revision():
+        if current_revision:
+            result["revisions"].append(current_revision.copy())
+        current_revision.clear()
 
     for line in Path(path).read_text().splitlines():
         raw = line
@@ -45,18 +60,19 @@ def parse_project_yaml(path):
         indent = len(raw) - len(raw.lstrip())
         if stripped.startswith("- id:"):
             result["sections"].append(stripped[len("- id:"):].strip())
-            in_authors = in_approvers = in_mandatory = False
+            in_authors = in_approvers = in_revisions = in_mandatory = False
             continue
-        if indent > 0 and stripped.startswith("- ") and in_mandatory and not stripped.startswith("- name:"):
+        if indent > 0 and stripped.startswith("- ") and in_mandatory \
+                and not stripped.startswith("- name:") and not stripped.startswith("- version:"):
             result["mandatory"].append(stripped[2:].strip().strip('"').strip("'"))
             continue
-        if stripped.startswith("- name:") and indent > 0:
-            if current_person:
-                if in_authors:
-                    result["authors"].append(current_person)
-                elif in_approvers:
-                    result["approvers"].append(current_person)
-            current_person = {"name": stripped[len("- name:"):].strip().strip('"')}
+        if stripped.startswith("- name:") and indent > 0 and (in_authors or in_approvers):
+            _flush_person()
+            current_person["name"] = stripped[len("- name:"):].strip().strip('"')
+            continue
+        if stripped.startswith("- version:") and indent > 0 and in_revisions:
+            _flush_revision()
+            current_revision["version"] = stripped[len("- version:"):].strip().strip('"')
             continue
         if stripped.startswith("email:") and indent > 0 and current_person:
             current_person["email"] = stripped[len("email:"):].strip().strip('"')
@@ -64,17 +80,23 @@ def parse_project_yaml(path):
         if stripped.startswith("role:") and indent > 0 and current_person:
             current_person["role"] = stripped[len("role:"):].strip().strip('"')
             continue
+        if stripped.startswith("date:") and indent > 0 and current_revision:
+            current_revision["date"] = stripped[len("date:"):].strip().strip('"')
+            continue
+        if stripped.startswith("author:") and indent > 0 and current_revision:
+            current_revision["author"] = stripped[len("author:"):].strip().strip('"')
+            continue
+        if stripped.startswith("description:") and indent > 0 and current_revision:
+            current_revision["description"] = stripped[len("description:"):].strip().strip('"')
+            continue
         if ":" in stripped and indent == 0:
-            if current_person:
-                if in_authors:
-                    result["authors"].append(current_person)
-                elif in_approvers:
-                    result["approvers"].append(current_person)
-                current_person = {}
+            _flush_person()
+            _flush_revision()
             key, _, val = stripped.partition(":")
             key = key.strip(); val = val.strip()
             in_authors = key == "authors"
             in_approvers = key == "approvers"
+            in_revisions = key == "revisions"
             in_mandatory = False
             if key == "mandatory":
                 if val:
@@ -84,11 +106,8 @@ def parse_project_yaml(path):
             elif key in ("template", "title", "plc_template"):
                 result[key] = val.strip('"').strip("'")
 
-    if current_person:
-        if in_authors:
-            result["authors"].append(current_person)
-        elif in_approvers:
-            result["approvers"].append(current_person)
+    _flush_person()
+    _flush_revision()
     return result
 
 
@@ -125,27 +144,69 @@ def make_doc_control(config):
     title = config.get("title", "Untitled")
     authors = ", ".join(a.get("name", "") for a in config.get("authors", []))
     plc = config.get("plc_template", "")
-    today = date.today().isoformat()
+    revisions = config.get("revisions", [])
+    approvers = config.get("approvers", [])
+
+    # Placeholders for empty fields (pre-defined to avoid backslash-in-f-string
+    # restriction in Python < 3.12)
+    ph_author   = r"*\<your name\>*"
+    ph_rev_auth = r"*\<your name\>*"
+    ph_rev_desc = r"*\<describe this revision\>*"
+    ph_app_name = r"*\<approver name\>*"
+    ph_app_role = r"*\<role\>*"
 
     lines = [
         f"# {title}",
         "## Software Architecture and Design Document",
         "",
-        "| Item | Value |",
+        "---",
+        "",
+        "## Doc Control",
+        "",
+        "### Document Information",
+        "",
+        "| Field | Value |",
         "|---|---|",
         f"| Title | {title} |",
-        f"| Author(s) | {authors or '—'} |",
-        f"| Revision | {today} |",
-        "| State | Draft |",
+        f"| Author(s) | {authors if authors else ph_author} |",
     ]
     if plc:
         lines.append(f"| PLC Template | {plc} |")
 
-    approvers = config.get("approvers", [])
+    # Revision History table
+    lines += [
+        "",
+        "### Revision History",
+        "",
+        "<!-- Add entries to `revisions:` in .project.yaml to extend this table -->",
+        "",
+        "| Version | Date | Author | Description |",
+        "|---|---|---|---|",
+    ]
+    if revisions:
+        for r in revisions:
+            lines.append(
+                f"| {r.get('version', '')} | {r.get('date', '')}"
+                f" | {r.get('author', '')} | {r.get('description', '')} |"
+            )
+    else:
+        lines.append(f"| 0.1 | YYYY-MM-DD | {ph_rev_auth} | {ph_rev_desc} |")
+
+    # Approvals table
+    lines += [
+        "",
+        "### Approvals",
+        "",
+        "<!-- Add entries to `approvers:` in .project.yaml to extend this table -->",
+        "",
+        "| Name | Role | Date | Signature |",
+        "|---|---|---|---|",
+    ]
     if approvers:
-        lines += ["", "### Approvers", "", "| Name | Role | Date |", "|---|---|---|"]
         for a in approvers:
-            lines.append(f"| {a.get('name', '')} | {a.get('role', '')} | |")
+            lines.append(f"| {a.get('name', '')} | {a.get('role', '')} | | |")
+    else:
+        lines.append(f"| {ph_app_name} | {ph_app_role} | | |")
 
     lines += ["", "---", ""]
     return "\n".join(lines)
