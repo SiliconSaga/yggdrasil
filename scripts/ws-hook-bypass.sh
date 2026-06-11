@@ -11,9 +11,10 @@
 #
 # <slug> must appear as column 1 of a row in .claude/hooks/hook-rules
 # under [redirect-commands] (Tier 2) or [adapter-redirect-commands]
-# (Tier 3). The script writes .tmp/hook-bypass/<slug>.bypass with
-# frontmatter the PreToolUse hook parses
-# (session_id, slug, created_at, reason).
+# (Tier 3), or be a built-in tool-deny slug (currently: powershell —
+# unblocks the hook's whole-tool PowerShell deny for the session).
+# The script writes .tmp/hook-bypass/<slug>.bypass with frontmatter
+# the PreToolUse hook parses (session_id, slug, created_at, reason).
 #
 # The subcommand pattern `ws hook-bypass [a-z]*` is on the committed
 # [ask-commands] baseline, so every invocation force-prompts the human —
@@ -35,8 +36,9 @@ Usage: ws hook-bypass <slug> [--reason "<text>"]
 
   <slug>           Bypass slug — must match a row in [redirect-commands]
                    (Tier 2) or [adapter-redirect-commands] (Tier 3) in
-                   .claude/hooks/hook-rules. Run with an unknown slug
-                   to see the list of known slugs.
+                   .claude/hooks/hook-rules, or a built-in tool-deny slug
+                   (powershell). Run with an unknown slug to see the list
+                   of known slugs.
   --reason "<txt>" Optional. Captured in the marker file and echoed into
                    each BYPASS-ALLOW audit-log entry for retro grep.
 
@@ -97,7 +99,11 @@ done
 # adapter-redirect denies instruct users to bypass via `ws hook-bypass`,
 # so the script must accept those slugs too — otherwise the deny message
 # tells users to do something the script refuses to do.
-known_slugs=()
+# Built-in slugs not derived from hook-rules rows. `powershell` gates
+# the hook's whole-tool PowerShell deny (there's no per-command pattern
+# row for it — the branch in gdd-permission-hook.sh hardcodes the
+# marker path .tmp/hook-bypass/powershell.bypass).
+known_slugs=(powershell)
 if [[ -f "$HOOK_RULES" ]]; then
     in_section=""
     while IFS= read -r line || [[ -n "$line" ]]; do

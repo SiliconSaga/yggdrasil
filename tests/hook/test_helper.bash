@@ -168,6 +168,24 @@ run_hook_with_session() {
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
 
+# Build a PowerShell tool-call payload and pipe it into the hook.
+# The PowerShell branch is deny-by-default with a test-wrapper
+# carve-out and a `powershell` bypass slug, so tests need the real
+# tool_name plus (optionally) a session_id for the bypass cases.
+#
+# Args: $1 = command string, $2 = session_id (optional, empty = omit),
+#       $3 = cwd (defaults to $WORK)
+run_hook_ps() {
+    local cmd="$1"
+    local session_id="${2:-}"
+    local cwd="${3:-$WORK}"
+    local payload
+    payload=$(jq -nc --arg cmd "$cmd" --arg cwd "$cwd" --arg sid "$session_id" \
+        '{tool_name:"PowerShell", tool_input:{command:$cmd}, cwd:$cwd}
+         + (if $sid == "" then {} else {session_id:$sid} end)')
+    run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
+}
+
 # Set up an active realm + component dir under $WORK so the adapter-
 # aware redirect tier (Tier 3) has something to resolve.
 #   $1 — component name (e.g. "knarrlike")

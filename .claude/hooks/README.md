@@ -72,6 +72,17 @@ The recurring-bypass pattern — same slug bypassed every session — is a signa
 
 **Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z][a-z0-9-]*$` (start with a letter so the `ws hook-bypass [a-z]*` ask-pattern always catches a slug invocation). The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
 
+### PowerShell: blocked by default
+
+The hook also registers on the `PowerShell` tool (see `settings.json`) and denies every invocation rather than porting the Bash tiers to PowerShell grammar. The rationale: the `ws` CLI + Bash tool are the sanctioned surface, agents observably drift into PowerShell once it starts "working," and a granular PowerShell tier would need its own grammar — PS 5.1 has no `&&`/`||`, so `;` is its *only* statement separator, and a naive port of the Tier 1 composition deny would make the tool unusable rather than safe.
+
+Two exceptions:
+
+- **Component kuttl test wrappers auto-allow.** kuttl ships no native Windows binary, so components wrap it in Docker via `test.ps1` (mimir, nidavellir). The allowed shapes are `./test.ps1 [args]` and `Set-Location <dir>; ./test.ps1 [args]` (also `cd`/`.\` forms), with both segments restricted to composition-free characters — no `;` chains beyond the single prefix, no `$()`/backticks/script blocks in the path or args. As everywhere else, the hook audits the invocation string only; what a committed script does internally is reviewed at the script's own PR, not at invocation time.
+- **`ws hook-bypass powershell`** grants a session-scoped raw-PowerShell bypass through the same human-gated ask flow as the Tier 2/3 slugs (it's a built-in slug in `ws-hook-bypass.sh`, not a `hook-rules` row). The intended use is the rare case where PowerShell is genuinely the right tool — e.g. piping test payloads into *this hook* while debugging it, which Bash Tier 1 redirection rules block by design.
+
+`WS_HOOK_DISABLE=1` disables this branch along with everything else.
+
 ## Optional: PermissionRequest hook
 
 Power-user opt-in. Wires the same `gdd-permission-hook.sh` script to a second hook event — `PermissionRequest` — and broadens its matcher to also cover the `Edit` and `Write` tools. Net effect:

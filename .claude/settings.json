@@ -290,6 +290,15 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh\""
           }
         ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh\""
+          }
+        ]
       }
     ]
   }
