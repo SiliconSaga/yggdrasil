@@ -813,6 +813,16 @@ ws_hoard_init() {
         _ws_hoard_provenance_write "$target" "$_tmpl_name" "$_applied_version"
     fi
 
+    # Pre-fill <Project Name> placeholder in .project.yaml with a humanized
+    # version of the hoard name (hyphens/underscores → spaces, title-cased).
+    if [[ -f "$target/.project.yaml" ]]; then
+        local human_name
+        human_name="$(printf '%s' "$hoard_name" | tr '-_' '  ' | \
+            awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)} 1')"
+        sed -i.bak "s/<Project Name>/$human_name/g" "$target/.project.yaml"
+        rm -f "$target/.project.yaml.bak"
+    fi
+
     # git init + initial commit. Honor the user's existing git config for
     # name/email when set (so the first commit looks like the user's other
     # work). Fall back to the resolved human_account + a generic email
