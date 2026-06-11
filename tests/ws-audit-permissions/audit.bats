@@ -346,3 +346,21 @@ Bash(bash tests/vendor/bats-core/bin/bats tests/ws-smoke/)"
     [ "$status" -gt 0 ]
     [[ "$output" == *"severity: high"* ]]
 }
+
+@test "normalize: path traversal in the bats target still flags" {
+    # tests/../ escapes the reviewed tree — normalization must not
+    # suppress the Bash(bash *) finding for it.
+    write_settings project-local "Bash(bash tests/vendor/bats-core/bin/bats tests/../tmp/evil/)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: path traversal in the ws wrapper path still flags" {
+    # A wrapper path that climbs out of the workspace is not our ws
+    # script — same traversal rule as the bats runner.
+    write_settings project-local "Bash(bash ../elsewhere/scripts/ws status)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}

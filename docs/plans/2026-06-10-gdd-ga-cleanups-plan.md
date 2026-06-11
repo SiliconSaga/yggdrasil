@@ -360,7 +360,7 @@ Expected: the new tests FAIL — today `Bash(bash scripts/ws help)` flags via `B
 
 In `scripts/ws-audit-permissions.sh`, in the `WATCHLIST_RAW` heredoc (after the `Bash(bash scripts/ws exec * *)` line, before `Bash(bash *)`), add:
 
-```
+```text
 Bash(ws:*)|high|Subcommand-less ws catch-all auto-approves EVERY ws subcommand including push/cr/issue/exec. Pin the subcommand (e.g. Bash(ws commit:*)) instead.
 ```
 
@@ -411,7 +411,7 @@ In the GA readiness doc: mark **B7** ✅ (gate confirmed removed; `ws hoard upgr
 
 - [ ] **Step 2: Add a one-paragraph sequencing/handoff note**
 
-Under the "Suggested tracking" section, add a short note: this batch (B1/B3/B4/B7) landed via `docs/plans/2026-06-10-gdd-ga-cleanups-plan.md`; the remaining GA blockers are **B2** (cross-platform runs — execute the checklist on the two trial machines, no plan needed) and **B6** (SemVer/CHANGELOG — needs the versioning-unit decision then mechanical); **P*** items are independent papercuts; **R*** roadmap items each need their own brainstorm before a plan.
+Under the "Suggested tracking" section, add a short note: this batch (B1/B3/B4/B7) landed via `docs/plans/2026-06-10-gdd-ga-cleanups-plan.md`; the remaining GA blockers are **B2** (cross-platform runs — execute the checklist on the two trial machines, no plan needed) and **B6** (SemVer/CHANGELOG — needs the versioning-unit decision then mechanical); **P\*** items are independent papercuts; **R\*** roadmap items each need their own brainstorm before a plan.
 
 - [ ] **Step 3: Commit**
 

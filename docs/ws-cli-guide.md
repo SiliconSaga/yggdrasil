@@ -116,8 +116,10 @@ Every subcommand falls into one of three tiers:
 These apply to all subcommands:
 
 1. **Never `eval`** — use `"$@"` for command passthrough
-2. **Validate component names** — use `ws_resolve_target`, which checks
-   the regex `^[a-z][a-z0-9-]*$` and verifies against `ecosystem.yaml`
+2. **Validate target names** — use `ws_resolve_target`, which resolves
+   realm/hoard directory names and checks component names against a
+   strict regex plus the merged `ecosystem.yaml` (see Component name
+   validation below)
 3. **Quote everything** — `"$target"`, `"$@"`, `"$ROOT_DIR"`
 4. **Don't source `.env` in the dispatcher** — only in scripts that need tokens
 5. **Bash 3.2 compatible** — no associative arrays, no `${var,,}`, no `readarray`
@@ -128,11 +130,11 @@ These apply to all subcommands:
 
 ### Component name validation
 
-Component names pass through `yq` expressions (`.components.$name`). The regex `^[a-z][a-z0-9-]*$` prevents:
-- Path traversal (`../../etc`)
+Component names pass through `yq` expressions via bracket-quoted lookups (`.components["$name"]`). The regex `^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$` allows dotted names (e.g. `movingblocks.github.com`) while preventing:
+- Path traversal (no slashes; `..` is impossible because every dot must be followed by a letter)
 - Shell metacharacters (`;`, `|`, `$`, etc.)
 - Newline injection (bash `=~` matches full string, not per-line)
-- yq expression injection (no dots, brackets, etc.)
+- yq expression injection (no quotes or brackets can appear in a name, so the bracket-quoted lookup can't be escaped)
 
 ### Forking and renaming
 

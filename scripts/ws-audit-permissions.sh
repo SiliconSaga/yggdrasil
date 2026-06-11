@@ -175,10 +175,17 @@ scan_file() {
         # risk-equivalent to the allowlisted `ws test`, while pointing the
         # runner at an arbitrary path executes arbitrary .bats shell and
         # must keep matching Bash(bash *).
-        local match_entry
-        match_entry=$(printf '%s' "$entry" | sed -E \
-            -e 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#' \
-            -e 's#bash ([A-Za-z]:)?[^ )]*tests/vendor/bats-core/bin/bats tests/#bats tests/#')
+        #
+        # Entries containing `..` are never normalized: a traversal in
+        # either the script path (`bash ../elsewhere/scripts/ws`) or the
+        # bats target (`bats tests/../tmp/evil/`) points outside the
+        # reviewed tree, so those keep flagging via Bash(bash *).
+        local match_entry="$entry"
+        if [[ "$entry" != *..* ]]; then
+            match_entry=$(printf '%s' "$entry" | sed -E \
+                -e 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#' \
+                -e 's#bash ([A-Za-z]:)?[^ )]*tests/vendor/bats-core/bin/bats tests/#bats tests/#')
+        fi
 
         # Test entry against every watchlist pattern.
         #
