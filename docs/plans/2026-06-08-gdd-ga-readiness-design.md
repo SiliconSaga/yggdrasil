@@ -182,8 +182,10 @@ Recorded on two hosts (`rasmuss-mbp-2` small observations; Loki Permissions/Hook
 ### P3 — Build-tool permission-prompt noise / curated default allowlist — ⬜
 Loki phone-RC observation: following Bifrost work, *every* vanilla Gradle/build invocation prompted — pure noise when build commands are the core of the task and the blast radius is minimal. A curated default allowlist for common build/test tooling (Gradle lookups, etc.) would cut the noise; pairs with the `fewer-permission-prompts` Claude-native tooling. Weigh against the "don't auto-approve a build system that can run arbitrary commands" caution.
 
-### P4 — Collapse redundant permission ladders to `:*` — ⬜
+### P4 — Collapse redundant permission ladders to `:*` — ✅ Done
 `rasmuss-mbp-2` observation (from PR #84): Claude Code's colon form `Bash(<cmd>:*)` matches command + all trailing args in one entry, making the older per-arg-count `Bash(ws test *)` / `* *` / `* * *` ladders redundant. Collapse the always-trusted `ws` subcommand ladders to a single `:*` each, guarded by `tests/ws-audit-permissions` and a scan that nothing relies on the tighter single-token binding (a subcommand with a mutating flag-form you *don't* want unbounded is the counter-case). Gated behind `B3` (the audit matcher must stop over-flagging first).
+
+**Status update (2026-06-11):** landed post-B3. ~200 entries → ~95; help/status/pull/diagnose/actions/hoard-init/component-init/test/lint/review/log collapsed in both dispatch forms; preflight, cadence/thalamus-path, realm, clone, and the exact-form git entries stay pinned on purpose. The counter-case scan found one real instance: `ws review`'s side-effect forms (`reply`, `threads … --resolve*`) — and the old ladder's protection there was illusory anyway (the hook's glob matching let them auto-approve). They're now on the committed `[ask-commands]` list, which runs before the allow tier, so the collapse net-tightened. Empirical-table rows updated per the cross-reference rule.
 
 ### P5 — Co-Authored-By model attribution — ✅ Addressed (verify-only)
 **Status update (2026-06-09):** the "open idea" (detect the running model, refresh `.env`, handle the sub-agent case) is now covered by code + docs:
