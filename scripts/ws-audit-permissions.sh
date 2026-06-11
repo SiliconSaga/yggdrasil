@@ -62,7 +62,14 @@ audit_help() {
         echo ""
         echo "Output:"
         echo "  YAML list of findings. Empty list = clean."
-        echo "  Exit code equals the number of findings."
+        echo "  Exit code equals the number of UNACKNOWLEDGED findings."
+        echo ""
+        echo "Acknowledged allowances:"
+        echo "  An [audit-acknowledged] section in .claude/hooks/"
+        echo "  hook-rules.local (gitignored, per-machine) lists exact"
+        echo "  allow entries this workspace consciously accepts. They"
+        echo "  still appear in the YAML (acknowledged: true) but don't"
+        echo "  count toward the exit code or --names-only output."
         echo ""
         echo "Flags:"
         echo "  --names-only   Emit just the matched patterns (one per"
@@ -131,6 +138,37 @@ Bash(npm install *)|medium|Package install can run arbitrary postinstall scripts
 Bash(pip install *)|medium|Same as npm install — postinstall hooks run arbitrary code.
 WATCHLIST
 )
+
+# ─── Acknowledged per-workspace allowances ──────────────────────────
+#
+# hook-rules.local (gitignored, per-machine — the same file the hook
+# reads for [allow-extras]) may carry an [audit-acknowledged] section
+# listing EXACT allow entries this workspace has consciously accepted.
+# Matching findings are still emitted in the YAML (acknowledged: true,
+# original severity kept) but do not count toward the exit code, so a
+# deliberate local allowance stops reading as a problem at every
+# session start. Local-only by design: an [audit-acknowledged] section
+# in the COMMITTED hook-rules is ignored — project policy must not
+# silence the audit for everyone.
+ACK_RAW=""
+_ack_file="$ROOT_DIR/.claude/hooks/hook-rules.local"
+if [[ -f "$_ack_file" ]]; then
+    ACK_RAW=$(awk '/^\[audit-acknowledged\]/{f=1;next} /^\[/{f=0} f && NF && $0 !~ /^[[:space:]]*#/' "$_ack_file")
+fi
+
+# Exact-match check against the acknowledged list (no globbing — an
+# acknowledgment covers one known entry, not a shape).
+is_acknowledged() {
+    local entry="$1"
+    [[ -z "$ACK_RAW" ]] && return 1
+    local ack
+    while IFS= read -r ack; do
+        ack="${ack%$'\r'}"
+        [[ -z "$ack" ]] && continue
+        [[ "$entry" == "$ack" ]] && return 0
+    done <<< "$ACK_RAW"
+    return 1
+}
 
 # ─── Findings collection ────────────────────────────────────────────
 
@@ -204,7 +242,9 @@ scan_file() {
             [[ -z "$pattern" ]] && continue
             # shellcheck disable=SC2053
             if [[ "$match_entry" == $pattern ]]; then
-                FINDINGS+=("$scope|$file|$entry|$severity|$rationale")
+                local ack="false"
+                is_acknowledged "$entry" && ack="true"
+                FINDINGS+=("$scope|$file|$entry|$severity|$rationale|$ack")
                 # Don't break — an entry could match multiple watchlist
                 # rules and the user might want to see each. Cheap.
             fi
@@ -220,9 +260,12 @@ scan_file "project-local" "$ROOT_DIR/.claude/settings.local.json"
 
 if $names_only; then
     # One pattern per line, for shell pipelines / quick scan.
+    # Acknowledged findings are skipped — this mode feeds pipelines
+    # about problems, and an acknowledged entry isn't one.
     for f in "${FINDINGS[@]:-}"; do
         [[ -z "$f" ]] && continue
-        IFS='|' read -r _scope _file pattern _severity _rationale <<< "$f"
+        IFS='|' read -r _scope _file pattern _severity _rationale _ack <<< "$f"
+        [[ "$_ack" == "true" ]] && continue
         echo "$pattern"
     done
 else
@@ -240,7 +283,7 @@ else
         echo "[]"
     else
         for f in "${FINDINGS[@]}"; do
-            IFS='|' read -r scope file pattern severity rationale <<< "$f"
+            IFS='|' read -r scope file pattern severity rationale ack <<< "$f"
             # Escape values for the YAML quote style being used:
             #   - single-quoted string: ' → ''
             #   - double-quoted string: \ → \\, " → \"
@@ -258,12 +301,23 @@ else
             echo "  pattern: '$escaped_pattern'"
             echo "  severity: $severity"
             echo "  rationale: \"$escaped_rationale\""
+            # Acknowledged per-workspace allowance (hook-rules.local
+            # [audit-acknowledged]) — shown for transparency, excluded
+            # from the exit code.
+            [[ "$ack" == "true" ]] && echo "  acknowledged: true"
         done
     fi
 fi
 
-# Exit code = findings count, capped at 255 (shell exit code limit).
-# Callers can check `[[ $? -gt 0 ]]` for "there were findings."
-exit_code="${#FINDINGS[@]}"
+# Exit code = UNACKNOWLEDGED findings count, capped at 255 (shell exit
+# code limit). Callers can check `[[ $? -gt 0 ]]` for "there were
+# findings worth attention" — acknowledged allowances don't count.
+exit_code=0
+for f in "${FINDINGS[@]:-}"; do
+    [[ -z "$f" ]] && continue
+    IFS='|' read -r _scope _file _pattern _severity _rationale _ack <<< "$f"
+    [[ "$_ack" == "true" ]] && continue
+    exit_code=$((exit_code + 1))
+done
 [[ "$exit_code" -gt 255 ]] && exit_code=255
 exit "$exit_code"

@@ -11,6 +11,16 @@
 #   [allow-extras]   — personal allow-patterns; only valid here, never
 #                      in the committed baseline
 #
+# ws audit-permissions also reads this file (not the hook):
+#
+#   [audit-acknowledged] — exact settings.json allow entries this
+#                      machine consciously accepts. Matching audit
+#                      findings still print (acknowledged: true) but
+#                      don't count toward the exit code, so a
+#                      deliberate allowance stops nagging at session
+#                      start. Only valid here, never in the committed
+#                      baseline.
+#
 # To use:
 #   1. cp hook-rules.local.example hook-rules.local
 #   2. Uncomment / add entries below
@@ -25,6 +35,12 @@
 [ask-commands]
 # Extra destructive commands to force a prompt for, on this machine.
 # (none by default)
+
+[audit-acknowledged]
+# Exact allow entries (as they appear in settings.json permissions.allow)
+# that ws audit-permissions should report as acknowledged, not count.
+# Example: a parse-only syntax-check allowance that trips Bash(bash *):
+# Bash(bash -n:*)
 
 [allow-extras]
 # Bash glob patterns auto-allowed on this machine without prompting.

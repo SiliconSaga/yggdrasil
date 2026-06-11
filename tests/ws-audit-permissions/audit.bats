@@ -364,3 +364,64 @@ Bash(bash tests/vendor/bats-core/bin/bats tests/ws-smoke/)"
     [ "$status" -gt 0 ]
     [[ "$output" == *"severity: high"* ]]
 }
+
+# ─── Acknowledged per-workspace allowances ──────────────────────────
+#
+# hook-rules.local (gitignored, per-machine) can carry an
+# [audit-acknowledged] section listing exact allow entries this
+# workspace has consciously accepted. Matching findings still appear
+# in the YAML (with acknowledged: true, severity kept) but don't
+# count toward the exit code — so a deliberate local allowance stops
+# reading as a problem at every session start.
+
+write_ack() {
+    mkdir -p "$WORK/.claude/hooks"
+    {
+        echo "[audit-acknowledged]"
+        printf '%s\n' "$@"
+    } > "$WORK/.claude/hooks/hook-rules.local"
+}
+
+@test "ack: acknowledged finding is reported but not counted" {
+    write_settings project-local "Bash(bash -n:*)"
+    write_ack "Bash(bash -n:*)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Bash(bash -n:*)"* ]]
+    [[ "$output" == *"acknowledged: true"* ]]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "ack: only the exact entry is acknowledged, others still count" {
+    write_settings project-local "Bash(bash -n:*)
+Bash(sudo *)"
+    write_ack "Bash(bash -n:*)"
+    run_audit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"severity: critical"* ]]
+}
+
+@test "ack: --names-only skips acknowledged findings" {
+    write_settings project-local "Bash(bash -n:*)
+Bash(sudo *)"
+    write_ack "Bash(bash -n:*)"
+    run_audit --names-only
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Bash(sudo *)"* ]]
+    [[ "$output" != *"bash -n"* ]]
+}
+
+@test "ack: [audit-acknowledged] in the COMMITTED hook-rules is ignored" {
+    # Acknowledgments are per-machine judgment — the committed baseline
+    # must not silence the audit for everyone (mirrors the allow-extras
+    # local-only rule).
+    write_settings project-local "Bash(bash -n:*)"
+    mkdir -p "$WORK/.claude/hooks"
+    {
+        echo "[audit-acknowledged]"
+        echo "Bash(bash -n:*)"
+    } > "$WORK/.claude/hooks/hook-rules"
+    run_audit
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"acknowledged: true"* ]]
+}
