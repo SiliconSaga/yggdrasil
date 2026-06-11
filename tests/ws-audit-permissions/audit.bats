@@ -266,3 +266,62 @@ Bash(curl *)"
     [ "$status" -eq 2 ]
     [[ "$output" == *"unknown flag"* ]] || [[ "$stderr" == *"unknown flag"* ]]
 }
+
+# ─── B3: ws-wrapper normalization + catch-all ───────────────────────
+#
+# Narrow per-subcommand allows written in the verbose wrapper form
+# (`Bash(bash scripts/ws <sub> ...)`) used to trip the broad
+# `Bash(bash *)` watchlist entry — ~120 false positives on a clean
+# config. The matcher now normalizes the wrapper form to the bare
+# `ws` form before matching (reporting still shows the original
+# entry), and the genuinely-broad subcommand-less catch-all
+# `Bash(ws:*)` / `Bash(bash scripts/ws:*)` gets its own high entry.
+
+@test "normalize: bash scripts/ws <subcommand> literals are NOT flagged" {
+    write_settings project "Bash(bash scripts/ws help)
+Bash(bash scripts/ws review * *)
+Bash(bash scripts/ws status)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "detect: Bash(bash scripts/ws:*) catch-all is high" {
+    write_settings project-local "Bash(bash scripts/ws:*)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+    # Original (un-normalized) entry is what gets REPORTED.
+    [[ "$output" == *"Bash(bash scripts/ws:*)"* ]]
+}
+
+@test "detect: normalized Bash(ws:*) catch-all is high" {
+    write_settings project-local "Bash(ws:*)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+}
+
+@test "normalize: subcommand-pinned :* is NOT flagged" {
+    write_settings project "Bash(bash scripts/ws commit:*)
+Bash(ws commit:*)
+Bash(bash scripts/ws test * *)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}
+
+@test "normalize: ws exec danger is preserved through normalization" {
+    write_settings user "Bash(bash scripts/ws exec mimir rm)"
+    run_audit
+    [ "$status" -gt 0 ]
+    [[ "$output" == *"severity: high"* ]]
+    [[ "$output" == *"ws exec runs arbitrary commands"* ]]
+}
+
+@test "normalize: absolute-path ws wrapper literal is NOT flagged" {
+    write_settings project-local "Bash(bash /d/Dev/GitWS/yggdrasil/scripts/ws status)"
+    run_audit
+    [ "$status" -eq 0 ]
+    [ "$output" = "[]" ]
+}

@@ -119,6 +119,7 @@ Bash(ws exec * *)|high|ws exec with one arg after the component (same threat as 
 Bash(ws exec * * *)|high|ws exec with multiple args (same threat).
 Bash(bash scripts/ws exec *)|high|Verbose form of ws exec — same arbitrary-command threat.
 Bash(bash scripts/ws exec * *)|high|Verbose form, multi-arg.
+Bash(ws:*)|high|Subcommand-less ws catch-all auto-approves EVERY ws subcommand including push/cr/issue/exec. Pin the subcommand (e.g. Bash(ws commit:*)) instead.
 Bash(bash *)|high|Allows running any bash script or inline bash invocation. Effectively wildcards out the hook.
 Bash(sh *)|high|Same as bash * but for sh.
 Bash(rm -rf *)|high|Recursive force-delete with any target. Wildcards a destructive verb.
@@ -161,6 +162,16 @@ scan_file() {
         # CRLF tolerance — same reasoning as the hook script.
         entry="${entry%$'\r'}"
 
+        # Normalize the ws wrapper form to the bare `ws` form before
+        # matching, mirroring the PreToolUse hook. This collapses
+        # `Bash(bash scripts/ws <sub>)` and `Bash(bash <abs>/scripts/ws <sub>)`
+        # to `Bash(ws <sub>)`, so a narrow per-subcommand allow no longer
+        # trips the broad `Bash(bash *)` watchlist entry, while the
+        # subcommand-less catch-all (`...ws:*` → `ws:*`) still matches the
+        # new high-severity entry. Original `$entry` is preserved for output.
+        local match_entry
+        match_entry=$(printf '%s' "$entry" | sed -E 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#')
+
         # Test entry against every watchlist pattern.
         #
         # Pattern is UNQUOTED on the RHS — bash treats it as a glob
@@ -175,7 +186,7 @@ scan_file() {
         while IFS='|' read -r pattern severity rationale; do
             [[ -z "$pattern" ]] && continue
             # shellcheck disable=SC2053
-            if [[ "$entry" == $pattern ]]; then
+            if [[ "$match_entry" == $pattern ]]; then
                 FINDINGS+=("$scope|$file|$entry|$severity|$rationale")
                 # Don't break — an entry could match multiple watchlist
                 # rules and the user might want to see each. Cheap.
