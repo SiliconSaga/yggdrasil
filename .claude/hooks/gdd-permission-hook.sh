@@ -600,11 +600,25 @@ if [[ "$tool_name" == "PowerShell" ]]; then
     # The character class excludes composition, redirection, variable /
     # subexpression expansion, backticks, and script blocks in BOTH the
     # path and the args — `./test.ps1 $(...)` must not slip through.
-    _ps_seg='[^;|&<>$`(){}]'
-    _ps_wrapper_re="^(([Ss]et-[Ll]ocation|cd)[[:space:]]+${_ps_seg}+;[[:space:]]*)?\.[/\\]test\.ps1([[:space:]]${_ps_seg}*)?$"
-    if [[ "$cmd" =~ $_ps_wrapper_re ]]; then
-        allow "powershell test-wrapper carve-out"
-    fi
+    #
+    # CR/LF guard first: newline is a full statement separator in
+    # PowerShell, and both [[:space:]] and a negated bracket class match
+    # it — so without this case arm, `./test.ps1<newline>Remove-Item …`
+    # would satisfy the regex and auto-allow (caught in review by
+    # CodeRabbit + Copilot, repro-verified). The Bash branch's Tier 1
+    # newline deny never runs for PowerShell, so the rejection has to
+    # live here. The [ \t]-only separators below are belt-and-braces.
+    case "$cmd" in
+        *$'\n'*|*$'\r'*)
+            : ;;  # multi-line — never carve-out; fall through to deny/bypass
+        *)
+            _ps_seg='[^;|&<>$`(){}'$'\n\r'']'
+            _ps_wrapper_re="^(([Ss]et-[Ll]ocation|cd)[ \t]+${_ps_seg}+;[ \t]*)?\.[/\\]test\.ps1([ \t]${_ps_seg}*)?$"
+            if [[ "$cmd" =~ $_ps_wrapper_re ]]; then
+                allow "powershell test-wrapper carve-out"
+            fi
+            ;;
+    esac
 
     # Session-scoped bypass marker — same mechanics as the Tier 2/3
     # slugs (written by `ws hook-bypass powershell`, honored only when

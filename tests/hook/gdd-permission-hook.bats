@@ -1251,6 +1251,29 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
 }
 
+@test "powershell: newline-injected command after test.ps1 denies (PS statement separator)" {
+    # Newline is a full statement separator in PowerShell, and both
+    # [[:space:]] and a negated bracket class match it — this is the
+    # exact bypass CodeRabbit repro'd in PR #95 review.
+    run_hook_ps $'./test.ps1 openbao\nRemove-Item -Recurse C:/'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: CR-injected command after test.ps1 denies" {
+    run_hook_ps $'./test.ps1 openbao\rRemove-Item -Recurse C:/'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: newline before Set-Location prefix also denies" {
+    run_hook_ps $'Remove-Item -Recurse C:/\nSet-Location comp; ./test.ps1'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
 @test "powershell: bypass marker with matching session allows + audits" {
     write_bypass_marker "powershell" "session-abc" "hook debugging"
     CLAUDE_PROJECT_DIR="$WORK" run_hook_ps "Get-Content payload.json" "session-abc"
