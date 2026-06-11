@@ -70,6 +70,20 @@ EOF
     [ ! -f "$WORK/.tmp/hook-bypass/git-commit.bypass" ]
 }
 
+@test "built-in powershell slug is accepted without a hook-rules row" {
+    run bash "$SCRIPT" powershell --reason "hook debugging"
+    [ "$status" -eq 0 ]
+    [ -f "$WORK/.tmp/hook-bypass/powershell.bypass" ]
+    grep -q '^slug: powershell$' "$WORK/.tmp/hook-bypass/powershell.bypass"
+    grep -q '^reason: hook debugging$' "$WORK/.tmp/hook-bypass/powershell.bypass"
+}
+
+@test "unknown-slug listing includes the built-in powershell slug" {
+    run bash "$SCRIPT" not-a-slug
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"powershell"* ]]
+}
+
 @test ".tmp/hook-bypass/ auto-created if absent" {
     [ ! -d "$WORK/.tmp/hook-bypass" ]
     run bash "$SCRIPT" git-push

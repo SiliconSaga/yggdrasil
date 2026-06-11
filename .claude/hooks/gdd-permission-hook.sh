@@ -4,8 +4,10 @@
 # ─────────────────────────────────────────────────────────────────────
 #
 # PURPOSE
-# Fires on PreToolUse for Bash (four-tier deny/ask/allow logic) and for
-# Edit/Write (scratch-dir auto-allow). Has dormant PermissionRequest
+# Fires on PreToolUse for Bash (four-tier deny/ask/allow logic), for
+# Edit/Write (scratch-dir auto-allow), and for PowerShell (deny-by-
+# default with a test-wrapper carve-out + `powershell` bypass slug —
+# see the PowerShell branch below). Has dormant PermissionRequest
 # support wired in but not registered by default. Inspects the tool
 # input and emits one of four outcomes:
 #
@@ -568,6 +570,83 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
 
     # No scratch-dir match → passthrough so the harness prompts.
     exit 0
+fi
+
+# ─── Tool routing: PowerShell branch (deny-by-default) ──────────────
+#
+# Policy (2026-06-11): PowerShell is not part of the workspace toolkit.
+# The `ws` CLI + Bash tool cover the sanctioned surface, and porting the
+# Bash tiers to PowerShell grammar would be a large, error-prone job for
+# a tool agents shouldn't be drifting into (PS 5.1 has no && / ||, so
+# `;` is its ONLY statement separator — a naive port of the Tier 1 deny
+# rules would be unusable rather than safe). So: deny everything, with
+# two narrow exceptions —
+#
+#   1. Component kuttl test wrappers. kuttl ships no native Windows
+#      binary, so components wrap it in Docker via test.ps1 (mimir,
+#      nidavellir). The shapes `./test.ps1 [args]` and
+#      `Set-Location <dir>; ./test.ps1 [args]` auto-allow, with both
+#      segments restricted to composition-free characters. As with bash
+#      scripts, the hook audits the invocation string only — script
+#      internals are out of scope by design.
+#   2. A session-scoped bypass marker (`ws hook-bypass powershell`),
+#      human-approved through the ask tier like every other slug — for
+#      the rare legitimate raw-PowerShell need (e.g. piping payloads
+#      into THIS hook while debugging it, which Bash Tier 1 blocks).
+if [[ "$tool_name" == "PowerShell" ]]; then
+    # Carve-out: component test wrapper, optionally preceded by ONE
+    # Set-Location/cd (the PowerShell tool's cwd persists across calls,
+    # so suite runs are typically `Set-Location <comp>; ./test.ps1 …`).
+    # The character class excludes composition, redirection, variable /
+    # subexpression expansion, backticks, and script blocks in BOTH the
+    # path and the args — `./test.ps1 $(...)` must not slip through.
+    #
+    # CR/LF guard first: newline is a full statement separator in
+    # PowerShell, and both [[:space:]] and a negated bracket class match
+    # it — so without this case arm, `./test.ps1<newline>Remove-Item …`
+    # would satisfy the regex and auto-allow (caught in review by
+    # CodeRabbit + Copilot, repro-verified). The Bash branch's Tier 1
+    # newline deny never runs for PowerShell, so the rejection has to
+    # live here. The [ \t]-only separators below are belt-and-braces.
+    case "$cmd" in
+        *$'\n'*|*$'\r'*)
+            : ;;  # multi-line — never carve-out; fall through to deny/bypass
+        *)
+            _ps_seg='[^;|&<>$`(){}'$'\n\r'']'
+            _ps_wrapper_re="^(([Ss]et-[Ll]ocation|cd)[ \t]+${_ps_seg}+;[ \t]*)?\.[/\\]test\.ps1([ \t]${_ps_seg}*)?$"
+            if [[ "$cmd" =~ $_ps_wrapper_re ]]; then
+                allow "powershell test-wrapper carve-out"
+            fi
+            ;;
+    esac
+
+    # Session-scoped bypass marker — same mechanics as the Tier 2/3
+    # slugs (written by `ws hook-bypass powershell`, honored only when
+    # its session_id matches the current session). Project root prefers
+    # CLAUDE_PROJECT_DIR, then the hook-rules dir found by the config
+    # walk, then $cwd — the marker lives at <root>/.tmp/hook-bypass/.
+    _ps_session_id=$(echo "$input" | jq -r '.session_id // ""')
+    _ps_project_root="${CLAUDE_PROJECT_DIR:-}"
+    if [[ -z "$_ps_project_root" && -n "${_rules_dir:-}" ]]; then
+        _ps_project_root="${_rules_dir%/.claude/hooks}"
+    fi
+    [[ -z "$_ps_project_root" ]] && _ps_project_root="$cwd"
+    _ps_marker="$_ps_project_root/.tmp/hook-bypass/powershell.bypass"
+    if [[ -f "$_ps_marker" ]]; then
+        _ps_marker_sid=$(grep '^session_id:' "$_ps_marker" 2>/dev/null | sed 's/^session_id: *//' || true)
+        _ps_marker_reason=$(grep '^reason:' "$_ps_marker" 2>/dev/null | sed 's/^reason: *//' || true)
+        if [[ -n "$_ps_session_id" && "$_ps_marker_sid" == "$_ps_session_id" ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-ALLOW [powershell] reason=\"$(audit_safe "$_ps_marker_reason")\" [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+            if [[ "$event" == "PermissionRequest" ]]; then
+                printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
+            else
+                printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+            fi
+            exit 0
+        fi
+    fi
+
+    deny "PowerShell is blocked by default in this workspace — use the Bash tool with the \`ws\` wrappers (see AGENTS.md Reflex Contract). Exception: component kuttl wrappers run without a prompt as \`./test.ps1 [suite]\`, optionally preceded by one \`Set-Location <dir>;\`. For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
 fi
 
 # ─── Tier 1: Deny shell composition with corrective messages ────────
