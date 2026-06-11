@@ -219,6 +219,44 @@ setup() {
     [[ "$output" == *"review"* ]]
 }
 
+@test "ws issue --help: exits 0 and prints usage" {
+    run_ws issue --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws issue"* ]]
+}
+
+@test "ws issue -h: exits 0" {
+    run_ws issue -h
+    [ "$status" -eq 0 ]
+}
+
+@test "ws issue --help: works in any arg position" {
+    run_ws issue some-comp --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws issue"* ]]
+}
+
+@test "ws cr --help: exits 0 and prints usage" {
+    run_ws cr --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws cr"* ]]
+}
+
+@test "ws exec --help: exits 0 and prints usage" {
+    run_ws exec --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws exec"* ]]
+}
+
+@test "ws exec: --help inside the wrapped command is NOT intercepted" {
+    # `ws exec <comp> git --help` must pass --help through to the
+    # wrapped command, so only position-1 --help prints ws usage.
+    # Nonexistent component → resolver error, not the ws exec help.
+    run_ws exec no-such-comp git --help
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"Usage: ws exec"* ]]
+}
+
 # ─── list (empty ecosystem) ─────────────────────────────────────────
 
 @test "ws list: empty ecosystem produces deterministic output" {

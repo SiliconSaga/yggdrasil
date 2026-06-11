@@ -107,6 +107,20 @@ ws_resolve_fork_org() {
 
 ws_exec() {
     # ws:use-when running a one-off command inside a component dir
+    # --help only as $1 — anywhere-in-args would intercept flags meant
+    # for the wrapped command (e.g. `ws exec nordri git --help`).
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'HELP'
+Usage: ws exec <component> <command...>
+
+  component  Component, realm, or hoard whose dir to run in
+  command    Command + args (max 6 args) to run inside that dir
+
+Runs a one-off command inside the target dir without manual cd.
+For complex commands, use a Makefile target or shell script.
+HELP
+        return 0
+    fi
     if [[ $# -lt 2 ]]; then
         echo "Usage: ws exec <component> <command...>" >&2
         exit 1
@@ -170,6 +184,23 @@ HELP
 
 ws_cr() {
     # ws:use-when opening a code-review request (PR / MR) - must use bodyfile from change.md template
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws cr <component> [--upstream] <title> <bodyfile>
+
+  component   Component, realm, or hoard to open the CR against
+  --upstream  Target the upstream repo instead of the fork remote
+  title       CR (PR / MR) title
+  bodyfile    Path (relative to workspace root) to a change bodyfile
+              — see templates/change.md
+
+Opens a code-review request on the current branch via git-cr.sh.
+HELP
+            return 0
+        fi
+    done
     if [[ $# -lt 3 || $# -gt 4 ]]; then
         echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
         exit 1
@@ -411,6 +442,25 @@ ws_clean() {
 
 ws_issue() {
     # ws:use-when filing a tracker issue with labels and a bodyfile - must use issue.md template
+    local _arg
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws issue <component> [remote] <title> <label> <bodyfile>
+
+  component  Component, realm, or hoard to file the issue against
+  remote     Optional; auto-detects if a single remote, else uses
+             identity.forkOrg
+  title      Issue title
+  label      Issue label (must exist on the repo)
+  bodyfile   Path (relative to workspace root) to an issue bodyfile
+             — see templates/issue.md
+
+Files a tracker issue with the Co-Authored-By context via git-issue.sh.
+HELP
+            return 0
+        fi
+    done
     if [[ $# -lt 4 || $# -gt 5 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
         echo "  remote auto-detects if single remote, uses forkOrg if multiple." >&2
