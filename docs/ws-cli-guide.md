@@ -122,7 +122,7 @@ These apply to all subcommands:
    validation below)
 3. **Quote everything** — `"$target"`, `"$@"`, `"$ROOT_DIR"`
 4. **Don't source `.env` in the dispatcher** — only in scripts that need tokens
-5. **Bash 3.2 compatible** — no associative arrays, no `${var,,}`, no `readarray`
+5. **Bash 4+ is the floor** — `mapfile` and `${var,,}` are used (git-push.sh, git-cr.sh, git-issue.sh, ws). Git Bash on Windows and Linux distros qualify; macOS's system bash 3.2 does not — `brew install bash` (the `ws preflight` hint covers this). Defensive 3.2-safe idioms (e.g. `${arr[@]+"${arr[@]}"}` for empty arrays) are still used in hook and test-critical scripts so failures surface as preflight hints rather than crashes.
 
 ### Why `exec` always requires human approval
 

@@ -99,10 +99,11 @@ done
 # Each line: <glob-pattern>|<severity>|<rationale>
 #
 # Patterns use bash-glob semantics (compared via `[[ str == glob ]]`).
-# The Bash() wrapper is checked against the entry verbatim — both bare
-# `Bash(ws exec *)` and verbose `Bash(bash scripts/ws exec *)` variants
-# need their own watchlist entries because we deliberately want to
-# flag both.
+# Author ws-related patterns in the bare `Bash(ws …)` form only:
+# matching happens against the NORMALIZED entry (see scan_file), which
+# collapses verbose wrapper forms (`Bash(bash scripts/ws exec …)`) to
+# the bare form first — a verbose-form watchlist pattern would never
+# match anything.
 #
 # Keep ordered roughly critical → high → medium so output is naturally
 # sorted by severity when severity tiers tie on pattern match.
@@ -117,8 +118,6 @@ Bash(exec *)|critical|Replaces the shell with an arbitrary command. Same threat 
 Bash(ws exec *)|high|ws exec runs arbitrary commands in a component dir. The wildcard captures the command name.
 Bash(ws exec * *)|high|ws exec with one arg after the component (same threat as Bash(ws exec *) but matches different arg counts).
 Bash(ws exec * * *)|high|ws exec with multiple args (same threat).
-Bash(bash scripts/ws exec *)|high|Verbose form of ws exec — same arbitrary-command threat.
-Bash(bash scripts/ws exec * *)|high|Verbose form, multi-arg.
 Bash(ws:*)|high|Subcommand-less ws catch-all auto-approves EVERY ws subcommand including push/cr/issue/exec. Pin the subcommand (e.g. Bash(ws commit:*)) instead.
 Bash(bash *)|high|Allows running any bash script or inline bash invocation. Effectively wildcards out the hook.
 Bash(sh *)|high|Same as bash * but for sh.
@@ -169,6 +168,9 @@ scan_file() {
         # trips the broad `Bash(bash *)` watchlist entry, while the
         # subcommand-less catch-all (`...ws:*` → `ws:*`) still matches the
         # new high-severity entry. Original `$entry` is preserved for output.
+        # Consequence for watchlist authors: ws-related patterns must use
+        # the bare `Bash(ws …)` form — the wrapper form never survives to
+        # the comparison.
         #
         # Same treatment for the vendored bats runner, but ONLY when its
         # target is inside tests/ — running the reviewed test tree is
