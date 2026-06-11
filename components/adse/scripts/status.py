@@ -107,19 +107,21 @@ def main():
         files = found.get(sec_id, [])
         is_mandatory = sec_id in mandatory
         tag = "[mandatory]" if is_mandatory else "[optional]"
+        sep = " * " if is_mandatory else "   "
         if files:
-            print(f"  ✓ present   {tag:12s} {sec_id}")
+            print(f"  ✓ present{sep}{tag:12s}{sec_id}")
             for f in files:
                 print(f"               → {f}")
         else:
             status_word = "MISSING" if is_mandatory else "missing"
-            print(f"  ✗ {status_word:7s} {tag:12s} {sec_id}")
+            print(f"  ✗ {status_word:7s}{sep}{tag:12s}{sec_id}")
             if is_mandatory:
                 missing_mandatory.append(sec_id)
 
     extra = set(found.keys()) - set(sections)
     for sec_id in sorted(extra):
-        print(f"  ? extra      [unlisted]   {sec_id}")
+        tag = "[unlisted]"
+        print(f"  ? extra     {tag:12s}{sec_id}")
 
     print()
     if missing_mandatory:
