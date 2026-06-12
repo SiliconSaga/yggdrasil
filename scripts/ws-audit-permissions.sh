@@ -170,6 +170,31 @@ is_acknowledged() {
     return 1
 }
 
+# ─── Normalization patterns ─────────────────────────────────────────
+#
+# Normalization accepts only this workspace's OWN copies of the wrapper
+# scripts: the relative form plus the absolute spellings of $ROOT_DIR
+# (the msys /d/... form and the Windows-drive D:/... and d:/... forms).
+# A foreign path that merely ends in scripts/ws is NOT our script and
+# must keep matching Bash(bash *) — normalizing it would hide a risky
+# allowance (PR #94 review finding).
+
+# Escape a literal path for embedding in a sed -E pattern with `#` as
+# the delimiter.
+_re_escape() { printf '%s' "$1" | sed -E 's/[][(){}.*+?^$|\\#]/\\&/g'; }
+
+_ROOT_ALTS="$(_re_escape "$ROOT_DIR")"
+if [[ "$ROOT_DIR" =~ ^/([A-Za-z])(/.*)?$ ]]; then
+    # Derive the Windows-drive spellings from the msys form so entries
+    # written as D:/... (or d:/...) by Windows tooling also count as
+    # in-repo. No-op on Linux/macOS roots (no single-letter prefix).
+    _drv="${BASH_REMATCH[1]}"
+    _rest="${BASH_REMATCH[2]}"
+    _ROOT_ALTS="$_ROOT_ALTS|$(_re_escape "${_drv^^}:$_rest")|$(_re_escape "${_drv,,}:$_rest")"
+fi
+WS_NORM_RE="s#bash (($_ROOT_ALTS)/)?scripts/ws([ :)])#ws\3#"
+BATS_NORM_RE="s#bash (($_ROOT_ALTS)/)?tests/vendor/bats-core/bin/bats tests/#bats tests/#"
+
 # ─── Findings collection ────────────────────────────────────────────
 
 declare -a FINDINGS=()
@@ -201,7 +226,7 @@ scan_file() {
 
         # Normalize the ws wrapper form to the bare `ws` form before
         # matching, mirroring the PreToolUse hook. This collapses
-        # `Bash(bash scripts/ws <sub>)` and `Bash(bash <abs>/scripts/ws <sub>)`
+        # `Bash(bash scripts/ws <sub>)` and the absolute in-repo spelling
         # to `Bash(ws <sub>)`, so a narrow per-subcommand allow no longer
         # trips the broad `Bash(bash *)` watchlist entry, while the
         # subcommand-less catch-all (`...ws:*` → `ws:*`) still matches the
@@ -216,15 +241,16 @@ scan_file() {
         # runner at an arbitrary path executes arbitrary .bats shell and
         # must keep matching Bash(bash *).
         #
-        # Entries containing `..` are never normalized: a traversal in
+        # Both rules accept only in-repo paths (see WS_NORM_RE above), and
+        # entries containing `..` are never normalized: a traversal in
         # either the script path (`bash ../elsewhere/scripts/ws`) or the
         # bats target (`bats tests/../tmp/evil/`) points outside the
         # reviewed tree, so those keep flagging via Bash(bash *).
         local match_entry="$entry"
         if [[ "$entry" != *..* ]]; then
             match_entry=$(printf '%s' "$entry" | sed -E \
-                -e 's#bash ([A-Za-z]:)?[^ )]*scripts/ws([ :)])#ws\2#' \
-                -e 's#bash ([A-Za-z]:)?[^ )]*tests/vendor/bats-core/bin/bats tests/#bats tests/#')
+                -e "$WS_NORM_RE" \
+                -e "$BATS_NORM_RE")
         fi
 
         # Test entry against every watchlist pattern.
