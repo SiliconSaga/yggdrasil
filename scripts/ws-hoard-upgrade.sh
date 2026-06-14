@@ -118,14 +118,14 @@ _ws_hoard_upgrade_plan() {
     # `rm -f` (which skips directories), so the plan only flags what apply can
     # actually remove — a directory entry would otherwise show in the plan but
     # be silently skipped on apply.
-    local fn fi rel
+    local fn fidx rel
     fn="$(yq '.files_remove // [] | length' "$upgrade_yaml")"
-    fi=0
-    while [[ $fi -lt $fn ]]; do
-        rel="$(yq ".files_remove[$fi]" "$upgrade_yaml")"
+    fidx=0
+    while [[ $fidx -lt $fn ]]; do
+        rel="$(yq ".files_remove[$fidx]" "$upgrade_yaml")"
         [[ -e "$hoard_dir/$rel" && ! -d "$hoard_dir/$rel" ]] \
             && printf 'destructive\tremove %s\n' "$rel"
-        fi=$((fi+1))
+        fidx=$((fidx+1))
     done
 
     # core_plugins_disable: destructive when currently enabled.
@@ -474,8 +474,8 @@ _ws_hoard_apply_manifest() {
             local _migrate_tmp
             _migrate_tmp="$(mktemp)"
             sed \
-                -e "s|<!-- BEGIN upgrade:$marker_id -->|$begin_marker|g" \
-                -e "s|<!-- END upgrade:$marker_id -->|$end_marker|g" \
+                -e "s|$legacy_begin|$begin_marker|g" \
+                -e "s|$legacy_end|$end_marker|g" \
                 "$_migrate_target" > "$_migrate_tmp" 2>/dev/null \
                 && mv "$_migrate_tmp" "$_migrate_target" \
                 || rm -f "$_migrate_tmp"

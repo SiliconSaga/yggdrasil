@@ -564,7 +564,11 @@ HELP
     echo "  Token coverage:"
     while IFS= read -r remote; do
         local url
-        url=$(git -C "$comp_dir" remote get-url "$remote" 2>/dev/null || continue)
+        # `continue` must be outside the $() — inside it only exits the subshell,
+        # leaving url='' and printing a bogus empty-URL row instead of skipping.
+        if ! url=$(git -C "$comp_dir" remote get-url "$remote" 2>/dev/null); then
+            continue
+        fi
 
         local provider
         provider=$(gp_detect "$url" "$eco" 2>/dev/null) || provider="unknown"
