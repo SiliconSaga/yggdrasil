@@ -80,6 +80,7 @@ hint_for() {
         mac:glab)         echo "'brew install glab'." ;;
         mac:uv)           echo "'brew install uv' or 'curl -LsSf https://astral.sh/uv/install.sh | sh'." ;;
         mac:realpath)     echo 'Usually present via coreutils. If missing: "brew install coreutils" (then use "grealpath", or add the gnubin to PATH: PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH").' ;;
+        mac:shellcheck)   echo "'brew install shellcheck'." ;;
 
         linux:bash)       echo "Should be present. Most distros ship bash by default." ;;
         linux:git)        echo "'sudo apt install git' (Debian/Ubuntu) or 'sudo dnf install git' (Fedora)." ;;
@@ -89,6 +90,7 @@ hint_for() {
         linux:glab)       echo "Download from https://gitlab.com/gitlab-org/cli/-/releases — distro packages are spotty." ;;
         linux:uv)         echo "'curl -LsSf https://astral.sh/uv/install.sh | sh'." ;;
         linux:realpath)   echo "Usually present via coreutils. 'sudo apt install coreutils' if missing." ;;
+        linux:shellcheck) echo "'sudo apt install shellcheck' (Debian/Ubuntu) or 'sudo dnf install ShellCheck' (Fedora)." ;;
 
         windows:bash)     echo "Use Git Bash (bundled with Git for Windows). Run all 'ws' commands from a Git Bash shell, not cmd.exe or PowerShell." ;;
         windows:git)      echo "'winget install Git.Git' (includes Git Bash). https://git-scm.com/download/win is the manual installer." ;;
@@ -98,6 +100,7 @@ hint_for() {
         windows:glab)     echo "'winget install GLab.GLab'. Fallback: download from https://gitlab.com/gitlab-org/cli/-/releases." ;;
         windows:uv)       echo "'winget install astral-sh.uv'. Fallback: 'powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"'." ;;
         windows:realpath) echo "Comes with Git Bash; if missing, reinstall Git for Windows." ;;
+        windows:shellcheck) echo "'winget install koalaman.shellcheck'. Fallback: 'choco install shellcheck' from elevated PowerShell." ;;
 
         *) echo "See https://github.com/mikefarah/yq, https://cli.github.com, etc., for install instructions on your platform." ;;
     esac
@@ -166,8 +169,9 @@ check_tool glab provider
 
 echo ""
 echo "Optional (only needed for specific component types):"
-check_tool uv       optional
-check_tool realpath optional
+check_tool uv         optional
+check_tool realpath   optional
+check_tool shellcheck optional
 
 echo ""
 
