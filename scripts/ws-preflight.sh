@@ -31,7 +31,8 @@ install hints for your OS.
 Required: bash, git, yq (v4+, mikefarah/yq specifically), jq.
 Provider: at least one of gh (GitHub) or glab (GitLab).
 Recommended (optional): uv (for MCP servers and Python components),
-realpath (path canonicalization on macOS — usually present).
+realpath (path canonicalization on macOS — usually present),
+shellcheck (optional shell linting for the ws CLI and tooling scripts).
 HELP
     exit 0
 fi

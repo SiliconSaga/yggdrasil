@@ -21,17 +21,21 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 strict=0
-sc_args=(-x --severity=warning)
+severity="warning"
+sc_args=(-x)
 paths=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --strict)   strict=1; shift ;;
-        --pedantic) sc_args=(-x --severity=style); shift ;;
-        --help|-h)  sed -n '2,21p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        --pedantic) severity="style"; shift ;;
+        --help|-h)  sed -n '2,18p' "${BASH_SOURCE[0]}"; exit 0 ;;
         --*)        sc_args+=("$1"); shift ;;   # passthrough other shellcheck flags
         *)          paths+=("$1"); shift ;;
     esac
 done
+# Append severity last so --pedantic stays order-independent and doesn't clobber
+# any passthrough --* flags collected above.
+sc_args+=(--severity="$severity")
 [[ ${#paths[@]} -eq 0 ]] && paths=("$SELF_DIR")
 
 if ! command -v shellcheck >/dev/null 2>&1; then
