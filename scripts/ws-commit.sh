@@ -151,7 +151,14 @@ elif [[ "$co_authored_by" != *"<"* ]]; then
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"
-if [[ "$co_authored_by" != *"<"* || "$co_authored_by" != *">"* ]]; then
+# Require an email-shaped token in angle brackets (`<…@…>`). This catches
+# the common mistake — a bare name with no address (`Codex GPT-5`) or junk
+# in the brackets (`<not an email>`) — without imposing a brittle RFC-ish
+# pattern; the trailer is cosmetic attribution, not a validated contact.
+# Pattern lives in a variable (bash best practice for =~) with LITERAL
+# angle brackets — `\<`/`\>` would be word-boundary operators, not `<`/`>`.
+email_re='<[^[:space:]@<>]+@[^[:space:]@<>]+>'
+if [[ ! "$co_authored_by" =~ $email_re ]]; then
     echo "ERROR: Co-Authored-By identity must include an email in angle brackets." >&2
     echo "  Set GDD_CO_AUTHOR like: Codex GPT-5 <noreply@openai.com>" >&2
     exit 1

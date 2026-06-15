@@ -149,17 +149,19 @@ You know your own running model. Read `.env` if it exists. Find:
 export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
 ```
 
-If the default identity differs from your running agent/model, rewrite **just that default string**. Preserve the `${GDD_CO_AUTHOR:-…}` shape so inline overrides still win:
+If the default identity differs from your running agent/model, **propose the change and wait for explicit confirmation before writing** — `.env` holds tokens, so never rewrite it silently. Surface the proposed one-line edit (preserving the `${GDD_CO_AUTHOR:-…}` shape so inline overrides still win):
+
+> "Your `.env` `GDD_CO_AUTHOR` default is `Claude Opus 4.8 <…>`, but I'm running as Codex GPT-5. Update just that default to `Codex GPT-5 <noreply@openai.com>`? Only that one line changes."
+
+On a yes, rewrite **only the default token** inside the `${GDD_CO_AUTHOR:-…}` form:
 
 ```bash
-GDD_CO_AUTHOR="Codex GPT-5 <noreply@openai.com>"
+export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Codex GPT-5 <noreply@openai.com>}"
 ```
 
-One-line ack to the human:
+If they decline (or don't answer), leave `.env` alone and use the inline override at commit time instead — never block the session on it.
 
-> "Refreshed `.env` GDD_CO_AUTHOR default → `Codex GPT-5 <noreply@openai.com>`."
-
-**Skip this step if you're a sub-agent.** Parallel sub-agents would race on the same file. Sub-agents use the inline override at commit time (per `ws commit --help`).
+**Skip this step entirely if you're a sub-agent.** Parallel sub-agents would race on the same file. Sub-agents use the inline override at commit time (per `ws commit --help`).
 
 ### Trust verification
 

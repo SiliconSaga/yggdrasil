@@ -216,7 +216,7 @@ The `Co-Authored-By` trailer name resolves as:
 export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
 ```
 
-Keep `.env` current with the agent/model the workspace primarily commits as, rather than prepending identity variables on every commit. `GDD_CO_AUTHOR` must include an email in angle brackets, for example `Codex GPT-5 <noreply@openai.com>`. If `.env` is absent, `ws-commit.sh` falls back to `Claude Opus 4.8 <noreply@anthropic.com>`. The resolved value only feeds the trailer string and is newline-sanitized — it is never evaluated as a command.
+Keep `.env` current with the agent/model the workspace primarily commits as, rather than prepending identity variables on every commit. `GDD_CO_AUTHOR` must include an email in angle brackets, for example `Codex GPT-5 <noreply@openai.com>`. The fallback is whatever the resolution order above lands on from the *process* environment, not a fixed string: with `.env` absent, a `GDD_CO_AUTHOR` exported in the shell still wins, and failing that the legacy `Claude $CLAUDE_MODEL <noreply@anthropic.com>` form is used (`CLAUDE_MODEL` itself only defaults to `Opus 4.8` when it too is unset). The resolved value only feeds the trailer string and is newline-sanitized — it is never evaluated as a command.
 
 `CLAUDE_MODEL` remains as a legacy fallback for existing Claude-only workspaces when `GDD_CO_AUTHOR` is unset:
 
