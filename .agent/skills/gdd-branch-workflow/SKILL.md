@@ -157,6 +157,20 @@ git pull siliconsaga main
 git branch -d <type>/<description>
 ```
 
+## Multi-phase work — tracker issues
+
+When a feature spans multiple phases (a design pass plus 3–6 implementation passes), don't try to thread the work through a single CR. Use a **tracker issue** as the canonical "what's left" view, with a phase issue per implementation pass:
+
+- **One tracker issue per multi-phase design.** Label: `tracker`. Body is a markdown task-list with one checkbox per phase. Add a `#N` reference on a checkbox only once that phase's implementation issue exists — so the presence of `#N` doubles as "this phase is ready to claim."
+- **One implementation issue per phase.** Label: `phase`. Linked from the tracker checkbox. GitHub auto-checks the box when the linked issue closes.
+- **The design PR itself** can carry the `rfc` label and link to the tracker in its body so reviewers see the shape of what comes next.
+
+Avoids silent drift between design and implementation, ambiguous "designed but not planned" states, and quiet abandonment of later phases. Live example: `SiliconSaga/knarr#6` (tracker) + `#5` (Phase 1 impl).
+
+## Plan and design docs deserve CR review
+
+Even "docs-only" PRs benefit from full CR (CodeRabbit, Copilot, or the equivalent) when the doc surface is substantial — design docs, implementation plans, or any markdown carrying copy-pastable code blocks. Plan-doc code samples drift from reality during authoring and are easy to introduce real correctness bugs into; reviewers catch them. For a meaty plan, budget 3–4 review rounds, not 1, and use the round-by-round fix-bodyfile commit pattern so each rebuttal is auditable.
+
 ## Key Notes
 
 - Always use `ws push` rather than plain `git push` — it handles remote

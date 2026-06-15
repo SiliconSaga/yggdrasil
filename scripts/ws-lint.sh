@@ -35,6 +35,10 @@ lint_help() {
         echo "what's configured). Extra args pass through to the linter:"
         echo "  ws lint knarr"
         echo "  ws lint knarr --fix"
+        echo ""
+        echo "Shell linting (shellcheck — optional, skipped if not installed):"
+        echo "  ws lint                  shellcheck the ws CLI (scripts/)"
+        echo "  ws lint --shell <path>   shellcheck given files/dirs"
     } >&"$stream"
 }
 
@@ -45,9 +49,16 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     exit 0
 fi
 
-if [[ $# -lt 1 ]]; then
-    lint_help 2
-    exit 1
+# No component → lint the workspace's own shell scripts (the ws CLI itself).
+# `ws lint --shell [paths...]` → shellcheck arbitrary shell paths (realm/component
+# tooling). Both delegate to the optional shellcheck helper (a no-op + nag if the
+# tool isn't installed), keeping shell lint orthogonal to the adapter path below.
+if [[ $# -eq 0 ]]; then
+    exec bash "$SCRIPT_DIR/ws-shellcheck.sh"
+fi
+if [[ "$1" == "--shell" ]]; then
+    shift
+    exec bash "$SCRIPT_DIR/ws-shellcheck.sh" "$@"
 fi
 
 comp="$1"
