@@ -45,6 +45,8 @@ Arrows read as **"provides the foundation for"** — each tier only knows about 
 | **2** | Platform services | `nidavellir` (platform app-of-apps), plus capability components like observability / data / notifications |
 | **3** | End-user applications | The apps real people actually interact with |
 
+Tiers 1–3 are *deployable* tiers — they describe where a component sits in the stack's dependency chain. A realm's `ecosystem.yaml` may also declare components in two **non-stack roles** that sit outside this chain: `test` (throwaway fixtures that validate the tooling itself, e.g. SiliconSaga's `echo-test`) and `vendor` (third-party mirrors — see below).
+
 For the concrete SiliconSaga stack — what's in each tier, the GitOps model, the alert pipeline, the cluster-identity pattern — see the realm-side narrative at [SiliconSaga/realm-siliconsaga: `docs/stack.md`](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) (and the per-tier docs alongside it). If you've cloned the realm via `ws realm`, the same file is at `realms/realm-siliconsaga/docs/stack.md` locally. Other realms describe their own stacks the same way.
 
 ## Workspace Structure
@@ -116,6 +118,23 @@ The `scripts/ws-resolve.sh` script auto-detects which mode applies per component
 - `forceChart: true` — use chart even when local source exists
 - Override `values:` for local environment specifics
 - Toggle `disabled` to include/exclude components
+
+## Vendored Mirrors (`tier: vendor`)
+
+Sometimes a realm needs to deploy manifests it does **not** author — an upstream operator's CRDs + controller, a third-party chart's raw YAML, anything where the bytes are owned elsewhere but a GitOps deploy needs them at a pinned version. The naive options both have real costs:
+
+- **Vendor the files into a component repo you maintain.** A single operator's CRDs can be tens of thousands of lines. They dwarf your own code on contribution/LOC stats, bloat code-review (and review-bot context budgets), and can choke IDE/agent indexers — all for bytes you never edit and review adds nothing to.
+- **Sync ArgoCD straight from the upstream GitHub URL.** Reproducibility now depends on the internet and on an upstream tag staying immutable, and a foundational app reaches outside your trust boundary on every refresh.
+
+The `vendor` role is the third option: a realm declares the upstream repo as its own component (`tier: vendor`), held as an **individual, intact mirror** — full history and tags — under the realm's org. The bytes live in a dedicated repo that *isn't one you maintain*, so they never touch your maintained repos' stats, review surface, or local indexers, while staying first-class in the workspace:
+
+- **`ws clone`** fetches the mirror naturally alongside every other component, so a from-scratch workspace gets it without special steps.
+- **Hydration** (the GitOps source-of-truth push — SiliconSaga's seed-Gitea flow) pushes the mirror's *real history and tags* (not the orphan-commit snapshot used for maintained repos), so an in-cluster ArgoCD app can pin an exact upstream tag (`targetRevision: <tag>`) against the local copy.
+- **Updating** is re-syncing the mirror from upstream and bumping the pin — the same deliberate, auditable upgrade ceremony as vendoring, just relocated out of the maintained tree.
+
+A vendor mirror is **read-only**: never commit local edits to it (that would fork it from upstream). If you need to modify upstream manifests, that's a real component you maintain, not a mirror. Whether mirrors stay manually re-synced or become self-maintaining (e.g. a platform Git host's native pull-mirror feature) is a realm-infrastructure choice, not a GDD-framework concern.
+
+> SiliconSaga worked example: the Keycloak operator ships as the `keycloak-k8s-resources` vendor mirror, pinned to a tag by Nidavellir's `keycloak-operator` ArgoCD app — keeping ~18k lines of operator CRD schema out of the Nidavellir repo entirely. Upstream Yggdrasil declares no vendor components itself; the role exists in the framework for any realm to use.
 
 ## Related Docs
 
