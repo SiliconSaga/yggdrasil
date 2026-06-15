@@ -16,9 +16,9 @@ WS_BIN="$REPO_ROOT/scripts/ws"
 # aborting the whole file's load (which buries the reason in a load error).
 detect_timeout_bin() {
     if command -v timeout >/dev/null 2>&1; then
-        TIMEOUT_BIN="timeout"
+        TIMEOUT_BIN="$(command -v timeout)"
     elif command -v gtimeout >/dev/null 2>&1; then
-        TIMEOUT_BIN="gtimeout"
+        TIMEOUT_BIN="$(command -v gtimeout)"
     else
         skip "neither 'timeout' nor 'gtimeout' found; install GNU coreutils (macOS: brew install coreutils) — see tests/README.md"
     fi
