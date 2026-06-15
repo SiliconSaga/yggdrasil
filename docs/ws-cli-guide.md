@@ -207,25 +207,32 @@ A post-dispatch stderr footer on every other `ws` subcommand keeps `ws orient` d
 The `Co-Authored-By` trailer name resolves as:
 
 1. `identity.co_authored_by` from the merged ecosystem config, **if set** — a realm or local override can pin a fixed attribution string.
-2. Otherwise `"Claude $CLAUDE_MODEL"`.
+2. `GDD_CO_AUTHOR` from the environment or workspace `.env`, **if set** — the generic full trailer identity for the current agent.
+3. Otherwise the legacy Claude fallback, `"Claude $CLAUDE_MODEL <noreply@anthropic.com>"`.
 
-`CLAUDE_MODEL` is auto-sourced from `.env` at the workspace root. The shipped default (see `.env.example`) is:
+`GDD_CO_AUTHOR` is auto-sourced from `.env` at the workspace root. The shipped default (see `.env.example`) is:
+
+```bash
+export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
+```
+
+Keep `.env` current with the agent/model the workspace primarily commits as, rather than prepending identity variables on every commit. `GDD_CO_AUTHOR` must include an email in angle brackets, for example `Codex GPT-5 <noreply@openai.com>`. If `.env` is absent, `ws-commit.sh` falls back to `Claude Opus 4.8 <noreply@anthropic.com>`. The resolved value only feeds the trailer string and is newline-sanitized — it is never evaluated as a command.
+
+`CLAUDE_MODEL` remains as a legacy fallback for existing Claude-only workspaces when `GDD_CO_AUTHOR` is unset:
 
 ```bash
 export CLAUDE_MODEL="${CLAUDE_MODEL:-Opus 4.8}"
 ```
 
-Keep `.env` current with the model the workspace primarily commits as, rather than prepending `CLAUDE_MODEL` on every commit. If `.env` is absent, `ws-commit.sh` falls back to a hardcoded default (also `Opus 4.8`). The resolved value only feeds the trailer string and is newline-sanitized — it is never evaluated as a command.
-
 ### Sub-agent override rule
 
-A sub-agent running on a **non-default** model (e.g. Sonnet while the workspace default is Opus) should prepend the model **inline** for that one commit:
+A sub-agent running on a **non-default** model should prepend the full identity **inline** for that one commit:
 
 ```bash
-CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>
+GDD_CO_AUTHOR="Claude Sonnet 4.6 <noreply@anthropic.com>" ws commit <comp> <bodyfile>
 ```
 
-Inline is the correct mechanism for sub-agents. Do **not** rewrite the shared `.env` to change attribution for a single commit — parallel sub-agents rewriting the same file would race. The inline prefix is allowlisted (`Bash(CLAUDE_MODEL=* ws commit:*)`); see [the bounded `CLAUDE_MODEL=` prefix in the permissions reference](gdd/permissions.md#bounded-claude_model-attribution-prefix) for why this specific prefix auto-approves while arbitrary env prefixes do not.
+Inline is the correct mechanism for sub-agents. Do **not** rewrite the shared `.env` to change attribution for a single commit — parallel sub-agents rewriting the same file would race. Claude-only legacy sub-agents may still use the bounded `CLAUDE_MODEL=` prefix while that compatibility path remains; see [the bounded `CLAUDE_MODEL=` prefix in the permissions reference](gdd/permissions.md#bounded-claude_model-attribution-prefix).
 
 ## ws component init
 

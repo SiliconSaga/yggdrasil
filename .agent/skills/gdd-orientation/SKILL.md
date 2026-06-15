@@ -141,23 +141,23 @@ Session-scoped only. Don't update Thalamus frontmatter unless the human asks.
 
 If they decline or don't respond, continue at the current mode without further mention. Ask once.
 
-### CLAUDE_MODEL refresh (main agent only)
+### Commit attribution refresh (main agent only)
 
 You know your own running model. Read `.env` if it exists. Find:
 
 ```bash
-export CLAUDE_MODEL="${CLAUDE_MODEL:-Opus 4.8}"
+export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
 ```
 
-If the default token (`Opus 4.8` above) differs from your running model name, rewrite **just that token**. Preserve the `${CLAUDE_MODEL:-…}` shape so inline overrides still win:
+If the default identity differs from your running agent/model, rewrite **just that default string**. Preserve the `${GDD_CO_AUTHOR:-…}` shape so inline overrides still win:
 
 ```bash
-CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>
+GDD_CO_AUTHOR="Codex GPT-5 <noreply@openai.com>"
 ```
 
 One-line ack to the human:
 
-> "Refreshed `.env` CLAUDE_MODEL default → `Opus 4.8`."
+> "Refreshed `.env` GDD_CO_AUTHOR default → `Codex GPT-5 <noreply@openai.com>`."
 
 **Skip this step if you're a sub-agent.** Parallel sub-agents would race on the same file. Sub-agents use the inline override at commit time (per `ws commit --help`).
 

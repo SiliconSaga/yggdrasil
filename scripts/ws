@@ -16,7 +16,7 @@
 #   pull [comp]       Pull all or one component
 #   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
-#   push [comp] [branch] [--force] Push branch (remote from identity.forkOrg)
+#   push [comp] [branch|tag] [--force] Push branch or tag (remote from identity.forkOrg)
 #   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
@@ -144,11 +144,11 @@ ws_push() {
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws push [component] [branch] [--force]
+Usage: ws push [component] [branch|tag] [--force]
 
   component  Component to push (default: yggdrasil)
-  branch     Branch to push (default: current branch)
-  --force    Force push (use with care; only after a rebase typically)
+  branch|tag Component branch or local tag to push (default: current branch)
+  --force    Force push a branch (use with care; refused for tags)
 
 Pushes to the component's per-developer fork remote (resolved via
 identity.forkOrg in ecosystem config). For repos you own directly,
@@ -158,7 +158,7 @@ HELP
         fi
     done
     if [[ $# -gt 3 ]]; then
-        echo "Usage: ws push [component] [branch] [--force]" >&2
+        echo "Usage: ws push [component] [branch|tag] [--force]" >&2
         exit 1
     fi
     local comp="${1:-yggdrasil}"

@@ -245,6 +245,19 @@ EOF
     [[ "$output" == *"Co-Authored-By:"* ]]
 }
 
+@test "--dry-run uses GDD_CO_AUTHOR as a full agent-neutral trailer identity" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: generic co-author" "test.md"
+
+    GDD_CO_AUTHOR="Codex GPT-5 <noreply@openai.com>" \
+        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Codex GPT-5 <noreply@openai.com>"* ]]
+    [[ "$output" != *"Co-Authored-By: Claude"* ]]
+}
+
 @test "real (non-dry-run) commit still works against the synthetic repo" {
     # Regression guard: my dry-run plumbing shouldn't have broken the
     # normal commit path. Same fixture, same bodyfile, no flag.

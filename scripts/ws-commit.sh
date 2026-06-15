@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Auto-source .env so CLAUDE_MODEL and other env are available
+# Auto-source .env so agent attribution and other env are available
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 # shellcheck source=ws-realm.sh
@@ -38,14 +38,16 @@ commit_help() {
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
         echo "Model attribution:"
-        echo "  The trailer name resolves as: identity.co_authored_by (if set"
-        echo "  in the merged ecosystem config) else \"Claude \$CLAUDE_MODEL\"."
-        echo "  CLAUDE_MODEL is auto-sourced from .env (built-in default: Opus"
-        echo "  4.8; effective value now: \"${CLAUDE_MODEL:-Opus 4.8}\"). Keep"
-        echo "  .env current rather than prepending it on every commit."
+        echo "  The trailer identity resolves as: identity.co_authored_by"
+        echo "  (if set in merged ecosystem config), else GDD_CO_AUTHOR,"
+        echo "  else legacy \"Claude \$CLAUDE_MODEL\"."
+        echo "  GDD_CO_AUTHOR is the full trailer identity, for example:"
+        echo "    GDD_CO_AUTHOR=\"Codex GPT-5 <noreply@openai.com>\""
+        echo "  GDD_CO_AUTHOR and CLAUDE_MODEL are auto-sourced from .env."
+        echo "  Legacy CLAUDE_MODEL effective value now: \"${CLAUDE_MODEL:-Opus 4.8}\"."
         echo "  SUB-AGENTS: if you commit while running on a non-default model"
-        echo "  (e.g. Sonnet vs the workspace Opus default), prepend it inline:"
-        echo "    CLAUDE_MODEL=\"Sonnet 4.6\" ws commit <comp> <bodyfile>"
+        echo "  (e.g. Sonnet vs the workspace default), prepend identity inline:"
+        echo "    GDD_CO_AUTHOR=\"Claude Sonnet 4.6 <noreply@anthropic.com>\" ws commit <comp> <bodyfile>"
         echo "  Inline is correct for sub-agents — a shared .env rewrite from"
         echo "  parallel sub-agents would race."
         echo ""
@@ -137,14 +139,24 @@ fi
 eco="$(ws_resolve_ecosystem)"
 co_authored_by=$(yq -r '.identity.co_authored_by // ""' "$eco" 2>/dev/null)
 if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
-    # No custom identity configured — fall back to Claude, with CLAUDE_MODEL
-    # selecting the model name. CLAUDE_MODEL does not override a configured
-    # identity (e.g. "Human Dev" or a non-Claude AI should pass through).
-    co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.8}"
+    if [[ -n "${GDD_CO_AUTHOR:-}" ]]; then
+        co_authored_by="$GDD_CO_AUTHOR"
+    else
+        # Legacy Claude default. CLAUDE_MODEL does not override a configured
+        # identity or the agent-neutral GDD_CO_AUTHOR value.
+        co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.8} <noreply@anthropic.com>"
+    fi
+elif [[ "$co_authored_by" != *"<"* ]]; then
+    co_authored_by="$co_authored_by <noreply@anthropic.com>"
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"
-trailer="Co-Authored-By: $co_authored_by <noreply@anthropic.com>"
+if [[ "$co_authored_by" != *"<"* || "$co_authored_by" != *">"* ]]; then
+    echo "ERROR: Co-Authored-By identity must include an email in angle brackets." >&2
+    echo "  Set GDD_CO_AUTHOR like: Codex GPT-5 <noreply@openai.com>" >&2
+    exit 1
+fi
+trailer="Co-Authored-By: $co_authored_by"
 
 # Ensure .commits/ exists for the normal-commit path (first use on a
 # fresh clone may not have it yet). Skip in dry-run mode — dry-run
