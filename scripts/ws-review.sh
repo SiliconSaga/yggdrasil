@@ -18,10 +18,10 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- Function definitions (must precede routing block at bottom) ---
 
 review_help() {
-    echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]"
-    echo "       ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]"
-    echo "       ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]"
-    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]"
+    echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]"
+    echo "       ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]"
+    echo "       ws review <comp> notes <cr#> [--remote <name>] [--reviewer <name>] [--since <time>]"
+    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]"
     echo ""
     echo "CR review comments and thread management."
     echo ""
@@ -47,6 +47,8 @@ review_help() {
     echo "                             the path on stdout for downstream commands like grep."
     echo "                             Replaces a '> file' redirect — native flag keeps the"
     echo "                             write confined to .outputs/ (covered by ws clean)."
+    echo "    --remote <name>          Select a specific git remote when a CR number exists"
+    echo "                             on multiple remotes for the same component."
     echo ""
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
@@ -66,6 +68,7 @@ review_help() {
     echo "  ws review yggdrasil 8 --compact             # Headline-only triage view"
     echo "  ws review yggdrasil 8 --compact --limit 5   # First 5 comments, headline-only"
     echo "  ws review yggdrasil 8 --output before-fix    # Save snapshot for grep follow-up"
+    echo "  ws review silence 1 --remote rpraestholm-fork-group"
     echo "  ws review mimir 5 --reviewer coderabbitai"
     echo "  ws review yggdrasil 8 --since last-push"
     echo "  ws review yggdrasil notes 8                # Top-level notes only"
@@ -736,9 +739,9 @@ _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
-    echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
-    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
-    echo "       ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact]" >&2
+    echo "Usage: ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]" >&2
+    echo "       ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]" >&2
+    echo "       ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact]" >&2
     echo "" >&2
     echo "Run 'ws review --help' for details." >&2
     exit 1
@@ -751,6 +754,33 @@ shift
 if [[ "$COMP" == "help" ]]; then
     review_help
     exit 0
+fi
+
+REVIEW_REMOTE=""
+_FILTERED_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --remote)
+            [[ $# -ge 2 ]] || { echo "ERROR: --remote requires a value" >&2; exit 1; }
+            REVIEW_REMOTE="$2"
+            shift 2
+            ;;
+        --remote=*)
+            REVIEW_REMOTE="${1#--remote=}"
+            [[ -n "$REVIEW_REMOTE" ]] || { echo "ERROR: --remote value cannot be empty" >&2; exit 1; }
+            shift
+            ;;
+        *)
+            _FILTERED_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${_FILTERED_ARGS[@]}"
+
+if [[ -n "$REVIEW_REMOTE" && ! "$REVIEW_REMOTE" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+    echo "ERROR: Invalid remote name '$REVIEW_REMOTE'. Use alphanumeric, dot, dash, underscore, or slash." >&2
+    exit 1
 fi
 
 # Resolve the target directory via the shared helper — accepts components,
@@ -776,6 +806,7 @@ fi
 _CANDIDATE_SLUGS=()
 _CANDIDATE_PROVIDERS=()
 _CANDIDATE_URLS=()
+_CANDIDATE_REMOTES=()
 for _r in $(cd "$COMP_DIR" && git remote); do
     _url=$(cd "$COMP_DIR" && git remote get-url "$_r" 2>/dev/null) || continue
     _prov=$(gp_detect "$_url" "$_ECO" 2>/dev/null) || continue
@@ -785,6 +816,7 @@ for _r in $(cd "$COMP_DIR" && git remote); do
         _CANDIDATE_SLUGS+=("$_slug")
         _CANDIDATE_PROVIDERS+=("$_prov")
         _CANDIDATE_URLS+=("$_url")
+        _CANDIDATE_REMOTES+=("$_r")
     fi
 done
 
@@ -807,7 +839,24 @@ fi
 
 REPO_SLUG=""
 _SELECTED_PROVIDER=""
-if [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
+if [[ -n "$REVIEW_REMOTE" ]]; then
+    for i in "${!_CANDIDATE_REMOTES[@]}"; do
+        if [[ "${_CANDIDATE_REMOTES[$i]}" == "$REVIEW_REMOTE" ]]; then
+            REPO_SLUG="${_CANDIDATE_SLUGS[$i]}"
+            _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[$i]}"
+            break
+        fi
+    done
+    if [[ -z "$REPO_SLUG" ]]; then
+        _available=()
+        for i in "${!_CANDIDATE_REMOTES[@]}"; do
+            _available+=("${_CANDIDATE_REMOTES[$i]}=${_CANDIDATE_SLUGS[$i]}")
+        done
+        echo "ERROR: Remote '$REVIEW_REMOTE' is not a supported review remote for '$COMP'." >&2
+        echo "  Available remotes: ${_available[*]:-(none)}" >&2
+        exit 1
+    fi
+elif [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
 elif [[ -n "$_PEEK_CR" ]]; then
@@ -833,9 +882,18 @@ elif [[ -n "$_PEEK_CR" ]]; then
         echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
         exit 1
     elif [[ ${#_MATCH_SLUGS[@]} -gt 1 ]]; then
+        _matches=()
+        for _match in "${_MATCH_SLUGS[@]}"; do
+            for i in "${!_CANDIDATE_SLUGS[@]}"; do
+                if [[ "${_CANDIDATE_SLUGS[$i]}" == "$_match" ]]; then
+                    _matches+=("${_CANDIDATE_REMOTES[$i]}=$_match")
+                    break
+                fi
+            done
+        done
         echo "ERROR: CR #$_PEEK_CR found on multiple remotes for '$COMP'." >&2
-        echo "  Matches: ${_MATCH_SLUGS[*]}" >&2
-        echo "  Remove extra remotes or specify which repo to review." >&2
+        echo "  Matches: ${_matches[*]}" >&2
+        echo "  Use --remote <name> to select one." >&2
         exit 1
     fi
     REPO_SLUG="${_MATCH_SLUGS[0]}"
