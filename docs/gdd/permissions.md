@@ -62,7 +62,7 @@ The `ws hook-bypass <slug>` subcommand itself is on the ask-list — every invoc
 
 See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facing details.
 
-### Bounded `CLAUDE_MODEL=` attribution prefix
+### Bounded legacy `CLAUDE_MODEL=` attribution prefix
 
 `ws commit`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json` — they no longer need to be hand-added per machine. The `ws commit` allow patterns come in four forms:
 
@@ -75,7 +75,7 @@ Bash(CLAUDE_MODEL=* bash scripts/ws commit:*)
 
 The `:*` suffix here is Claude Code's *prefix* form — it matches the command plus any argument tail, not a single argument slot (see [Pattern shapes → Colon-prefix](#colon-prefix-cmd) below). Both the `ws commit` and `bash scripts/ws commit` bare forms are listed because that prefix match is anchored at the start of the string, so neither covers the other dispatch form; listing both keeps the command auto-approving under Claude Code's native matcher too — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
 
-The `CLAUDE_MODEL=*` forms exist because sub-agents attribute commits by prepending the model inline — `CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>` — rather than rewriting the shared `.env` (which would race across parallel sub-agents). See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
+The `CLAUDE_MODEL=*` forms are a legacy Claude compatibility path. New cross-agent work should prefer `GDD_CO_AUTHOR` in `.env` as the primary workspace default, with `identity.co_authored_by` reserved for pinned static overrides. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
 To make the prefixed form auto-approve cleanly, the PreToolUse hook (`strip_claude_model_prefix` in `.claude/hooks/gdd-permission-hook.sh`) strips a **single** leading `CLAUDE_MODEL=<value>` assignment (quoted or unquoted) from the command **before** allow/redirect matching. The strip is applied to the MATCH copy of the command only — never the executed command, never the audit log. Two consequences fall out of this:
 

@@ -245,6 +245,45 @@ EOF
     [[ "$output" == *"Co-Authored-By:"* ]]
 }
 
+@test "--dry-run uses GDD_CO_AUTHOR as a full agent-neutral trailer identity" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: generic co-author" "test.md"
+
+    GDD_CO_AUTHOR="Codex GPT-5 <noreply@openai.com>" \
+        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Codex GPT-5 <noreply@openai.com>"* ]]
+    [[ "$output" != *"Co-Authored-By: Claude"* ]]
+}
+
+@test "GDD_CO_AUTHOR without an email is rejected" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: missing email" "test.md"
+
+    GDD_CO_AUTHOR="Codex GPT-5" \
+        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"must include an email in angle brackets"* ]]
+}
+
+@test "GDD_CO_AUTHOR with junk (no @) in the brackets is rejected" {
+    # The old check only verified < and > were present; an email-shaped
+    # token (with @) is now required so '<not an email>' no longer passes.
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
+        "test: junk identity" "test.md"
+
+    GDD_CO_AUTHOR="Codex GPT-5 <not an email>" \
+        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"must include an email in angle brackets"* ]]
+}
+
 @test "real (non-dry-run) commit still works against the synthetic repo" {
     # Regression guard: my dry-run plumbing shouldn't have broken the
     # normal commit path. Same fixture, same bodyfile, no flag.

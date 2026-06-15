@@ -14,6 +14,13 @@ load test_helper
     [[ "$output" == *".env"* ]]
 }
 
+@test "ws commit --help mentions GDD_CO_AUTHOR as the agent-neutral override" {
+    run bash "$WS_COMMIT_BIN" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GDD_CO_AUTHOR"* ]]
+    [[ "$output" == *"Codex GPT-5 <noreply@openai.com>"* ]]
+}
+
 @test "ws commit --help explains the sub-agent inline override" {
     run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]

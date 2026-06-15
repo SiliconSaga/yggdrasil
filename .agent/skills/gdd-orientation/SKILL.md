@@ -141,25 +141,27 @@ Session-scoped only. Don't update Thalamus frontmatter unless the human asks.
 
 If they decline or don't respond, continue at the current mode without further mention. Ask once.
 
-### CLAUDE_MODEL refresh (main agent only)
+### Commit attribution refresh (main agent only)
 
 You know your own running model. Read `.env` if it exists. Find:
 
 ```bash
-export CLAUDE_MODEL="${CLAUDE_MODEL:-Opus 4.8}"
+export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
 ```
 
-If the default token (`Opus 4.8` above) differs from your running model name, rewrite **just that token**. Preserve the `${CLAUDE_MODEL:-…}` shape so inline overrides still win:
+If the default identity differs from your running agent/model, **propose the change and wait for explicit confirmation before writing** — `.env` holds tokens, so never rewrite it silently. Surface the proposed one-line edit (preserving the `${GDD_CO_AUTHOR:-…}` shape so inline overrides still win):
+
+> "Your `.env` `GDD_CO_AUTHOR` default is `Claude Opus 4.8 <…>`, but I'm running as Codex GPT-5. Update just that default to `Codex GPT-5 <noreply@openai.com>`? Only that one line changes."
+
+On a yes, rewrite **only the default token** inside the `${GDD_CO_AUTHOR:-…}` form:
 
 ```bash
-CLAUDE_MODEL="Sonnet 4.6" ws commit <comp> <bodyfile>
+export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Codex GPT-5 <noreply@openai.com>}"
 ```
 
-One-line ack to the human:
+If they decline (or don't answer), leave `.env` alone and use the inline override at commit time instead — never block the session on it.
 
-> "Refreshed `.env` CLAUDE_MODEL default → `Opus 4.8`."
-
-**Skip this step if you're a sub-agent.** Parallel sub-agents would race on the same file. Sub-agents use the inline override at commit time (per `ws commit --help`).
+**Skip this step entirely if you're a sub-agent.** Parallel sub-agents would race on the same file. Sub-agents use the inline override at commit time (per `ws commit --help`).
 
 ### Trust verification
 
