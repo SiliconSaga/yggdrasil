@@ -149,7 +149,9 @@ The tutorial is the literal front door for a public launch, and the `tutorial-ne
 
 **Approach:** Run the tutorial pass as its own arc (it already is). Prioritize the adoption section (concrete realm bootstrap walkthrough) and the getting-started `ws`-vs-`bash scripts/ws` consistency, since those are what a public reader trips on first.
 
-### B6 — SemVer + CHANGELOG + release notes — ⬜ Not started
+### B6 — SemVer + CHANGELOG + release notes — ✅ Machinery in place (tag pending the gate)
+
+**Status update (2026-06-11):** versioning unit decided per the recommendation below — workspace + `ws` CLI version together under SemVer, methodology docs ride along, realm/component/hoard-template versioning stays independent. Root `CHANGELOG.md` seeded (Keep a Changelog; `[Unreleased]` becomes `1.0.0` at tag time; curated pre-1.0 archaeology grouped by wave). `docs/gdd/versioning.md` carries the policy, the release ceremony, and the change-note tooling decision record: conventional-commit subjects (already the `ws commit` convention) as the input, git-cliff as the optional no-Node drafting tool, GitHub auto-generated release notes as a per-repo complement, semantic-release/release-please explicitly not adopted. The Terasology-style aggregation problem (engine + modules → one release note; here, the SiliconSaga stack) is parked as a future ecosystem-manifest-driven `ws changelog` verb — recorded in the doc and `R6`. Remaining: the `ws version` subcommand stays optional; cut the `1.0.0` tag when all B* are ✅.
 
 "1.0.0" requires the machinery to make a version mean something. None exists today.
 
@@ -252,6 +254,7 @@ Designed-but-deferred, "defer until evidence of need":
 - **`ws rebase`** utility (Dionysus): script the repeatable rebase ceremony (status → fetch → backup branch → conflict preview → rebase or exit-to-agent if conflicts likely → verify no markers → report + offer backup cleanup).
 - **`ws run <comp> <action>`** dispatcher (Loki): `ws actions` shows per-component adapter commands but doesn't execute them; `ws run` would. Needs the `B1` `ws_resolve_target` helper to accept hoard/realm targets (the `sweethome3d` auto-approve dependency).
 - **`git-issue.sh` querying** (Dionysus): handle *reading* issues, not just creating them (agents currently drop to raw `gh` for this).
+- **`ws changelog <target>|--stack`** (B6 follow-on, 2026-06-11): stack-level change-note aggregation — walk the declared ecosystem components, collect each repo's conventional commits (or CHANGELOG section) since its last tag, emit one grouped draft. The Terasology engine+modules aggregation lesson, solved by the manifest GDD already has. Detail in `docs/gdd/versioning.md` § Stack-level aggregation.
 - **Setup wizard** during orientation / `ws overlay init` (Dionysus onboarding): walk token creation, identity config, remote setup. Companion to `P6`.
 - **`ws realm new` wizard** (Dionysus): interactive realm scaffolding mirroring `ws hoard init` (today realm creation is fork-and-edit on GitHub).
 - **Workspace-wide `ws diagnose`** (Dionysus): aggregate one-shot view (no comp arg) + identity/tools check; the per-repo form already exists.
