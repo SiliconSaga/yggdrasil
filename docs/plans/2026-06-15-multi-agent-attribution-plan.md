@@ -1,5 +1,7 @@
 # Session-Scoped Commit Attribution (Phase 1) Implementation Plan
 
+> **Revision (2026-06-16, during implementation):** Tasks 6–8 below are **superseded**. The sub-agent escape hatch is no longer an inline `GDD_CO_AUTHOR=` env prefix (the required `<email>` angle brackets trip the permission hook's Tier 1 redirect deny), so the hook strip + `CLAUDE_MODEL=`→`GDD_CO_AUTHOR=` allowlist swap were dropped. Instead: sub-agents use `ws commit --co-author-file <name>` (reads `.tmp/gdd-agent-sessions/<name>.env`), the hook's attribution-prefix strip is **removed**, the `CLAUDE_MODEL=` allowlist patterns are **deleted** (no replacement — the flag matches `ws commit:*`), the inline-env and `.env`-sourced identity rungs are **dropped**, and the no-session case is a **hard error guiding to `--human`** rather than a silent no-trailer commit. See the design doc's **Revision** note for the full rationale. Tasks 1–5 landed as written.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `ws commit` attribute the right agent per session — resolving the `Co-Authored-By` identity from a per-session file established fresh at orient — so concurrent Claude + Codex sessions never collide or drift, and drop the legacy `CLAUDE_MODEL` / `identity.co_authored_by` paths.

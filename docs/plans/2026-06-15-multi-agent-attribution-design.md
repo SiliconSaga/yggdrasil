@@ -29,23 +29,26 @@ Phase 1 replaces the single shared value with a **per-session identity**, re-est
 
 ---
 
+> **Revision (2026-06-16, during implementation):** The original chain made an inline `GDD_CO_AUTHOR="Name <email>" ws commit` env prefix the sub-agent escape hatch. That cannot work through the Claude Code permission hook: the hook's **Tier 1 redirect deny** rejects the `<`/`>` in the required `<email>` *before* any prefix-strip runs (the `CLAUDE_MODEL=` precedent never hit this because model strings have no angle brackets). Rather than restructure the security hook to strip a prefix before Tier 1, sub-agents now write their identity to a small file and point `ws commit` at it by name via a new `--co-author-file <name>` flag — a bare name with no angle brackets, which passes Tier 1 untouched and matches the existing `Bash(ws commit:*)` allow with **no hook or allowlist changes**. The hook's attribution-prefix strip is **removed entirely** (dead once no env-prefix mechanism exists). Two further refinements during implementation: the inline `GDD_CO_AUTHOR="…"` env rung is **dropped** (unused once `--co-author-file` exists; blocked by Tier 1 for agents anyway), and the no-session case is a **hard error guiding the caller to `--human`** rather than a silent no-trailer commit — so an agent (which always has a session id) can never quietly skip attribution, and a manual human commit is an explicit choice. The sections below reflect this revised design.
+
 ## The resolution chain (the heart)
 
-`ws commit` resolves the `Co-Authored-By` identity as follows:
+`ws commit` resolves the `Co-Authored-By` identity as follows (first match wins):
 
-1. **Inline `GDD_CO_AUTHOR`** — captured from the process environment **before** `ws-commit.sh` sources `.env`. Any value present at this point can only have come from an explicit inline prefix (`GDD_CO_AUTHOR="…" ws commit …`), because the resolver never uses a `.env`-sourced value for an agent session (see below). This is the **sub-agent escape hatch** and it wins over everything, because a sub-agent shares its parent's session id and would otherwise resolve to the parent's session file.
-2. **Otherwise, branch on whether this is an agent session** — i.e. whether a session id resolves (resolution below):
-   - **Agent session** (a session id resolves): the **session file** `.tmp/gdd-agent-sessions/<session-id>.env`. If it is missing → **hard error** (the resilience path). An agent session never falls through to `.env` — that fall-through is exactly the drift this design removes, so a missing file must surface, not silently resolve.
-   - **No agent session** (no session id — a human committing manually, or a script): a `GDD_CO_AUTHOR` set in **`.env`**, used **only here** and **explicitly discouraged**. This is the rare human-without-agent escape; it is isolated to the no-session path, so it can never affect an agent session.
-3. **If none of the above resolves → error**, with guidance covering every case: `"No commit identity. In an agent session, run 'ws orient' or 'ws whoami --set \"Name <email>\"' to establish one (it may have been cleared by 'ws clean'). For a one-off manual commit, prefix 'GDD_CO_AUTHOR=\"Name <email>\" ws commit …'. For repeated manual commits without an agent you may set GDD_CO_AUTHOR in .env, though this is discouraged — agent sessions establish identity automatically and ignore the .env value."`
+1. **`--human` flag** → commit with **no `Co-Authored-By` trailer** (and skip the identity requirement entirely). This is the explicit marker a human uses when committing manually — including inside a context where a session id happens to resolve (e.g. `!ws commit` inside a Claude Code session, or a retry with an edited bodyfile). It suppresses any agent attribution.
+2. **`--co-author-file <name>` flag** → read `GDD_CO_AUTHOR` from `.tmp/gdd-agent-sessions/<name>.env` (a bare name; the dir is the convention, no path is passed). This is the **sub-agent escape hatch**: a sub-agent shares its parent's session id and would otherwise resolve to the parent's session file, so it writes its own identity file (a scratch dir → Write auto-allowed) and names it here. Missing/empty file → error (you named a file that isn't there).
+3. **Session file** — if a session id resolves (an agent session), `.tmp/gdd-agent-sessions/<session-id>.env`. If it is missing → **hard error** (the resilience path; an agent whose identity was cleared must re-establish, never silently mis-attribute).
+4. **Nothing resolves** (no `--human`, no `--co-author-file`, no session id) → **hard error** with guidance: an agent must establish its identity (`ws orient` / `ws whoami --set`); a human committing manually must pass `--human`.
 
-What is **removed** or **demoted** from the chain that exists today:
+There is deliberately **no silent no-trailer fallback**. Two reasons, both raised during implementation: (a) an *agent* always has a session id, so it always lands on rung 3 — it can never quietly skip attribution by "looking like a human"; and (b) a no-session caller can't be reliably distinguished from a misconfigured agent, so rather than guess we require the human to mark themselves with `--human`. Every "loud" outcome (rungs 3–4 errors) is actionable and tells the caller exactly what to do.
+
+What is **removed** from the chain that existed before:
 
 - `identity.co_authored_by` (ecosystem-config pinned override) — **deleted**. Identity must never live above the session level; a stale pinned value can only cause the drift this design exists to prevent.
 - The legacy `Claude $CLAUDE_MODEL <…>` fallback — **removed** (see Legacy cleanup).
-- `.env`-sourced `GDD_CO_AUTHOR` — **demoted to a discouraged human-manual-only last resort.** It is read *only* when no session id resolves (rung 2's no-agent branch). An **agent** session never consults it, so a stale `.env` value cannot drift agent attribution — the original goal — while a human who genuinely commits without an agent still has a (discouraged) durable option rather than being forced to prefix every commit. `.env` is removed from `.env.example` as a documented default to keep people off it by default.
+- `.env`-sourced **and** inline-env `GDD_CO_AUTHOR` — **removed.** Neither an environment value nor an inline `GDD_CO_AUTHOR="…" ws commit` prefix is consulted: the inline form is blocked by the hook's Tier 1 redirect deny for agents anyway (the `<email>` angle brackets), and keeping it only for a human's terminal would be an awkward, rarely-used path. A human commits with `--human`; an agent uses its session file or `--co-author-file`. An agent session never consults `.env`, so a stale value cannot drift agent attribution — the original goal.
 
-The email-shaped validation from PR #100 (`<…@…>` required) is retained and applied to whatever the chain resolves.
+The email-shaped validation from PR #100 (`<…@…>` required) is retained and applied to whatever identity the chain resolves (rungs 2–3); the `--human` path (no trailer) skips it.
 
 ---
 
@@ -59,7 +62,7 @@ The session id keys the session file. It resolves, first match wins:
 
 Critically, the session id comes from the harness on **every** call (fresh shells don't persist exports), so orientation and `ws commit` independently read the same value — orientation to *write* the file, `ws commit` to *find* it. No coordination state is needed beyond the file itself.
 
-"No session id resolves at all" (a plain script, or a human in a non-agent terminal) is the no-agent branch of rung 2: a discouraged `.env GDD_CO_AUTHOR` may serve there, and failing that the rung-3 error guides the caller (inline for a one-off; the discouraged `.env` for repeated manual commits; or `ws orient` if they are in an agent session after all). We never invent an identity.
+"No session id resolves at all" (a plain script, or a human in a non-agent terminal) is the rung-4 hard error: the caller is told to pass `--human` for a manual commit (no trailer), or to establish an identity (`ws orient` / `ws whoami --set`) if they are an agent after all. We never invent an identity and never silently drop attribution.
 
 ---
 
@@ -74,7 +77,7 @@ The session file's value is **re-determined fresh each session**, by the agent, 
 
 The value is **never** sourced from `.env` or frontmatter. The hard-refresh-per-session is the whole mechanism for correctness; sourcing from static config would reintroduce drift.
 
-This **replaces** the orientation skill's current "Commit attribution refresh (main agent only)" step, which rewrote `.env`'s `CLAUDE_MODEL`/`GDD_CO_AUTHOR` default (ask-first, per PR #100's review fix). The new step writes the session file instead of `.env`. Sub-agents still skip this step and use the inline override.
+This **replaces** the orientation skill's current "Commit attribution refresh (main agent only)" step, which rewrote `.env`'s `CLAUDE_MODEL`/`GDD_CO_AUTHOR` default (ask-first, per PR #100's review fix). The new step writes the session file instead of `.env` (via `ws whoami --set "Name" <email>` — the split-arg form keeps angle brackets off the command line so it passes the permission hook). Sub-agents skip this step and use `--co-author-file` instead.
 
 ---
 
@@ -99,19 +102,25 @@ The hard-error-on-missing behavior (rung 3) **is** the resilience mechanism, and
 
 A small read-mostly command:
 
-- `ws whoami` — prints the identity `ws commit` would currently use **and how it resolved** (inline / session file / none). Read-only; the "who will this commit as?" check.
-- `ws whoami --set "Name <email>"` — writes/rewrites the current session's identity file. The re-establish path the rung-3 error points at. Validates the `<…@…>` shape (shared with `ws commit`). Errors if no session id resolves (telling the caller to set `GDD_SESSION_ID` or use inline).
+- `ws whoami` — prints the identity `ws commit` would currently use (from the session file), or, when no session id resolves, a note that a commit here needs `--human` or an established identity. Read-only; the "who will this commit as?" check.
+- `ws whoami --set "Name <email>"` (human) or `ws whoami --set "Name" <email>` (the split-arg form an agent uses — no angle brackets on the command line, so it clears the permission hook) — writes/rewrites the current session's identity file. The re-establish path the rung-3/4 errors point at. Validates the `<…@…>` shape (shared with `ws commit`). Errors if no session id resolves (telling the caller to set `GDD_SESSION_ID`).
 
 Naming: `whoami` reads naturally for "which identity am I committing as." Alternative considered: `ws session identity show/set` — rejected as wordier for a frequently-typed check.
 
 ---
 
-## Sub-agent inline override + hook/allowlist changes
+## Sub-agent identity: `--co-author-file` (no hook/allowlist changes)
 
-Sub-agents keep the inline form, now on `GDD_CO_AUTHOR` (not the removed `CLAUDE_MODEL`): `GDD_CO_AUTHOR="Claude Sonnet 4.6 <noreply@anthropic.com>" ws commit …`. For this to auto-approve cleanly (rather than prompt), two existing Claude-specific mechanisms move from `CLAUDE_MODEL` to `GDD_CO_AUTHOR`:
+A sub-agent shares its parent's `CLAUDE_CODE_SESSION_ID`, so the session-file rung would attribute its commits to the parent. The escape hatch is the `--co-author-file <name>` flag:
 
-- **Hook prefix strip:** `strip_claude_model_prefix` in `.claude/hooks/gdd-permission-hook.sh` becomes `strip_gdd_co_author_prefix` — strips a single leading `GDD_CO_AUTHOR=<value>` (quoted or unquoted) from the **match copy only** before allow/redirect matching, exactly as the `CLAUDE_MODEL` version did. The security boundary is preserved: `GDD_CO_AUTHOR` is code-execution-inert (it only feeds the newline-sanitized trailer string), so stripping it for matching cannot smuggle a denied command through, and the two security regression tests (an `LD_PRELOAD=` prefix must NOT auto-allow; a prefixed `git commit` must still DENY) are re-pointed at `GDD_CO_AUTHOR` and kept.
-- **Allowlist patterns:** the four `Bash(CLAUDE_MODEL=* …commit:*)` entries in `.claude/settings.json` become `Bash(GDD_CO_AUTHOR=* …commit:*)` (both `ws commit:*` and `bash scripts/ws commit:*` dispatch forms). `docs/gdd/permissions.md`'s "Bounded `CLAUDE_MODEL=` attribution prefix" section is rewritten for `GDD_CO_AUTHOR`, and its empirical-matcher rows updated, per that doc's cross-reference rule.
+1. **The sub-agent writes its own identity file.** At init (or before its first commit), it determines its identity from what it is and writes `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` containing one line `GDD_CO_AUTHOR="Claude <model> <noreply@anthropic.com>"`. `.tmp/` is a scratch dir, so the Write is auto-allowed even for a background sub-agent. The `<parent>--<label>` key avoids collisions between concurrent sub-agents, groups them under the parent, and `ws clean` sweeps them as ordinary clutter (they are not the current session's own file, so the clean carve-out does not spare them — correct, since sub-agents are ephemeral).
+2. **The sub-agent commits with the flag:** `ws commit --co-author-file <parent>--<label> yggdrasil .commits/<f>.md`. Only the bare name is passed; `ws commit` resolves it under `.tmp/gdd-agent-sessions/`.
+
+Why this beats the original inline-env-prefix plan: the flag value is a plain file name — no `<email>` angle brackets on the command line, so it never trips the hook's **Tier 1 redirect deny** (the blocker that killed the inline form, see the Revision note), and `ws commit --co-author-file …` matches the existing `Bash(ws commit:*)` allow, so **no hook change and no allowlist change are needed**. This is strictly simpler than the prefix-strip machinery it replaces.
+
+**Hook: the attribution-prefix strip is removed.** `strip_claude_model_prefix` in `.claude/hooks/gdd-permission-hook.sh` is deleted outright — with no env-prefix attribution mechanism, it is dead code, and removing it shrinks the security surface (no "strip a leading VAR=value before matching" logic at all). The two general security regression tests are kept (adapted): an `LD_PRELOAD=` prefix must NOT auto-allow, and an env-prefixed command must NOT auto-allow (the bare `git commit` redirect-deny is covered by its own existing test).
+
+**Allowlist: the `CLAUDE_MODEL=*` patterns are removed, not replaced.** The four `Bash(CLAUDE_MODEL=* …commit:*)` entries in `.claude/settings.json` are deleted; nothing is added, because `ws commit --co-author-file …` already matches the bare `Bash(ws commit:*)`. `docs/gdd/permissions.md`'s "Bounded `CLAUDE_MODEL=` attribution prefix" section is removed (the mechanism it documented no longer exists), and any empirical-matcher rows that referenced it are updated per that doc's cross-reference rule.
 
 ---
 
@@ -119,9 +128,9 @@ Sub-agents keep the inline form, now on `GDD_CO_AUTHOR` (not the removed `CLAUDE
 
 Pre-1.0, before stricter SemVer applies, this design removes the superseded mechanisms rather than carrying them:
 
-- **`CLAUDE_MODEL`** — removed from `.env.example`, `scripts/ws-commit.sh` (resolution + help text), the orientation skill, and the hook/allowlist (re-pointed to `GDD_CO_AUTHOR` above). No back-compat alias.
-- **`identity.co_authored_by`** — removed from `scripts/ws-commit.sh` resolution and from the ecosystem-config documentation/schema references. (If any realm currently sets it, the migration note is: move to a session identity or inline override.)
-- **`.env`-sourced `GDD_CO_AUTHOR`** — removed from `.env.example` as a documented default so people don't reach for it by reflex. `ws-commit.sh` still reads it, but *only* in the no-agent-session path (a human committing manually), where it is the discouraged last resort described in the resolution chain. An agent session never consults it.
+- **`CLAUDE_MODEL`** — removed from `.env.example`, `scripts/ws-commit.sh` (resolution + help text), the orientation skill, and the hook + allowlist (the strip and the `Bash(CLAUDE_MODEL=* …)` patterns are deleted, not re-pointed). No back-compat alias.
+- **`identity.co_authored_by`** — removed from `scripts/ws-commit.sh` resolution and from the ecosystem-config documentation/schema references. (If any realm currently sets it, the migration note is: establish a session identity at orient, or use `--co-author-file`.)
+- **`.env`-sourced and inline-env `GDD_CO_AUTHOR`** — removed entirely. `.env.example` drops it; `ws-commit.sh` reads no identity from the environment at all. A human committing without an agent passes `--human` (no trailer); an agent uses its session file or `--co-author-file`. An agent session never consults `.env`.
 
 This directly serves the author's "drop legacy stuff like the old CLAUDE variable before we go GA" intent and the Thalamus note to audit/delete stale agent/model config.
 
@@ -131,11 +140,11 @@ This directly serves the author's "drop legacy stuff like the old CLAUDE variabl
 
 Bats (deterministic, in-repo):
 
-- `ws-commit.sh` resolution: inline wins over a present session file; session file used when no inline; **hard error** for an agent session (session id present) with no file (asserting the re-establish message); the `<…@…>` validation still rejects no-email/junk identities; a `.env`-set `GDD_CO_AUTHOR` is **ignored when a session id is present** (agent — proves no drift) but **used when no session id resolves** (the discouraged human-manual path); the all-absent case errors with the full guidance message.
+- `ws-commit.sh` resolution: `--co-author-file <name>` reads the named file and wins over the session file; a missing named file errors; session file used otherwise; **hard error** for an agent session (session id present) with no file (asserting the re-establish message); the `<…@…>` validation rejects no-email/junk identities resolved from a file; an environment `GDD_CO_AUTHOR` is **never consulted** (proves no drift); the no-session case **errors guiding to `--human`**, and `--human` commits with no trailer.
 - Session id resolution precedence: `GDD_SESSION_ID` > `CLAUDE_CODE_SESSION_ID` > `CODEX_THREAD_ID`; "none resolves" → error.
-- `ws whoami`: bare prints the resolved identity + source; `--set` writes the file; re-establish after a simulated wipe restores a working `ws commit`.
+- `ws whoami`: bare prints the resolved identity + source (or the no-session note); `--set` writes the file (both the bracketed and split-arg forms); re-establish after a simulated wipe restores a working `ws commit`.
 - `ws clean`: spares the current session's identity file, sweeps others.
-- Hook: `GDD_CO_AUTHOR=` prefix strips for matching (auto-approves the inline form); the two security regressions hold under the rename.
+- Hook: `ws commit --co-author-file …` auto-approves (matches `ws commit:*`); the strip is gone; the two security regressions hold (an `LD_PRELOAD=` prefix and an env-prefixed command do not auto-allow).
 
 Manual (cannot be bats'd — requires real agent sessions): the **two-agent acceptance test** — Claude and Codex committing concurrently in the same workspace, each producing the correct `Co-Authored-By`. This is the gate that validates the whole design and the reason Codex (not just Claude) is in Phase 1.
 
@@ -157,5 +166,5 @@ Each is deferred to its own design cycle; Phase 1 only guarantees the file forma
 ## Open questions / boundaries
 
 - **Model-version accuracy is best-effort.** The agent can confidently-but-wrongly believe its own version (the harness can relabel mid-session, as happened here). Per-session re-determination + human override is the honest ceiling; we do not claim more.
-- **Sub-agent session id sharing** is assumed (sub-agents share the parent's `CLAUDE_CODE_SESSION_ID`), which is *why* inline wins. If a future harness gives sub-agents distinct ids, inline-wins is still correct (a sub-agent with no file of its own would fall to inline anyway) — so the precedence holds either way.
+- **Sub-agent session id sharing** is assumed (sub-agents share the parent's `CLAUDE_CODE_SESSION_ID`), which is *why* a sub-agent must name its own file via `--co-author-file` rather than rely on session resolution (which would find the parent's file). If a future harness gives sub-agents distinct ids, `--co-author-file` still works unchanged, and a sub-agent could alternatively write its own session file — so the design holds either way.
 - **`CODEX_THREAD_ID` durability** is the one external dependency; the `GDD_SESSION_ID` override is the designed mitigation, and re-validating Codex's session surface is part of the two-agent acceptance test.

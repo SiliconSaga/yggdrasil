@@ -143,15 +143,15 @@ If they decline or don't respond, continue at the current mode without further m
 
 ### Commit identity (main agent only)
 
-`ws commit` attributes via a per-session identity file, established here. Determine your own identity from what you are — Claude → `Claude <model> <noreply@anthropic.com>`, Codex → `Codex <model> <noreply@openai.com>` — and write it:
+`ws commit` attributes via a per-session identity file, established here. Determine your own identity from what you are — Claude → `Claude <model>` + `noreply@anthropic.com`, Codex → `Codex <model>` + `noreply@openai.com` — and set it with the split name + bare-email form (the email is a separate arg so no angle brackets hit the Bash permission hook):
 
 ```bash
-ws whoami --set "Claude Opus 4.8 <noreply@anthropic.com>"
+ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
 ```
 
-Do this **silently** when you are confident of your identity — no prompt; it is one write and the single-agent case stays friction-free. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session (that is the whole point — a stale value can't drift in). The human can re-run `ws whoami --set` to correct it any time, and `ws whoami` shows the current resolution.
+Do this **silently** when you are confident of your identity — no prompt; it is one write and the single-agent case stays friction-free. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session (that is the whole point — a stale value can't drift in). Re-run `ws whoami --set` to correct it any time; `ws whoami` shows the current resolution. (Use the split form above, not `--set "Name <email>"` — the inline angle brackets trip the hook for agents; the bracket form is for a human's own terminal.)
 
-**Skip this entirely if you're a sub-agent.** Sub-agents share the parent's session and use the inline `GDD_CO_AUTHOR="…" ws commit` override (per `ws commit --help`).
+**Skip this entirely if you're a sub-agent.** A sub-agent shares the parent's session, so it must not write the parent's identity file. Instead it writes its OWN file `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR="Claude <model> <noreply@anthropic.com>"`, via the Write tool — `.tmp/` auto-allows) and commits with `ws commit --co-author-file <parent-session-id>--<label> …` (per `ws commit --help`).
 
 ### Trust verification
 
