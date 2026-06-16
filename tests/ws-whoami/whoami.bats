@@ -30,6 +30,11 @@ setup() { setup_whoami; }
     [ "$status" -ne 0 ]
     [[ "$output" == *"must include an email"* ]]
 }
+@test "whoami --set rejects extra args (unquoted multi-word name)" {
+    run_ws whoami --set Claude Opus 4.8 noreply@anthropic.com
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"quote a multi-word name"* ]]
+}
 @test "whoami errors cleanly when no identity established" {
     run_ws whoami
     [ "$status" -ne 0 ]

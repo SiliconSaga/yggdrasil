@@ -24,6 +24,9 @@ HELP
 fi
 
 if [[ "${1:-}" == "--set" ]]; then
+    # Reject extra args so a quoting slip (e.g. --set Claude Opus 4.8 email)
+    # fails loudly instead of silently dropping everything past the 3rd arg.
+    [[ $# -le 3 ]] || { echo "ERROR: --set takes \"Name <email>\" or \"Name\" <email> — quote a multi-word name." >&2; exit 1; }
     name="${2:-}"
     email="${3:-}"
     [[ -n "$name" ]] || { echo "ERROR: --set needs an identity, e.g. --set \"Claude Opus 4.8\" noreply@anthropic.com" >&2; exit 1; }
