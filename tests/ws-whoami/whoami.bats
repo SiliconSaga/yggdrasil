@@ -10,6 +10,14 @@ setup() { setup_whoami; }
     [[ "$output" == *"Codex GPT-5 <noreply@openai.com>"* ]]
     [[ "$output" == *"via session file"* ]]
 }
+@test "whoami --set accepts the split name + bare-email form (agent/hook-safe)" {
+    run_ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
+    [ "$status" -eq 0 ]
+    run_ws whoami
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+    [[ "$output" == *"via session file"* ]]
+}
 @test "whoami --set rejects an identity with no email" {
     run_ws whoami --set "Codex GPT-5"
     [ "$status" -ne 0 ]
@@ -24,4 +32,10 @@ setup() { setup_whoami; }
     run_ws whoami --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: ws whoami"* ]]
+}
+@test "whoami with no session reports no agent session (not an error)" {
+    run env WS_FOOTER_DISABLE=1 GDD_SESSION_ID="" bash "$WS_BIN" whoami
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No agent session"* ]]
+    [[ "$output" == *"--human"* ]]
 }

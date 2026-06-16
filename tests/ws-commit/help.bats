@@ -7,27 +7,25 @@
 
 load test_helper
 
-@test "ws commit --help explains per-session identity and the discouraged .env fallback" {
+@test "ws commit --help explains per-session resolution and the --human / no-trailer paths" {
     run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Resolved per session"* ]]
-    [[ "$output" == *".env"* ]]
+    [[ "$output" == *"first match wins"* ]]
+    [[ "$output" == *"--human"* ]]
+    [[ "$output" == *"no trailer"* ]]
 }
 
-@test "ws commit --help mentions GDD_CO_AUTHOR as the agent-neutral override" {
+@test "ws commit --help shows the email-shaped identity example" {
     run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"GDD_CO_AUTHOR"* ]]
     [[ "$output" == *"Codex GPT-5 <noreply@openai.com>"* ]]
 }
 
-@test "ws commit --help explains the sub-agent inline override" {
+@test "ws commit --help explains the sub-agent --co-author-file path" {
     run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
-    # Case-insensitive, but Bash 3.2-safe (macOS /bin/bash predates the
-    # ${var,,} downcase): the help uses "SUB-AGENTS:" as a heading and
-    # "sub-agents" in prose, so downcase via tr and match either without
-    # depending on which case wins.
+    [[ "$output" == *"--co-author-file"* ]]
+    # Case-insensitive, Bash 3.2-safe (macOS /bin/bash predates ${var,,}).
     local lower
     lower="$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')"
     [[ "$lower" == *"sub-agent"* ]]

@@ -15,14 +15,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Capture an inline GDD_CO_AUTHOR override BEFORE sourcing .env, so an
-# explicit `GDD_CO_AUTHOR=… ws commit` prefix (the sub-agent escape) is
-# distinguishable from a value that merely sits in .env (the discouraged
-# human-manual fallback). See ws-session.sh / the design doc.
-_INLINE_CO_AUTHOR="${GDD_CO_AUTHOR:-}"
-
-# Auto-source .env so tokens (and the discouraged human-manual .env
-# GDD_CO_AUTHOR) are available.
+# Auto-source .env so tokens (GitHub/GitLab) are available. Commit identity
+# is NOT read from .env — it resolves per session (see ws-session.sh).
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 # shellcheck source=ws-realm.sh
@@ -45,16 +39,19 @@ commit_help() {
         echo "  bodyfile    Path (relative to workspace root) to a .md file"
         echo "              with YAML frontmatter — typically .commits/<name>.md"
         echo ""
-        echo "The Co-Authored-By trailer is appended automatically."
-        echo "Identity (Co-Authored-By trailer):"
-        echo "  Resolved per session, not from static config:"
-        echo "    1. inline GDD_CO_AUTHOR=\"…\" prefix (sub-agent escape)"
-        echo "    2. this session's identity file (set at 'ws orient' or"
+        echo "The Co-Authored-By trailer credits the agent that committed."
+        echo "Resolution (first match wins):"
+        echo "    1. --human          → no trailer (a human committing)"
+        echo "    2. --co-author-file <name> → read identity from"
+        echo "       .tmp/gdd-agent-sessions/<name>.env (the sub-agent path)"
+        echo "    3. this session's identity file (set at 'ws orient' or"
         echo "       'ws whoami --set'), keyed by the session id"
-        echo "    3. else error — establish one (no silent fallback)"
-        echo "  A non-agent shell (no session id) may use a discouraged"
-        echo "  GDD_CO_AUTHOR in .env. Identity must include an email:"
-        echo "    GDD_CO_AUTHOR=\"Codex GPT-5 <noreply@openai.com>\""
+        echo "    4. else ERROR — no silent fallback. An agent must establish"
+        echo "       its identity; a human committing manually passes --human."
+        echo "  (An agent session whose identity file is missing is the same"
+        echo "  ERROR — re-establish via 'ws orient' / 'ws whoami --set'.)"
+        echo "  Identity must include an email, e.g."
+        echo "    Codex GPT-5 <noreply@openai.com>"
         echo "  Run 'ws whoami' to see who this session commits as."
         echo ""
         echo "Bodyfile frontmatter (YAML between --- markers):"
@@ -83,11 +80,20 @@ commit_help() {
         echo "               \`git add --dry-run\`, print the full commit"
         echo "               message that would land — but DO NOT touch"
         echo "               the index, working tree, or git history."
+        echo "  --human      Commit with no Co-Authored-By trailer (a human"
+        echo "               committing, e.g. a retry with an edited bodyfile)."
+        echo "  --co-author-file <name>"
+        echo "               Resolve the trailer identity from"
+        echo "               .tmp/gdd-agent-sessions/<name>.env — the way a"
+        echo "               sub-agent attributes its own commits (it writes"
+        echo "               that file, then names it here)."
         echo ""
         echo "Examples:"
         echo "  ws commit yggdrasil .commits/fix-store-race.md"
         echo "  ws commit mimir .commits/race-fix.md"
         echo "  ws commit yggdrasil --dry-run .commits/preview-me.md"
+        echo "  ws commit --human yggdrasil .commits/manual-retry.md"
+        echo "  ws commit --co-author-file sess--sub yggdrasil .commits/x.md"
     } >&"$stream"
 }
 
@@ -102,10 +108,20 @@ fi
 # the remaining positionals; their meaning is fixed (component +
 # bodyfile) regardless of where the flag appeared.
 dry_run=false
+human=false
+co_author_name=""
 _positional=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) dry_run=true; shift ;;
+        --human)   human=true; shift ;;
+        --co-author-file)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --co-author-file needs a name (a file under .tmp/gdd-agent-sessions/, sans .env)." >&2
+                exit 1
+            fi
+            co_author_name="$2"; shift 2 ;;
+        --co-author-file=*) co_author_name="${1#*=}"; shift ;;
         *)         _positional+=("$1"); shift ;;
     esac
 done
@@ -141,26 +157,34 @@ if [[ ! -f "$bodyfile" ]]; then
 fi
 
 # --- Resolve the Co-Authored-By identity (session-scoped) ---
-# Rungs: inline override → session file (agent) / discouraged .env (no
-# agent) → hard error. No identity.co_authored_by, no CLAUDE_MODEL.
-if ! co_authored_by="$(ws_resolve_co_author "$_INLINE_CO_AUTHOR")"; then
-    exit 1
+# Rungs: --human (no trailer) → --co-author-file <name> (sub-agent) →
+# session file (agent; missing = error) → else error (no silent fallback —
+# a human must pass --human; an agent must establish identity). No
+# identity.co_authored_by, no CLAUDE_MODEL, no .env-sourced value, no inline
+# env override. See ws-session.sh / the design doc.
+if $human; then
+    # Explicit human commit: no agent to credit, so no trailer (silent).
+    trailer=""
+else
+    if ! co_authored_by="$(ws_resolve_co_author "$co_author_name")"; then
+        exit 1
+    fi
+    # Sanitize — newlines would break the trailer format
+    co_authored_by="${co_authored_by%%$'\n'*}"
+    # Require an email-shaped token in angle brackets (`<…@…>`). This catches
+    # the common mistake — a bare name with no address (`Codex GPT-5`) or junk
+    # in the brackets (`<not an email>`) — without imposing a brittle RFC-ish
+    # pattern; the trailer is cosmetic attribution, not a validated contact.
+    # Pattern lives in a variable (bash best practice for =~) with LITERAL
+    # angle brackets — `\<`/`\>` would be word-boundary operators, not `<`/`>`.
+    email_re='<[^[:space:]@<>]+@[^[:space:]@<>]+>'
+    if [[ ! "$co_authored_by" =~ $email_re ]]; then
+        echo "ERROR: Co-Authored-By identity must include an email in angle brackets." >&2
+        echo "  Example: Codex GPT-5 <noreply@openai.com>" >&2
+        exit 1
+    fi
+    trailer="Co-Authored-By: $co_authored_by"
 fi
-# Sanitize — newlines would break the trailer format
-co_authored_by="${co_authored_by%%$'\n'*}"
-# Require an email-shaped token in angle brackets (`<…@…>`). This catches
-# the common mistake — a bare name with no address (`Codex GPT-5`) or junk
-# in the brackets (`<not an email>`) — without imposing a brittle RFC-ish
-# pattern; the trailer is cosmetic attribution, not a validated contact.
-# Pattern lives in a variable (bash best practice for =~) with LITERAL
-# angle brackets — `\<`/`\>` would be word-boundary operators, not `<`/`>`.
-email_re='<[^[:space:]@<>]+@[^[:space:]@<>]+>'
-if [[ ! "$co_authored_by" =~ $email_re ]]; then
-    echo "ERROR: Co-Authored-By identity must include an email in angle brackets." >&2
-    echo "  Set GDD_CO_AUTHOR like: Codex GPT-5 <noreply@openai.com>" >&2
-    exit 1
-fi
-trailer="Co-Authored-By: $co_authored_by"
 
 # Ensure .commits/ exists for the normal-commit path (first use on a
 # fresh clone may not have it yet). Skip in dry-run mode — dry-run
@@ -372,14 +396,17 @@ fi
 # Build the final commit message — used for the real commit OR for
 # the dry-run preview. Same shape either way so the user previews
 # exactly what would land.
+# Assemble message → optional body → optional trailer, each separated by a
+# blank line, with no dangling separator when a part is absent (the trailer
+# is empty for a --human / no-agent-session commit).
+full_message="$message"
 if [[ -n "$body_content" ]]; then
-    full_message="$message
+    full_message="$full_message
 
-$body_content
-
-$trailer"
-else
-    full_message="$message
+$body_content"
+fi
+if [[ -n "$trailer" ]]; then
+    full_message="$full_message
 
 $trailer"
 fi

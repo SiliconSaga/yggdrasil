@@ -31,27 +31,47 @@ setup() { setup_session_env; }
     [ "$status" -eq 0 ]
     [ "$output" = "Claude Opus 4.8 <noreply@anthropic.com>" ]
 }
-@test "resolve: inline override wins over session file" {
-    run_session 'GDD_SESSION_ID=s1 ws_write_session_identity "Claude Opus 4.8 <noreply@anthropic.com>"; GDD_SESSION_ID=s1 ws_resolve_co_author "Codex GPT-5 <noreply@openai.com>"'
-    [ "$output" = "Codex GPT-5 <noreply@openai.com>" ]
-}
 @test "resolve: agent session with no file hard-errors" {
     run_session 'GDD_SESSION_ID=s1 ws_resolve_co_author ""'
     [ "$status" -eq 1 ]
     [[ "$output" == *"No commit identity for this session"* ]]
 }
-@test "resolve: no session uses discouraged .env GDD_CO_AUTHOR" {
-    run_session 'GDD_CO_AUTHOR="Human Dev <dev@example.com>" ws_resolve_co_author ""'
-    [ "$status" -eq 0 ]
-    [ "$output" = "Human Dev <dev@example.com>" ]
-}
-@test "resolve: no session, no .env → guidance error" {
+@test "resolve: no session errors (no silent fallback; guides to --human)" {
     run_session 'ws_resolve_co_author ""'
     [ "$status" -eq 1 ]
-    [[ "$output" == *"No commit identity."* ]]
+    [[ "$output" == *"No commit identity resolved"* ]]
+    [[ "$output" == *"--human"* ]]
 }
-@test "resolve: .env value ignored when a session id is present" {
+@test "resolve: a GDD_CO_AUTHOR in the env is never consulted (no session → still errors)" {
+    run_session 'GDD_CO_AUTHOR="Drifty <x@y.z>" ws_resolve_co_author ""'
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"No commit identity resolved"* ]]
+}
+@test "resolve: a GDD_CO_AUTHOR in the env is never consulted (agent session, no file → error)" {
     run_session 'GDD_SESSION_ID=s1 GDD_CO_AUTHOR="Drifty <x@y.z>" ws_resolve_co_author ""'
     [ "$status" -eq 1 ]
     [[ "$output" == *"No commit identity for this session"* ]]
+}
+@test "resolve: --co-author-file reads the named identity file" {
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/parent--sub.env"
+    run_session 'ws_resolve_co_author "parent--sub"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "Sub Codex <noreply@openai.com>" ]
+}
+@test "resolve: --co-author-file wins over the current session file" {
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/parent--sub.env"
+    run_session 'GDD_SESSION_ID=parent ws_write_session_identity "Parent Claude <noreply@anthropic.com>"; GDD_SESSION_ID=parent ws_resolve_co_author "parent--sub"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "Sub Codex <noreply@openai.com>" ]
+}
+@test "resolve: --co-author-file naming a missing file errors" {
+    run_session 'GDD_SESSION_ID=s1 ws_resolve_co_author "nope"'
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"missing or sets no GDD_CO_AUTHOR"* ]]
+}
+@test "identity path: a name resolves under the agent-sessions dir" {
+    run_session 'ws_session_identity_path_for "parent--sub"'
+    [[ "$output" == *"/.tmp/gdd-agent-sessions/parent--sub.env" ]]
 }
