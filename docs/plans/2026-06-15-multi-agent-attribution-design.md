@@ -1,10 +1,10 @@
 # Multi-Agent Commit Attribution — Session-Scoped Identity (Phase 1) — Design
 
 **Date:** 2026-06-15
-**Status:** Design (approved; ready for implementation plan)
+**Status:** Implemented (Phase 1) — see the **Revision** note below for the as-built `--co-author-file` design.
 **Arc:** `multi-agent-attribution` (cross-workspace: Dionysus + FG4WWY622F)
 **Builds on:** PR #100 (introduced `GDD_CO_AUTHOR` as an agent-neutral trailer identity + `ws push` tags)
-**Related:** `docs/plans/2026-06-08-gdd-ga-readiness-design.md` (`R1` hook platform-split — the natural pair), `.claude/hooks/gdd-permission-hook.sh` (`strip_claude_model_prefix`, the prefix-strip precedent), `scripts/ws-hook-bypass.sh` (the `<session-id>` marker precedent this mirrors)
+**Related:** `docs/plans/2026-06-08-gdd-ga-readiness-design.md` (`R1` hook platform-split — the natural pair), `scripts/ws-hook-bypass.sh` (the `<session-id>` marker precedent this mirrors). (The `strip_claude_model_prefix` hook strip cited at design time as the prefix precedent was *removed* by this work — see the Revision note.)
 
 ---
 
