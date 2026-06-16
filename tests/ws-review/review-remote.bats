@@ -5,6 +5,7 @@ setup() {
     WS_BIN="$REPO_ROOT/scripts/ws"
     WORK="$BATS_TEST_TMPDIR/work"
     BIN_DIR="$BATS_TEST_TMPDIR/bin"
+    BODY_LOG="$WORK/glab-post-body.txt"
     mkdir -p "$WORK/components/app" "$WORK/realms" "$WORK/hoards" "$BIN_DIR"
 
     cat > "$WORK/ecosystem.yaml" <<'YAML'
@@ -25,6 +26,10 @@ YAML
     git -C "$WORK/components/app" remote add origin https://gitlab.com/upstream-group/project.git
     git -C "$WORK/components/app" remote add fork https://gitlab.com/example-group/forked-project.git
 
+    # Stub glab. The GET MR endpoint returns a DISTINCT title per project path
+    # so a test can prove which project the selected remote actually queried —
+    # not merely that the rendered header slug changed. POSTed note bodies are
+    # logged so the reply test can assert the message reached the API verbatim.
     cat > "$BIN_DIR/glab" <<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -33,21 +38,41 @@ if [[ "${1:-}" != "api" ]]; then
     echo "unexpected glab command: $*" >&2
     exit 1
 fi
+shift
 
-case "${2:-}" in
-    projects/*/merge_requests/1)
-        cat <<'JSON'
-{"title":"Test MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/source-project","target_branch":"main","web_url":"https://gitlab.com/example-group/forked-project/-/merge_requests/1"}
-JSON
+method="GET"
+path=""
+body=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --method) method="$2"; shift 2 ;;
+        -f) case "${2:-}" in body=*) body="${2#body=}" ;; esac; shift 2 ;;
+        projects/*) path="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+
+if [[ "$method" == "POST" && "$path" == */notes ]]; then
+    printf '%s' "$body" > "${GLAB_BODY_LOG:-/dev/null}"
+    echo '{"id":1}'
+    exit 0
+fi
+
+case "$path" in
+    projects/upstream-group%2Fproject/merge_requests/1)
+        echo '{"title":"Upstream MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/upstream","target_branch":"main","web_url":"https://gitlab.com/upstream-group/project/-/merge_requests/1"}'
         ;;
-    projects/*/merge_requests/1/approvals)
+    projects/example-group%2Fforked-project/merge_requests/1)
+        echo '{"title":"Fork MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/source-project","target_branch":"main","web_url":"https://gitlab.com/example-group/forked-project/-/merge_requests/1"}'
+        ;;
+    */merge_requests/1/approvals)
         echo '{"approved_by":[]}'
         ;;
-    projects/*/merge_requests/1/discussions)
+    */merge_requests/1/discussions)
         echo '[]'
         ;;
     *)
-        echo "unexpected glab api path: ${2:-}" >&2
+        echo "unexpected glab api path: $path" >&2
         exit 1
         ;;
 esac
@@ -65,6 +90,7 @@ run_ws_review() {
         "ECOSYSTEM=$WORK/ecosystem.yaml" \
         "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" \
         "GITLAB_TOKEN=dummy-token" \
+        "GLAB_BODY_LOG=$BODY_LOG" \
         bash "$WS_BIN" review "$@"
 }
 
@@ -78,11 +104,25 @@ run_ws_review() {
     [[ "$output" == *"--remote <name>"* ]]
 }
 
-@test "review --remote selects a specific remote when CR numbers overlap" {
+@test "review --remote selects a specific remote and queries its project" {
     run_ws_review app 1 --remote fork --compact
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"=== CR #1 (example-group/forked-project) ==="* ]]
-    [[ "$output" == *"Title: Test MR"* ]]
+    # The distinct per-project title proves the fork project endpoint was hit,
+    # not just that the header slug was relabeled.
+    [[ "$output" == *"Title: Fork MR"* ]]
+    [[ "$output" != *"Upstream MR"* ]]
     [[ "$output" != *"found on multiple remotes"* ]]
+}
+
+@test "reply preserves a message that begins with --remote" {
+    # The <message> positional is free-form; a message that starts with
+    # --remote must reach the API verbatim, not be consumed as the flag.
+    # The trailing --remote selects the remote (required: CR #1 exists on both).
+    run_ws_review app reply 1 abc123 '--remote=spoof' --remote fork
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Replied to thread on CR #1 (example-group/forked-project)"* ]]
+    [ "$(cat "$BODY_LOG")" = "--remote=spoof" ]
 }

@@ -82,7 +82,7 @@ review_help() {
 
 review_comments() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> <cr#> [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
+        echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
         exit 1
     fi
 
@@ -540,7 +540,7 @@ review_comments() {
 
 review_notes() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> notes <cr#> [--reviewer <name>] [--since <time>]" >&2
+        echo "Usage: ws review <comp> notes <cr#> [--remote <name>] [--reviewer <name>] [--since <time>]" >&2
         exit 1
     fi
 
@@ -611,7 +611,7 @@ review_notes() {
 
 review_threads() {
     if [[ $# -lt 1 ]]; then
-        echo "Usage: ws review <comp> threads <cr#> [--status | --resolve <id> | --resolve-all]" >&2
+        echo "Usage: ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]" >&2
         exit 1
     fi
 
@@ -683,7 +683,7 @@ review_threads() {
 
 review_reply() {
     if [[ $# -lt 3 || $# -gt 4 ]]; then
-        echo "Usage: ws review <comp> reply <cr#> <thread-id> <message> [--resolve]" >&2
+        echo "Usage: ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]" >&2
         exit 1
     fi
 
@@ -758,7 +758,31 @@ fi
 
 REVIEW_REMOTE=""
 _FILTERED_ARGS=()
+# `--remote` is extracted here, ahead of subcommand dispatch, because it drives
+# the remote/slug resolution below. The wrinkle is `reply <cr#> <thread-id>
+# <message>`: its <message> is free-form and may legitimately begin with
+# `--remote`, so that positional must pass through verbatim rather than be
+# consumed as the flag. Locate the subcommand keyword first (looking past any
+# leading `--remote` flag), then shield the reply message positional.
+_subcmd=""
+_peek_args=("$@")
+_pi=0
+while [[ $_pi -lt ${#_peek_args[@]} ]]; do
+    case "${_peek_args[$_pi]}" in
+        --remote) _pi=$((_pi + 2)) ;;
+        --remote=*) _pi=$((_pi + 1)) ;;
+        *) _subcmd="${_peek_args[$_pi]}"; break ;;
+    esac
+done
+# For `reply`, the <message> is the 4th positional: reply, cr#, thread-id, message.
+_positional=0
 while [[ $# -gt 0 ]]; do
+    if [[ "$_subcmd" == "reply" && $_positional -eq 3 ]]; then
+        _FILTERED_ARGS+=("$1")
+        _positional=$((_positional + 1))
+        shift
+        continue
+    fi
     case "$1" in
         --remote)
             [[ $# -ge 2 ]] || { echo "ERROR: --remote requires a value" >&2; exit 1; }
@@ -772,6 +796,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             _FILTERED_ARGS+=("$1")
+            _positional=$((_positional + 1))
             shift
             ;;
     esac
@@ -839,11 +864,16 @@ fi
 
 REPO_SLUG=""
 _SELECTED_PROVIDER=""
+# Track the exact selected remote's URL alongside its slug. Matching by slug
+# alone is ambiguous when two remotes share owner/repo across hosts or provider
+# mappings — token setup below needs the precise URL, not "first slug match".
+_SELECTED_URL=""
 if [[ -n "$REVIEW_REMOTE" ]]; then
     for i in "${!_CANDIDATE_REMOTES[@]}"; do
         if [[ "${_CANDIDATE_REMOTES[$i]}" == "$REVIEW_REMOTE" ]]; then
             REPO_SLUG="${_CANDIDATE_SLUGS[$i]}"
             _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[$i]}"
+            _SELECTED_URL="${_CANDIDATE_URLS[$i]}"
             break
         fi
     done
@@ -859,11 +889,16 @@ if [[ -n "$REVIEW_REMOTE" ]]; then
 elif [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
+    _SELECTED_URL="${_CANDIDATE_URLS[0]}"
 elif [[ -n "$_PEEK_CR" ]]; then
     # Try each slug — collect all matches (CR numbers aren't unique across repos)
-    # Deduplicate: skip slug/provider pairs we've already probed
+    # Deduplicate: skip slug/provider pairs we've already probed. Carry the
+    # remote name and URL through the probe so the error/selection paths use the
+    # matched remote identity directly instead of reconstructing it by slug.
     _MATCH_SLUGS=()
     _MATCH_PROVIDERS=()
+    _MATCH_REMOTES=()
+    _MATCH_URLS=()
     _seen=""
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
@@ -875,6 +910,8 @@ elif [[ -n "$_PEEK_CR" ]]; then
         if gp_review_summary "$_slug" "$_PEEK_CR" &>/dev/null; then
             _MATCH_SLUGS+=("$_slug")
             _MATCH_PROVIDERS+=("$_prov")
+            _MATCH_REMOTES+=("${_CANDIDATE_REMOTES[$i]}")
+            _MATCH_URLS+=("${_CANDIDATE_URLS[$i]}")
         fi
     done
     if [[ ${#_MATCH_SLUGS[@]} -eq 0 ]]; then
@@ -883,13 +920,8 @@ elif [[ -n "$_PEEK_CR" ]]; then
         exit 1
     elif [[ ${#_MATCH_SLUGS[@]} -gt 1 ]]; then
         _matches=()
-        for _match in "${_MATCH_SLUGS[@]}"; do
-            for i in "${!_CANDIDATE_SLUGS[@]}"; do
-                if [[ "${_CANDIDATE_SLUGS[$i]}" == "$_match" ]]; then
-                    _matches+=("${_CANDIDATE_REMOTES[$i]}=$_match")
-                    break
-                fi
-            done
+        for i in "${!_MATCH_SLUGS[@]}"; do
+            _matches+=("${_MATCH_REMOTES[$i]}=${_MATCH_SLUGS[$i]}")
         done
         echo "ERROR: CR #$_PEEK_CR found on multiple remotes for '$COMP'." >&2
         echo "  Matches: ${_matches[*]}" >&2
@@ -898,10 +930,12 @@ elif [[ -n "$_PEEK_CR" ]]; then
     fi
     REPO_SLUG="${_MATCH_SLUGS[0]}"
     _SELECTED_PROVIDER="${_MATCH_PROVIDERS[0]}"
+    _SELECTED_URL="${_MATCH_URLS[0]}"
 else
     # Can't probe without a CR number — use first slug
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
+    _SELECTED_URL="${_CANDIDATE_URLS[0]}"
 fi
 
 # Ensure the selected provider is loaded
@@ -909,12 +943,10 @@ gp_load "$_SELECTED_PROVIDER"
 
 # Pre-populate the provider token from ecosystem config so gp_check_cli
 # doesn't fall through to glab auth status when only split tokens are set.
-for _i in "${!_CANDIDATE_SLUGS[@]}"; do
-    if [[ "${_CANDIDATE_SLUGS[$_i]}" == "$REPO_SLUG" ]]; then
-        gp_set_token_for_url "${_CANDIDATE_URLS[$_i]}" "$_ECO"
-        break
-    fi
-done
+# Use the exact selected remote URL captured above — not a re-match by slug.
+if [[ -n "$_SELECTED_URL" ]]; then
+    gp_set_token_for_url "$_SELECTED_URL" "$_ECO"
+fi
 
 # Provider-specific auth check
 gp_check_cli || exit 1
