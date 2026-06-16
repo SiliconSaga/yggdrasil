@@ -19,9 +19,9 @@ HOOK_BIN="$REPO_ROOT/.claude/hooks/gdd-permission-hook.sh"
 # Homebrew coreutils install (`gtimeout`). Tests need one or the other
 # — see tests/README.md for the install hint.
 if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT_BIN="timeout"
+    TIMEOUT_BIN="$(command -v timeout)"
 elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT_BIN="gtimeout"
+    TIMEOUT_BIN="$(command -v gtimeout)"
 else
     echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
     echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2

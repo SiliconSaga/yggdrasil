@@ -90,6 +90,8 @@ gp_create_pr() {
 
     if [[ -n "$fork_slug" ]]; then
         cmd+=(--head "$fork_slug")
+    else
+        cmd+=(--head "$repo")
     fi
 
     "${cmd[@]}"
