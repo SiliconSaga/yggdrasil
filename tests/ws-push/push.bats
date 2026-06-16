@@ -107,3 +107,27 @@ YAML
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_KEY_1=http.https://gitlab-master.nvidia.com/.extraheader"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_1=Authorization: Basic $expected"* ]]
 }
+
+@test "GitLab look-alike host gets NO GITLAB_TOKEN default (no credential leak)" {
+    # A host that merely resembles GitLab must not harvest GITLAB_TOKEN via the
+    # default fallback — only an explicit defaults.gitTokens mapping may send a
+    # token there. With no mapping, no auth header is injected.
+    git -C "$REPO_DIR" remote set-url fork https://gitlab-evil.example/attacker/repo.git
+    cat > "$BATS_TEST_TMPDIR/ecosystem.yaml" <<'YAML'
+defaults: {}
+identity: {}
+components: {}
+YAML
+    export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
+    export GITLAB_TOKEN="glpat_secret"
+    install_git_push_spy
+
+    run_git_push main
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"push auth"* ]]
+    [ -f "$GIT_PUSH_SPY_LOG" ]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"extraheader"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"Authorization: Basic"* ]]
+}

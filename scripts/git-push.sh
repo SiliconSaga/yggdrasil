@@ -59,11 +59,17 @@ git_push_resolve_token() {
     fi
   fi
 
-  token_value="${!default_var:-}"
-  if [[ -n "$token_value" ]]; then
-    GIT_PUSH_TOKEN_LABEL="$default_var"
-    GIT_PUSH_TOKEN_VALUE="$token_value"
-    return 0
+  # Default-token fallback only when a default var is named. A look-alike
+  # host (e.g. gitlab-evil.example) deliberately passes an empty default so
+  # GITLAB_TOKEN can't leak to it — only an explicit defaults.gitTokens
+  # mapping (resolved above) sends a token there.
+  if [[ -n "$default_var" ]]; then
+    token_value="${!default_var:-}"
+    if [[ -n "$token_value" ]]; then
+      GIT_PUSH_TOKEN_LABEL="$default_var"
+      GIT_PUSH_TOKEN_VALUE="$token_value"
+      return 0
+    fi
   fi
 
   GIT_PUSH_TOKEN_LABEL=""
@@ -89,9 +95,17 @@ git_push_auth_env_for_remote() {
       default_token_var="GH_TOKEN"
       user="x-access-token"
       ;;
-    gitlab.com|gitlab-*|*.gitlab.*)
+    gitlab.com)
       provider="GitLab"
       default_token_var="GITLAB_TOKEN"
+      user="${GITLAB_USER:-oauth2}"
+      ;;
+    gitlab-*|*.gitlab.*)
+      # Hostnames that merely resemble GitLab — never apply the GITLAB_TOKEN
+      # default here; require an explicit defaults.gitTokens mapping so a
+      # look-alike host can't harvest the credential.
+      provider="GitLab"
+      default_token_var=""
       user="${GITLAB_USER:-oauth2}"
       ;;
     *)
