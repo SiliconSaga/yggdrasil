@@ -46,8 +46,8 @@
 #                     for a Tier 2 redirect-deny slug. See `ws hook-bypass --help`.
 #   help              Show this help message (or `ws help <subcommand>` for per-command help)
 #
-# Auth commands (run these before ws push / ws cr):
-#   gitlab-auth [--status]  Configure glab + git credentials from .env tokens.
+# Auth commands (run these before ws cr / raw provider debugging):
+#   gitlab-auth [--status]  Configure glab + optional git credentials from .env tokens.
 #                           --status: show which token env vars are set/unset (no changes made).
 #   diagnose <comp>         Show ecosystem entry, clone status, remotes, provider detection,
 #                           and which gitToken env var covers each remote (set or missing).
@@ -56,7 +56,7 @@
 # First-time setup:
 #   1. Add tokens to .env  (see docs/git-provider-setup.md for token scopes)
 #   2. source .env
-#   3. ws gitlab-auth       (registers glab + git credential helper)
+#   3. ws gitlab-auth       (self-hosted GitLab API setup; optional git credential cache)
 #   4. ws clone <comp>
 #   5. ws diagnose <comp>   (verify token coverage before pushing)
 #

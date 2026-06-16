@@ -237,8 +237,10 @@ glab auth login --hostname "$GITLAB_HOST" --token "${GITLAB_GDD_GROUP_WRITE_TOKE
 ```
 
 For `gitlab.com`, `glab` reads `GITLAB_TOKEN` automatically and no `auth login`
-step is needed. For self-hosted, the one-time login registers the host;
-subsequent calls use the stored credentials.
+step is needed. For self-hosted, the one-time login registers the host for API
+calls. `ws push` does not require the OS credential helper for HTTPS remotes
+when a matching `.env` / `defaults.gitTokens` token is present; it injects that
+token into the single push process and disables credential-helper prompts.
 
 Verify with:
 

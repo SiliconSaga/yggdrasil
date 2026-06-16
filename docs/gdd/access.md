@@ -239,12 +239,12 @@ human identity.
 - `glab issue list` and several other subcommands require
   `GITLAB_HOST` in the environment for self-hosted instances. There's
   no `--hostname` flag on subcommands. Set it in `.env`.
-- `glab auth login` configures SSH for API calls but does **not**
-  store HTTPS git credentials. `git clone`/`push` over HTTPS will
-  hang waiting for a password. Either use SSH URLs, or run
-  `git credential approve` to cache the token in your keychain. The
-  `ws gitlab-auth` subcommand registers the token with glab and
-  caches HTTPS credentials in one step.
+- `glab auth login` configures API calls but does **not** automatically
+  make raw HTTPS Git operations non-interactive. `ws push` uses the
+  matching `.env` / `defaults.gitTokens` token for its own HTTPS push
+  process and disables credential-helper prompts, so it does not need a
+  keychain entry. Raw `git clone` / `git push` still need SSH URLs or a
+  credential helper if you run them outside `ws`.
 - `GITLAB_TOKEN` must be set for `glab` to authenticate (parallel to
   `GH_TOKEN` for `gh`).
 - `glab mr create --head <ref>` expects the **full fork project
