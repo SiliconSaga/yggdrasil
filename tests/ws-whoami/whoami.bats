@@ -18,6 +18,13 @@ setup() { setup_whoami; }
     [[ "$output" == *"Claude Opus 4.8 <noreply@anthropic.com>"* ]]
     [[ "$output" == *"via session file"* ]]
 }
+@test "whoami --set preserves shell-significant characters as data" {
+    run_ws whoami --set 'Codex "Quoted" $Model' noreply@openai.com
+    [ "$status" -eq 0 ]
+    run_ws whoami
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'Codex "Quoted" $Model <noreply@openai.com>'* ]]
+}
 @test "whoami --set rejects an identity with no email" {
     run_ws whoami --set "Codex GPT-5"
     [ "$status" -ne 0 ]

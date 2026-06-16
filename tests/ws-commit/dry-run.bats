@@ -261,7 +261,7 @@ EOF
 }
 
 @test "a resolved identity without an email is rejected" {
-    printf 'GDD_CO_AUTHOR="Codex GPT-5"\n' \
+    printf 'GDD_CO_AUTHOR=Codex GPT-5\n' \
         > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
@@ -275,7 +275,7 @@ EOF
 
 @test "a resolved identity with junk (no @) in the brackets is rejected" {
     # An email-shaped token (with @) is required, so '<not an email>' fails.
-    printf 'GDD_CO_AUTHOR="Codex GPT-5 <not an email>"\n' \
+    printf 'GDD_CO_AUTHOR=Codex GPT-5 <not an email>\n' \
         > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
@@ -345,7 +345,7 @@ EOF
 }
 
 @test "--co-author-file resolves the identity from a named sub-agent file" {
-    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' \
+    printf 'GDD_CO_AUTHOR=Sub Codex <noreply@openai.com>\n' \
         > "$REPO_DIR/.tmp/gdd-agent-sessions/sess--sub.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: subagent file" "test.md"
@@ -360,6 +360,14 @@ EOF
     run_ws_commit --co-author-file nope yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
     [ "$status" -ne 0 ]
     [[ "$output" == *"missing or sets no GDD_CO_AUTHOR"* ]]
+}
+
+@test "--co-author-file= with an empty name errors before falling back" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: empty sub" "test.md"
+    run_ws_commit --co-author-file= yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--co-author-file needs a name"* ]]
 }
 
 @test "no agent session without --human errors (no silent fallback)" {
@@ -379,7 +387,7 @@ EOF
 }
 
 @test "--human wins over --co-author-file (no trailer)" {
-    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' \
+    printf 'GDD_CO_AUTHOR=Sub Codex <noreply@openai.com>\n' \
         > "$REPO_DIR/.tmp/gdd-agent-sessions/sess--sub.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: human beats coauthor" "test.md"
@@ -391,7 +399,7 @@ EOF
 @test "a newline in the resolved identity is truncated (no trailer injection)" {
     # Identity files are machine-written, but guard the trailer against a
     # multi-line value sneaking extra commit-message lines past the trailer.
-    printf 'GDD_CO_AUTHOR="Claude Opus 4.8 <noreply@anthropic.com>\nInjected-Trailer-Line"\n' \
+    printf 'GDD_CO_AUTHOR=Claude Opus 4.8 <noreply@anthropic.com>\nInjected-Trailer-Line\n' \
         > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: newline guard" "test.md"

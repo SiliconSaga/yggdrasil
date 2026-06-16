@@ -16,8 +16,8 @@ setup() {
 @test "ws clean spares the current session's identity, sweeps others" {
     export WS_CLEAN_MINE_THRESHOLD=1
     mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
-    printf 'GDD_CO_AUTHOR="A <a@b.c>"\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/keep-me.env"
-    printf 'GDD_CO_AUTHOR="B <b@c.d>"\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/other.env"
+    printf 'GDD_CO_AUTHOR=A <a@b.c>\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/keep-me.env"
+    printf 'GDD_CO_AUTHOR=B <b@c.d>\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/other.env"
     # A sibling top-level .tmp/ entry, unrelated to sessions: must still be
     # wholesale-removed (pins that the carve-out only spares `keep`, not all
     # of .tmp/).

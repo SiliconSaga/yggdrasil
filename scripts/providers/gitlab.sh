@@ -128,7 +128,7 @@ _gl_encode() { printf '%s' "${1//\//%2F}"; }
 gp_review_summary() {
     local slug="$1" mr_num="$2"
     local encoded; encoded=$(_gl_encode "$slug")
-    glab api "projects/$encoded/merge_requests/$mr_num" 2>/dev/null | jq -r '
+    glab api "projects/$encoded/merge_requests/$mr_num" | jq -r '
         "Title: \(.title)\nState: \(.state)\nAuthor: \(.author.username)\nBranch: \(.source_branch) → \(.target_branch)\nURL: \(.web_url)"
     ' 2>/dev/null
 }

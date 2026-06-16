@@ -1,12 +1,14 @@
 # Session-Scoped Commit Attribution (Phase 1) Implementation Plan
 
-> **Revision (2026-06-16, during implementation):** Tasks 6–8 below are **superseded**. The sub-agent escape hatch is no longer an inline `GDD_CO_AUTHOR=` env prefix (the required `<email>` angle brackets trip the permission hook's Tier 1 redirect deny), so the hook strip + `CLAUDE_MODEL=`→`GDD_CO_AUTHOR=` allowlist swap were dropped. Instead: sub-agents use `ws commit --co-author-file <name>` (reads `.tmp/gdd-agent-sessions/<name>.env`), the hook's attribution-prefix strip is **removed**, the `CLAUDE_MODEL=` allowlist patterns are **deleted** (no replacement — the flag matches `ws commit:*`), the inline-env and `.env`-sourced identity rungs are **dropped**, and the no-session case is a **hard error guiding to `--human`** rather than a silent no-trailer commit. See the design doc's **Revision** note for the full rationale. Tasks 1–5 landed as written.
+> **Revision (2026-06-16, during implementation):** The embedded task steps below started as the implementation draft; the as-built behavior differs in the places listed here and the as-built behavior wins over older snippets. The sub-agent escape hatch is no longer an inline `GDD_CO_AUTHOR=` env prefix (the required `<email>` angle brackets trip the permission hook's Tier 1 redirect deny), so the hook strip + `CLAUDE_MODEL=`→`GDD_CO_AUTHOR=` allowlist swap were dropped. Instead: sub-agents use `ws commit --co-author-file <name>` (reads `.tmp/gdd-agent-sessions/<name>.env`), the hook's attribution-prefix strip is **removed**, the `CLAUDE_MODEL=` allowlist patterns are **deleted** (no replacement — the flag matches `ws commit:*`), the inline-env and `.env`-sourced identity rungs are **dropped**, and the no-session case is a **hard error guiding to `--human`** rather than a silent no-trailer commit. PR review dogfooding also added a Codex-specific hardening fix: `ws review` multi-remote probing must report network/auth/provider lookup failures distinctly from true PR-not-found results. See the design doc's **Revision** note for the full rationale.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `ws commit` attribute the right agent per session — resolving the `Co-Authored-By` identity from a per-session file established fresh at orient — so concurrent Claude + Codex sessions never collide or drift, and drop the legacy `CLAUDE_MODEL` / `identity.co_authored_by` paths.
 
-**Architecture:** A tiny sourced helper (`scripts/ws-session.sh`) resolves the current session id (`GDD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CODEX_THREAD_ID`) and reads/writes a per-session identity file at `.tmp/gdd-agent-sessions/<session-id>.env`. `ws commit` resolves identity in three rungs (inline override → session file → hard error; a discouraged `.env` value serves only the no-session human-manual case). A new `ws whoami` shows/sets the session identity; orientation writes it; `ws clean` spares the current session's file. The `CLAUDE_MODEL=` inline-prefix hook strip + allowlist patterns move to `GDD_CO_AUTHOR=`.
+**Architecture:** A tiny sourced helper (`scripts/ws-session.sh`) resolves the current session id (`GDD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CODEX_THREAD_ID`) and reads/writes a per-session identity file at `.tmp/gdd-agent-sessions/<session-id>.env`. `ws commit` resolves identity as: `--human` suppresses the trailer, otherwise `--co-author-file <name>` wins for sub-agents, otherwise the current session file wins, otherwise the command hard-errors with guidance. There is no inline-env identity rung and no `.env`-sourced fallback. `ws whoami` shows/sets the session identity; orientation writes it; `ws clean` spares the current session's file. The old `CLAUDE_MODEL=` hook/allowlist bridge is deleted rather than replaced.
+
+**As-built delta map:** Any older code block below that mentions inline `GDD_CO_AUTHOR=`, `.env` identity fallback, `strip_gdd_co_author_prefix`, or `GDD_CO_AUTHOR=*` allowlist entries is historical draft material. The live implementation uses `--co-author-file` for sub-agents, parses session identity files as data rather than shell, keeps `.env` out of attribution, deletes legacy `CLAUDE_MODEL=` allowances without replacement, and treats `ws review` provider lookup failures separately from 404/not-found misses.
 
 **Tech Stack:** Bash 4+ (`scripts/ws*` + `.claude/hooks/gdd-permission-hook.sh`), bats-core (vendored at `tests/vendor/bats-core/`), `jq`/`yq`, markdown. Design: `docs/plans/2026-06-15-multi-agent-attribution-design.md`.
 
@@ -15,12 +17,12 @@
 ## Context the executing engineer needs
 
 - **Branch:** all work lands on `feat/session-scoped-attribution` (already created off main, design doc already committed there). One PR via `ws cr` at the end.
-- **Commit convention:** use `ws commit yggdrasil .commits/<name>.md` (never raw `git commit`). Write the bodyfile to `.commits/` with `add:` frontmatter. The trailer is appended automatically. **Note:** once Task 2 lands, *your own* `ws commit` needs a resolvable identity — the test helper handles tests, but for real commits ensure your session has one (orientation, or `GDD_CO_AUTHOR="…" ws commit`).
+- **Commit convention:** use `ws commit yggdrasil .commits/<name>.md` (never raw `git commit`). Write the bodyfile to `.commits/` with `add:` frontmatter. The trailer is appended automatically. **Note:** once Task 2 lands, *your own* `ws commit` needs a resolvable identity — the test helper handles tests, but for real commits ensure your session has one (`ws orient`, or `ws whoami --set "Codex GPT-5" noreply@openai.com` / the Claude equivalent).
 - **Run tests:** `ws test yggdrasil` runs every `*.bats`. Focused loop: `bash tests/vendor/bats-core/bin/bats tests/<dir>/`.
 - **No hard-wrapped prose** in markdown (single-line paragraphs/bullets) — `gdd-doc-writing`, enforced.
 - **Fresh-shell-per-call:** each Bash tool call is a new shell; exported env does not persist. The session id is present in *every* call's env (harness-injected), which is why a per-call file keyed by it works. `ws hook-bypass` already reads `CLAUDE_CODE_SESSION_ID` this way (`scripts/ws-hook-bypass.sh:162`).
-- **`.env` is sourced by `ws-commit.sh` for tokens** (`scripts/ws-commit.sh:19`); the inline `GDD_CO_AUTHOR` must be captured *before* that source to distinguish it from a `.env` value.
-- **Key current code:** the resolution block to replace is `scripts/ws-commit.sh:137-166`; the email validation (`email_re`) at 154-165 is reused as-is. The hook strip is `strip_claude_model_prefix` at `.claude/hooks/gdd-permission-hook.sh:824-843`. The settings allowlist `CLAUDE_MODEL=` patterns are the four `Bash(CLAUDE_MODEL=* …commit:*)` lines in `.claude/settings.json`. The orientation step to rewrite is `.agent/skills/gdd-orientation/SKILL.md:144-164`.
+- **`.env` is sourced by some `ws` flows for tokens, but commit identity is not read from `.env`.** Identity comes only from `--co-author-file` or the current session file unless the caller passes `--human`.
+- **Key current code:** the resolution block to replace is `scripts/ws-commit.sh:137-166`; the email validation (`email_re`) at 154-165 is reused as-is. Historical hook/settings work around `CLAUDE_MODEL=` was rejected during implementation and is not live scope. The orientation step to rewrite is `.agent/skills/gdd-orientation/SKILL.md:144-164`.
 
 ---
 
@@ -32,11 +34,9 @@
 - **Modify** `scripts/ws-commit.sh` — capture inline pre-`.env`; replace resolution block with `ws_resolve_co_author`; update help.
 - **Modify** `scripts/ws` — dispatch `whoami`; add help line; add session-file carve-out to `ws_clean`.
 - **Modify** `tests/ws-commit/test_helper.bash` — establish a deterministic test session identity.
-- **Modify** `.claude/hooks/gdd-permission-hook.sh` — rename strip → `GDD_CO_AUTHOR`.
-- **Modify** `tests/hook/gdd-permission-hook.bats` + `tests/hook/test_helper.bash` — re-point prefix + security-regression tests.
-- **Modify** `.claude/settings.json` — `CLAUDE_MODEL=*` allow patterns → `GDD_CO_AUTHOR=*`.
 - **Modify** `.agent/skills/gdd-orientation/SKILL.md` — write session file instead of `.env`.
 - **Modify** `.env.example`, `docs/gdd/permissions.md`, `docs/ws-cli-guide.md` — legacy removal + doc updates.
+- **Do not modify** `.claude/hooks/gdd-permission-hook.sh` / `.claude/settings.json` for a `GDD_CO_AUTHOR=` prefix replacement; that path was superseded by `--co-author-file`.
 
 ---
 
@@ -577,12 +577,12 @@ Replace the entire `### Commit attribution refresh (main agent only)` section (l
 `ws commit` attributes via a per-session identity file, established here. Determine your own identity from what you are — Claude → `Claude <model> <noreply@anthropic.com>`, Codex → `Codex <model> <noreply@openai.com>` — and write it:
 
 ```bash
-ws whoami --set "Claude Opus 4.8 <noreply@anthropic.com>"
+ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
 ```
 
 Do this **silently** when you are confident of your identity — no prompt; it is one write and the single-agent case stays friction-free. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session (that is the whole point — a stale value can't drift in). The human can re-run `ws whoami --set` to correct it any time, and `ws whoami` shows the current resolution.
 
-**Skip this entirely if you're a sub-agent.** Sub-agents share the parent's session and use the inline `GDD_CO_AUTHOR="…" ws commit` override (per `ws commit --help`).
+**Skip this entirely if you're a sub-agent.** A sub-agent writes its own identity file `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>` or the Codex equivalent) and commits with `ws commit --co-author-file <parent-session-id>--<label> …`.
 ```
 
 - [ ] **Step 2: Verify the skill reads cleanly**
@@ -596,95 +596,34 @@ Write `.commits/t5-orient-identity.md` (`add:` `.agent/skills/gdd-orientation/SK
 
 ---
 
-## Task 6: Move the inline-prefix hook strip from `CLAUDE_MODEL` to `GDD_CO_AUTHOR`
+## Task 6: Superseded — no inline-prefix hook strip
 
-**Files:**
-- Modify: `.claude/hooks/gdd-permission-hook.sh:788-843`
-- Modify: `tests/hook/gdd-permission-hook.bats` (prefix-allow + security regressions)
+**Decision:** Do not move the hook strip from `CLAUDE_MODEL=` to `GDD_CO_AUTHOR=`. The inline-env design is rejected because `GDD_CO_AUTHOR="Name <email>" ws commit …` crosses the Claude hook's Tier 1 redirect parser at the angle brackets, and because Codex-style permissioning should not depend on a Claude-only hook escape hatch.
 
-- [ ] **Step 1: Read the current hook tests for the prefix**
+**As-built behavior:** Sub-agents write a named identity file under `.tmp/gdd-agent-sessions/` and call `ws commit --co-author-file <name> …`. That flag matches the existing `ws commit:*` allow pattern, so no shell env-prefix stripping is needed.
 
-Run: `grep -n "CLAUDE_MODEL" tests/hook/gdd-permission-hook.bats`
-Note the tests: `allow: CLAUDE_MODEL prefix on ws commit is allowlisted` (and the `bash scripts/ws commit`, unquoted, single-quoted variants), and `security: env prefix does NOT let a redirect-denied command through` / `LD_PRELOAD prefix … does NOT auto-allow`.
-
-- [ ] **Step 2: Rename + repoint the strip function**
-
-In `.claude/hooks/gdd-permission-hook.sh`, rename `strip_claude_model_prefix` → `strip_gdd_co_author_prefix`, change every `CLAUDE_MODEL` to `GDD_CO_AUTHOR` in the function body, the three `case` arms, the call site (line 839), and the comment block (788-823) — keeping the security rationale intact (the prefix is execution-inert: `GDD_CO_AUTHOR` only feeds the newline-sanitized trailer string). The three arms become:
-
-```bash
-strip_gdd_co_author_prefix() {
-    local s="$1"
-    case "$s" in
-        'GDD_CO_AUTHOR="'*'" '*)  printf '%s' "${s#GDD_CO_AUTHOR=\"*\" }" ;;
-        "GDD_CO_AUTHOR='"*"' "*)  printf '%s' "${s#GDD_CO_AUTHOR=\'*\' }" ;;
-        "GDD_CO_AUTHOR="*" "*)    printf '%s' "${s#GDD_CO_AUTHOR=* }" ;;
-        *)                         printf '%s' "$s" ;;
-    esac
-}
-match_cmd="$(strip_gdd_co_author_prefix "$match_cmd")"
-```
-
-- [ ] **Step 3: Repoint the hook tests**
-
-In `tests/hook/gdd-permission-hook.bats`, change the four `CLAUDE_MODEL prefix …` allow tests to use `GDD_CO_AUTHOR=` (e.g. `run_hook 'GDD_CO_AUTHOR="Claude Opus 4.8 <noreply@anthropic.com>" bash scripts/ws commit yggdrasil .commits/x.md'`), and update the security regression that asserts a non-stripped env prefix still denies (keep the `LD_PRELOAD=…` case as-is — it must still NOT auto-allow). Test names may keep or drop "CLAUDE_MODEL" wording; prefer renaming for clarity.
-
-- [ ] **Step 4: Run the hook suite**
-
-Run: `bash tests/vendor/bats-core/bin/bats tests/hook/`
-Expected: all PASS — the `GDD_CO_AUTHOR=` prefix strips and auto-approves; `LD_PRELOAD=` still denies; redirect-deny still fires under a prefix.
-
-- [ ] **Step 5: Commit**
-
-Write `.commits/t6-hook-prefix.md` (`add:` `.claude/hooks/gdd-permission-hook.sh`, `tests/hook/gdd-permission-hook.bats`) with message `refactor(hook): move the inert attribution-prefix strip from CLAUDE_MODEL to GDD_CO_AUTHOR`, then `ws commit yggdrasil .commits/t6-hook-prefix.md`.
+**Verification:** `tests/hook/gdd-permission-hook.bats` keeps the regression that env-prefix tricks such as `GDD_CO_AUTHOR="x" git commit -m y` do not bypass redirect-deny behavior. The hook suite verifies the old `CLAUDE_MODEL=` allowances are gone and no replacement prefix allowances were introduced.
 
 ---
 
-## Task 7: Allowlist patterns + permissions doc
+## Task 7: Superseded — no `GDD_CO_AUTHOR=` allowlist replacement
 
 **Files:**
 - Modify: `.claude/settings.json`
 - Modify: `docs/gdd/permissions.md`
 
-- [ ] **Step 1: Swap the allow patterns**
+**As-built behavior:** Delete the legacy `CLAUDE_MODEL=*` commit allowances without adding `GDD_CO_AUTHOR=*` replacements. The supported sub-agent path is `ws commit --co-author-file <name>`, which is covered by the normal `ws commit:*` allow pattern and is easier to translate to non-Claude agents.
 
-In `.claude/settings.json`, replace the four entries:
+**Doc update:** `docs/gdd/permissions.md` should explain that commit attribution is handled by `ws commit` and session identity files, not by shell env-prefix permissions. Keep the empirical security rows that prove arbitrary env-prefixes still do not bypass deny/ask rules.
 
-```json
-      "Bash(CLAUDE_MODEL=* ws commit:*)",
-      "Bash(CLAUDE_MODEL=* bash scripts/ws commit:*)",
-```
-
-(and any other `CLAUDE_MODEL=*` commit entries) with:
-
-```json
-      "Bash(GDD_CO_AUTHOR=* ws commit:*)",
-      "Bash(GDD_CO_AUTHOR=* bash scripts/ws commit:*)",
-```
-
-- [ ] **Step 2: Verify the audit stays clean**
-
-Run: `ws audit-permissions`
-Expected: no new high/critical findings from the swap (the `GDD_CO_AUTHOR=*` prefix entries are as bounded as the `CLAUDE_MODEL=*` ones were).
-
-- [ ] **Step 3: Update `docs/gdd/permissions.md`**
-
-Rewrite the "Bounded legacy `CLAUDE_MODEL=` attribution prefix" section for `GDD_CO_AUTHOR` (the four allow forms become the `GDD_CO_AUTHOR=*` pair plus the bare `ws commit:*`; the strip function name updates; the security boundary text is unchanged in substance). Update the Empirical-matcher-findings rows that reference `CLAUDE_MODEL=` to `GDD_CO_AUTHOR=` (the positive auto-approve row and the `LD_PRELOAD`/prefixed-`git commit` security rows), per that doc's cross-reference rule.
-
-- [ ] **Step 4: Run the audit + hook suites once more**
-
-Run: `bash tests/vendor/bats-core/bin/bats tests/ws-audit-permissions/ tests/hook/`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-Write `.commits/t7-allowlist-doc.md` (`add:` `.claude/settings.json`, `docs/gdd/permissions.md`) with message `refactor(permissions): GDD_CO_AUTHOR= inline-prefix allowlist + doc (drop CLAUDE_MODEL=)`, then `ws commit yggdrasil .commits/t7-allowlist-doc.md`.
+**Verification:** Run `ws audit-permissions` and `bash tests/vendor/bats-core/bin/bats tests/ws-audit-permissions/ tests/hook/`; expected result is clean audit output and passing tests.
 
 ---
 
-## Task 8: Legacy removal + remaining docs
+## Task 8: Legacy removal, docs, and Codex dogfood hardening
 
 **Files:**
-- Modify: `.env.example`, `docs/ws-cli-guide.md`
+- Modify: `.env.example`, `docs/ws-cli-guide.md`, `scripts/ws-review.sh`, `scripts/providers/github.sh`, `scripts/providers/gitlab.sh`, `tests/ws-review/probe.bats`
 
 - [ ] **Step 1: Trim `.env.example`**
 
@@ -693,14 +632,21 @@ Remove the `GDD_CO_AUTHOR` default line and the legacy `CLAUDE_MODEL` line from 
 ```bash
 # ── Commit attribution ───────────────────────────────────────
 # Commit identity is per-session (set at 'ws orient' / 'ws whoami --set'),
-# not configured here. A non-agent shell may set GDD_CO_AUTHOR below as a
-# discouraged fallback for manual commits:
-# export GDD_CO_AUTHOR="Your Name <you@example.com>"
+# not configured here. A human in a non-agent shell should pass --human
+# when intentionally committing without an agent Co-Authored-By trailer.
 ```
 
 - [ ] **Step 2: Update `docs/ws-cli-guide.md` attribution section**
 
-Replace the `### Model attribution` resolution list (the `identity.co_authored_by` → `GDD_CO_AUTHOR` → legacy `CLAUDE_MODEL` text and the `.env` default block) with the per-session resolution (inline → session file → error; discouraged `.env` for no-agent), pointing at `ws whoami` and the design doc. Remove the `CLAUDE_MODEL` block and the `identity.co_authored_by` rung.
+Replace the `### Model attribution` resolution list (the `identity.co_authored_by` → `GDD_CO_AUTHOR` → legacy `CLAUDE_MODEL` text and the `.env` default block) with the per-session resolution: `--human` → no trailer, otherwise `--co-author-file <name>` → named session file, otherwise current session file, otherwise hard error. Point at `ws whoami`, `ws commit --help`, and the design doc. Remove the `CLAUDE_MODEL`, `identity.co_authored_by`, inline-env, and `.env` fallback rungs.
+
+- [ ] **Step 2.5: Preserve session files as data, not shell**
+
+`scripts/ws-session.sh` must parse `GDD_CO_AUTHOR=` as a data line rather than `source` identity files. This keeps names containing quotes, `$`, or command-substitution syntax literal and avoids executing a session file. `ws_write_session_identity` writes `GDD_CO_AUTHOR=Name <email>` and rejects embedded newlines.
+
+- [ ] **Step 2.6: Make `ws review` Codex-sandbox friendly**
+
+During Codex dogfooding, `ws review yggdrasil 103` initially reported "not found" because the Codex sandbox blocked network access to GitHub and the multi-remote probe swallowed provider stderr. Fix the probe so provider failures are classified: HTTP 404/not-found remains a miss, but network/auth/API failures report "could not verify" with the provider error. Add a focused regression that stubs `gh api` with a DNS-style failure across multiple remotes.
 
 - [ ] **Step 3: Grep for stragglers**
 
@@ -712,7 +658,7 @@ Expected: no `ws-commit.sh` resolution use remains (the field is gone from the c
 
 - [ ] **Step 4: Commit**
 
-Write `.commits/t8-legacy-removal.md` (`add:` `.env.example`, `docs/ws-cli-guide.md`) with message `refactor(ws): drop legacy CLAUDE_MODEL + .env GDD_CO_AUTHOR default (pre-GA cleanup)`, then `ws commit yggdrasil .commits/t8-legacy-removal.md`.
+Write `.commits/t8-legacy-removal.md` (`add:` `.env.example`, `docs/ws-cli-guide.md`, `scripts/ws-review.sh`, `scripts/providers/github.sh`, `scripts/providers/gitlab.sh`, `tests/ws-review/probe.bats`) with message `refactor(ws): drop legacy attribution fallbacks and harden review probing`, then `ws commit yggdrasil .commits/t8-legacy-removal.md`.
 
 ---
 
@@ -751,10 +697,10 @@ Update the `multi-agent-attribution` arc `next:` in both `Dionysus-thalamus.md` 
 
 ## Self-Review
 
-**Spec coverage:** resolution chain → Tasks 1-2; session id → Task 1; identity determination at orient → Task 5; session file → Tasks 1, 3, 5; resilience/hard-error → Tasks 1-2; `ws clean` carve-out → Task 4; `ws whoami` → Task 3; sub-agent inline + hook/allowlist → Tasks 6-7; legacy cleanup → Tasks 6-8; testing → every task + Task 9; the discouraged-`.env`-human-manual path → Tasks 1-2 (tests) + 8 (.env.example note). All spec sections covered.
+**Spec coverage:** resolution chain → Tasks 1-2; session id → Task 1; identity determination at orient → Task 5; session file → Tasks 1, 3, 5; resilience/hard-error → Tasks 1-2; `ws clean` carve-out → Task 4; `ws whoami` → Task 3; sub-agent `--co-author-file` path → Tasks 6-8; legacy hook/allowlist/env fallback removal → Tasks 6-8; Codex-sandbox `ws review` probe hardening → Task 8; testing → every task + Task 9. All spec sections covered.
 
 **Placeholder scan:** every code step shows the actual bash/test code or the exact edit (old→new) and the run command + expected output. The two "match the existing loop/helper shape" notes (Task 4 Step 2, Task 4 Step 3) name the exact invariant to satisfy rather than guessing line numbers in a file whose offsets shift — acceptable because the behavior is pinned by the test.
 
-**Type/name consistency:** `ws_resolve_session_id`, `ws_session_identity_path`, `ws_write_session_identity`, `ws_resolve_co_author` are defined in Task 1 and used by the same names in Tasks 2-4; `_INLINE_CO_AUTHOR` is the capture var in `ws-commit.sh` and `ws-whoami.sh`; `strip_gdd_co_author_prefix` replaces `strip_claude_model_prefix` consistently in Task 6; the session file format (`GDD_CO_AUTHOR="…"`) is written (Tasks 1, 3, 5) and read (Task 1's `ws_resolve_co_author`) identically.
+**Type/name consistency:** `ws_resolve_session_id`, `ws_session_identity_path`, `ws_write_session_identity`, `ws_resolve_co_author`, and `--co-author-file` are used consistently across the helper, `ws whoami`, `ws commit`, tests, and docs. Session files are a one-line data format (`GDD_CO_AUTHOR=Name <email>`), parsed without `source`; legacy quoted files are intentionally not supported.
 
 **Known risk to watch:** tests run inside a real Claude session, so `CLAUDE_CODE_SESSION_ID` is inherited; every test helper that exercises resolution **unsets it and sets `GDD_SESSION_ID`** (Task 1, 2, 3 helpers) so the suite is hermetic. If a forgotten suite inherits it, the symptom is a spurious "No commit identity for this session" — fix by adding the unset/GDD_SESSION_ID lines to that helper.

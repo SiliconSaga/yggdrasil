@@ -33,12 +33,23 @@ ws_session_identity_path() {
 }
 
 # Echo the GDD_CO_AUTHOR value stored in an identity file, or empty if the
-# path is empty / missing / sets nothing. Sourced in a subshell so the file
-# can never leak into or corrupt the caller's environment.
+# path is empty / missing / sets nothing. Identity files are data, not shell:
+# parse the first GDD_CO_AUTHOR= line directly so shell syntax in an identity
+# is preserved literally and never executed.
 ws_read_identity_file() {
     local path="${1:-}"
     [[ -n "$path" && -f "$path" ]] || return 0
-    ( source "$path" >/dev/null 2>&1; printf '%s' "${GDD_CO_AUTHOR:-}" )
+    local line val
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        case "$line" in
+            GDD_CO_AUTHOR=*)
+                val="${line#GDD_CO_AUTHOR=}"
+                printf '%s' "$val"
+                return 0
+                ;;
+        esac
+    done < "$path"
 }
 
 # Write the current session's identity file with GDD_CO_AUTHOR=<$1>.
@@ -50,8 +61,12 @@ ws_write_session_identity() {
         echo "  For a manual commit, use 'ws commit --human' (no trailer); to simulate an agent session in a script, export GDD_SESSION_ID first." >&2
         return 1
     fi
+    if [[ "$identity" == *$'\n'* || "$identity" == *$'\r'* ]]; then
+        echo "ERROR: session identity cannot contain newlines." >&2
+        return 1
+    fi
     mkdir -p "$(dirname "$path")"
-    printf 'GDD_CO_AUTHOR="%s"\n' "$identity" > "$path"
+    printf 'GDD_CO_AUTHOR=%s\n' "$identity" > "$path"
 }
 
 # Resolve the Co-Authored-By identity. First match wins:
@@ -76,7 +91,7 @@ ws_resolve_co_author() {
         val="$(ws_read_identity_file "$path")"
         if [[ -n "$val" ]]; then printf '%s' "$val"; return 0; fi
         echo "ERROR: --co-author-file named '$coauthor_name' but '$path' is missing or sets no GDD_CO_AUTHOR." >&2
-        echo "  A sub-agent must write that file before committing (one line: GDD_CO_AUTHOR=\"Name <email>\")." >&2
+        echo "  A sub-agent must write that file before committing (one line: GDD_CO_AUTHOR=Name <email>)." >&2
         return 1
     fi
     # Agent session: the per-session identity file. Missing → hard error

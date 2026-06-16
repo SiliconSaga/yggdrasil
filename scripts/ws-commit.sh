@@ -120,8 +120,19 @@ while [[ $# -gt 0 ]]; do
                 echo "ERROR: --co-author-file needs a name (a file under .tmp/gdd-agent-sessions/, sans .env)." >&2
                 exit 1
             fi
-            co_author_name="$2"; shift 2 ;;
-        --co-author-file=*) co_author_name="${1#*=}"; shift ;;
+            co_author_name="$2"
+            if [[ -z "$co_author_name" ]]; then
+                echo "ERROR: --co-author-file needs a name (a file under .tmp/gdd-agent-sessions/, sans .env)." >&2
+                exit 1
+            fi
+            shift 2 ;;
+        --co-author-file=*)
+            co_author_name="${1#*=}"
+            if [[ -z "$co_author_name" ]]; then
+                echo "ERROR: --co-author-file needs a name (a file under .tmp/gdd-agent-sessions/, sans .env)." >&2
+                exit 1
+            fi
+            shift ;;
         *)         _positional+=("$1"); shift ;;
     esac
 done

@@ -42,7 +42,7 @@ init_synthetic_repo() {
     # can't leak into a test (the resolver ignores it, but keep tests hermetic).
     unset CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID GDD_CO_AUTHOR
     mkdir -p "$REPO_DIR/.tmp/gdd-agent-sessions"
-    printf 'GDD_CO_AUTHOR="Claude Opus 4.8 <noreply@anthropic.com>"\n' \
+    printf 'GDD_CO_AUTHOR=Claude Opus 4.8 <noreply@anthropic.com>\n' \
         > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
 
     # Minimal ecosystem stubs. Trailer-builder calls ws_resolve_ecosystem;

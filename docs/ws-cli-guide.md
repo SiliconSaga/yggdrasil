@@ -225,7 +225,7 @@ A human in their own terminal can use the bracketed form instead: `ws whoami --s
 
 ### Sub-agent attribution
 
-A sub-agent shares its parent's session id, so it must not write the parent's identity file. Instead it writes its own — `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR="Claude <model> <noreply@anthropic.com>"`, via the Write tool — `.tmp/` is a scratch dir, so the write auto-allows) — and names it at commit time:
+A sub-agent shares its parent's session id, so it must not write the parent's identity file. Instead it writes its own — `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>`, via the Write tool — `.tmp/` is a scratch dir, so the write auto-allows) — and names it at commit time:
 
 ```bash
 ws commit --co-author-file <parent-session-id>--<label> <comp> <bodyfile>

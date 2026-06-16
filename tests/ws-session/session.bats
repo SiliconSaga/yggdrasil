@@ -31,6 +31,13 @@ setup() { setup_session_env; }
     [ "$status" -eq 0 ]
     [ "$output" = "Claude Opus 4.8 <noreply@anthropic.com>" ]
 }
+@test "read identity file treats shell syntax as data" {
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR=$(echo hacked) <noreply@openai.com>\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/shell.env"
+    run_session 'ws_read_identity_file "$ROOT_DIR/.tmp/gdd-agent-sessions/shell.env"'
+    [ "$status" -eq 0 ]
+    [ "$output" = '$(echo hacked) <noreply@openai.com>' ]
+}
 @test "resolve: agent session with no file hard-errors" {
     run_session 'GDD_SESSION_ID=s1 ws_resolve_co_author ""'
     [ "$status" -eq 1 ]
@@ -54,14 +61,14 @@ setup() { setup_session_env; }
 }
 @test "resolve: --co-author-file reads the named identity file" {
     mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
-    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/parent--sub.env"
+    printf 'GDD_CO_AUTHOR=Sub Codex <noreply@openai.com>\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/parent--sub.env"
     run_session 'ws_resolve_co_author "parent--sub"'
     [ "$status" -eq 0 ]
     [ "$output" = "Sub Codex <noreply@openai.com>" ]
 }
 @test "resolve: --co-author-file wins over the current session file" {
     mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
-    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/parent--sub.env"
+    printf 'GDD_CO_AUTHOR=Sub Codex <noreply@openai.com>\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/parent--sub.env"
     run_session 'GDD_SESSION_ID=parent ws_write_session_identity "Parent Claude <noreply@anthropic.com>"; GDD_SESSION_ID=parent ws_resolve_co_author "parent--sub"'
     [ "$status" -eq 0 ]
     [ "$output" = "Sub Codex <noreply@openai.com>" ]
