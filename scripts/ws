@@ -87,6 +87,11 @@ export ECOSYSTEM_LOCAL
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
+# Per-session identity helpers (ws_session_identity_path, etc.) — needed
+# by ws_clean's carve-out and the commit path.
+# shellcheck source=ws-session.sh
+source "$SCRIPT_DIR/ws-session.sh"
+
 ws_help() {
     sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \?//'
 }
@@ -370,6 +375,13 @@ ws_clean() {
     local bodyfile_specs=('.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt')
     local tmp_dir="$ROOT_DIR/.tmp"
 
+    # The current session's identity file lives under .tmp/ and must
+    # survive the sweep — cleaning your own session would break your own
+    # next commit. Other/ended sessions' files are exactly the clutter we
+    # collect. `keep` is empty when no session id resolves (human shell).
+    local keep; keep="$(ws_session_identity_path)"
+    [[ -n "$keep" && -f "$keep" ]] || keep=""
+
     # Single scan: collect the exact paths to remove, so the threshold
     # decision and the deletion act on the same snapshot. Re-scanning at
     # delete time would risk deleting files that were never counted, or
@@ -434,11 +446,40 @@ ws_clean() {
     if [[ ${#candidates[@]} -gt 0 ]]; then
         rm -f -- "${candidates[@]}"
     fi
+    # Tracks how many counted entries we deliberately spared, so the final
+    # tally reflects what was actually removed (see the carve-out below).
+    local spared=0
     if [[ ${#tmp_entries[@]} -gt 0 ]]; then
-        rm -rf -- "${tmp_entries[@]}"
+        if [[ -n "$keep" ]]; then
+            # Spare the current session's identity file. Its parent dir is
+            # a single top-level .tmp/ entry; rm -rf'ing it wholesale would
+            # take `keep` with it. So for that one entry, sweep its other
+            # children individually and retain `keep` (and its dir). Both
+            # `$e` and `$keep_dir` derive from the same $ROOT_DIR (set via
+            # `cd … && pwd`, no trailing slash, no symlinks in the write
+            # path), so the equality compare is stable on this platform.
+            local keep_dir; keep_dir="$(dirname "$keep")"
+            local e
+            for e in "${tmp_entries[@]}"; do
+                if [[ "$e" == "$keep_dir" ]]; then
+                    # We counted this dir as one entry but won't remove it
+                    # (it retains `keep`), so it doesn't count as cleaned.
+                    spared=$(( spared + 1 ))
+                    local child
+                    while IFS= read -r child; do
+                        [[ "$child" == "$keep" ]] && continue
+                        rm -rf -- "$child"
+                    done < <(find "$e" -mindepth 1 -maxdepth 1)
+                else
+                    rm -rf -- "$e"
+                fi
+            done
+        else
+            rm -rf -- "${tmp_entries[@]}"
+        fi
     fi
 
-    echo "Cleaned $total draft file(s) total."
+    echo "Cleaned $(( total - spared )) draft file(s) total."
 }
 
 ws_issue() {
