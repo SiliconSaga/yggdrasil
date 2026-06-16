@@ -38,8 +38,8 @@ init_synthetic_repo() {
     # Deterministic session identity for resolution (Task 2). GDD_SESSION_ID
     # wins over any inherited CLAUDE_CODE_SESSION_ID, so tests are hermetic.
     export GDD_SESSION_ID="ws-commit-test"
-    # Also drop any inherited inline GDD_CO_AUTHOR so a value in the outer
-    # shell can't masquerade as the rung-1 inline override and skew tests.
+    # Also drop any inherited GDD_CO_AUTHOR so the outer shell's environment
+    # can't leak into a test (the resolver ignores it, but keep tests hermetic).
     unset CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID GDD_CO_AUTHOR
     mkdir -p "$REPO_DIR/.tmp/gdd-agent-sessions"
     printf 'GDD_CO_AUTHOR="Claude Opus 4.8 <noreply@anthropic.com>"\n' \

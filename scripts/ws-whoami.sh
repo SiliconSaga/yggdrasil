@@ -10,8 +10,8 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<'HELP'
 Usage: ws whoami [--set "Name <email>" | --set "Name" <email>]
 
-  (no args)              Print the identity this session commits as, and how
-                         it resolved (inline / session file / none).
+  (no args)              Print the identity this session commits as (from the
+                         session file), or note that there is no agent session.
   --set "Name <email>"   Write this session's identity file. For a human in
                          their own terminal.
   --set "Name" <email>   Same, but with the email as a separate arg (no angle

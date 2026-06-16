@@ -47,7 +47,7 @@ ws_write_session_identity() {
     local identity="$1" path; path="$(ws_session_identity_path)"
     if [[ -z "$path" ]]; then
         echo "ERROR: No session id (GDD_SESSION_ID / CLAUDE_CODE_SESSION_ID / CODEX_THREAD_ID) — cannot write a session identity file." >&2
-        echo "  In a non-agent shell, set GDD_CO_AUTHOR inline at commit time instead." >&2
+        echo "  For a manual commit, use 'ws commit --human' (no trailer); to simulate an agent session in a script, export GDD_SESSION_ID first." >&2
         return 1
     fi
     mkdir -p "$(dirname "$path")"

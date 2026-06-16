@@ -377,3 +377,26 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" != *"Co-Authored-By:"* ]]
 }
+
+@test "--human wins over --co-author-file (no trailer)" {
+    printf 'GDD_CO_AUTHOR="Sub Codex <noreply@openai.com>"\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/sess--sub.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: human beats coauthor" "test.md"
+    run_ws_commit --human --co-author-file sess--sub yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Co-Authored-By:"* ]]
+}
+
+@test "a newline in the resolved identity is truncated (no trailer injection)" {
+    # Identity files are machine-written, but guard the trailer against a
+    # multi-line value sneaking extra commit-message lines past the trailer.
+    printf 'GDD_CO_AUTHOR="Claude Opus 4.8 <noreply@anthropic.com>\nInjected-Trailer-Line"\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: newline guard" "test.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+    [[ "$output" != *"Injected-Trailer-Line"* ]]
+}
