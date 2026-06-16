@@ -15,11 +15,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Auto-source .env so agent attribution and other env are available
+# Capture an inline GDD_CO_AUTHOR override BEFORE sourcing .env, so an
+# explicit `GDD_CO_AUTHOR=… ws commit` prefix (the sub-agent escape) is
+# distinguishable from a value that merely sits in .env (the discouraged
+# human-manual fallback). See ws-session.sh / the design doc.
+_INLINE_CO_AUTHOR="${GDD_CO_AUTHOR:-}"
+
+# Auto-source .env so tokens (and the discouraged human-manual .env
+# GDD_CO_AUTHOR) are available.
 [[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
+# shellcheck source=ws-session.sh
+source "$SCRIPT_DIR/ws-session.sh"
 
 commit_help() {
     local stream="${1:-2}"
@@ -37,19 +46,16 @@ commit_help() {
         echo "              with YAML frontmatter — typically .commits/<name>.md"
         echo ""
         echo "The Co-Authored-By trailer is appended automatically."
-        echo "Model attribution:"
-        echo "  The trailer identity resolves as: identity.co_authored_by"
-        echo "  (if set in merged ecosystem config), else GDD_CO_AUTHOR,"
-        echo "  else legacy \"Claude \$CLAUDE_MODEL\"."
-        echo "  GDD_CO_AUTHOR is the full trailer identity, for example:"
+        echo "Identity (Co-Authored-By trailer):"
+        echo "  Resolved per session, not from static config:"
+        echo "    1. inline GDD_CO_AUTHOR=\"…\" prefix (sub-agent escape)"
+        echo "    2. this session's identity file (set at 'ws orient' or"
+        echo "       'ws whoami --set'), keyed by the session id"
+        echo "    3. else error — establish one (no silent fallback)"
+        echo "  A non-agent shell (no session id) may use a discouraged"
+        echo "  GDD_CO_AUTHOR in .env. Identity must include an email:"
         echo "    GDD_CO_AUTHOR=\"Codex GPT-5 <noreply@openai.com>\""
-        echo "  GDD_CO_AUTHOR and CLAUDE_MODEL are auto-sourced from .env."
-        echo "  Legacy CLAUDE_MODEL effective value now: \"${CLAUDE_MODEL:-Opus 4.8}\"."
-        echo "  SUB-AGENTS: if you commit while running on a non-default model"
-        echo "  (e.g. Sonnet vs the workspace default), prepend identity inline:"
-        echo "    GDD_CO_AUTHOR=\"Claude Sonnet 4.6 <noreply@anthropic.com>\" ws commit <comp> <bodyfile>"
-        echo "  Inline is correct for sub-agents — a shared .env rewrite from"
-        echo "  parallel sub-agents would race."
+        echo "  Run 'ws whoami' to see who this session commits as."
         echo ""
         echo "Bodyfile frontmatter (YAML between --- markers):"
         echo "  message:      Commit subject line (required)"
@@ -134,20 +140,11 @@ if [[ ! -f "$bodyfile" ]]; then
     exit 1
 fi
 
-# --- Build Co-Authored-By trailer from identity config ---
-
-eco="$(ws_resolve_ecosystem)"
-co_authored_by=$(yq -r '.identity.co_authored_by // ""' "$eco" 2>/dev/null)
-if [[ -z "$co_authored_by" || "$co_authored_by" == "null" ]]; then
-    if [[ -n "${GDD_CO_AUTHOR:-}" ]]; then
-        co_authored_by="$GDD_CO_AUTHOR"
-    else
-        # Legacy Claude default. CLAUDE_MODEL does not override a configured
-        # identity or the agent-neutral GDD_CO_AUTHOR value.
-        co_authored_by="Claude ${CLAUDE_MODEL:-Opus 4.8} <noreply@anthropic.com>"
-    fi
-elif [[ "$co_authored_by" != *"<"* ]]; then
-    co_authored_by="$co_authored_by <noreply@anthropic.com>"
+# --- Resolve the Co-Authored-By identity (session-scoped) ---
+# Rungs: inline override → session file (agent) / discouraged .env (no
+# agent) → hard error. No identity.co_authored_by, no CLAUDE_MODEL.
+if ! co_authored_by="$(ws_resolve_co_author "$_INLINE_CO_AUTHOR")"; then
+    exit 1
 fi
 # Sanitize — newlines would break the trailer format
 co_authored_by="${co_authored_by%%$'\n'*}"

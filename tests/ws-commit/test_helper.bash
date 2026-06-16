@@ -21,9 +21,9 @@ WS_COMMIT_BIN="$REPO_ROOT/scripts/ws-commit.sh"
 #   $ROOT_DIR   — same path, exported so ws-commit.sh's "yggdrasil"
 #                 component lookup resolves COMPONENT_DIR to it
 #   $ECOSYSTEM, $ECOSYSTEM_LOCAL — minimal stubs so
-#                 ws_resolve_ecosystem succeeds for the trailer-build
-#                 step. No identity.co_authored_by entry → trailer
-#                 falls through to the dynamic CLAUDE_MODEL default.
+#                 ws_resolve_ecosystem succeeds. Identity now resolves
+#                 from the per-session file (see GDD_SESSION_ID below),
+#                 not from the ecosystem config.
 init_synthetic_repo() {
     REPO_DIR="$BATS_TEST_TMPDIR/repo"
     git init -q "$REPO_DIR"
@@ -34,6 +34,16 @@ init_synthetic_repo() {
         commit -q -m "seed commit"
 
     export ROOT_DIR="$REPO_DIR"
+
+    # Deterministic session identity for resolution (Task 2). GDD_SESSION_ID
+    # wins over any inherited CLAUDE_CODE_SESSION_ID, so tests are hermetic.
+    export GDD_SESSION_ID="ws-commit-test"
+    # Also drop any inherited inline GDD_CO_AUTHOR so a value in the outer
+    # shell can't masquerade as the rung-1 inline override and skew tests.
+    unset CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID GDD_CO_AUTHOR
+    mkdir -p "$REPO_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR="Claude Opus 4.8 <noreply@anthropic.com>"\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
 
     # Minimal ecosystem stubs. Trailer-builder calls ws_resolve_ecosystem;
     # that function expects an ecosystem.yaml-like file to exist.

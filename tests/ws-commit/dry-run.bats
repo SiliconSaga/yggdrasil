@@ -301,3 +301,42 @@ EOF
     last_msg="$(git -C "$REPO_DIR" log -1 --format='%s')"
     [ "$last_msg" = "test: real commit" ]
 }
+
+@test "inline GDD_CO_AUTHOR overrides the session file" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: inline wins" "test.md"
+    GDD_CO_AUTHOR="Codex GPT-5 <noreply@openai.com>" \
+        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Codex GPT-5 <noreply@openai.com>"* ]]
+}
+
+@test "session file supplies identity when no inline" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: session file" "test.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+}
+
+@test "agent session with no identity file hard-errors" {
+    rm -f "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: no identity" "test.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"No commit identity for this session"* ]]
+}
+
+@test ".env GDD_CO_AUTHOR is ignored when a session file is present (no drift)" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: env ignored" "test.md"
+    # A stale value sitting in .env (the only true .env-sourced path — an
+    # inline process-env value would be captured as the rung-1 override) must
+    # never beat the session identity. Session file (Opus) is present.
+    printf 'GDD_CO_AUTHOR="Stale Fable 5 <noreply@anthropic.com>"\n' > "$REPO_DIR/.env"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+    [[ "$output" != *"Stale Fable 5"* ]]
+}

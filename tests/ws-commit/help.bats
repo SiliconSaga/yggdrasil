@@ -7,10 +7,10 @@
 
 load test_helper
 
-@test "ws commit --help mentions CLAUDE_MODEL and the .env default" {
+@test "ws commit --help explains per-session identity and the discouraged .env fallback" {
     run bash "$WS_COMMIT_BIN" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"CLAUDE_MODEL"* ]]
+    [[ "$output" == *"Resolved per session"* ]]
     [[ "$output" == *".env"* ]]
 }
 
