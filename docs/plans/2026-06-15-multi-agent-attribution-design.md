@@ -31,17 +31,19 @@ Phase 1 replaces the single shared value with a **per-session identity**, re-est
 
 ## The resolution chain (the heart)
 
-`ws commit` resolves the `Co-Authored-By` identity in exactly three rungs:
+`ws commit` resolves the `Co-Authored-By` identity as follows:
 
-1. **Inline `GDD_CO_AUTHOR`** — captured from the process environment **before** `ws-commit.sh` sources `.env`. Because the resolver never *uses* a `.env`-sourced `GDD_CO_AUTHOR` (see below), any value present at this point can only have come from an explicit inline prefix (`GDD_CO_AUTHOR="…" ws commit …`). This is the **sub-agent escape hatch** and it wins over everything, because a sub-agent shares its parent's session id and would otherwise resolve to the parent's session file.
-2. **Session file** — `.tmp/gdd-agent-sessions/<session-id>.env`, read for the current session id (resolution below). Its `GDD_CO_AUTHOR=…` line is the normal path for a primary agent session.
-3. **Otherwise → error.** No silent fallback. The message names the fix: `"No commit identity for this session (did 'ws clean' run, or has orientation not set it?). Re-establish: 'ws orient', or 'ws whoami --set \"Name <email>\"', or set GDD_CO_AUTHOR inline."`
+1. **Inline `GDD_CO_AUTHOR`** — captured from the process environment **before** `ws-commit.sh` sources `.env`. Any value present at this point can only have come from an explicit inline prefix (`GDD_CO_AUTHOR="…" ws commit …`), because the resolver never uses a `.env`-sourced value for an agent session (see below). This is the **sub-agent escape hatch** and it wins over everything, because a sub-agent shares its parent's session id and would otherwise resolve to the parent's session file.
+2. **Otherwise, branch on whether this is an agent session** — i.e. whether a session id resolves (resolution below):
+   - **Agent session** (a session id resolves): the **session file** `.tmp/gdd-agent-sessions/<session-id>.env`. If it is missing → **hard error** (the resilience path). An agent session never falls through to `.env` — that fall-through is exactly the drift this design removes, so a missing file must surface, not silently resolve.
+   - **No agent session** (no session id — a human committing manually, or a script): a `GDD_CO_AUTHOR` set in **`.env`**, used **only here** and **explicitly discouraged**. This is the rare human-without-agent escape; it is isolated to the no-session path, so it can never affect an agent session.
+3. **If none of the above resolves → error**, with guidance covering every case: `"No commit identity. In an agent session, run 'ws orient' or 'ws whoami --set \"Name <email>\"' to establish one (it may have been cleared by 'ws clean'). For a one-off manual commit, prefix 'GDD_CO_AUTHOR=\"Name <email>\" ws commit …'. For repeated manual commits without an agent you may set GDD_CO_AUTHOR in .env, though this is discouraged — agent sessions establish identity automatically and ignore the .env value."`
 
-What is **removed** from the chain that exists today:
+What is **removed** or **demoted** from the chain that exists today:
 
 - `identity.co_authored_by` (ecosystem-config pinned override) — **deleted**. Identity must never live above the session level; a stale pinned value can only cause the drift this design exists to prevent.
 - The legacy `Claude $CLAUDE_MODEL <…>` fallback — **removed** (see Legacy cleanup).
-- `.env`-sourced `GDD_CO_AUTHOR` as a *resolution* source — **removed**. `.env` is still sourced for tokens, but a `GDD_CO_AUTHOR` value it happens to set is ignored for attribution. A stale `.env` entry therefore cannot drift attribution; if nothing else resolves, you get the rung-3 error, which is the intended outcome.
+- `.env`-sourced `GDD_CO_AUTHOR` — **demoted to a discouraged human-manual-only last resort.** It is read *only* when no session id resolves (rung 2's no-agent branch). An **agent** session never consults it, so a stale `.env` value cannot drift agent attribution — the original goal — while a human who genuinely commits without an agent still has a (discouraged) durable option rather than being forced to prefix every commit. `.env` is removed from `.env.example` as a documented default to keep people off it by default.
 
 The email-shaped validation from PR #100 (`<…@…>` required) is retained and applied to whatever the chain resolves.
 
@@ -57,7 +59,7 @@ The session id keys the session file. It resolves, first match wins:
 
 Critically, the session id comes from the harness on **every** call (fresh shells don't persist exports), so orientation and `ws commit` independently read the same value — orientation to *write* the file, `ws commit` to *find* it. No coordination state is needed beyond the file itself.
 
-"No session id resolves at all" (a plain script, or a human in a non-agent terminal) is treated as the rung-3 error case: there is no agent session to attribute, so the caller must use an inline `GDD_CO_AUTHOR` or establish one. This is deliberate — we never invent an identity.
+"No session id resolves at all" (a plain script, or a human in a non-agent terminal) is the no-agent branch of rung 2: a discouraged `.env GDD_CO_AUTHOR` may serve there, and failing that the rung-3 error guides the caller (inline for a one-off; the discouraged `.env` for repeated manual commits; or `ws orient` if they are in an agent session after all). We never invent an identity.
 
 ---
 
@@ -119,7 +121,7 @@ Pre-1.0, before stricter SemVer applies, this design removes the superseded mech
 
 - **`CLAUDE_MODEL`** — removed from `.env.example`, `scripts/ws-commit.sh` (resolution + help text), the orientation skill, and the hook/allowlist (re-pointed to `GDD_CO_AUTHOR` above). No back-compat alias.
 - **`identity.co_authored_by`** — removed from `scripts/ws-commit.sh` resolution and from the ecosystem-config documentation/schema references. (If any realm currently sets it, the migration note is: move to a session identity or inline override.)
-- **`.env`-sourced `GDD_CO_AUTHOR`** — removed from `.env.example` as a documented default; `ws-commit.sh` no longer reads it for resolution. Kept only as the inline-prefix form.
+- **`.env`-sourced `GDD_CO_AUTHOR`** — removed from `.env.example` as a documented default so people don't reach for it by reflex. `ws-commit.sh` still reads it, but *only* in the no-agent-session path (a human committing manually), where it is the discouraged last resort described in the resolution chain. An agent session never consults it.
 
 This directly serves the author's "drop legacy stuff like the old CLAUDE variable before we go GA" intent and the Thalamus note to audit/delete stale agent/model config.
 
@@ -129,7 +131,7 @@ This directly serves the author's "drop legacy stuff like the old CLAUDE variabl
 
 Bats (deterministic, in-repo):
 
-- `ws-commit.sh` resolution: inline wins over a present session file; session file used when no inline; **rung-3 error** when neither (asserting the re-establish message); the `<…@…>` validation still rejects no-email/junk identities; a `.env`-set `GDD_CO_AUTHOR` is **ignored** (does not resolve).
+- `ws-commit.sh` resolution: inline wins over a present session file; session file used when no inline; **hard error** for an agent session (session id present) with no file (asserting the re-establish message); the `<…@…>` validation still rejects no-email/junk identities; a `.env`-set `GDD_CO_AUTHOR` is **ignored when a session id is present** (agent — proves no drift) but **used when no session id resolves** (the discouraged human-manual path); the all-absent case errors with the full guidance message.
 - Session id resolution precedence: `GDD_SESSION_ID` > `CLAUDE_CODE_SESSION_ID` > `CODEX_THREAD_ID`; "none resolves" → error.
 - `ws whoami`: bare prints the resolved identity + source; `--set` writes the file; re-establish after a simulated wipe restores a working `ws commit`.
 - `ws clean`: spares the current session's identity file, sweeps others.
