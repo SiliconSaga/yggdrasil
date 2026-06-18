@@ -82,6 +82,12 @@ review_help() {
 
 review_probe_not_found() {
     local msg="$1"
+    # A real provider "not found" is a 404. Shell/tooling errors like
+    # "gh: command not found" also contain "not found" but are genuine
+    # failures that must surface, not be swallowed as a missing CR.
+    case "$msg" in
+        *"command not found"*) return 1 ;;
+    esac
     [[ "$msg" == *"HTTP 404"* || "$msg" == *"404 Not Found"* || "$msg" == *"Not Found"* || "$msg" == *"not found"* ]]
 }
 

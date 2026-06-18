@@ -100,10 +100,11 @@ git_push_auth_env_for_remote() {
       default_token_var="GITLAB_TOKEN"
       user="${GITLAB_USER:-oauth2}"
       ;;
-    gitlab-*|*.gitlab.*)
-      # Hostnames that merely resemble GitLab — never apply the GITLAB_TOKEN
-      # default here; require an explicit defaults.gitTokens mapping so a
-      # look-alike host can't harvest the credential.
+    gitlab-*|*.gitlab.*|gitlab.*)
+      # Self-hosted GitLab (gitlab.<domain>) and look-alike hosts. NEVER apply
+      # the GITLAB_TOKEN default here — require an explicit defaults.gitTokens
+      # mapping, so a self-hosted instance gets token auth when mapped while a
+      # look-alike host (e.g. gitlab-evil.example) can't harvest the credential.
       provider="GitLab"
       default_token_var=""
       user="${GITLAB_USER:-oauth2}"

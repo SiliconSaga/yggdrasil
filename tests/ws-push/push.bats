@@ -131,3 +131,30 @@ YAML
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"extraheader"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"Authorization: Basic"* ]]
 }
+
+@test "self-hosted gitlab.<domain> uses a mapped gitTokens value (explicit mapping)" {
+    # gitlab.example.com is a self-hosted instance — it must get token auth when
+    # an explicit defaults.gitTokens mapping exists (no GITLAB_TOKEN default).
+    git -C "$REPO_DIR" remote set-url fork https://gitlab.example.com/group/repo.git
+    cat > "$BATS_TEST_TMPDIR/ecosystem.yaml" <<'YAML'
+defaults:
+  gitTokens:
+    gitlab.example.com/group: GITLAB_SELFHOSTED_TOKEN
+identity: {}
+components: {}
+YAML
+    export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
+    export GITLAB_SELFHOSTED_TOKEN="glpat_selfhosted"
+    export GITLAB_USER="ci-bot"
+    install_git_push_spy
+
+    run_git_push main
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Using GITLAB_SELFHOSTED_TOKEN for HTTPS GitLab push auth"* ]]
+    [ -f "$GIT_PUSH_SPY_LOG" ]
+    expected="$(printf '%s:%s' "$GITLAB_USER" "$GITLAB_SELFHOSTED_TOKEN" | base64 | tr -d '\n')"
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_KEY_1=http.https://gitlab.example.com/.extraheader"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_1=Authorization: Basic $expected"* ]]
+}

@@ -34,3 +34,23 @@ SH
     [[ "$output" == *"api.github.com"* ]]
     [[ "$output" != *"not found on any remote"* ]]
 }
+
+@test "probe does NOT swallow a 'command not found' failure as a missing CR" {
+    # A tooling failure whose message merely contains "not found" (e.g.
+    # 'gh: command not found') must surface, not be classified as a 404 miss.
+    cat > "$BATS_TEST_TMPDIR/bin/gh" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "auth" && "${2:-}" == "status" ]]; then exit 0; fi
+if [[ "${1:-}" == "api" ]]; then
+    echo 'bash: somehelper: command not found' >&2
+    exit 127
+fi
+exit 1
+SH
+    chmod +x "$BATS_TEST_TMPDIR/bin/gh"
+
+    run bash "$WS_REVIEW_BIN" review-probe 103 --compact
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Could not verify CR #103"* ]]
+    [[ "$output" != *"not found on any remote"* ]]
+}
