@@ -57,8 +57,11 @@ resolve_component() {
     local tier namespace chart_version chart_name path sync_wave force_chart values_yaml
     tier=$(yq ".components[\"$name\"].tier" "$EFFECTIVE_FILE")
 
-    # Skip non-deployable components (supporting, test, or no tier)
-    if [[ "$tier" == "supporting" || "$tier" == "test" || "$tier" == "null" ]]; then
+    # Skip non-deployable components. `vendor` mirrors are NOT ArgoCD apps —
+    # they're upstream source repos consumed by hydration (their refs land in
+    # the seed Git host) and pinned by a real app's repoURL/targetRevision, so
+    # ws-resolve must not generate an Application for them.
+    if [[ "$tier" == "supporting" || "$tier" == "test" || "$tier" == "vendor" || "$tier" == "null" ]]; then
         echo "SKIP: $name (tier: $tier, not deployable)"
         return 0
     fi
