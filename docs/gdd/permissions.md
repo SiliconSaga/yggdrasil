@@ -62,37 +62,18 @@ The `ws hook-bypass <slug>` subcommand itself is on the ask-list — every invoc
 
 See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facing details.
 
-### Bounded legacy `CLAUDE_MODEL=` attribution prefix
+### `ws commit` flags auto-approve
 
-`ws commit`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json` — they no longer need to be hand-added per machine. The `ws commit` allow patterns come in four forms:
+`ws commit`, `ws whoami`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json`. The `ws commit` allow patterns are:
 
 ```text
 Bash(ws commit:*)
 Bash(bash scripts/ws commit:*)
-Bash(CLAUDE_MODEL=* ws commit:*)
-Bash(CLAUDE_MODEL=* bash scripts/ws commit:*)
 ```
 
 The `:*` suffix here is Claude Code's *prefix* form — it matches the command plus any argument tail, not a single argument slot (see [Pattern shapes → Colon-prefix](#colon-prefix-cmd) below). Both the `ws commit` and `bash scripts/ws commit` bare forms are listed because that prefix match is anchored at the start of the string, so neither covers the other dispatch form; listing both keeps the command auto-approving under Claude Code's native matcher too — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
 
-The `CLAUDE_MODEL=*` forms are a legacy Claude compatibility path. New cross-agent work should prefer `GDD_CO_AUTHOR` in `.env` as the primary workspace default, with `identity.co_authored_by` reserved for pinned static overrides. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
-
-To make the prefixed form auto-approve cleanly, the PreToolUse hook (`strip_claude_model_prefix` in `.claude/hooks/gdd-permission-hook.sh`) strips a **single** leading `CLAUDE_MODEL=<value>` assignment (quoted or unquoted) from the command **before** allow/redirect matching. The strip is applied to the MATCH copy of the command only — never the executed command, never the audit log. Two consequences fall out of this:
-
-1. `CLAUDE_MODEL="Opus 4.8" ws commit …` matches the bare `Bash(ws commit:*)` allow pattern after the prefix is stripped, so it auto-approves.
-2. A prefixed redirect-deny target — e.g. `CLAUDE_MODEL="x" git commit` — STILL hits its `git commit` redirect-deny instead of slipping past the start-anchored glob. The prefix can't smuggle a denied command past the matcher.
-
-#### Why not a general env-prefix strip
-
-The strip is deliberately bounded to `CLAUDE_MODEL` and nothing else. A general "strip any leading `VAR=value`" would be a **privilege escalation**. The stripped assignment is removed only for MATCHING but stays on the EXECUTED command. So a general strip would make
-
-```text
-LD_PRELOAD=…/evil.so ws status
-PATH=/tmp/evil ws status
-GIT_SSH_COMMAND="…" ws push
-```
-
-match an allow pattern (prompt suppressed) and then run with an attacker-controlled environment. The allowance is bounded to `CLAUDE_MODEL` because it is **code-execution-inert** — it only feeds the `Co-Authored-By` trailer string, which `ws-commit.sh` newline-sanitizes. Two security regression tests lock this boundary: an `LD_PRELOAD=…` prefix must NOT auto-allow, and a `CLAUDE_MODEL`-prefixed `git commit` must still DENY toward `ws commit`.
+Because the patterns are start-anchored *prefixes*, every `ws commit` flag — `--dry-run`, `--human`, `--co-author-file <name>` — auto-approves with no extra entry. The sub-agent attribution path `ws commit --co-author-file <name> …` passes only a bare file name (no env-assignment prefix, no angle brackets), so it clears the Tier 1 redirect check and matches `Bash(ws commit:*)` directly. There is no env-prefix stripping: an env-assignment prefix (`LD_PRELOAD=…`, or any `VAR=…`) stays in the match string and fails every allow glob, so it cannot auto-approve. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
 #### `ws test` / `ws lint` under the realm trust model
 
@@ -235,9 +216,9 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `Bash(git fetch *)` | `git fetch siliconsaga main` | Allowed without prompt | Read-only on the working tree; only writes refs/objects under `.git/` |
 | `Bash(git fetch *)` | `git fetch` | Prompted | Bare form has no trailing arg to bind to `*` — pattern requires at least one arg |
 | `Bash(ws commit:*)` | `ws commit yggdrasil .commits/x.md` | Allowed without prompt | `ws commit` allowlisted by default |
-| `Bash(ws commit:*)` | `CLAUDE_MODEL="Sonnet 4.6" ws commit yggdrasil .commits/x.md` | Allowed without prompt | Hook strips the leading `CLAUDE_MODEL=` from the match copy, then it matches the bare allow pattern |
-| (any allow) | `LD_PRELOAD=/tmp/evil.so ws status` | Prompted | Only `CLAUDE_MODEL=` is stripped; other env prefixes stay in the match string and fail every allow glob (security regression test) |
-| `Bash(git commit *)` redirect-deny | `CLAUDE_MODEL="x" git commit -m y` | Denied (redirected to `ws commit`) | Prefix strip doesn't let a denied command slip past the redirect glob (security regression test) |
+| `Bash(ws commit:*)` | `ws commit --co-author-file sess--sub yggdrasil .commits/x.md` | Allowed without prompt | The flag tail matches the start-anchored `ws commit:*` prefix; no env prefix, no angle brackets |
+| (any allow) | `LD_PRELOAD=/tmp/evil.so ws status` | Prompted | An env-assignment prefix stays in the match string and fails every allow glob |
+| `Bash(git commit *)` redirect-deny | `git commit -m y` | Denied (redirected to `ws commit`) | A bare denied command still hits its redirect-deny |
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
 

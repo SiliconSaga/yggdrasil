@@ -245,40 +245,43 @@ EOF
     [[ "$output" == *"Co-Authored-By:"* ]]
 }
 
-@test "--dry-run uses GDD_CO_AUTHOR as a full agent-neutral trailer identity" {
+@test "a process-env GDD_CO_AUTHOR is ignored — the session file wins (no drift)" {
+    # The resolver never reads GDD_CO_AUTHOR from the environment; the session
+    # identity file (Opus, written by the helper) is authoritative.
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
-        "test: generic co-author" "test.md"
+        "test: env ignored" "test.md"
 
     GDD_CO_AUTHOR="Codex GPT-5 <noreply@openai.com>" \
         run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Co-Authored-By: Codex GPT-5 <noreply@openai.com>"* ]]
-    [[ "$output" != *"Co-Authored-By: Claude"* ]]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+    [[ "$output" != *"Codex GPT-5"* ]]
 }
 
-@test "GDD_CO_AUTHOR without an email is rejected" {
+@test "a resolved identity without an email is rejected" {
+    printf 'GDD_CO_AUTHOR=Codex GPT-5\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
         "test: missing email" "test.md"
 
-    GDD_CO_AUTHOR="Codex GPT-5" \
-        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"must include an email in angle brackets"* ]]
 }
 
-@test "GDD_CO_AUTHOR with junk (no @) in the brackets is rejected" {
-    # The old check only verified < and > were present; an email-shaped
-    # token (with @) is now required so '<not an email>' no longer passes.
+@test "a resolved identity with junk (no @) in the brackets is rejected" {
+    # An email-shaped token (with @) is required, so '<not an email>' fails.
+    printf 'GDD_CO_AUTHOR=Codex GPT-5 <not an email>\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
     echo "x" >> "$REPO_DIR/test.md"
     write_bodyfile "$BATS_TEST_TMPDIR/body.md" \
         "test: junk identity" "test.md"
 
-    GDD_CO_AUTHOR="Codex GPT-5 <not an email>" \
-        run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"must include an email in angle brackets"* ]]
@@ -300,4 +303,108 @@ EOF
     # The new commit message matches the bodyfile
     last_msg="$(git -C "$REPO_DIR" log -1 --format='%s')"
     [ "$last_msg" = "test: real commit" ]
+}
+
+@test "session file supplies identity when no inline" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: session file" "test.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+}
+
+@test "agent session with no identity file hard-errors" {
+    rm -f "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: no identity" "test.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"No commit identity for this session"* ]]
+}
+
+@test ".env GDD_CO_AUTHOR is ignored when a session file is present (no drift)" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: env ignored" "test.md"
+    # A stale value sitting in .env must never beat the session identity. The
+    # resolver doesn't consult .env at all; the session file (Opus) wins.
+    printf 'GDD_CO_AUTHOR="Stale Fable 5 <noreply@anthropic.com>"\n' > "$REPO_DIR/.env"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+    [[ "$output" != *"Stale Fable 5"* ]]
+}
+
+@test "--human commits with no Co-Authored-By trailer" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: human commit" "test.md"
+    run_ws_commit --human yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    # Match the trailer LINE ("Co-Authored-By:") — the no-trailer note prose
+    # mentions "Co-Authored-By" without the colon.
+    [[ "$output" != *"Co-Authored-By:"* ]]
+}
+
+@test "--co-author-file resolves the identity from a named sub-agent file" {
+    printf 'GDD_CO_AUTHOR=Sub Codex <noreply@openai.com>\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/sess--sub.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: subagent file" "test.md"
+    run_ws_commit --co-author-file sess--sub yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Sub Codex <noreply@openai.com>"* ]]
+}
+
+@test "--co-author-file naming a missing file errors" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: missing sub" "test.md"
+    run_ws_commit --co-author-file nope yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"missing or sets no GDD_CO_AUTHOR"* ]]
+}
+
+@test "--co-author-file= with an empty name errors before falling back" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: empty sub" "test.md"
+    run_ws_commit --co-author-file= yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--co-author-file needs a name"* ]]
+}
+
+@test "no agent session without --human errors (no silent fallback)" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: no session" "test.md"
+    GDD_SESSION_ID="" run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--human"* ]]
+}
+
+@test "no agent session WITH --human commits with no trailer" {
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: human no session" "test.md"
+    GDD_SESSION_ID="" run_ws_commit --human yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Co-Authored-By:"* ]]
+}
+
+@test "--human wins over --co-author-file (no trailer)" {
+    printf 'GDD_CO_AUTHOR=Sub Codex <noreply@openai.com>\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/sess--sub.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: human beats coauthor" "test.md"
+    run_ws_commit --human --co-author-file sess--sub yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Co-Authored-By:"* ]]
+}
+
+@test "a newline in the resolved identity is truncated (no trailer injection)" {
+    # Identity files are machine-written, but guard the trailer against a
+    # multi-line value sneaking extra commit-message lines past the trailer.
+    printf 'GDD_CO_AUTHOR=Claude Opus 4.8 <noreply@anthropic.com>\nInjected-Trailer-Line\n' \
+        > "$REPO_DIR/.tmp/gdd-agent-sessions/ws-commit-test.env"
+    echo "x" >> "$REPO_DIR/test.md"
+    write_bodyfile "$BATS_TEST_TMPDIR/body.md" "test: newline guard" "test.md"
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"* ]]
+    [[ "$output" != *"Injected-Trailer-Line"* ]]
 }

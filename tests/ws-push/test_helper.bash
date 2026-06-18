@@ -6,6 +6,7 @@
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 GIT_PUSH_BIN="$REPO_ROOT/scripts/git-push.sh"
+REAL_GIT="$(command -v git)"
 
 init_push_repo() {
     REPO_DIR="$BATS_TEST_TMPDIR/repo"
@@ -26,6 +27,37 @@ init_push_repo() {
 
 run_git_push() {
     run bash -c 'cd "$1" || exit 1; shift; exec bash "$@"' bash "$REPO_DIR" "$GIT_PUSH_BIN" "$@"
+}
+
+install_git_push_spy() {
+    GIT_PUSH_SPY_DIR="$BATS_TEST_TMPDIR/git-spy"
+    GIT_PUSH_SPY_LOG="$BATS_TEST_TMPDIR/git-push-spy.log"
+    mkdir -p "$GIT_PUSH_SPY_DIR"
+    cat > "$GIT_PUSH_SPY_DIR/git" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "push" ]]; then
+    {
+        printf 'GIT_TERMINAL_PROMPT=%s\n' "${GIT_TERMINAL_PROMPT-}"
+        printf 'GIT_CONFIG_COUNT=%s\n' "${GIT_CONFIG_COUNT-}"
+        i=0
+        while [[ $i -lt ${GIT_CONFIG_COUNT:-0} ]]; do
+            key_var="GIT_CONFIG_KEY_$i"
+            val_var="GIT_CONFIG_VALUE_$i"
+            printf '%s=%s\n' "$key_var" "${!key_var-}"
+            printf '%s=%s\n' "$val_var" "${!val_var-}"
+            i=$((i + 1))
+        done
+        printf 'args:'
+        printf ' %q' "$@"
+        printf '\n'
+    } > "$GIT_PUSH_SPY_LOG"
+    exit 0
+fi
+exec "$REAL_GIT" "$@"
+SH
+    chmod +x "$GIT_PUSH_SPY_DIR/git"
+    export REAL_GIT GIT_PUSH_SPY_LOG
+    export PATH="$GIT_PUSH_SPY_DIR:$PATH"
 }
 
 remote_ref_exists() {

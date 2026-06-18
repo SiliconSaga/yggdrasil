@@ -101,7 +101,7 @@ gp_create_issue() {
 gp_review_summary() {
     local slug="$1" pr_num="$2"
     gh api "repos/$slug/pulls/$pr_num" \
-        --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"' 2>/dev/null
+        --jq '"Title: \(.title)\nState: \(.state)\nAuthor: \(.user.login)\nBranch: \(.head.ref) → \(.base.ref)\nURL: \(.html_url)"'
 }
 
 # Print formatted reviews.

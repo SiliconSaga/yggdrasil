@@ -25,6 +25,7 @@
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
+#   whoami [--set "Name <email>"]  Show/set this session's commit identity
 #   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
 #   realm init        Clone template realm for tutorials
 #   realm <url>       Clone a community realm
@@ -45,8 +46,8 @@
 #                     for a Tier 2 redirect-deny slug. See `ws hook-bypass --help`.
 #   help              Show this help message (or `ws help <subcommand>` for per-command help)
 #
-# Auth commands (run these before ws push / ws cr):
-#   gitlab-auth [--status]  Configure glab + git credentials from .env tokens.
+# Auth commands (run these before ws cr / raw provider debugging):
+#   gitlab-auth [--status]  Configure glab + optional git credentials from .env tokens.
 #                           --status: show which token env vars are set/unset (no changes made).
 #   diagnose <comp>         Show ecosystem entry, clone status, remotes, provider detection,
 #                           and which gitToken env var covers each remote (set or missing).
@@ -55,7 +56,7 @@
 # First-time setup:
 #   1. Add tokens to .env  (see docs/git-provider-setup.md for token scopes)
 #   2. source .env
-#   3. ws gitlab-auth       (registers glab + git credential helper)
+#   3. ws gitlab-auth       (self-hosted GitLab API setup; optional git credential cache)
 #   4. ws clone <comp>
 #   5. ws diagnose <comp>   (verify token coverage before pushing)
 #
@@ -85,6 +86,11 @@ export ECOSYSTEM_LOCAL
 # ws_resolve_ecosystem, COMPONENT_DIR, etc.)
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
+
+# Per-session identity helpers (ws_session_identity_path, etc.) — needed
+# by ws_clean's carve-out and the commit path.
+# shellcheck source=ws-session.sh
+source "$SCRIPT_DIR/ws-session.sh"
 
 ws_help() {
     sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \?//'
@@ -329,12 +335,14 @@ HELP
 ws_clean() {
     # ws:use-when sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/
     local force=0
+    local clean_sessions=0
     local arg
     for arg in "$@"; do
         case "$arg" in
             --force) force=1 ;;
+            --sessions) clean_sessions=1 ;;
             -h|--help)
-                echo "Usage: ws clean [--force]"
+                echo "Usage: ws clean [--force] [--sessions]"
                 echo ""
                 echo "Remove draft files from .issues/, .crs/, .commits/, .outputs/,"
                 echo "and the workspace scratch area .tmp/."
@@ -344,10 +352,18 @@ ws_clean() {
                 echo "when fewer than \$WS_CLEAN_MINE_THRESHOLD files (default 50)"
                 echo "would be removed. Pass --force to clean anyway — e.g. right"
                 echo "after a mining pass, or when you explicitly want a clean slate."
+                echo ""
+                echo "Session identity files under .tmp/gdd-agent-sessions/ are"
+                echo "SPARED by default — wiping them would break a concurrent"
+                echo "session's commit identity (and any future per-session"
+                echo "settings). Pass --sessions to also clear ended sessions'"
+                echo "files (your own current session's file is still spared)."
+                echo "Recommend --sessions only during deliberate housekeeping,"
+                echo "once you've confirmed no other live sessions need them."
                 return 0
                 ;;
             *)
-                echo "Usage: ws clean [--force]" >&2
+                echo "Usage: ws clean [--force] [--sessions]" >&2
                 return 1
                 ;;
         esac
@@ -368,6 +384,17 @@ ws_clean() {
     # directories alone — those don't exist here by convention.
     local bodyfile_specs=('.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt')
     local tmp_dir="$ROOT_DIR/.tmp"
+
+    # Session identity files live under .tmp/gdd-agent-sessions/. By default
+    # the whole dir is spared: a plain `ws clean` from a finishing session
+    # must not wipe a CONCURRENT session's identity (or future per-session
+    # settings) out from under it — you can't tell ended from still-live.
+    # With --sessions, ended sessions' files are swept, but the current
+    # session's (`keep`) is still spared so the running agent survives.
+    # `keep` is empty when no session id resolves (a human shell).
+    local sessions_dir="$tmp_dir/gdd-agent-sessions"
+    local keep; keep="$(ws_session_identity_path)"
+    [[ -n "$keep" && -f "$keep" ]] || keep=""
 
     # Single scan: collect the exact paths to remove, so the threshold
     # decision and the deletion act on the same snapshot. Re-scanning at
@@ -433,11 +460,39 @@ ws_clean() {
     if [[ ${#candidates[@]} -gt 0 ]]; then
         rm -f -- "${candidates[@]}"
     fi
+    # Tracks how many counted top-level entries we deliberately spared, so
+    # the final tally reflects what was actually removed (see below). Session
+    # files cleared under --sessions live inside the spared dir, so they're
+    # counted separately and reported on their own line.
+    local spared=0
+    local sessions_cleared=0
     if [[ ${#tmp_entries[@]} -gt 0 ]]; then
-        rm -rf -- "${tmp_entries[@]}"
+        local e
+        for e in "${tmp_entries[@]}"; do
+            if [[ "$e" == "$sessions_dir" ]]; then
+                # The session-identity dir is spared as a unit (it stays for
+                # next use). Default: leave every file. --sessions: sweep its
+                # children except the current session's `keep`. Either way the
+                # dir itself is retained, so it counts as spared, not cleaned.
+                spared=$(( spared + 1 ))
+                if [[ "$clean_sessions" -eq 1 ]]; then
+                    local child
+                    while IFS= read -r child; do
+                        [[ -n "$keep" && "$child" == "$keep" ]] && continue
+                        rm -rf -- "$child"
+                        sessions_cleared=$(( sessions_cleared + 1 ))
+                    done < <(find "$e" -mindepth 1 -maxdepth 1)
+                fi
+            else
+                rm -rf -- "$e"
+            fi
+        done
     fi
 
-    echo "Cleaned $total draft file(s) total."
+    echo "Cleaned $(( total - spared )) draft file(s) total."
+    if [[ "$sessions_cleared" -gt 0 ]]; then
+        echo "Also cleared $sessions_cleared ended session identity file(s) (current session kept)."
+    fi
 }
 
 ws_issue() {
@@ -920,6 +975,9 @@ case "$COMMAND" in
         ;;
     hook-bypass)
         bash "$SCRIPT_DIR/ws-hook-bypass.sh" "$@"
+        ;;
+    whoami)
+        bash "$SCRIPT_DIR/ws-whoami.sh" "$@"
         ;;
     *)
         echo "ERROR: Unknown command '$COMMAND'. Run 'ws help' for usage." >&2

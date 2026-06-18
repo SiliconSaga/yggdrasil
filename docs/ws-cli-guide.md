@@ -202,37 +202,36 @@ A post-dispatch stderr footer on every other `ws` subcommand keeps `ws orient` d
 
 `ws commit <component> <bodyfile>` is the bodyfile-driven commit wrapper (staging declared in the bodyfile's `add:` frontmatter, no separate `git add`). It appends a `Co-Authored-By` trailer automatically. Run `ws commit --help` for the full bodyfile and flag reference; the attribution behavior is documented here.
 
-### Model attribution
+### Identity (the Co-Authored-By trailer)
 
-The `Co-Authored-By` trailer name resolves as:
+The trailer credits the *agent* that made the commit, and it resolves **per session**, not from static config. First match wins:
 
-1. `identity.co_authored_by` from the merged ecosystem config, **if set** — a realm or local override can pin a fixed attribution string.
-2. `GDD_CO_AUTHOR` from the environment or workspace `.env`, **if set** — the generic full trailer identity for the current agent.
-3. Otherwise the legacy Claude fallback, `"Claude $CLAUDE_MODEL <noreply@anthropic.com>"`.
+1. `--human` — commit with **no trailer** (a human committing; e.g. a retry with an edited bodyfile).
+2. `--co-author-file <name>` — read the identity from `.tmp/gdd-agent-sessions/<name>.env`. This is how a **sub-agent** attributes its own commits (see below).
+3. The **session identity file** `.tmp/gdd-agent-sessions/<session-id>.env`, established at `ws orient` (or `ws whoami --set`). This is the main-agent path; if a session id resolves but the file is missing, that's a **hard error** (re-establish — never a silent mis-attribution).
+4. **Nothing resolves** (no `--human`, no `--co-author-file`, no session id) — **hard error** guiding the caller: an agent must establish its identity; a human committing manually must pass `--human`.
 
-`GDD_CO_AUTHOR` is auto-sourced from `.env` at the workspace root. The shipped default (see `.env.example`) is:
+There is **no silent no-trailer fallback**: an agent always has a session id (so it lands on rung 3 and can never quietly skip attribution), and a no-session caller must mark itself with `--human` rather than be guessed at. The environment is never consulted for identity. The resolved value must include an email in angle brackets (e.g. `Codex GPT-5 <noreply@openai.com>`), only feeds the trailer string, and is newline-sanitized — never evaluated as a command. Run `ws whoami` to see who the current session commits as.
 
-```bash
-export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
-```
+### Establishing identity
 
-Keep `.env` current with the agent/model the workspace primarily commits as, rather than prepending identity variables on every commit. `GDD_CO_AUTHOR` must include an email in angle brackets, for example `Codex GPT-5 <noreply@openai.com>`. The fallback is whatever the resolution order above lands on from the *process* environment, not a fixed string: with `.env` absent, a `GDD_CO_AUTHOR` exported in the shell still wins, and failing that the legacy `Claude $CLAUDE_MODEL <noreply@anthropic.com>` form is used (`CLAUDE_MODEL` itself only defaults to `Opus 4.8` when it too is unset). The resolved value only feeds the trailer string and is newline-sanitized — it is never evaluated as a command.
-
-`CLAUDE_MODEL` remains as a legacy fallback for existing Claude-only workspaces when `GDD_CO_AUTHOR` is unset:
+A main agent sets its session identity at orientation with the split name + bare-email form (no angle brackets, so it passes the permission hook):
 
 ```bash
-export CLAUDE_MODEL="${CLAUDE_MODEL:-Opus 4.8}"
+ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
 ```
 
-### Sub-agent override rule
+A human in their own terminal can use the bracketed form instead: `ws whoami --set "Name <email>"`.
 
-A sub-agent running on a **non-default** model should prepend the full identity **inline** for that one commit:
+### Sub-agent attribution
+
+A sub-agent shares its parent's session id, so it must not write the parent's identity file. Instead it writes its own — `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>`, via the Write tool — `.tmp/` is a scratch dir, so the write auto-allows) — and names it at commit time:
 
 ```bash
-GDD_CO_AUTHOR="Claude Sonnet 4.6 <noreply@anthropic.com>" ws commit <comp> <bodyfile>
+ws commit --co-author-file <parent-session-id>--<label> <comp> <bodyfile>
 ```
 
-Inline is the correct mechanism for sub-agents. Do **not** rewrite the shared `.env` to change attribution for a single commit — parallel sub-agents rewriting the same file would race. Claude-only legacy sub-agents may still use the bounded `CLAUDE_MODEL=` prefix while that compatibility path remains; see [the bounded `CLAUDE_MODEL=` prefix in the permissions reference](gdd/permissions.md#bounded-claude_model-attribution-prefix).
+The flag value is a bare name (no angle brackets), so it passes the hook and needs no special allowlist entry — `ws commit --co-author-file …` matches the existing `ws commit:*` allow.
 
 ## ws component init
 

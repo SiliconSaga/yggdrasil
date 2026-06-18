@@ -141,27 +141,17 @@ Session-scoped only. Don't update Thalamus frontmatter unless the human asks.
 
 If they decline or don't respond, continue at the current mode without further mention. Ask once.
 
-### Commit attribution refresh (main agent only)
+### Commit identity (main agent only)
 
-You know your own running model. Read `.env` if it exists. Find:
-
-```bash
-export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Claude Opus 4.8 <noreply@anthropic.com>}"
-```
-
-If the default identity differs from your running agent/model, **propose the change and wait for explicit confirmation before writing** — `.env` holds tokens, so never rewrite it silently. Surface the proposed one-line edit (preserving the `${GDD_CO_AUTHOR:-…}` shape so inline overrides still win):
-
-> "Your `.env` `GDD_CO_AUTHOR` default is `Claude Opus 4.8 <…>`, but I'm running as Codex GPT-5. Update just that default to `Codex GPT-5 <noreply@openai.com>`? Only that one line changes."
-
-On a yes, rewrite **only the default token** inside the `${GDD_CO_AUTHOR:-…}` form:
+`ws commit` attributes via a per-session identity file, established here. Determine your own identity from what you are — Claude → `Claude <model>` + `noreply@anthropic.com`, Codex → `Codex <model>` + `noreply@openai.com` — and set it with the split name + bare-email form (the email is a separate arg so no angle brackets hit the Bash permission hook):
 
 ```bash
-export GDD_CO_AUTHOR="${GDD_CO_AUTHOR:-Codex GPT-5 <noreply@openai.com>}"
+ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
 ```
 
-If they decline (or don't answer), leave `.env` alone and use the inline override at commit time instead — never block the session on it.
+Do this **silently** when you are confident of your identity — no prompt; it is one write and the single-agent case stays friction-free. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session (that is the whole point — a stale value can't drift in). Re-run `ws whoami --set` to correct it any time; `ws whoami` shows the current resolution. (Use the split form above, not `--set "Name <email>"` — the inline angle brackets trip the hook for agents; the bracket form is for a human's own terminal.)
 
-**Skip this step entirely if you're a sub-agent.** Parallel sub-agents would race on the same file. Sub-agents use the inline override at commit time (per `ws commit --help`).
+**Skip this entirely if you're a sub-agent.** A sub-agent shares the parent's session, so it must not write the parent's identity file. Instead it writes its OWN file `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>`, via the Write tool — `.tmp/` auto-allows) and commits with `ws commit --co-author-file <parent-session-id>--<label> …` (per `ws commit --help`).
 
 ### Trust verification
 

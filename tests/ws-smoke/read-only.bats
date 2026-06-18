@@ -256,6 +256,12 @@ setup() {
     [[ "$output" == *"hoard"* ]]
 }
 
+@test "ws whoami --help: exits 0 and prints usage" {
+    run_ws whoami --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws whoami"* ]]
+}
+
 @test "ws exec: --help inside the wrapped command is NOT intercepted" {
     # `ws exec <comp> git --help` must pass --help through to the
     # wrapped command, so only position-1 --help prints ws usage.

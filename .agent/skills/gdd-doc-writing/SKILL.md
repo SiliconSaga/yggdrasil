@@ -27,6 +27,17 @@ It does *not* apply to:
 
 If a file already uses hard-wrapped prose throughout, the existing wrapped content stays wrapped — don't reflow it as a side-effect of unrelated edits. But **new content added to such a file still uses the don't-wrap convention** — write new paragraphs and new bullets as single lines, even when the surrounding existing prose is wrapped. The "match the file" guidance is about *not touching unrelated wrapped paragraphs*, not about *adopting hard wrap for new content*. New files always use the don't-wrap convention.
 
+## Describe current state, not history
+
+User-facing and reference docs (READMEs, runbooks, `docs/ws-cli-guide.md`, `docs/gdd/permissions.md`, and the like) describe how things work **now** — not how they used to work, what was removed, or what a feature replaced. Cut "there is no longer X", "this used to Y", "X was removed", "no longer need to", and "History —" framing; just state the current behavior. Don't name superseded approaches (e.g. a retired env var) to contrast against, and don't describe the tests that cover a behavior — a reference doc is the contract, not the test suite.
+
+Why: a reader wants today's contract, stated plainly. History-laden prose ages badly, invites confusion, and grows every time something changes. The same principle governs code comments and test names — see [`docs/code-style.md`](../../docs/code-style.md).
+
+The record of change lives elsewhere, and that is where history belongs:
+
+- **Commit messages and CR/PR descriptions** — the per-change narrative.
+- **Design / plan docs under `docs/plans/`** — these *are* the historical record: Revision notes, "superseded by", and the rationale for a pivot stay here, not in the reference docs.
+
 ## Mermaid Rules
 
 ### Rule 1: Never use `\n` in node labels

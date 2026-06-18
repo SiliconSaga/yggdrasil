@@ -1180,30 +1180,13 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "allow: CLAUDE_MODEL prefix on ws commit is allowlisted" {
+# Sub-agents attribute commits via `ws commit --co-author-file <name>`, NOT
+# an env prefix. The flag carries only a bare file name (no `<email>` angle
+# brackets, no env assignment), so it never trips Tier 1 and matches the
+# bare `Bash(ws commit:*)` allow directly — no special hook handling needed.
+@test "allow: ws commit --co-author-file is allowlisted (matches ws commit:*)" {
     seed_real_project_config
-    run_hook 'CLAUDE_MODEL="Opus 4.8" ws commit yggdrasil .commits/x.md'
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-@test "allow: CLAUDE_MODEL prefix on bash scripts/ws commit is allowlisted" {
-    seed_real_project_config
-    run_hook 'CLAUDE_MODEL="Opus 4.8" bash scripts/ws commit yggdrasil .commits/x.md'
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-@test "allow: unquoted CLAUDE_MODEL prefix on ws commit is allowlisted" {
-    seed_real_project_config
-    run_hook 'CLAUDE_MODEL=Opus ws commit yggdrasil .commits/x.md'
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-}
-
-@test "allow: single-quoted CLAUDE_MODEL prefix on ws commit is allowlisted" {
-    seed_real_project_config
-    run_hook "CLAUDE_MODEL='Sonnet 4.6' ws commit yggdrasil .commits/x.md"
+    run_hook 'ws commit --co-author-file sub-agent-xyz yggdrasil .commits/x.md'
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
@@ -1235,13 +1218,16 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# SECURITY: an env prefix must not bypass a redirect deny.
-@test "security: env prefix does NOT let a redirect-denied command through" {
+# SECURITY: an arbitrary env prefix must not auto-allow a command. There is
+# no env-prefix strip anymore (sub-agents use `--co-author-file`), so a
+# prefixed command keeps its prefix in the match string and cannot match the
+# bare allow globs. A bare `git commit` still denies via the redirect tier
+# (covered above); here we only assert the prefixed form never auto-allows.
+@test "security: an env prefix on a command does NOT auto-allow" {
     seed_real_project_config
-    run_hook 'CLAUDE_MODEL="x" git commit -m y'
+    run_hook 'GDD_CO_AUTHOR="x" git commit -m y'
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
-    [[ "$output" == *"ws commit"* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
 # ─── PowerShell branch: deny-by-default + carve-out + bypass ────────

@@ -785,63 +785,6 @@ normalize_for_match() {
 }
 match_cmd="$(normalize_for_match "$cmd")"
 
-# ─── Bounded attribution-prefix strip (CLAUDE_MODEL ONLY) ───────────
-#
-# `ws commit` accepts an optional `CLAUDE_MODEL="<model>" ws commit …`
-# prepend so the agent can stamp the Co-Authored-By trailer with the
-# model it's running as. That env assignment is code-execution-inert:
-# CLAUDE_MODEL only feeds the trailer string (newline-sanitized at
-# ws-commit.sh) and changes nothing about how the command runs.
-#
-# Strip a SINGLE leading `CLAUDE_MODEL=<value>` assignment from the
-# match string (NOT the executed command — $cmd and the audit log keep
-# the literal form). This serves two purposes:
-#   1. the bare `ws commit` allow pattern matches the prefixed form, and
-#   2. a redirect-deny target (e.g. `git commit*`) still fires when the
-#      prefix is present — the prefix can't smuggle a denied command
-#      past the start-anchored redirect glob.
-#
-# This is deliberately scoped to CLAUDE_MODEL and nothing else. A
-# GENERAL "strip any leading VAR=value" would be a privilege escalation:
-# `LD_PRELOAD=…/evil.so ws status`, `PATH=/tmp/evil ws status`, or
-# `GIT_SSH_COMMAND=… ws push` would then match an allow pattern and
-# auto-approve while still executing with the attacker-controlled env.
-# The strip below removes ONLY the inert CLAUDE_MODEL assignment; every
-# other env prefix stays in the match string and fails the allow globs.
-#
-# NOTE for future maintainers: THIS STRIP — not the settings.json patterns
-# — is what makes a `CLAUDE_MODEL=… ws commit` prepend auto-approve. The
-# explicit `Bash(CLAUDE_MODEL=* …)` entries in settings.json are belt-and-
-# suspenders (and cover Claude Code's NATIVE matcher when this hook is
-# disabled/passed through); with the strip in place they are redundant for
-# the hook path, since the prefixed form already matches the bare
-# `Bash(ws commit:*)`. So do NOT delete this strip assuming those patterns
-# cover it. Also note the strip is workspace-wide: a CLAUDE_MODEL prefix is
-# stripped before matching ANY command, so it auto-approves any allowlisted
-# `ws` subcommand (e.g. `CLAUDE_MODEL=… ws status`), not just `ws commit` —
-# harmless because CLAUDE_MODEL is execution-inert, but wider than the
-# settings.json patterns alone suggest.
-strip_claude_model_prefix() {
-    local s="$1"
-    # Three arms: double-quoted value, single-quoted value, unquoted value.
-    # In the `${s#PATTERN}` removals, backslash is the glob ESCAPE char, so
-    # `\"` and `\'` match a LITERAL `"` / `'` (NOT a backslash) — the quote
-    # is part of the prefix being stripped. The quoted arms come first so a
-    # value containing spaces (e.g. "Sonnet 4.6") is consumed whole before
-    # the unquoted arm's stop-at-first-space removal would mis-split it.
-    case "$s" in
-        'CLAUDE_MODEL="'*'" '*)  printf '%s' "${s#CLAUDE_MODEL=\"*\" }" ;;
-        "CLAUDE_MODEL='"*"' "*)  printf '%s' "${s#CLAUDE_MODEL=\'*\' }" ;;
-        "CLAUDE_MODEL="*" "*)    printf '%s' "${s#CLAUDE_MODEL=* }" ;;
-        *)                        printf '%s' "$s" ;;
-    esac
-}
-match_cmd="$(strip_claude_model_prefix "$match_cmd")"
-# Re-apply the scripts/ normalization in case the stripped command is a
-# `bash scripts/ws commit …` dispatch form (the CLAUDE_MODEL prefix sat
-# in front of it, so the first normalize_for_match couldn't reach it).
-match_cmd="$(normalize_for_match "$match_cmd")"
-
 # ─── Tier 2: Redirect deny — raw commands with a `ws` equivalent ────
 #
 # Walk redirect_commands (parsed from [redirect-commands] in hook-rules).

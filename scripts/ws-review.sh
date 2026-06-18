@@ -80,6 +80,26 @@ review_help() {
     exit 0
 }
 
+review_probe_not_found() {
+    local msg="$1"
+    # A real provider "not found" is a 404. Shell/tooling errors like
+    # "gh: command not found" also contain "not found" but are genuine
+    # failures that must surface, not be swallowed as a missing CR.
+    case "$msg" in
+        *"command not found"*) return 1 ;;
+    esac
+    [[ "$msg" == *"HTTP 404"* || "$msg" == *"404 Not Found"* || "$msg" == *"Not Found"* || "$msg" == *"not found"* ]]
+}
+
+review_probe_one_line() {
+    local msg="$1"
+    msg="${msg//$'\r'/ }"
+    msg="${msg//$'\n'/ }"
+    msg="${msg#"${msg%%[![:space:]]*}"}"
+    msg="${msg%"${msg##*[![:space:]]}"}"
+    printf '%s' "$msg"
+}
+
 review_comments() {
     if [[ $# -lt 1 ]]; then
         echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
@@ -899,6 +919,7 @@ elif [[ -n "$_PEEK_CR" ]]; then
     _MATCH_PROVIDERS=()
     _MATCH_REMOTES=()
     _MATCH_URLS=()
+    _PROBE_FAILURES=()
     _seen=""
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
@@ -907,14 +928,32 @@ elif [[ -n "$_PEEK_CR" ]]; then
         [[ "$_seen" == *"|${_key}|"* ]] && continue
         _seen+="|${_key}|"
         gp_load "$_prov" 2>/dev/null || continue
-        if gp_review_summary "$_slug" "$_PEEK_CR" &>/dev/null; then
+        _probe_output=""
+        if _probe_output="$(gp_review_summary "$_slug" "$_PEEK_CR" 2>&1)"; then
             _MATCH_SLUGS+=("$_slug")
             _MATCH_PROVIDERS+=("$_prov")
             _MATCH_REMOTES+=("${_CANDIDATE_REMOTES[$i]}")
             _MATCH_URLS+=("${_CANDIDATE_URLS[$i]}")
+        else
+            _probe_rc=$?
+            _probe_msg="$(review_probe_one_line "$_probe_output")"
+            [[ -n "$_probe_msg" ]] || _probe_msg="provider exited $_probe_rc without details"
+            if ! review_probe_not_found "$_probe_msg"; then
+                _PROBE_FAILURES+=("${_prov}:${_slug}: $_probe_msg")
+            fi
         fi
     done
     if [[ ${#_MATCH_SLUGS[@]} -eq 0 ]]; then
+        if [[ ${#_PROBE_FAILURES[@]} -gt 0 ]]; then
+            echo "ERROR: Could not verify CR #$_PEEK_CR on any remote for '$COMP'." >&2
+            echo "  Provider lookup failed before a not-found result could be trusted:" >&2
+            for _failure in "${_PROBE_FAILURES[@]}"; do
+                echo "    - $_failure" >&2
+            done
+            echo "  Check network/auth, then retry." >&2
+            echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
+            exit 1
+        fi
         echo "ERROR: CR #$_PEEK_CR not found on any remote for '$COMP'." >&2
         echo "  Tried: ${_CANDIDATE_SLUGS[*]}" >&2
         exit 1
