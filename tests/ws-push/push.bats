@@ -130,6 +130,9 @@ YAML
     [ -f "$GIT_PUSH_SPY_LOG" ]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"extraheader"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"Authorization: Basic"* ]]
+    # No non-interactive git config is injected either — not just the header.
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"GIT_TERMINAL_PROMPT=0"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"credential.helper"* ]]
 }
 
 @test "self-hosted gitlab.<domain> uses a mapped gitTokens value (explicit mapping)" {

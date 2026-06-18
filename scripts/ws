@@ -461,8 +461,11 @@ ws_clean() {
         rm -f -- "${candidates[@]}"
     fi
     # Tracks how many counted top-level entries we deliberately spared, so
-    # the final tally reflects what was actually removed (see below).
+    # the final tally reflects what was actually removed (see below). Session
+    # files cleared under --sessions live inside the spared dir, so they're
+    # counted separately and reported on their own line.
     local spared=0
+    local sessions_cleared=0
     if [[ ${#tmp_entries[@]} -gt 0 ]]; then
         local e
         for e in "${tmp_entries[@]}"; do
@@ -477,6 +480,7 @@ ws_clean() {
                     while IFS= read -r child; do
                         [[ -n "$keep" && "$child" == "$keep" ]] && continue
                         rm -rf -- "$child"
+                        sessions_cleared=$(( sessions_cleared + 1 ))
                     done < <(find "$e" -mindepth 1 -maxdepth 1)
                 fi
             else
@@ -486,6 +490,9 @@ ws_clean() {
     fi
 
     echo "Cleaned $(( total - spared )) draft file(s) total."
+    if [[ "$sessions_cleared" -gt 0 ]]; then
+        echo "Also cleared $sessions_cleared ended session identity file(s) (current session kept)."
+    fi
 }
 
 ws_issue() {

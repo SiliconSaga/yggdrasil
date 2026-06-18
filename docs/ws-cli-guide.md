@@ -231,7 +231,7 @@ A sub-agent shares its parent's session id, so it must not write the parent's id
 ws commit --co-author-file <parent-session-id>--<label> <comp> <bodyfile>
 ```
 
-The flag value is a bare name (no angle brackets), so it passes the hook and needs no special allowlist entry — `ws commit --co-author-file …` matches the existing `ws commit:*` allow. This replaces the old inline-`GDD_CO_AUTHOR`-prefix mechanism, which the permission hook's redirect check made unusable for agents.
+The flag value is a bare name (no angle brackets), so it passes the hook and needs no special allowlist entry — `ws commit --co-author-file …` matches the existing `ws commit:*` allow.
 
 ## ws component init
 

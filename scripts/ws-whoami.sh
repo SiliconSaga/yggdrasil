@@ -43,6 +43,10 @@ if [[ "${1:-}" == "--set" ]]; then
     # ws-commit.sh's email_re — same shape both validate against; no shared lib).
     email_re='<[^[:space:]@<>]+@[^[:space:]@<>]+>'
     [[ "$identity" =~ $email_re ]] || { echo "ERROR: identity must include an email, e.g. --set \"Codex GPT-5\" noreply@openai.com" >&2; exit 1; }
+    # No shell-escaping needed: ws_write_session_identity writes the value as a
+    # data line (rejecting embedded newlines), and ws_read_identity_file parses
+    # it without `source`/eval — so shell-significant characters in the identity
+    # are stored and read literally, never executed at resolution time.
     ws_write_session_identity "$identity" || exit 1
     echo "Session identity set: $identity"
     exit 0
