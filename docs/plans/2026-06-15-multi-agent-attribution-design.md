@@ -83,10 +83,10 @@ This **replaces** the orientation skill's current "Commit attribution refresh (m
 
 ## Session file
 
-- **Path:** `.tmp/gdd-agent-sessions/<session-id>.env`. Under `.tmp/` (already gitignored; already swept by `ws clean`). Per-workspace by construction — each workspace has its own `.tmp/`, so multiple workspaces on one machine never collide (a case the author flagged as possible).
+- **Path:** `.tmp/gdd-agent-sessions/<session-id>.env`. Under `.tmp/` (gitignored; spared by a default `ws clean`, swept only by `ws clean --sessions`). Per-workspace by construction — each workspace has its own `.tmp/`, so multiple workspaces on one machine never collide (a case the author flagged as possible).
 - **Format:** env-style `KEY=value` lines, sourced or grep-read. Phase 1 writes exactly one line: `GDD_CO_AUTHOR=Claude Opus 4.8 <noreply@anthropic.com>`. The format is the extension point — Phase 2 adds `GDD_MODE=…`, `GDD_ROLE=…`, etc. to the same file.
 - **Written by:** orientation (silently/with-ask) and `ws whoami --set`. **Read by:** `ws commit` (and, in Phase 2, mode/role consumers).
-- **Lifecycle:** created at orient, lives for the session, pruned by `ws clean` (see Resilience). Stale files from ended sessions are harmless clutter that `ws clean` collects.
+- **Lifecycle:** created at orient, lives for the session, pruned by `ws clean --sessions` (a default `ws clean` spares it; see Resilience). Stale files from ended sessions are harmless clutter that `ws clean --sessions` collects during deliberate housekeeping.
 
 ---
 
@@ -94,7 +94,7 @@ This **replaces** the orientation skill's current "Commit attribution refresh (m
 
 The hard-error-on-missing behavior (rung 3) **is** the resilience mechanism, and it falls out for free from the always-on model: every primary session establishes a file at orient, so a *missing* file for a resolvable session id means it was removed mid-session — and `ws commit` says so clearly instead of guessing.
 
-`ws clean` refinement: it **spares the current session's identity file** (the one keyed by the caller's own resolved session id) and sweeps the rest. Rationale: running `ws clean` in your own session shouldn't break your own next commit, but stale files from *other/ended* sessions are exactly the clutter `ws clean` should collect. If a *concurrent* session's file is swept, that session re-establishes on its next commit via the rung-3 error — the scenario the author specified ("a different session trying `ws commit` will just get a clean message to please redo its identity"). The carve-out is a one-line exclusion (skip `<current-session-id>.env`); the simpler "sweep all, everyone re-establishes" is the fallback if the carve-out proves awkward.
+`ws clean` interaction (as built): by default it **spares the entire `.tmp/gdd-agent-sessions/` dir** — every session's identity, not just the caller's. The original plan was "spare current, sweep the rest," but that's unsafe for *concurrent* sessions: a finishing session running a reflexive `ws clean` can't tell an ended session's file from a still-live one, and sweeping a live session's identity (or, in Phase 2, its mode/role settings) would break it out from under the user. So the default protects them all. The deliberate-housekeeping path is `ws clean --sessions`, which sweeps ended sessions' files **but still spares the current session's** (the running agent survives). The agent should only suggest `--sessions` during formal housekeeping, after confirming with the human that no other live sessions need those files. A swept session re-establishes on its next commit via the rung-3 error.
 
 ---
 
@@ -143,7 +143,7 @@ Bats (deterministic, in-repo):
 - `ws-commit.sh` resolution: `--co-author-file <name>` reads the named file and wins over the session file; a missing named file errors; session file used otherwise; **hard error** for an agent session (session id present) with no file (asserting the re-establish message); the `<…@…>` validation rejects no-email/junk identities resolved from a file; an environment `GDD_CO_AUTHOR` is **never consulted** (proves no drift); the no-session case **errors guiding to `--human`**, and `--human` commits with no trailer.
 - Session id resolution precedence: `GDD_SESSION_ID` > `CLAUDE_CODE_SESSION_ID` > `CODEX_THREAD_ID`; "none resolves" → error.
 - `ws whoami`: bare prints the resolved identity + source (or the no-session note); `--set` writes the file (both the bracketed and split-arg forms); re-establish after a simulated wipe restores a working `ws commit`.
-- `ws clean`: spares the current session's identity file, sweeps others.
+- `ws clean`: spares all session identity files by default; `--sessions` sweeps ended ones but still spares the current session's.
 - Hook: `ws commit --co-author-file …` auto-approves (matches `ws commit:*`); the strip is gone; the two security regressions hold (an `LD_PRELOAD=` prefix and an env-prefixed command do not auto-allow).
 
 Manual (cannot be bats'd — requires real agent sessions): the **two-agent acceptance test** — Claude and Codex committing concurrently in the same workspace, each producing the correct `Co-Authored-By`. This is the gate that validates the whole design and the reason Codex (not just Claude) is in Phase 1.

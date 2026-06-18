@@ -335,12 +335,14 @@ HELP
 ws_clean() {
     # ws:use-when sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/
     local force=0
+    local clean_sessions=0
     local arg
     for arg in "$@"; do
         case "$arg" in
             --force) force=1 ;;
+            --sessions) clean_sessions=1 ;;
             -h|--help)
-                echo "Usage: ws clean [--force]"
+                echo "Usage: ws clean [--force] [--sessions]"
                 echo ""
                 echo "Remove draft files from .issues/, .crs/, .commits/, .outputs/,"
                 echo "and the workspace scratch area .tmp/."
@@ -350,10 +352,18 @@ ws_clean() {
                 echo "when fewer than \$WS_CLEAN_MINE_THRESHOLD files (default 50)"
                 echo "would be removed. Pass --force to clean anyway — e.g. right"
                 echo "after a mining pass, or when you explicitly want a clean slate."
+                echo ""
+                echo "Session identity files under .tmp/gdd-agent-sessions/ are"
+                echo "SPARED by default — wiping them would break a concurrent"
+                echo "session's commit identity (and any future per-session"
+                echo "settings). Pass --sessions to also clear ended sessions'"
+                echo "files (your own current session's file is still spared)."
+                echo "Recommend --sessions only during deliberate housekeeping,"
+                echo "once you've confirmed no other live sessions need them."
                 return 0
                 ;;
             *)
-                echo "Usage: ws clean [--force]" >&2
+                echo "Usage: ws clean [--force] [--sessions]" >&2
                 return 1
                 ;;
         esac
@@ -375,10 +385,14 @@ ws_clean() {
     local bodyfile_specs=('.issues:*.md' '.crs:*.md' '.commits:*.md' '.outputs:*.txt')
     local tmp_dir="$ROOT_DIR/.tmp"
 
-    # The current session's identity file lives under .tmp/ and must
-    # survive the sweep — cleaning your own session would break your own
-    # next commit. Other/ended sessions' files are exactly the clutter we
-    # collect. `keep` is empty when no session id resolves (human shell).
+    # Session identity files live under .tmp/gdd-agent-sessions/. By default
+    # the whole dir is spared: a plain `ws clean` from a finishing session
+    # must not wipe a CONCURRENT session's identity (or future per-session
+    # settings) out from under it — you can't tell ended from still-live.
+    # With --sessions, ended sessions' files are swept, but the current
+    # session's (`keep`) is still spared so the running agent survives.
+    # `keep` is empty when no session id resolves (a human shell).
+    local sessions_dir="$tmp_dir/gdd-agent-sessions"
     local keep; keep="$(ws_session_identity_path)"
     [[ -n "$keep" && -f "$keep" ]] || keep=""
 
@@ -446,37 +460,29 @@ ws_clean() {
     if [[ ${#candidates[@]} -gt 0 ]]; then
         rm -f -- "${candidates[@]}"
     fi
-    # Tracks how many counted entries we deliberately spared, so the final
-    # tally reflects what was actually removed (see the carve-out below).
+    # Tracks how many counted top-level entries we deliberately spared, so
+    # the final tally reflects what was actually removed (see below).
     local spared=0
     if [[ ${#tmp_entries[@]} -gt 0 ]]; then
-        if [[ -n "$keep" ]]; then
-            # Spare the current session's identity file. Its parent dir is
-            # a single top-level .tmp/ entry; rm -rf'ing it wholesale would
-            # take `keep` with it. So for that one entry, sweep its other
-            # children individually and retain `keep` (and its dir). Both
-            # `$e` and `$keep_dir` derive from the same $ROOT_DIR (set via
-            # `cd … && pwd`, no trailing slash, no symlinks in the write
-            # path), so the equality compare is stable on this platform.
-            local keep_dir; keep_dir="$(dirname "$keep")"
-            local e
-            for e in "${tmp_entries[@]}"; do
-                if [[ "$e" == "$keep_dir" ]]; then
-                    # We counted this dir as one entry but won't remove it
-                    # (it retains `keep`), so it doesn't count as cleaned.
-                    spared=$(( spared + 1 ))
+        local e
+        for e in "${tmp_entries[@]}"; do
+            if [[ "$e" == "$sessions_dir" ]]; then
+                # The session-identity dir is spared as a unit (it stays for
+                # next use). Default: leave every file. --sessions: sweep its
+                # children except the current session's `keep`. Either way the
+                # dir itself is retained, so it counts as spared, not cleaned.
+                spared=$(( spared + 1 ))
+                if [[ "$clean_sessions" -eq 1 ]]; then
                     local child
                     while IFS= read -r child; do
-                        [[ "$child" == "$keep" ]] && continue
+                        [[ -n "$keep" && "$child" == "$keep" ]] && continue
                         rm -rf -- "$child"
                     done < <(find "$e" -mindepth 1 -maxdepth 1)
-                else
-                    rm -rf -- "$e"
                 fi
-            done
-        else
-            rm -rf -- "${tmp_entries[@]}"
-        fi
+            else
+                rm -rf -- "$e"
+            fi
+        done
     fi
 
     echo "Cleaned $(( total - spared )) draft file(s) total."
