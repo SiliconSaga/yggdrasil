@@ -170,9 +170,8 @@ fi
 # --- Resolve the Co-Authored-By identity (session-scoped) ---
 # Rungs: --human (no trailer) → --co-author-file <name> (sub-agent) →
 # session file (agent; missing = error) → else error (no silent fallback —
-# a human must pass --human; an agent must establish identity). No
-# identity.co_authored_by, no CLAUDE_MODEL, no .env-sourced value, no inline
-# env override. See ws-session.sh / the design doc.
+# a human must pass --human; an agent must establish identity).
+# See ws-session.sh / the design doc.
 if $human; then
     # Explicit human commit: no agent to credit, so no trailer (silent).
     trailer=""

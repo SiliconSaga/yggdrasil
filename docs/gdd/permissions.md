@@ -62,9 +62,9 @@ The `ws hook-bypass <slug>` subcommand itself is on the ask-list — every invoc
 
 See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facing details.
 
-### `ws commit` flags auto-approve (no attribution-prefix strip)
+### `ws commit` flags auto-approve
 
-`ws commit`, `ws whoami`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json` — they no longer need to be hand-added per machine. The `ws commit` allow patterns are:
+`ws commit`, `ws whoami`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json`. The `ws commit` allow patterns are:
 
 ```text
 Bash(ws commit:*)
@@ -73,9 +73,7 @@ Bash(bash scripts/ws commit:*)
 
 The `:*` suffix here is Claude Code's *prefix* form — it matches the command plus any argument tail, not a single argument slot (see [Pattern shapes → Colon-prefix](#colon-prefix-cmd) below). Both the `ws commit` and `bash scripts/ws commit` bare forms are listed because that prefix match is anchored at the start of the string, so neither covers the other dispatch form; listing both keeps the command auto-approving under Claude Code's native matcher too — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
 
-Because the patterns are start-anchored *prefixes*, every `ws commit` flag — `--dry-run`, `--human`, `--co-author-file <name>` — auto-approves with no extra entry. In particular the sub-agent attribution path `ws commit --co-author-file <name> …` carries only a bare file name (no `<email>` angle brackets, no env assignment), so it clears the Tier 1 redirect check and matches `Bash(ws commit:*)` directly. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
-
-> **History — removed attribution-prefix strip.** Earlier revisions made an inline `CLAUDE_MODEL=…` (later `GDD_CO_AUTHOR=…`) prefix the attribution mechanism, and the hook stripped that single leading assignment from the match copy so the prefixed form would auto-approve. That is **gone**: sub-agents now use `--co-author-file`, which needs no strip and no `Bash(VAR=* …)` allow patterns, and the inline `GDD_CO_AUTHOR=` form was dropped because the required `<email>` angle brackets trip the Tier 1 redirect deny anyway. Removing the strip shrinks the hook's surface — there is no "strip a leading `VAR=value` before matching" logic left, so the privilege-escalation risk it carried (e.g. an `LD_PRELOAD=…/evil.so` prefix matching an allow glob while still executing) is structurally absent. Two security regression tests remain: an `LD_PRELOAD=` prefix must NOT auto-allow, and an env-prefixed command must NOT auto-allow.
+Because the patterns are start-anchored *prefixes*, every `ws commit` flag — `--dry-run`, `--human`, `--co-author-file <name>` — auto-approves with no extra entry. The sub-agent attribution path `ws commit --co-author-file <name> …` passes only a bare file name (no env-assignment prefix, no angle brackets), so it clears the Tier 1 redirect check and matches `Bash(ws commit:*)` directly. There is no env-prefix stripping: an env-assignment prefix (`LD_PRELOAD=…`, or any `VAR=…`) stays in the match string and fails every allow glob, so it cannot auto-approve. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
 #### `ws test` / `ws lint` under the realm trust model
 
@@ -219,8 +217,8 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `Bash(git fetch *)` | `git fetch` | Prompted | Bare form has no trailing arg to bind to `*` — pattern requires at least one arg |
 | `Bash(ws commit:*)` | `ws commit yggdrasil .commits/x.md` | Allowed without prompt | `ws commit` allowlisted by default |
 | `Bash(ws commit:*)` | `ws commit --co-author-file sess--sub yggdrasil .commits/x.md` | Allowed without prompt | The flag tail matches the start-anchored `ws commit:*` prefix; no env prefix, no angle brackets |
-| (any allow) | `LD_PRELOAD=/tmp/evil.so ws status` | Prompted | No env-prefix strip exists; an env prefix stays in the match string and fails every allow glob (security regression test) |
-| `Bash(git commit *)` redirect-deny | `git commit -m y` | Denied (redirected to `ws commit`) | A bare denied command still hits its redirect-deny (security regression test) |
+| (any allow) | `LD_PRELOAD=/tmp/evil.so ws status` | Prompted | An env-assignment prefix stays in the match string and fails every allow glob |
+| `Bash(git commit *)` redirect-deny | `git commit -m y` | Denied (redirected to `ws commit`) | A bare denied command still hits its redirect-deny |
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
 
