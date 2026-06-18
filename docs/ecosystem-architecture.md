@@ -130,6 +130,7 @@ The `vendor` role is the third option: a realm declares the upstream repo as its
 
 - **`ws clone`** fetches the mirror naturally alongside every other component, so a from-scratch workspace gets it without special steps.
 - **Hydration** (the GitOps source-of-truth push — SiliconSaga's seed-Gitea flow) pushes the mirror's *real history and tags* (not the orphan-commit snapshot used for maintained repos), so an in-cluster ArgoCD app can pin an exact upstream tag (`targetRevision: <tag>`) against the local copy.
+- **Not an ArgoCD app itself.** `ws-resolve` skips `tier: vendor` components (alongside `supporting`/`test`) — a mirror is a *source repo*, not a deployable, so no `Application` is generated for it. It reaches a cluster only through a *real* component's app that pins it (e.g. `repoURL: <git-host>/<mirror>.git`, `targetRevision: <tag>`); the pin lives on that consuming app, not in `ecosystem.yaml`.
 - **Updating** is re-syncing the mirror from upstream and bumping the pin — the same deliberate, auditable upgrade ceremony as vendoring, just relocated out of the maintained tree.
 
 A vendor mirror is **read-only**: never commit local edits to it (that would fork it from upstream). If you need to modify upstream manifests, that's a real component you maintain, not a mirror. Whether mirrors stay manually re-synced or become self-maintaining (e.g. a platform Git host's native pull-mirror feature) is a realm-infrastructure choice, not a GDD-framework concern.
