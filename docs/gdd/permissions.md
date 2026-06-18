@@ -1,13 +1,8 @@
 # GDD Permissions Reference
 
-How `.claude/settings.json` works in a GDD workspace, what makes a
-pattern safe, and how to verify the safety claims for yourself.
+How `.claude/settings.json` works in a GDD workspace, what makes a pattern safe, and how to verify the safety claims for yourself.
 
-This doc is the source of truth for the permission system's behavior
-and the empirical findings it relies on. The `gdd-permissions`
-skill (`.agent/skills/gdd-permissions/`) is the operational
-companion — agents invoke it for live decisions; this doc is what they
-(and humans, and automated review tools) read for reference.
+This doc is the source of truth for the permission system's behavior and the empirical findings it relies on. The `gdd-permissions` skill (`.agent/skills/gdd-permissions/`) is the operational companion — agents invoke it for live decisions; this doc is what they (and humans, and automated review tools) read for reference.
 
 ---
 
@@ -15,8 +10,7 @@ companion — agents invoke it for live decisions; this doc is what they
 
 Claude Code reads two settings files for each workspace:
 
-- **`.claude/settings.json`** — project-level, committed to the repo.
-  Shared across everyone working in the workspace.
+- **`.claude/settings.json`** — project-level, committed to the repo. Shared across everyone working in the workspace.
 - **`.claude/settings.local.json`** — per-user, gitignored. Not shared.
 
 Both are merged at startup. Where they conflict on a single key, local wins. The relevant top-level structure is:
@@ -103,12 +97,7 @@ Bash(ws status --verbose)
 Bash(git -C * branch --show-current)
 ```
 
-The literal string after the command name must match exactly. The `*`
-inside `git -C * branch --show-current` is a wildcard for the path
-slot only; the trailing `branch --show-current` is a literal. A
-command of `git -C . branch --list` does NOT match — `--list` ≠
-`--show-current`. The matcher is honest about this; non-matches
-produce a permission prompt.
+The literal string after the command name must match exactly. The `*` inside `git -C * branch --show-current` is a wildcard for the path slot only; the trailing `branch --show-current` is a literal. A command of `git -C . branch --list` does NOT match — `--list` ≠ `--show-current`. The matcher is honest about this; non-matches produce a permission prompt.
 
 ### Prefix wildcards
 
@@ -119,11 +108,7 @@ Bash(bash scripts/ws clone *)
 Bash(bash tests/vendor/bats-core/bin/bats tests/*)
 ```
 
-Each `*` is a wildcard slot. The matcher binds each slot to a single
-argument-shaped sequence. The space before `*` matters: `Bash(foo*)`
-without the space matches `foo` followed by anything (including
-`foobar`); `Bash(foo *)` requires a space, then any single argument.
-For prefix matching of arguments, always include the space.
+Each `*` is a wildcard slot. The matcher binds each slot to a single argument-shaped sequence. The space before `*` matters: `Bash(foo*)` without the space matches `foo` followed by anything (including `foobar`); `Bash(foo *)` requires a space, then any single argument. For prefix matching of arguments, always include the space.
 
 ### Colon-prefix (`cmd:*`)
 
@@ -160,29 +145,10 @@ The chosen subcommand for each pattern is read-only at the porcelain level. `git
 
 The matcher scopes wildcards correctly:
 
-- **Compound commands** (`|`, `&&`, `||`, `;`) are validated
-  per-segment. `git -C . show HEAD | xxd` is two segments: the left
-  matches `Bash(git -C * show *)` and is allowed; the right is `xxd`
-  alone and prompts. The wildcards in the left side don't extend
-  across the pipe.
-- **Command substitution** (`$(...)` and backticks) is rejected by the
-  matcher. `git -C $(echo .) show HEAD --stat` does NOT match
-  `Bash(git -C * show *)` — the matcher prompts and offers no
-  "don't ask again" option. Substitution is too dynamic for any
-  static pattern to safely allowlist.
-- **Exact-form pinning is literal.** `git -C . branch --list` does
-  not match `Bash(git -C * branch --show-current)` because the
-  trailing literals differ.
-- **Stdout-redirect-to-file (`> file`, `>> file`) prompts
-  regardless of the LHS.** Even when the producing command is
-  read-only and individually auto-allowed, the redirect-to-file is
-  treated as a side-effect operation because the destination path
-  is opaque to static analysis (could be `/tmp/foo`,
-  `~/.bashrc`, `/etc/...`). The right design path for "save output
-  for later grep" is a wrapper-side `--output <phrase>` flag that
-  validates the destination against a workspace-internal scratch
-  dir like `.outputs/` — see `ws review --output` for the
-  reference implementation.
+- **Compound commands** (`|`, `&&`, `||`, `;`) are validated per-segment. `git -C . show HEAD | xxd` is two segments: the left matches `Bash(git -C * show *)` and is allowed; the right is `xxd` alone and prompts. The wildcards in the left side don't extend across the pipe.
+- **Command substitution** (`$(...)` and backticks) is rejected by the matcher. `git -C $(echo .) show HEAD --stat` does NOT match `Bash(git -C * show *)` — the matcher prompts and offers no "don't ask again" option. Substitution is too dynamic for any static pattern to safely allowlist.
+- **Exact-form pinning is literal.** `git -C . branch --list` does not match `Bash(git -C * branch --show-current)` because the trailing literals differ.
+- **Stdout-redirect-to-file (`> file`, `>> file`) prompts regardless of the LHS.** Even when the producing command is read-only and individually auto-allowed, the redirect-to-file is treated as a side-effect operation because the destination path is opaque to static analysis (could be `/tmp/foo`, `~/.bashrc`, `/etc/...`). The right design path for "save output for later grep" is a wrapper-side `--output <phrase>` flag that validates the destination against a workspace-internal scratch dir like `.outputs/` — see `ws review --output` for the reference implementation.
 
 Both layers must hold. If Claude Code's matcher behavior changes — for instance, if compound commands stopped being per-segment validated — a "safe" pattern could become unsafe. That's the case for automated regression testing tracked at issue #46.
 
@@ -230,40 +196,24 @@ When you add a new allow pattern, also add at least one positive case (matches �
 
 A decision tree for adding a new `Bash(...)` pattern:
 
-1. **Is the command already auto-allowed by Claude Code?** (`cat`, `ls`,
-   `pwd`, `git status`, `git log` without `-C`, `gh pr view`, etc.) If
-   yes, don't add a pattern — it's redundant.
+1. **Is the command already auto-allowed by Claude Code?** (`cat`, `ls`, `pwd`, `git status`, `git log` without `-C`, `gh pr view`, etc.) If yes, don't add a pattern — it's redundant.
 2. **Does the command's subcommand have any mutating flag-form?**
-   - No (e.g. `git show`, `git diff`, `git ls-tree`): a prefix-wildcard
-     pattern (`Bash(<command> <subcommand> *)`) is fine.
-   - Yes (e.g. `git branch -d`, `git remote add`): pin to the exact
-     safe form (`Bash(git -C * branch --show-current)`).
-3. **Is the command an arbitrary-execution shell?** (`bash *`,
-   `python *`, `node *`, `npx *`, `bunx *`, `uvx *`, `make *`,
-   `npm run *`, `bun run *`, `gh api *`.)  Never widen these. An exact
-   `Bash(bash -n some-specific-script.sh)` is fine; wildcards aren't.
-4. **Does the command write to a shared system?** (push, deploy,
-   publish, send). These are Side-effect tier in
-   `docs/ws-cli-guide.md` — never auto-allow; let the user decide
-   case-by-case.
+   - No (e.g. `git show`, `git diff`, `git ls-tree`): a prefix-wildcard pattern (`Bash(<command> <subcommand> *)`) is fine.
+   - Yes (e.g. `git branch -d`, `git remote add`): pin to the exact safe form (`Bash(git -C * branch --show-current)`).
+3. **Is the command an arbitrary-execution shell?** (`bash *`, `python *`, `node *`, `npx *`, `bunx *`, `uvx *`, `make *`, `npm run *`, `bun run *`, `gh api *`.) Never widen these. An exact `Bash(bash -n some-specific-script.sh)` is fine; wildcards aren't.
+4. **Does the command write to a shared system?** (push, deploy, publish, send). These are Side-effect tier in `docs/ws-cli-guide.md` — never auto-allow; let the user decide case-by-case.
 
-When in doubt, narrower wins. You can always widen later. Narrowing
-post-hoc is harder (you've already trained yourself to expect the
-wide form).
+When in doubt, narrower wins. You can always widen later. Narrowing post-hoc is harder (you've already trained yourself to expect the wide form).
 
 ---
 
 ## Cross-reference rule
 
-When you modify `.claude/settings.json`'s `permissions.allow` (or
-`permissions.deny`), also update the **Empirical matcher findings**
-section above to reflect the new pattern with at least one positive
-and one negative case.
+When you modify `.claude/settings.json`'s `permissions.allow` (or `permissions.deny`), also update the **Empirical matcher findings** section above to reflect the new pattern with at least one positive and one negative case.
 
 The two artifacts are paired:
 - `.claude/settings.json` is what Claude Code enforces.
-- `docs/gdd/permissions.md` (this file) is what humans, automated
-  reviewers, and the agent reason against.
+- `docs/gdd/permissions.md` (this file) is what humans, automated reviewers, and the agent reason against.
 
 Drift between them is a real bug — humans trust the doc, agents trust the doc, and a stale doc gives false confidence. PR review for `.claude/settings.json` changes should call out a missing doc update as blocking.
 
@@ -273,25 +223,8 @@ The `gdd-permissions` skill enforces this rule operationally: when an agent adds
 
 ## Future Directions
 
-- **Cross-framework porting.** Other agent frameworks (Codex, Gemini
-  CLI, Cursor, etc.) have their own permission-style configs. The
-  semantics differ — some are tool-name-only, some have richer
-  per-tool argument matching, some have no analogue to the
-  `permissions.deny` override layer. Mapping Claude Code's allowlist
-  to each framework's equivalent is a future arc; the skill points
-  at this thread but doesn't carry the porting guidance in v1.
+- **Cross-framework porting.** Other agent frameworks (Codex, Gemini CLI, Cursor, etc.) have their own permission-style configs. The semantics differ — some are tool-name-only, some have richer per-tool argument matching, some have no analogue to the `permissions.deny` override layer. Mapping Claude Code's allowlist to each framework's equivalent is a future arc; the skill points at this thread but doesn't carry the porting guidance in v1.
 
-- **Automated regression testing** (issue #46). Today the empirical
-  findings table in **Empirical matcher findings** is the source of
-  truth, but there's no test
-  harness that re-asserts those findings against new Claude Code
-  versions. The future regression suite will execute each (pattern,
-  command, expected) triple and flag matcher-behavior changes.
+- **Automated regression testing** (issue #46). Today the empirical findings table in **Empirical matcher findings** is the source of truth, but there's no test harness that re-asserts those findings against new Claude Code versions. The future regression suite will execute each (pattern, command, expected) triple and flag matcher-behavior changes.
 
-- **Sandboxing tooling.** Personal exploration of AI-tooling
-  sandboxing patterns lives in
-  `realms/realm-siliconsaga/docs/agent-security/` (relocated from
-  this repo's `docs/` in the same hygiene PR that introduced this
-  doc). Some of that work — particularly Nvidia's OpenShell /
-  NemoClaw lineage — could inform a future GDD security category
-  that sits next to permissions.
+- **Sandboxing tooling.** Personal exploration of AI-tooling sandboxing patterns lives in `realms/realm-siliconsaga/docs/agent-security/` (relocated from this repo's `docs/` in the same hygiene PR that introduced this doc). Some of that work — particularly Nvidia's OpenShell / NemoClaw lineage — could inform a future GDD security category that sits next to permissions.

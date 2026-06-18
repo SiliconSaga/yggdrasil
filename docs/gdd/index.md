@@ -22,25 +22,13 @@ This positioning enables a community angle that the other extremes don't natural
 
 ## Key Concepts
 
-- **Filling the gap** — between AI-private memory (invisible to humans) and
-  committed project instructions (formal, policy-level), GDD introduces the
-  [Thalamus](thalamus.md): a shared, co-authored thinking space where
-  observations, concerns, and preferences live while they're being figured out.
+- **Filling the gap** — between AI-private memory (invisible to humans) and committed project instructions (formal, policy-level), GDD introduces the [Thalamus](thalamus.md): a shared, co-authored thinking space where observations, concerns, and preferences live while they're being figured out.
 
-- **Adaptive ceremony** — [roles and modes](roles-and-modes.md) let the
-  framework meet you where you are. 15 minutes on your phone? Quick mode.
-  Saturday deep dive? Zen mode. First time in the codebase? Mentoring mode.
-  Modes compose freely.
+- **Adaptive ceremony** — [roles and modes](roles-and-modes.md) let the framework meet you where you are. 15 minutes on your phone? Quick mode. Saturday deep dive? Zen mode. First time in the codebase? Mentoring mode. Modes compose freely.
 
-- **Trust as a first-class concern** — AI agents read instructions from
-  nested project components, and not all of those are trustworthy. GDD's
-  [trust hierarchy and black-box safety pattern](trust-and-safety.md) ensure
-  the agent logs concerns before they can be overwritten by hostile content.
+- **Trust as a first-class concern** — AI agents read instructions from nested project components, and not all of those are trustworthy. GDD's [trust hierarchy and black-box safety pattern](trust-and-safety.md) ensure the agent logs concerns before they can be overwritten by hostile content.
 
-- **Self-improving through use** — the framework starts minimal and
-  [evolves through audit cycles](self-improving-loop.md). Observations become
-  skills, friction becomes automation, and the capture heuristics themselves
-  get tuned.
+- **Self-improving through use** — the framework starts minimal and [evolves through audit cycles](self-improving-loop.md). Observations become skills, friction becomes automation, and the capture heuristics themselves get tuned.
 
 ## Why "Guardian"?
 
@@ -58,12 +46,9 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 
 1. **Clone the repo** — `git clone` the yggdrasil workspace
 2. **Start a session** — the orientation skill guides you through setup
-3. **Pick a mode** — Quick for a short session, Zen for deep work,
-   Mentoring if you're learning
-4. **Work normally** — the framework adapts, captures observations, and
-   keeps things safe
-5. **Housekeep occasionally** — review what's accumulated, promote the
-   good stuff, prune the rest
+3. **Pick a mode** — Quick for a short session, Zen for deep work, Mentoring if you're learning
+4. **Work normally** — the framework adapts, captures observations, and keeps things safe
+5. **Housekeep occasionally** — review what's accumulated, promote the good stuff, prune the rest
 
 ## Design Principles
 

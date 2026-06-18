@@ -1,17 +1,12 @@
 # Git Provider Setup
 
-One-time setup for using the workspace CLI (`ws`) with GitHub and/or GitLab.
-The workspace auto-detects your provider from remote URLs — no config needed
-for `github.com` or `gitlab.com`. Self-hosted instances need a config entry
-(see Provider Detection below).
+One-time setup for using the workspace CLI (`ws`) with GitHub and/or GitLab. The workspace auto-detects your provider from remote URLs — no config needed for `github.com` or `gitlab.com`. Self-hosted instances need a config entry (see Provider Detection below).
 
 ---
 
 ## Env var quick reference
 
-All workspace credentials live in `.env` at the yggdrasil root
-(gitignored). The shell scripts source it automatically — there's no
-manual `source .env` step required during normal `ws` use.
+All workspace credentials live in `.env` at the yggdrasil root (gitignored). The shell scripts source it automatically — there's no manual `source .env` step required during normal `ws` use.
 
 | Variable | Purpose | Required when |
 |---|---|---|
@@ -22,11 +17,7 @@ manual `source .env` step required during normal `ws` use.
 | `GITLAB_HOST` | Self-hosted GitLab hostname | Self-hosted GitLab only |
 | `GITLAB_<scope>_<owner>_<role>` | Per-fork / per-group GitLab tokens | Multi-token GitLab setups (see GitLab section) |
 
-For GitLab multi-token setups, individual env vars are mapped to URL
-prefixes via `defaults.gitTokens` in `ecosystem.yaml` (longest-prefix
-match). The script `gp_set_token_for_url` exports the right
-`GITLAB_TOKEN` for each operation. The full naming pattern and
-examples live in the [GitLab](#gitlab) section below.
+For GitLab multi-token setups, individual env vars are mapped to URL prefixes via `defaults.gitTokens` in `ecosystem.yaml` (longest-prefix match). The script `gp_set_token_for_url` exports the right `GITLAB_TOKEN` for each operation. The full naming pattern and examples live in the [GitLab](#gitlab) section below.
 
 Verify what's currently set without changing anything:
 
@@ -50,15 +41,13 @@ brew install gh
 ```bash
 winget install GitHub.cli
 ```
-After install, open a fresh Git Bash session so the updated `PATH` is picked up.
-Alternatively, download the MSI directly from https://cli.github.com.
+After install, open a fresh Git Bash session so the updated `PATH` is picked up. Alternatively, download the MSI directly from https://cli.github.com.
 
 **Linux:** See https://github.com/cli/cli/blob/trunk/docs/install_linux.md
 
 ### Create a classic Personal Access Token
 
-Go to **GitHub → Settings → Developer settings → Personal access tokens →
-Tokens (classic) → Generate new token (classic)**.
+Go to **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)**.
 
 Settings:
 - **Note**: descriptive name, e.g. `yggdrasil-workspace`
@@ -73,19 +62,9 @@ Settings:
 | `read:project` | Read GitHub Projects — checked by `gh pr edit --body-file` |
 | `workflow` | Only if you modify `.github/workflows` files |
 
-The three `read:*` scopes are the recommended baseline alongside
-`repo`. They don't grant any mutation power — they just remove
-recurring papercuts where `gh pr edit`-shaped operations would
-otherwise fail with a scopes error and need the `gh api PATCH`
-workaround documented in [`docs/gdd/access.md`](gdd/access.md) § 4.
-If org policy or token-issuance rules block adding them, the
-strict-minimum (`repo` alone) still works — you'll just hit the
-fallback path more often.
+The three `read:*` scopes are the recommended baseline alongside `repo`. They don't grant any mutation power — they just remove recurring papercuts where `gh pr edit`-shaped operations would otherwise fail with a scopes error and need the `gh api PATCH` workaround documented in [`docs/gdd/access.md`](gdd/access.md) § 4. If org policy or token-issuance rules block adding them, the strict-minimum (`repo` alone) still works — you'll just hit the fallback path more often.
 
-> **Why classic and not fine-grained?** Fine-grained PATs have known
-> limitations with cross-org pull requests and workflow file access.
-> Classic PATs are simpler and more reliable for GDD workspaces that span
-> multiple orgs or forks.
+> **Why classic and not fine-grained?** Fine-grained PATs have known limitations with cross-org pull requests and workflow file access. Classic PATs are simpler and more reliable for GDD workspaces that span multiple orgs or forks.
 
 ### Store the token
 
@@ -134,8 +113,7 @@ After install, open a fresh Git Bash session so the updated `PATH` is picked up.
 
 ### Create a Token
 
-GitLab offers three token types with increasing scope. Use the narrowest one
-that covers your use case:
+GitLab offers three token types with increasing scope. Use the narrowest one that covers your use case:
 
 | Token type | Scope | How to create |
 |------------|-------|---------------|
@@ -143,16 +121,9 @@ that covers your use case:
 | **Group Access Token** | All repos in a group | Group → Settings → Access Tokens |
 | **Personal Access Token** | Entire account | User Settings → Access Tokens |
 
-**Recommended:** use a **Project Access Token** for a single test repo, or a
-**Group Access Token** if your workspace components all live under one group.
-Personal Access Tokens with `api` scope work but give broader access than needed.
+**Recommended:** use a **Project Access Token** for a single test repo, or a **Group Access Token** if your workspace components all live under one group. Personal Access Tokens with `api` scope work but give broader access than needed.
 
-> **gitlab.com free tier:** Group and Project Access Tokens require a paid
-> subscription (Premium+). Use a **Personal Access Token** with `api` scope
-> instead. For the multi-token setup (fork → upstream), you can point multiple
-> env vars at the same PAT (see `.env.example` for variable names) — the token
-> routing logic still works, you just don't get the access-level separation
-> that scoped tokens provide.
+> **gitlab.com free tier:** Group and Project Access Tokens require a paid subscription (Premium+). Use a **Personal Access Token** with `api` scope instead. For the multi-token setup (fork → upstream), you can point multiple env vars at the same PAT (see `.env.example` for variable names) — the token routing logic still works, you just don't get the access-level separation that scoped tokens provide.
 
 Choose the narrowest role that matches the token's job:
 - **Developer** for fork/write tokens that must push branches or create MRs.
@@ -162,9 +133,7 @@ Choose the narrowest role that matches the token's job:
 
 **GitLab display name** (what appears as the MR/issue author bot):
 
-Pattern: `<scope>-<owner>-<role>` where scope is the group or project slug,
-owner is your username, and role is the GitLab role level. For personal
-namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
+Pattern: `<scope>-<owner>-<role>` where scope is the group or project slug, owner is your username, and role is the GitLab role level. For personal namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
 
 | Token's job | GitLab display name | Why |
 |---|---|---|
@@ -173,10 +142,7 @@ namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
 | Personal namespace write | `rpraestholm-developer` | Namespace + role |
 | Single-project write | `aws-ops-wheel-rpraestholm-developer` | Project + owner + role |
 
-With a well-named token, an MR opened by the agent shows as authored by
-e.g. `gdd-rpraestholm-developer` — the human connection is clear even though
-it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this is
-the primary attribution mechanism on GitLab (see `docs/gdd/cr-internals.md`).
+With a well-named token, an MR opened by the agent shows as authored by e.g. `gdd-rpraestholm-developer` — the human connection is clear even though it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this is the primary attribution mechanism on GitLab (see `docs/gdd/cr-internals.md`).
 
 **Env var name** (used in `.env` and referenced in `gitTokens`):
 
@@ -227,8 +193,7 @@ export GITLAB_HOST=git.mycompany.com
 
 ### Load and verify
 
-For self-hosted instances, register the hostname with `glab` once after
-setting `GITLAB_HOST`:
+For self-hosted instances, register the hostname with `glab` once after setting `GITLAB_HOST`:
 
 ```bash
 source .env
@@ -244,10 +209,7 @@ Verify with:
 glab auth status
 ```
 
-> **Note:** `glab auth status` exits non-zero if *any* configured GitLab host
-> fails authentication — including `gitlab.com` if you have no token for it.
-> Check that your self-hosted instance shows `✓ Logged in to <your-host>`.
-> The `gitlab.com` failure is harmless if you only use the self-hosted instance.
+> **Note:** `glab auth status` exits non-zero if *any* configured GitLab host fails authentication — including `gitlab.com` if you have no token for it. Check that your self-hosted instance shows `✓ Logged in to <your-host>`. The `gitlab.com` failure is harmless if you only use the self-hosted instance.
 
 ### Test
 
@@ -269,9 +231,7 @@ ws gitlab-auth --status   # shows all configured token slots and set/unset statu
 ws diagnose <comp>        # shows which token covers each remote for a specific component
 ```
 
-`ws diagnose` is the fastest way to confirm auth is wired up correctly for a
-new component — it shows the ecosystem entry, clone status, remotes, provider
-detection, and whether the covering token env var is set or missing.
+`ws diagnose` is the fastest way to confirm auth is wired up correctly for a new component — it shows the ecosystem entry, clone status, remotes, provider detection, and whether the covering token env var is set or missing.
 
 ---
 
@@ -289,8 +249,7 @@ defaults:
     git.mycompany.com: gitlab
 ```
 
-See `ecosystem.local.yaml.example` for more options (workspace-wide defaults,
-per-component overrides).
+See `ecosystem.local.yaml.example` for more options (workspace-wide defaults, per-component overrides).
 
 ---
 
@@ -298,8 +257,7 @@ per-component overrides).
 
 ### yq (YAML processor)
 
-The workspace scripts require [yq](https://github.com/mikefarah/yq) v4+
-to parse `ecosystem.yaml`.
+The workspace scripts require [yq](https://github.com/mikefarah/yq) v4+ to parse `ecosystem.yaml`.
 
 **macOS:**
 ```bash
@@ -326,8 +284,7 @@ Verify: `yq --version` should report v4.x.
 
 ### jq (JSON processor)
 
-The GitLab provider uses [jq](https://jqlang.github.io/jq/) to parse API
-responses. GitHub uses `gh --jq` natively, so jq is only required for GitLab.
+The GitLab provider uses [jq](https://jqlang.github.io/jq/) to parse API responses. GitHub uses `gh --jq` natively, so jq is only required for GitLab.
 
 **macOS:**
 ```bash
@@ -343,8 +300,7 @@ winget install jqlang.jq
 choco install jq
 ```
 
-After installing via chocolatey on Windows, jq may not be on PATH in Git Bash.
-Add it to `~/.bashrc`:
+After installing via chocolatey on Windows, jq may not be on PATH in Git Bash. Add it to `~/.bashrc`:
 ```bash
 export PATH="/c/ProgramData/chocolatey/bin:$PATH"
 ```
@@ -353,8 +309,7 @@ Verify: `jq --version` should report 1.6+.
 
 ### Running Shell Scripts on Windows
 
-All workspace scripts are Bash scripts. Windows needs Git Bash (installed
-with Git for Windows).
+All workspace scripts are Bash scripts. Windows needs Git Bash (installed with Git for Windows).
 
 | From | How to run |
 |------|------------|
@@ -362,9 +317,7 @@ with Git for Windows).
 | cmd / PowerShell | `bash scripts/ws help` (Git Bash must be on PATH) |
 | VS Code terminal | Set default shell to Git Bash, or prefix with `bash` |
 
-A `.gitattributes` in the repo root forces LF line endings on `.sh` files,
-preventing `\r: command not found` errors. If you hit this on existing checkouts:
-`git checkout -- scripts/*.sh`
+A `.gitattributes` in the repo root forces LF line endings on `.sh` files, preventing `\r: command not found` errors. If you hit this on existing checkouts: `git checkout -- scripts/*.sh`
 
 ---
 
@@ -379,11 +332,9 @@ Name remotes after the org or service — never use the generic `origin`.
 | `local-gitea` | Homelab Gitea instance |
 | `<orgname>` | Any org — name the remote after it |
 
-The rule: the remote name should answer "where does this push go?" without
-running `git remote -v`.
+The rule: the remote name should answer "where does this push go?" without running `git remote -v`.
 
-Bootstrap scripts may add an internal Gitea remote during cluster setup. That
-remote is ephemeral and should not be given a permanent name like `origin`.
+Bootstrap scripts may add an internal Gitea remote during cluster setup. That remote is ephemeral and should not be given a permanent name like `origin`.
 
 ---
 
@@ -391,13 +342,11 @@ remote is ephemeral and should not be given a permanent name like `origin`.
 
 ### `gh`/`glab` not found after install
 
-Open a fresh terminal session. The installer updates PATH, but existing
-sessions don't pick it up.
+Open a fresh terminal session. The installer updates PATH, but existing sessions don't pick it up.
 
 ### "Bad credentials" or 401 errors (GitHub)
 
-- Token may be expired — check at GitHub → Settings → Developer settings →
-  Personal access tokens.
+- Token may be expired — check at GitHub → Settings → Developer settings → Personal access tokens.
 - Classic PAT: ensure the `repo` scope is selected.
 - Org-scoped fine-grained PAT: the org owner may need to approve it first.
 
@@ -409,11 +358,8 @@ sessions don't pick it up.
 
 ### Push fails with "remote: Permission denied" or "Write access not granted"
 
-- Credential helper may not have your token stored. Run
-  `gh auth status` (GitHub) or `glab auth status` (GitLab) to check.
-- **Stale cached credential (Windows):** Git Credential Manager caches tokens
-  and won't pick up a new `GH_TOKEN` from `.env` automatically. If you rotated
-  your PAT, erase the stale entry and let the next push re-cache:
+- Credential helper may not have your token stored. Run `gh auth status` (GitHub) or `glab auth status` (GitLab) to check.
+- **Stale cached credential (Windows):** Git Credential Manager caches tokens and won't pick up a new `GH_TOKEN` from `.env` automatically. If you rotated your PAT, erase the stale entry and let the next push re-cache:
 
   ```bash
   # Erase the cached credential for github.com
@@ -433,15 +379,11 @@ sessions don't pick it up.
     "$GH_TOKEN" | git credential-manager store
   ```
 
-- GitKraken users: check `~/.gitconfig` for `url.insteadOf` entries that
-  redirect HTTPS to SSH. Remove or scope them if they interfere with CLI auth.
-  GitKraken manages its own credentials separately from the system credential
-  helper, so it is unaffected by the erase/store steps above.
+- GitKraken users: check `~/.gitconfig` for `url.insteadOf` entries that redirect HTTPS to SSH. Remove or scope them if they interfere with CLI auth. GitKraken manages its own credentials separately from the system credential helper, so it is unaffected by the erase/store steps above.
 
 ### "Cannot detect git provider for URL"
 
-Self-hosted domain not recognized. Add it to `defaults.gitProviders` in
-`ecosystem.local.yaml`:
+Self-hosted domain not recognized. Add it to `defaults.gitProviders` in `ecosystem.local.yaml`:
 
 ```yaml
 defaults:
