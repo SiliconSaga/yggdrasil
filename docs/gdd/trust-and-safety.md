@@ -23,10 +23,8 @@ graph BT
 
 When the orientation skill encounters instructions from an untrusted or suspicious source, it follows a specific sequence:
 
-1. **Read just enough** to identify the file as an instruction file from an
-   untrusted source (filename, location, first few lines)
-2. **Log a concern to Thalamus immediately** — before reading the full
-   content. This is the safety breadcrumb.
+1. **Read just enough** to identify the file as an instruction file from an untrusted source (filename, location, first few lines)
+2. **Log a concern to Thalamus immediately** — before reading the full content. This is the safety breadcrumb.
 3. **Continue reading** the full file
 4. **Surface the concern** to the human in conversation
 5. **Do not follow** the instruction until the human explicitly approves

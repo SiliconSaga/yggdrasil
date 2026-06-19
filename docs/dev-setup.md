@@ -2,44 +2,28 @@
 
 ## Prerequisites
 
-After cloning, run `bash scripts/ws preflight` from the workspace root —
-it checks each tool below and prints per-OS install hints for anything
-missing.
+After cloning, run `bash scripts/ws preflight` from the workspace root — it checks each tool below and prints per-OS install hints for anything missing.
 
 **Required:**
 
-- **Bash** — On Windows, use Git Bash (bundled with Git for Windows).
-  Run all `ws` commands from a Git Bash shell, not cmd or PowerShell.
+- **Bash** — On Windows, use Git Bash (bundled with Git for Windows). Run all `ws` commands from a Git Bash shell, not cmd or PowerShell.
 - **Git** itself.
-- **[yq v4+](https://github.com/mikefarah/yq)** — Mike Farah's
-  Go-based YAML processor. *Not* the Python `yq` from PyPI; that's a
-  different tool with incompatible syntax.
-- **[jq](https://jqlang.github.io/jq/)** — JSON processor (used by
-  `ws review` and several internal scripts).
+- **[yq v4+](https://github.com/mikefarah/yq)** — Mike Farah's Go-based YAML processor. *Not* the Python `yq` from PyPI; that's a different tool with incompatible syntax.
+- **[jq](https://jqlang.github.io/jq/)** — JSON processor (used by `ws review` and several internal scripts).
 
 **Provider CLI** (need at least one — match your hosting choice):
 
 - **[gh](https://cli.github.com/)** — for GitHub-hosted components.
-- **[glab](https://gitlab.com/gitlab-org/cli)** — for GitLab-hosted
-  components (gitlab.com or self-hosted instances).
+- **[glab](https://gitlab.com/gitlab-org/cli)** — for GitLab-hosted components (gitlab.com or self-hosted instances).
 
 **Recommended companion (agent-side):**
 
-- **[Obra Superpowers](https://github.com/obra/superpowers)** — a
-  Claude Code plugin that ships skills GDD plans reference
-  (`superpowers:executing-plans`, `superpowers:subagent-driven-development`,
-  `superpowers:brainstorming`, `superpowers:test-driven-development`,
-  `superpowers:receiving-code-review`, etc.). GDD works without it,
-  but plan-driven and review-heavy sessions assume it's available.
-  The `gdd-orientation` skill checks for it at session start and
-  surfaces a nudge if absent.
+- **[Obra Superpowers](https://github.com/obra/superpowers)** — a Claude Code plugin that ships skills GDD plans reference (`superpowers:executing-plans`, `superpowers:subagent-driven-development`, `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:receiving-code-review`, etc.). GDD works without it, but plan-driven and review-heavy sessions assume it's available. The `gdd-orientation` skill checks for it at session start and surfaces a nudge if absent.
 
 **Optional** (only needed for specific component types):
 
-- **[uv](https://docs.astral.sh/uv/)** — Python package manager,
-  for MCP servers and Python components.
-- **realpath** — usually present (coreutils on Linux, Git Bash on
-  Windows); on macOS comes via `brew install coreutils`.
+- **[uv](https://docs.astral.sh/uv/)** — Python package manager, for MCP servers and Python components.
+- **realpath** — usually present (coreutils on Linux, Git Bash on Windows); on macOS comes via `brew install coreutils`.
 
 ### Install hints by OS
 
@@ -51,14 +35,9 @@ missing.
 | gh | `brew install gh` | `winget install GitHub.cli` | [GitHub CLI repo setup](https://cli.github.com) |
 | glab | `brew install glab` | `winget install GLab.GLab` | Download from [glab releases](https://gitlab.com/gitlab-org/cli/-/releases) |
 
-If `winget` isn't available on your Windows version (older SKUs,
-locked-down environments), Chocolatey is the fallback —
-`choco install <tool>` from an **elevated PowerShell** (right-click
-→ Run as administrator). `winget` doesn't need elevation.
+If `winget` isn't available on your Windows version (older SKUs, locked-down environments), Chocolatey is the fallback — `choco install <tool>` from an **elevated PowerShell** (right-click → Run as administrator). `winget` doesn't need elevation.
 
-For provider authentication setup (PATs, `.env` configuration,
-multi-provider workspaces), see
-[`docs/git-provider-setup.md`](git-provider-setup.md).
+For provider authentication setup (PATs, `.env` configuration, multi-provider workspaces), see [`docs/git-provider-setup.md`](git-provider-setup.md).
 
 ## Getting Started
 
@@ -71,8 +50,7 @@ bash scripts/ws clone --all   # Clone all components
 
 ## Workspace CLI (`ws`)
 
-The `ws` script is a unified entry point for workspace operations. It wraps
-the individual `ws-*.sh` scripts and adds component-aware command execution.
+The `ws` script is a unified entry point for workspace operations. It wraps the individual `ws-*.sh` scripts and adds component-aware command execution.
 
 ### Usage
 
@@ -126,8 +104,7 @@ bash scripts/ws log --oneline
 
 ### Optional: Add to PATH
 
-For shorter commands in your terminal, add to your shell profile
-(`~/.bashrc`, `~/.zshrc`, etc.):
+For shorter commands in your terminal, add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
 
 ```bash
 export PATH="/path/to/yggdrasil/scripts:$PATH"
@@ -145,11 +122,7 @@ ws push mimir
 
 Claude Code permissions are configured at two levels:
 
-- **Project** (`.claude/settings.json`, committed) — safe commands auto-approved,
-  `exec` always requires human approval.
+- **Project** (`.claude/settings.json`, committed) — safe commands auto-approved, `exec` always requires human approval.
 - **Local** (`.claude/settings.local.json`, gitignored) — your personal overrides.
 
-To set up local permissions for bulk operations, create
-`.claude/settings.local.json` (gitignored) and add auto-approve patterns
-for side-effect commands you use frequently.
-See `docs/ws-cli-guide.md` for the full pattern reference.
+To set up local permissions for bulk operations, create `.claude/settings.local.json` (gitignored) and add auto-approve patterns for side-effect commands you use frequently. See `docs/ws-cli-guide.md` for the full pattern reference.

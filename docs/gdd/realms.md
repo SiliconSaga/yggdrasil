@@ -25,18 +25,12 @@ The upstream `realm-template` ships as a tutorial scaffold; communities fork it 
 
 A realm typically carries:
 
-- **`ecosystem.yaml`** — component list, tiers, defaults. The community
-  declaration of "what we work on."
-- **Identity defaults** — agent identity (e.g. `agent-refr`),
-  attribution conventions, fork-org settings.
-- **MCP server overrides** — which MCP servers the community runs and
-  how they're wired.
-- **Adapter commands** — community-specific shell helpers exposed to
-  agents.
-- **`AGENTS.md`** — community-level agent instructions layered on top
-  of the workspace root's.
-- **`.agent/skills/`** — community-scoped skills that ship to every
-  member's sessions.
+- **`ecosystem.yaml`** — component list, tiers, defaults. The community declaration of "what we work on."
+- **Identity defaults** — agent identity (e.g. `agent-refr`), attribution conventions, fork-org settings.
+- **MCP server overrides** — which MCP servers the community runs and how they're wired.
+- **Adapter commands** — community-specific shell helpers exposed to agents.
+- **`AGENTS.md`** — community-level agent instructions layered on top of the workspace root's.
+- **`.agent/skills/`** — community-scoped skills that ship to every member's sessions.
 
 Anything an individual would otherwise have to copy across machines or re-explain to a new contributor is a candidate to live in the realm.
 
@@ -83,11 +77,8 @@ Cloning a realm is a higher-trust act than cloning an arbitrary component — on
 
 You can have multiple realms cloned simultaneously and flip between them with `ws realm use <name>`. This is mostly useful for:
 
-- **Tutorial → real.** Start with `realm-template` to learn the
-  workspace, then switch to your community realm when ready.
-- **Cross-community contribution.** A developer who works in two
-  communities (say, `realm-siliconsaga` and `realm-yourorg`) keeps
-  both cloned and switches when context shifts.
+- **Tutorial → real.** Start with `realm-template` to learn the workspace, then switch to your community realm when ready.
+- **Cross-community contribution.** A developer who works in two communities (say, `realm-siliconsaga` and `realm-yourorg`) keeps both cloned and switches when context shifts.
 
 Components from inactive realms aren't touched — `ws` just reads a different `ecosystem.yaml` for resolution.
 
@@ -101,12 +92,8 @@ The merge generalizes to N layers. The same upstream → realm → local shape e
 
 ## See also
 
-- [GDD Features Tour](features.md) — where realms fit in the larger
-  feature set.
+- [GDD Features Tour](features.md) — where realms fit in the larger feature set.
 - [Hoards](hoards.md) — the personal counterpart to realms.
-- [Ecosystem Architecture](../ecosystem-architecture.md) — the merge
-  semantics and dual-mode source resolution.
-- [Getting Started](../getting-started/index.md) — clone-and-go
-  walkthrough including realm setup.
-- [Trust and Safety](trust-and-safety.md) — realm content's trust
-  level and the broader hierarchy.
+- [Ecosystem Architecture](../ecosystem-architecture.md) — the merge semantics and dual-mode source resolution.
+- [Getting Started](../getting-started/index.md) — clone-and-go walkthrough including realm setup.
+- [Trust and Safety](trust-and-safety.md) — realm content's trust level and the broader hierarchy.

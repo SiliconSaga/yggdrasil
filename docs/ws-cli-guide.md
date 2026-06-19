@@ -99,10 +99,7 @@ Every subcommand falls into one of three tiers:
 }
 ```
 
-> **Note:** Deny patterns shown above are truncated. The actual
-> `.claude/settings.json` includes patterns for all supported arities
-> (up to 7 wildcards). Always check the repo's committed file for the
-> full set.
+> **Note:** Deny patterns shown above are truncated. The actual `.claude/settings.json` includes patterns for all supported arities (up to 7 wildcards). Always check the repo's committed file for the full set.
 
 ### 5. Update docs
 
@@ -135,13 +132,11 @@ Component names pass through `yq` expressions via bracket-quoted lookups (`.comp
 
 ### Forking and renaming
 
-The workspace name `yggdrasil` appears as a special case in `ws_resolve_target`
-(one string comparison) and throughout documentation. To fork and rename:
+The workspace name `yggdrasil` appears as a special case in `ws_resolve_target` (one string comparison) and throughout documentation. To fork and rename:
 
 1. Change the `"yggdrasil"` check in `scripts/ws` → `ws_resolve_target()`
 2. Search docs for `yggdrasil` and update narrative references
-3. Update remote names and org prefixes in `scripts/git-push.sh` and
-   `scripts/git-cr.sh` to match your fork's remote naming
+3. Update remote names and org prefixes in `scripts/git-push.sh` and `scripts/git-cr.sh` to match your fork's remote naming
 4. Update the domain in `ecosystem.yaml`
 5. Update `.mcp.json` if you change component names that host MCP servers
 
@@ -235,8 +230,7 @@ The flag value is a bare name (no angle brackets), so it passes the hook and nee
 
 ## ws component init
 
-Scaffolds a new component into `components/<name>/` from a template
-shipped at `templates/components/<flavor>/`.
+Scaffolds a new component into `components/<name>/` from a template shipped at `templates/components/<flavor>/`.
 
 Usage:
 
@@ -247,31 +241,19 @@ ws component list
 
 Behavior:
 
-1. Validates the flavor exists. Errors with the available-flavors list
-   if not.
+1. Validates the flavor exists. Errors with the available-flavors list if not.
 2. Resolves the component name. Required; prompted on a tty if omitted.
-3. Pre-flight checks: `components/<name>/` doesn't exist, `<name>`
-   isn't already in `ecosystem.local.yaml`. Warns + confirms if `<name>`
-   shadows a realm-catalog entry.
+3. Pre-flight checks: `components/<name>/` doesn't exist, `<name>` isn't already in `ecosystem.local.yaml`. Warns + confirms if `<name>` shadows a realm-catalog entry.
 4. Copies the template directory into `components/<name>/`.
-5. `git init -b main`, initial commit using the user's git config —
-   `git config user.name` for the author name (fallback to
-   `identity.human_account`) and `git config user.email` for the email
-   (fallback to `<human_account>@local`).
-6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.repo`
-   (matches the field `ws-clone.sh` reads). The URL is inferred from
-   `identity.human_account` and the component name, in canonical
-   `https://github.com/<user>/<name>.git` form.
-7. Prints educational output explaining the local-first → upstream-when-
-   ready flow plus a flavor-appropriate `gh repo create` suggestion.
+5. `git init -b main`, initial commit using the user's git config — `git config user.name` for the author name (fallback to `identity.human_account`) and `git config user.email` for the email (fallback to `<human_account>@local`).
+6. Adds an entry to `ecosystem.local.yaml` under `components.<name>.repo` (matches the field `ws-clone.sh` reads). The URL is inferred from `identity.human_account` and the component name, in canonical `https://github.com/<user>/<name>.git` form.
+7. Prints educational output explaining the local-first → upstream-when-ready flow plus a flavor-appropriate `gh repo create` suggestion.
 
 `ecosystem.local.yaml` is the per-developer (gitignored) layer of the three-layer merge. The new component is immediately usable from this workspace; when ready to share with the community, move the entry into the realm's `ecosystem.yaml` with realm-appropriate fields (tier, chartVersion, etc.) and push the realm.
 
 Currently shipped flavors:
 
-- `gh-pages` — tutorial-friendly GitHub Pages site, bare markdown +
-  default GitHub Jekyll theme. Comprehensive README walks the user
-  through the edit → PR → bot-review → merge → see-it-live demo loop.
+- `gh-pages` — tutorial-friendly GitHub Pages site, bare markdown + default GitHub Jekyll theme. Comprehensive README walks the user through the edit → PR → bot-review → merge → see-it-live demo loop.
 
 Per-flavor flag handling is hardcoded in `scripts/ws-component.sh` for v1.
 

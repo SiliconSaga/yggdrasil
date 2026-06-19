@@ -85,10 +85,6 @@ To read a skill: open the file. To author a new skill or change an existing one:
 
 ## See also
 
-- [Roles and Modes](roles-and-modes.md) — the model the mode and
-  role skills implement.
-- [Self-Improving Loop](self-improving-loop.md) — how observations
-  in the thalamus become new or revised skills over time.
-- [`AGENTS.md`](https://github.com/SiliconSaga/yggdrasil/blob/main/AGENTS.md)
-  — the workspace-root pointer that names the skills agents read at
-  orientation.
+- [Roles and Modes](roles-and-modes.md) — the model the mode and role skills implement.
+- [Self-Improving Loop](self-improving-loop.md) — how observations in the thalamus become new or revised skills over time.
+- [`AGENTS.md`](https://github.com/SiliconSaga/yggdrasil/blob/main/AGENTS.md) — the workspace-root pointer that names the skills agents read at orientation.

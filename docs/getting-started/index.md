@@ -13,11 +13,7 @@ Note that this currently assumes a variety of prerequisites:
 
 ## Templates, instances, and tutorials
 
-The yggdrasil workspace ships templates in two shapes: in-repo
-`templates/<kind>/<flavor>/` directories that an `init` command copies
-out (hoards, components), and external git repos that an `init` command
-clones (realms — referenced via `defaults.templateRealm` URL in the
-ecosystem config).
+The yggdrasil workspace ships templates in two shapes: in-repo `templates/<kind>/<flavor>/` directories that an `init` command copies out (hoards, components), and external git repos that an `init` command clones (realms — referenced via `defaults.templateRealm` URL in the ecosystem config).
 
 | Kind | Source | Instance dir | Init command |
 |------|--------|--------------|--------------|
@@ -25,58 +21,32 @@ ecosystem config).
 | **Hoard** | `templates/hoards/<type>/` | `hoards/<type>-<username>/` | `ws hoard init <type>` (copies + git-inits) |
 | **Component** | `templates/components/<flavor>/` | `components/<name>/` | `ws component init <flavor> <name>` (copies + git-inits) |
 
-A *template* is a forkable scaffold. An *instance* is the on-disk
-result of running its `init` command. A *tutorial* is an instance
-deliberately suitable for newcomers — the `gh-pages` component
-template produces a tutorial instance with a comprehensive README and
-a designed-to-be-edited home page. Other flavors may not be tutorial-
-friendly (they're production scaffolds).
+A *template* is a forkable scaffold. An *instance* is the on-disk result of running its `init` command. A *tutorial* is an instance deliberately suitable for newcomers — the `gh-pages` component template produces a tutorial instance with a comprehensive README and a designed-to-be-edited home page. Other flavors may not be tutorial-friendly (they're production scaffolds).
 
 ## Setup
 
 ### Before you start: bootstrap
 
-Two foundational pieces have to be in place before any of the rest
-of the walkthrough works. Skim these and skip whichever you already
-have.
+Two foundational pieces have to be in place before any of the rest of the walkthrough works. Skim these and skip whichever you already have.
 
 #### Install Git
 
-You need Git to clone the workspace, and on Windows it's also how
-you get bash (the shell `ws` runs in).
+You need Git to clone the workspace, and on Windows it's also how you get bash (the shell `ws` runs in).
 
-- **macOS:** `xcode-select --install` to get Git via Xcode Command
-  Line Tools, OR `brew install git` if you already use Homebrew.
-  Bash is built-in.
-- **Windows:** Download Git for Windows from
-  https://git-scm.com/download/win — this bundles **Git Bash**, the
-  shell you'll use for everything else. Accept the installer's
-  default to add Git to your PATH (the "Git from the command line
-  and also from 3rd-party software" option). After install, **open
-  Git Bash** (Start menu → Git Bash). Run all subsequent commands
-  from Git Bash, not cmd.exe or PowerShell.
-- **Linux:** `sudo apt install git` (Debian/Ubuntu) or
-  `sudo dnf install git` (Fedora). Bash is built-in.
+- **macOS:** `xcode-select --install` to get Git via Xcode Command Line Tools, OR `brew install git` if you already use Homebrew. Bash is built-in.
+- **Windows:** Download Git for Windows from https://git-scm.com/download/win — this bundles **Git Bash**, the shell you'll use for everything else. Accept the installer's default to add Git to your PATH (the "Git from the command line and also from 3rd-party software" option). After install, **open Git Bash** (Start menu → Git Bash). Run all subsequent commands from Git Bash, not cmd.exe or PowerShell.
+- **Linux:** `sudo apt install git` (Debian/Ubuntu) or `sudo dnf install git` (Fedora). Bash is built-in.
 
-You don't need Python for the workspace itself. Python and `uv` are
-optional, only required for components or MCP servers that
-explicitly use them.
+You don't need Python for the workspace itself. Python and `uv` are optional, only required for components or MCP servers that explicitly use them.
 
 #### Get a GitHub or GitLab account
 
-GDD assumes you have a hosting account — agents push, open PRs, and
-file issues on your behalf, and there has to be an account those
-operations belong to. **If you don't have one yet:**
+GDD assumes you have a hosting account — agents push, open PRs, and file issues on your behalf, and there has to be an account those operations belong to. **If you don't have one yet:**
 
-- **GitHub:** sign up at https://github.com/signup (free). Pick a
-  username — that's your `identity.human_account` in the workspace
-  config below. Verify your email so you can create repos.
-- **GitLab:** sign up at https://gitlab.com/users/sign_up (free).
-  Same shape — username becomes your config identity.
+- **GitHub:** sign up at https://github.com/signup (free). Pick a username — that's your `identity.human_account` in the workspace config below. Verify your email so you can create repos.
+- **GitLab:** sign up at https://gitlab.com/users/sign_up (free). Same shape — username becomes your config identity.
 
-That's enough to get through this walkthrough. The token + CLI
-setup (Step 3 below) needs your account to exist; everything else
-is stand-alone. If you already have an account, skip ahead.
+That's enough to get through this walkthrough. The token + CLI setup (Step 3 below) needs your account to exist; everything else is stand-alone. If you already have an account, skip ahead.
 
 ### Walkthrough
 
@@ -93,10 +63,7 @@ is stand-alone. If you already have an account, skip ahead.
    bash scripts/ws preflight
    ```
 
-   It verifies bash, git, `yq` (v4+ — Mike Farah's, not the
-   Python yq), `jq`, and a provider CLI (`gh` or `glab`). Anything
-   missing prints a per-OS install hint. Re-run after installing
-   to confirm.
+   It verifies bash, git, `yq` (v4+ — Mike Farah's, not the Python yq), `jq`, and a provider CLI (`gh` or `glab`). Anything missing prints a per-OS install hint. Re-run after installing to confirm.
 
 2. **Configure your identity** — copy the example config and fill in your details:
 
@@ -110,11 +77,7 @@ is stand-alone. If you already have an account, skip ahead.
 
 3. **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env` and install the CLI tools (`gh` for GitHub, `glab` for GitLab). This enables the `ws` CLI to push, file issues, and manage PRs/MRs.
 
-4. **Add `ws` to your PATH** — all workspace operations go through the `ws` CLI.
-   Adding `scripts/` to your PATH lets you run `ws <command>` directly instead
-   of the longer `bash scripts/ws <command>` form. It also means `ws` always
-   resolves paths relative to the workspace root, so it works correctly no matter
-   which directory you (or an AI agent) run it from:
+4. **Add `ws` to your PATH** — all workspace operations go through the `ws` CLI. Adding `scripts/` to your PATH lets you run `ws <command>` directly instead of the longer `bash scripts/ws <command>` form. It also means `ws` always resolves paths relative to the workspace root, so it works correctly no matter which directory you (or an AI agent) run it from:
 
    ```bash
    echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.zshrc   # zsh (macOS default)
@@ -122,8 +85,7 @@ is stand-alone. If you already have an account, skip ahead.
    echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.bashrc  # bash
    ```
 
-   Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal.
-   Run `ws help` to verify.
+   Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal. Run `ws help` to verify.
 
 5. **Clone a component to work on:**
 
@@ -150,18 +112,13 @@ is stand-alone. If you already have an account, skip ahead.
 
 ### Recommended first scaffold
 
-If you're new to GDD and want to feel the full workflow on a tiny live
-target, scaffold the GitHub Pages tutorial:
+If you're new to GDD and want to feel the full workflow on a tiny live target, scaffold the GitHub Pages tutorial:
 
 ```bash
 ws component init gh-pages my-page
 ```
 
-Then follow the printed instructions and `components/my-page/README.md`.
-The tutorial walks you through creating the GitHub repo, enabling
-Pages, making a first edit on a topic branch, opening a PR, watching
-CodeRabbit and Copilot review, and seeing it deploy live — the whole
-GDD loop on something small enough to feel in 15 minutes.
+Then follow the printed instructions and `components/my-page/README.md`. The tutorial walks you through creating the GitHub repo, enabling Pages, making a first edit on a topic branch, opening a PR, watching CodeRabbit and Copilot review, and seeing it deploy live — the whole GDD loop on something small enough to feel in 15 minutes.
 
 ## Your First Session
 

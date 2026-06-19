@@ -23,11 +23,8 @@ ai_context:
     description: "Architecture overview for AI orientation"
 ```
 
-- **`commands`** — a map from action name to shell command. Keys are
-  free-form (`build`, `test`, `lint`, `serve`, anything the community
-  cares to expose). Values run from the component directory.
-- **`ai_context`** — optional list of paths agents should orient
-  against when working on the component, with one-line descriptions.
+- **`commands`** — a map from action name to shell command. Keys are free-form (`build`, `test`, `lint`, `serve`, anything the community cares to expose). Values run from the component directory.
+- **`ai_context`** — optional list of paths agents should orient against when working on the component, with one-line descriptions.
 
 A starter file with comments ships in the upstream [`realm-template`](https://github.com/SiliconSaga/realm-template) repo (cloned via `ws realm init`) at `adapters/example.yaml`. Copy it to your community realm at `realms/<your-realm>/adapters/<comp>.yaml` and edit. See [Realms](realms.md) for the realm-template's role in the workspace.
 
@@ -64,10 +61,8 @@ ws actions <component>
 
 The command prints two sections:
 
-- **Configured (from realm)** — commands declared in the adapter file,
-  if one exists for the component.
-- **Auto-detected** — what the workspace would fall back to if no
-  adapter file existed (e.g. `./gradlew build`, `go test ./...`).
+- **Configured (from realm)** — commands declared in the adapter file, if one exists for the component.
+- **Auto-detected** — what the workspace would fall back to if no adapter file existed (e.g. `./gradlew build`, `go test ./...`).
 
 If the component has neither an adapter file nor a recognized build system, `ws actions` prints a hint pointing at the path you'd create to add one.
 
@@ -79,21 +74,14 @@ For execution (`ws test`), realm-configured `commands.test` takes precedence ove
 
 The auto-detect fallback covers the common case for `ws test` — a Gradle component gets `./gradlew test` for free. Add an adapter file when:
 
-- The component uses a non-default test runner the workspace doesn't
-  auto-detect.
-- You want to document project-specific commands (e.g. `e2e`,
-  `migrate`, `bench`) so `ws actions` surfaces them for agents and
-  contributors.
-- Different communities want different defaults for the same
-  component (one realm wires `test` to a quick subset, another wires
-  it to the full suite).
+- The component uses a non-default test runner the workspace doesn't auto-detect.
+- You want to document project-specific commands (e.g. `e2e`, `migrate`, `bench`) so `ws actions` surfaces them for agents and contributors.
+- Different communities want different defaults for the same component (one realm wires `test` to a quick subset, another wires it to the full suite).
 
 ---
 
 ## See also
 
-- [Realms](realms.md) — where adapter files live and why they're
-  realm-side configuration.
-- [Ecosystem Architecture](../ecosystem-architecture.md) — how realms
-  fit into the three-layer config merge.
+- [Realms](realms.md) — where adapter files live and why they're realm-side configuration.
+- [Ecosystem Architecture](../ecosystem-architecture.md) — how realms fit into the three-layer config merge.
 - [`ws help actions`](../ws-cli-guide.md) — CLI behavior and arguments.

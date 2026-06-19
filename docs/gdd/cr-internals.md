@@ -1,26 +1,19 @@
 # CR Internals — Cross-Fork Change Requests
 
-This document covers the internal mechanics of cross-fork CR creation in yggdrasil.
-It is aimed at realm maintainers and contributors debugging token or MR creation
-issues — not regular GDD users.
+This document covers the internal mechanics of cross-fork CR creation in yggdrasil. It is aimed at realm maintainers and contributors debugging token or MR creation issues — not regular GDD users.
 
 ## Overview: The Two-Token Model
 
-When you run `ws cr <component> --upstream`, yggdrasil operates with two tokens
-in the cross-fork case:
+When you run `ws cr <component> --upstream`, yggdrasil operates with two tokens in the cross-fork case:
 
 | Token | Role | Used for |
 |---|---|---|
 | Fork write token | Developer (fork group) | Pushing branches, creating MRs/PRs |
 | Upstream reporter token | Reporter (upstream group) | Reading upstream metadata, creating issues, reading MR comments and threads (`ws review`) |
 
-Both tokens are needed. The upstream reporter token covers all read and issue operations
-against the upstream project — not just default-branch lookup. Eliminating it from
-the CR path would still leave it required for `ws review` and `ws issue`.
+Both tokens are needed. The upstream reporter token covers all read and issue operations against the upstream project — not just default-branch lookup. Eliminating it from the CR path would still leave it required for `ws review` and `ws issue`.
 
-These tokens are configured in the ecosystem config's `defaults.gitTokens` map,
-keyed by URL prefix. The longest matching prefix wins, so a fork-group token
-(longer path) takes precedence over a parent-group token for the same host.
+These tokens are configured in the ecosystem config's `defaults.gitTokens` map, keyed by URL prefix. The longest matching prefix wins, so a fork-group token (longer path) takes precedence over a parent-group token for the same host.
 
 ## GitHub: Cross-Fork PR Flow
 
@@ -32,22 +25,15 @@ ws cr <component> --upstream
        --base  main
 ```
 
-On **GitHub**, the `gh` CLI creates the PR by calling the **upstream project's API**.
-PR creation only requires read access to the upstream (GitHub allows PR creation
-from any repo you can read, including public ones).
+On **GitHub**, the `gh` CLI creates the PR by calling the **upstream project's API**. PR creation only requires read access to the upstream (GitHub allows PR creation from any repo you can read, including public ones).
 
 **Whether one or two tokens are needed depends on token type:**
 
-- **Classic PAT or account with team membership on both sides**: a single token
-  covers push to fork and PR creation against upstream. No split needed.
-- **Fine-grained PAT scoped to fork org only**: works when the upstream is public
-  (readable without explicit access). The SiliconSaga/MovingBlocks setup is an
-  example — `GH_TOKEN` is scoped to SiliconSaga, and MovingBlocks repos are public.
-- **Fine-grained PAT with explicit upstream access**: also a single token, just
-  scoped to both orgs.
+- **Classic PAT or account with team membership on both sides**: a single token covers push to fork and PR creation against upstream. No split needed.
+- **Fine-grained PAT scoped to fork org only**: works when the upstream is public (readable without explicit access). The SiliconSaga/MovingBlocks setup is an example — `GH_TOKEN` is scoped to SiliconSaga, and MovingBlocks repos are public.
+- **Fine-grained PAT with explicit upstream access**: also a single token, just scoped to both orgs.
 
-The two-token split is not a GitHub requirement — it's a GitLab necessity that
-happens to map onto GitHub fine-grained tokens naturally.
+The two-token split is not a GitHub requirement — it's a GitLab necessity that happens to map onto GitHub fine-grained tokens naturally.
 
 ## GitLab: Cross-Fork MR Flow
 
@@ -60,13 +46,9 @@ ws cr <component> --upstream
        --target-branch  main
 ```
 
-On **GitLab**, `glab mr create` uses the `--head OWNER/REPO` flag to identify
-the fork. With this flag, glab calls the **fork project's API** to create the
-MR — not the upstream's API. GitLab's MR creation endpoint lives on the source
-(fork) project.
+On **GitLab**, `glab mr create` uses the `--head OWNER/REPO` flag to identify the fork. With this flag, glab calls the **fork project's API** to create the MR — not the upstream's API. GitLab's MR creation endpoint lives on the source (fork) project.
 
-This is the opposite of how GitHub works, and opposite of what the `--repo`
-argument implies at first glance.
+This is the opposite of how GitHub works, and opposite of what the `--repo` argument implies at first glance.
 
 **Consequence for token selection in git-cr.sh:**
 
@@ -80,9 +62,7 @@ argument implies at first glance.
                 ...
 ```
 
-The token must be switched between the two calls. Using only the reporter
-token for both will produce a `403 Forbidden` from the fork project, since
-the reporter token has no write access there.
+The token must be switched between the two calls. Using only the reporter token for both will produce a `403 Forbidden` from the fork project, since the reporter token has no write access there.
 
 ## Summary: Which Token Goes Where
 
@@ -94,76 +74,41 @@ the reporter token has no write access there.
 | `ws review` (MR comments, threads) | Any token with upstream read | Upstream reporter token |
 | `ws issue` (create issue on upstream) | Any token with upstream read | Upstream reporter token |
 
-On GitHub, "any token with upstream read" may be a single token that also covers
-the fork — especially with classic PATs or public upstreams. On GitLab with private
-groups, separate tokens are required because the fork group and upstream group each
-need explicit access grants.
+On GitHub, "any token with upstream read" may be a single token that also covers the fork — especially with classic PATs or public upstreams. On GitLab with private groups, separate tokens are required because the fork group and upstream group each need explicit access grants.
 
-The fundamental difference: GitHub owns the PR on the upstream side; GitLab owns
-the MR on the source (fork) side. This is reflected in which project's API
-endpoint is called during creation.
+The fundamental difference: GitHub owns the PR on the upstream side; GitLab owns the MR on the source (fork) side. This is reflected in which project's API endpoint is called during creation.
 
 ## Token Types, Machine Users, and Corporate GitLab
 
 ### GitHub: two approaches to scoping
 
-On GitHub you have two legitimate options for limiting the blast radius of an
-automation token:
+On GitHub you have two legitimate options for limiting the blast radius of an automation token:
 
-1. **Fine-grained PAT on your own account** — GitHub lets you scope these below
-   your actual access level. You can be an org owner and issue a PAT that only
-   has write on your fork org and read on the upstream. The PR is posted as *you*,
-   with your full username and avatar visible in the GitHub UI. The scoping is
-   enforced at the token level, not the account level.
+1. **Fine-grained PAT on your own account** — GitHub lets you scope these below your actual access level. You can be an org owner and issue a PAT that only has write on your fork org and read on the upstream. The PR is posted as *you*, with your full username and avatar visible in the GitHub UI. The scoping is enforced at the token level, not the account level.
 
-2. **Dedicated machine user** (separate GitHub account) — an older pattern that
-   predates fine-grained PATs. A separate account with a classic token is granted 
-   only the team memberships it needs. The PR appears as the machine user, not you 
-   personally. Still common and valid, but no longer strictly necessary on GitHub.
+2. **Dedicated machine user** (separate GitHub account) — an older pattern that predates fine-grained PATs. A separate account with a classic token is granted only the team memberships it needs. The PR appears as the machine user, not you personally. Still common and valid, but no longer strictly necessary on GitHub.
 
-The key point: on GitHub, option 1 lets you post as your own human account while
-still running with restricted permissions.
+The key point: on GitHub, option 1 lets you post as your own human account while still running with restricted permissions.
 
 ### GitLab: PATs cannot be downscoped
 
-A GitLab Personal Access Token runs as the creating user and inherits their full
-access level. If your account is Owner of `group/project`, your PAT is effectively
-Owner too — there is no way to issue a PAT that has only Reporter access to a
-group where you have Owner access.
+A GitLab Personal Access Token runs as the creating user and inherits their full access level. If your account is Owner of `group/project`, your PAT is effectively Owner too — there is no way to issue a PAT that has only Reporter access to a group where you have Owner access.
 
-The GitLab-native solution is **Group Access Tokens** and **Project Access Tokens**,
-which are created with an explicit role independent of any user. This is what
-yggdrasil uses on self-hosted/paid tiers (e.g. `GITLAB_GDD_GROUP_REPORTER_TOKEN`,
-`GITLAB_GDD_GROUP_WRITE_TOKEN`). On gitlab.com free tier, these token types are not
-available — use a Personal Access Token instead, and point both env vars at the
-same PAT to maintain the routing pattern.
+The GitLab-native solution is **Group Access Tokens** and **Project Access Tokens**, which are created with an explicit role independent of any user. This is what yggdrasil uses on self-hosted/paid tiers (e.g. `GITLAB_GDD_GROUP_REPORTER_TOKEN`, `GITLAB_GDD_GROUP_WRITE_TOKEN`). On gitlab.com free tier, these token types are not available — use a Personal Access Token instead, and point both env vars at the same PAT to maintain the routing pattern.
 
-**Machine users on corporate GitLab** are often not an option either — user
-accounts may be managed by IT/SSO, so you can't create a dedicated bot account
-as easily as you could on the public cloud GitLab or GitHub.
+**Machine users on corporate GitLab** are often not an option either — user accounts may be managed by IT/SSO, so you can't create a dedicated bot account as easily as you could on the public cloud GitLab or GitHub.
 
-The result: on GitLab, CRs submitted by the agent appear as opened by a bot user
-(`project_NNN_bot_...`), not your personal account.
+The result: on GitLab, CRs submitted by the agent appear as opened by a bot user (`project_NNN_bot_...`), not your personal account.
 
 ### Human attribution on GitLab
 
-Since the GitLab UI shows the bot as the MR author, yggdrasil uses two layers of
-attribution to tie the CR back to the human who initiated it:
+Since the GitLab UI shows the bot as the MR author, yggdrasil uses two layers of attribution to tie the CR back to the human who initiated it:
 
-1. **Fork namespace path** — the MR source is `youruser/project`, making the
-   human's name visible in the MR header even if the opener is a bot.
+1. **Fork namespace path** — the MR source is `youruser/project`, making the human's name visible in the MR header even if the opener is a bot.
 
-2. **`@HUMAN_ACCOUNT` in the MR body** — the CR template substitutes the
-   `identity.human_account` value (e.g. `@youruser`) into the body at creation
-   time, so the human is explicitly named in the description.
+2. **`@HUMAN_ACCOUNT` in the MR body** — the CR template substitutes the `identity.human_account` value (e.g. `@youruser`) into the body at creation time, so the human is explicitly named in the description.
 
-This is an accepted trade-off for now. It provides adequate attribution for
-most team workflows, but may not satisfy formal audit requirements that expect
-the GitLab *author* field to match a human identity. If that becomes a
-requirement, the path forward would be a per-developer PAT with exactly Reporter
-access to the upstream — but since GitLab PATs can't be downscoped, that token
-would carry your full account permissions on that group, which is a wider blast
-radius than the Group Access Token approach.
+This is an accepted trade-off for now. It provides adequate attribution for most team workflows, but may not satisfy formal audit requirements that expect the GitLab *author* field to match a human identity. If that becomes a requirement, the path forward would be a per-developer PAT with exactly Reporter access to the upstream — but since GitLab PATs can't be downscoped, that token would carry your full account permissions on that group, which is a wider blast radius than the Group Access Token approach.
 
 ## See Also
 
