@@ -26,7 +26,7 @@ ai_context:
 - **`commands`** — a map from action name to shell command. Keys are free-form (`build`, `test`, `lint`, `serve`, anything the community cares to expose). Values run from the component directory.
 - **`ai_context`** — optional list of paths agents should orient against when working on the component, with one-line descriptions.
 
-A starter file with comments ships in the upstream [`realm-template`](https://github.com/SiliconSage/realm-template) repo (cloned via `ws realm init`) at `adapters/example.yaml`. Copy it to your community realm at `realms/<your-realm>/adapters/<comp>.yaml` and edit. See [Realms](realms.md) for the realm-template's role in the workspace.
+A starter file with comments ships in the upstream [`realm-template`](https://github.com/SiliconSaga/realm-template) repo (cloned via `ws realm init`) at `adapters/example.yaml`. Copy it to your community realm at `realms/<your-realm>/adapters/<comp>.yaml` and edit. See [Realms](realms.md) for the realm-template's role in the workspace.
 
 ---
 
