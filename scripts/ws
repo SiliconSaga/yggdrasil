@@ -14,7 +14,6 @@
 #   clone-fork <comp>  Fork-aware clone: ensure fork exists, clone fork, wire
 #                      both remotes, sync main with upstream. Idempotent.
 #   pull [comp]       Pull all or one component
-#   resolve           Generate ArgoCD Applications
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch|tag] [--force] Push branch or tag (remote from identity.forkOrg)
 #   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
@@ -906,9 +905,6 @@ case "$COMMAND" in
         ;;
     pull)
         bash "$SCRIPT_DIR/ws-pull.sh" "$@"
-        ;;
-    resolve)
-        bash "$SCRIPT_DIR/ws-resolve.sh" "$@"
         ;;
     vscode)
         bash "$SCRIPT_DIR/ws-vscode.sh" "$@"
