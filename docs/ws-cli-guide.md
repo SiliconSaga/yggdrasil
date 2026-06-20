@@ -71,7 +71,7 @@ Every subcommand falls into one of three tiers:
 
 | Tier | Auto-approve? | Deny rule? | Examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `orient`, `list`, `status`, `clone`, `pull`, `resolve`, `vscode`, `test`, `lint`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions`, `audit-permissions`, `preflight` |
+| **Safe** | Yes (allow) | No | `orient`, `list`, `status`, `clone`, `pull`, `vscode`, `test`, `lint`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions`, `audit-permissions`, `preflight` |
 | **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs), `hook-bypass` (ask-tier enforced — even with an allow pattern present, the hook always force-prompts) |
 | **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
 

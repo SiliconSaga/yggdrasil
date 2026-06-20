@@ -68,8 +68,6 @@ yggdrasil/
       adapters/             # Per-component build/test commands
       docs/                 # Realm-side narrative + tier docs
     realm-template/         # Tutorial realm
-  .generated/
-    applications/           # ArgoCD manifests from ws-resolve.sh (gitignored)
 ```
 
 ### Three-Layer Config Merge
@@ -106,18 +104,11 @@ ws realm list              # Show available realms
 ws realm use <name>        # Switch active realm
 ```
 
-## Dual-Mode Source Resolution
+## Deployment Manifest Generation (removed)
 
-Each component can be consumed in two ways:
+The workspace once shipped a `ws resolve` command that read these ecosystem fields and generated ArgoCD `Application` manifests — a "dual-mode source resolution" that picked Git-source vs. pre-built-chart per component. It was early-design and went unused: real stacks deploy from their own hand-authored app-of-apps (richer than the flat generator — sync-waves, per-app sync options, namespaces), and generating ArgoCD apps is a stack/infra concern rather than a GDD-framework one. So it was removed.
 
-1. **Source mode** (local Git checkout exists): ArgoCD syncs from the Git repo (via internal Gitea mirror). Used during development.
-2. **Chart mode** (no local checkout): ArgoCD installs a pre-built Helm chart from the OCI registry. Used for stable dependencies you aren't actively changing.
-
-The `scripts/ws-resolve.sh` script auto-detects which mode applies per component and generates the appropriate ArgoCD Application manifests. Developers can override resolution per-component via `ecosystem.local.yaml`:
-
-- `forceChart: true` — use chart even when local source exists
-- Override `values:` for local environment specifics
-- Toggle `disabled` to include/exclude components
+The classification fields it relied on still live in the ecosystem schema — `tier` is consumed by `ws list`/`ws clone` for repo roles, and a realm's own deploy tree decides Git-vs-chart per app. The theory behind the generator (dual-mode resolution, the `forceChart`/`values`/`disabled` overrides) and a vision for a future redo — e.g. scaffolding a starter app-of-apps when bootstrapping a brand-new stack — is parked as a realm/stack-side concern in [SiliconSaga/realm-siliconsaga#17](https://github.com/SiliconSaga/realm-siliconsaga/issues/17).
 
 ## Vendored Mirrors (`tier: vendor`)
 
@@ -130,7 +121,7 @@ The `vendor` role is the third option: a realm declares the upstream repo as its
 
 - **`ws clone`** fetches the mirror naturally alongside every other component, so a from-scratch workspace gets it without special steps.
 - **Hydration** (the GitOps source-of-truth push — SiliconSaga's seed-Gitea flow) pushes the mirror's *real history and tags* (not the orphan-commit snapshot used for maintained repos), so an in-cluster ArgoCD app can pin an exact upstream tag (`targetRevision: <tag>`) against the local copy.
-- **Not an ArgoCD app itself.** `ws-resolve` skips `tier: vendor` components (alongside `supporting`/`test`) — a mirror is a *source repo*, not a deployable, so no `Application` is generated for it. It reaches a cluster only through a *real* component's app that pins it (e.g. `repoURL: <git-host>/<mirror>.git`, `targetRevision: <tag>`); the pin lives on that consuming app, not in `ecosystem.yaml`.
+- **Not an ArgoCD app itself.** A mirror is a *source repo*, not a deployable — like the other non-deployable tiers (`supporting`/`test`), nothing generates an `Application` for it. It reaches a cluster only through a *real* component's app that pins it (e.g. `repoURL: <git-host>/<mirror>.git`, `targetRevision: <tag>`); the pin lives on that consuming app, not in `ecosystem.yaml`.
 - **Updating** is re-syncing the mirror from upstream and bumping the pin — the same deliberate, auditable upgrade ceremony as vendoring, just relocated out of the maintained tree.
 
 A vendor mirror is **read-only**: never commit local edits to it (that would fork it from upstream). If you need to modify upstream manifests, that's a real component you maintain, not a mirror. Whether mirrors stay manually re-synced or become self-maintaining (e.g. a platform Git host's native pull-mirror feature) is a realm-infrastructure choice, not a GDD-framework concern.

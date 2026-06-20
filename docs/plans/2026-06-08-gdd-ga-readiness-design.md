@@ -175,8 +175,8 @@ A command that's secretly gated off is a bad GA surprise.
 
 Smaller papercuts to sweep before (or alongside) the blockers. None individually gates GA, but collectively they're the difference between "rough" and "polished."
 
-### P1 — `ws resolve` ↔ `ws review --resolve` naming collision — ⬜
-Loki observation (2026-03-23): `ws resolve` (ArgoCD manifest generation) collides conceptually with `ws review … --resolve` (review-thread resolution). Rename the ArgoCD one — `ws render` / `ws materialize` / `ws generate`. Public users will conflate them.
+### P1 — `ws resolve` ↔ `ws review --resolve` naming collision — ✅ (resolved by removal)
+Loki observation (2026-03-23): `ws resolve` (ArgoCD manifest generation) collides conceptually with `ws review … --resolve` (review-thread resolution). Resolved not by renaming but by **removing** `ws resolve` entirely — it was early-design, unused (real stacks deploy from their own hand-authored app-of-apps), and infra-specific rather than GDD-core. The generator theory + a future-redo vision moved to a realm/stack issue (SiliconSaga/realm-siliconsaga#17). The collision is gone because only `--resolve` remains.
 
 ### P2 — Absolute-path / `git -C` allowlist escapes — ⬜
 Recorded on two hosts (`rasmuss-mbp-2` small observations; Loki Permissions/Hooks). Commands invoked via absolute paths or `git -C <path>` narrowly escape the `settings.json` allowlist and prompt unexpectedly (e.g. `git -C hoards/thalami-Cervator status -s`; `bash /abs/path/scripts/ws list`). Suggested fix (Loki): a hook that pushes back on absolute paths for known/common commands, nudging toward the workspace-relative form. Reduces random mid-session prompt noise — a real "feels flaky" signal for testers.

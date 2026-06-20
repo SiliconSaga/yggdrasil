@@ -18,8 +18,6 @@
 # Local ecosystem overrides (per-developer, never committed)
 ecosystem.local.yaml
 
-# Generated ArgoCD manifests from ws-resolve.sh
-/.generated/
 
 # Workspace-local scratch / temp area — agent and human edits land
 # here without prompting via the PreToolUse / PermissionRequest hooks

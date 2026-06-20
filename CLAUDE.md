@@ -9,7 +9,7 @@ This file covers only Claude-specific overrides.
 ## Session Conventions
 
 - **Start Claude from `yggdrasil/`** — this is the workspace root. All sessions should use it as the working directory. Avoid starting from `GitWS/` or component subdirectories.
-- **Workspace CLI:** The `ws` CLI is the shared interface for both humans and AI agents. Always use `bash scripts/ws <cmd>` for workspace operations. Use `bash scripts/ws exec <component> <cmd>` to run commands in component directories — never manually `cd` to components. Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint) also accept realm and hoard names, not just components. Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`, `ws cr`, `ws issue`, `ws test`, `ws lint`, `ws review`, `ws commit`, `ws log`, `ws clean`, `ws resolve`, `ws vscode`, `ws exec`, `ws realm`, `ws hoard`, `ws component`, `ws actions`, `ws help`.
+- **Workspace CLI:** The `ws` CLI is the shared interface for both humans and AI agents. Always use `bash scripts/ws <cmd>` for workspace operations. Use `bash scripts/ws exec <component> <cmd>` to run commands in component directories — never manually `cd` to components. Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint) also accept realm and hoard names, not just components. Available: `ws list`, `ws status`, `ws clone`, `ws pull`, `ws push`, `ws cr`, `ws issue`, `ws test`, `ws lint`, `ws review`, `ws commit`, `ws log`, `ws clean`, `ws vscode`, `ws exec`, `ws realm`, `ws hoard`, `ws component`, `ws actions`, `ws help`.
 - **Keep commands simple.** `gh`, `yq`, and Git Bash utilities are on PATH. Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command.
 - On first use of `ws` in a session, briefly note: "Using the workspace CLI (`scripts/ws`). Run `bash scripts/ws help` in your terminal for available commands. Add `export PATH="<yggdrasil>/scripts:$PATH"` to your shell profile for shorthand access."
 
@@ -35,7 +35,6 @@ yggdrasil/
     ws-status.sh          # Git status across workspace
     ws-pull.sh            # Pull all cloned components
     ws-list.sh            # List components and local status
-    ws-resolve.sh         # Generate ArgoCD Applications (Git vs chart)
     ws-vscode.sh          # Generate VS Code workspace file
 ```
 
