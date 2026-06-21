@@ -137,7 +137,10 @@ clone_component() {
     remote=$(remote_name_from_url "$repo_url")
 
     echo "CLONE: $name -> $target (remote: $remote)"
-    git clone --origin "$remote" "$repo_url" "$target"
+    local -a GIT_AUTH_ENV=()
+    local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+    git_auth_env_for_url "$repo_url"
+    env "${GIT_AUTH_ENV[@]}" git clone --origin "$remote" "$repo_url" "$target"
 }
 
 clone_url() {
@@ -173,7 +176,10 @@ clone_url() {
         remote=$(remote_name_from_url "$url")
 
         echo "CLONE: $safe_url -> $target (remote: $remote)"
-        git clone --origin "$remote" "$url" "$target"
+        local -a GIT_AUTH_ENV=()
+        local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+        git_auth_env_for_url "$url"
+        env "${GIT_AUTH_ENV[@]}" git clone --origin "$remote" "$url" "$target"
     fi
 
     if [[ "$add_eco" == "true" ]]; then

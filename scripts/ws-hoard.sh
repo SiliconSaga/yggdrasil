@@ -523,15 +523,19 @@ ws_hoard_init_from_yaml() {
         exit 1
     fi
 
+    local -a GIT_AUTH_ENV=()
+    local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+    git_auth_env_for_url "$upstream"
     echo "Cloning $upstream into $target..."
-    if ! git clone "$upstream" "$target" 2>/dev/null; then
+    if ! env "${GIT_AUTH_ENV[@]}" git clone "$upstream" "$target" 2>/dev/null; then
         if [[ -n "$fallback" ]]; then
             # The failed upstream clone may have left $target half-populated
             # (partial fetch, broken .git/, etc.). Wipe it before retrying so
             # the fallback clone starts from a clean target path.
             rm -rf "$target"
             echo "  Upstream clone failed; trying fallback: $fallback" >&2
-            if ! git clone "$fallback" "$target" 2>/dev/null; then
+            git_auth_env_for_url "$fallback"
+            if ! env "${GIT_AUTH_ENV[@]}" git clone "$fallback" "$target" 2>/dev/null; then
                 echo "ERROR: clone failed for both upstream and fallback." >&2
                 echo "  upstream: $upstream" >&2
                 echo "  fallback: $fallback" >&2
@@ -888,7 +892,11 @@ ws_hoard_clone_url() {
 
     mkdir -p "$HOARDS_DIR"
     echo "CLONE: hoard -> $target"
-    git clone "$url" "$target"
+    local -a GIT_AUTH_ENV=()
+    local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+    git_auth_env_for_url "$url"
+    [[ -n "$GIT_AUTH_LABEL" ]] && echo "Using $GIT_AUTH_LABEL for HTTPS $GIT_AUTH_PROVIDER clone auth (no credential helper prompt)"
+    env "${GIT_AUTH_ENV[@]}" git clone "$url" "$target"
     echo ""
     echo "Hoard cloned: $target"
 

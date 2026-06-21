@@ -30,6 +30,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${HOARDS_DIR:="$ROOT_DIR/hoards"}"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
 
+# Shared HTTPS token-injection helpers (git_auth_env_for_url). Sourcing here
+# means every script that sources ws-realm.sh — clone, hoard, pull, realm,
+# push — can inject .env tokens into raw git operations instead of falling
+# through to the OS credential manager. git-auth.sh sources nothing, so there
+# is no circular dependency with this file (it uses ws_resolve_token_var,
+# defined below, only at call time).
+# shellcheck source=git-auth.sh
+source "$SCRIPT_DIR/git-auth.sh"
+
 _RESOLVED_ECOSYSTEM=""
 # Initialize only if unset so callers that set COMPONENT_DIR before sourcing
 # this file (e.g. git-issue.sh) keep their value. Without :=, sourcing this
@@ -300,7 +309,10 @@ ws_realm_init() {
     fi
     mkdir -p "$REALMS_DIR"
     echo "CLONE: template realm -> $target"
-    git clone "$template_url" "$target"
+    local -a GIT_AUTH_ENV=()
+    local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+    git_auth_env_for_url "$template_url"
+    env "${GIT_AUTH_ENV[@]}" git clone "$template_url" "$target"
     echo ""
     echo "Template realm ready. Run 'ws clone --all' to clone tutorial components."
 }
@@ -390,7 +402,10 @@ ws_realm_clone_url() {
     fi
     mkdir -p "$REALMS_DIR"
     echo "CLONE: community realm -> $target"
-    git clone "$url" "$target"
+    local -a GIT_AUTH_ENV=()
+    local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+    git_auth_env_for_url "$url"
+    env "${GIT_AUTH_ENV[@]}" git clone "$url" "$target"
     echo ""
     echo "Community realm ready. Run 'ws clone --all' to clone components."
 }

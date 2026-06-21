@@ -25,112 +25,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
-git_push_normalize_url() {
-  local url="$1"
-  echo "$url" \
-    | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||'
-}
-
-git_push_https_host() {
-  local url="$1"
-  case "$url" in
-    https://*) ;;
-    *) return 1 ;;
-  esac
-  local rest="${url#https://}"
-  rest="${rest%%/*}"
-  rest="${rest#*@}"
-  [[ -n "$rest" ]] || return 1
-  printf '%s' "$rest"
-}
-
-git_push_resolve_token() {
-  local remote_url="$1" default_var="$2"
-  local normalized token_var token_value
-
-  normalized="$(git_push_normalize_url "$remote_url")"
-  token_var="$(ws_resolve_token_var "$normalized" 2>/dev/null || true)"
-  if [[ -n "$token_var" && "$token_var" != "null" ]]; then
-    token_value="${!token_var:-}"
-    if [[ -n "$token_value" ]]; then
-      GIT_PUSH_TOKEN_LABEL="$token_var"
-      GIT_PUSH_TOKEN_VALUE="$token_value"
-      return 0
-    fi
-  fi
-
-  # Default-token fallback only when a default var is named. A look-alike
-  # host (e.g. gitlab-evil.example) deliberately passes an empty default so
-  # GITLAB_TOKEN can't leak to it — only an explicit defaults.gitTokens
-  # mapping (resolved above) sends a token there.
-  if [[ -n "$default_var" ]]; then
-    token_value="${!default_var:-}"
-    if [[ -n "$token_value" ]]; then
-      GIT_PUSH_TOKEN_LABEL="$default_var"
-      GIT_PUSH_TOKEN_VALUE="$token_value"
-      return 0
-    fi
-  fi
-
-  GIT_PUSH_TOKEN_LABEL=""
-  GIT_PUSH_TOKEN_VALUE=""
-  return 1
-}
-
-git_push_basic_header() {
-  local user="$1" token="$2"
-  local encoded
-  encoded="$(printf '%s:%s' "$user" "$token" | base64 | tr -d '\n')"
-  printf 'Authorization: Basic %s' "$encoded"
-}
-
+# Auth-env injection is shared with clone/fetch/pull via git-auth.sh, which
+# ws-realm.sh (sourced above) pulls in. This thin shim maps the shared
+# GIT_AUTH_* outputs onto the GIT_PUSH_* names the push body already uses, so
+# the rest of this script is unchanged.
 git_push_auth_env_for_remote() {
-  local remote_url="$1"
-  local host provider="" default_token_var="" token="" user="" token_label="" header=""
-
-  host="$(git_push_https_host "$remote_url")" || return 0
-  case "$host" in
-    github.com)
-      provider="GitHub"
-      default_token_var="GH_TOKEN"
-      user="x-access-token"
-      ;;
-    gitlab.com)
-      provider="GitLab"
-      default_token_var="GITLAB_TOKEN"
-      user="${GITLAB_USER:-oauth2}"
-      ;;
-    gitlab-*|*.gitlab.*|gitlab.*)
-      # Self-hosted GitLab (gitlab.<domain>) and look-alike hosts. NEVER apply
-      # the GITLAB_TOKEN default here — require an explicit defaults.gitTokens
-      # mapping, so a self-hosted instance gets token auth when mapped while a
-      # look-alike host (e.g. gitlab-evil.example) can't harvest the credential.
-      provider="GitLab"
-      default_token_var=""
-      user="${GITLAB_USER:-oauth2}"
-      ;;
-    *)
-      return 0
-      ;;
-  esac
-
-  GIT_PUSH_TOKEN_LABEL=""
-  GIT_PUSH_TOKEN_VALUE=""
-  git_push_resolve_token "$remote_url" "$default_token_var" || return 0
-  token="$GIT_PUSH_TOKEN_VALUE"
-  token_label="$GIT_PUSH_TOKEN_LABEL"
-  [[ -n "$token" ]] || return 0
-  header="$(git_push_basic_header "$user" "$token")"
-  GIT_PUSH_AUTH_ENV=(
-    "GIT_TERMINAL_PROMPT=0"
-    "GIT_CONFIG_COUNT=2"
-    "GIT_CONFIG_KEY_0=credential.helper"
-    "GIT_CONFIG_VALUE_0="
-    "GIT_CONFIG_KEY_1=http.https://${host}/.extraheader"
-    "GIT_CONFIG_VALUE_1=$header"
-  )
-  GIT_PUSH_AUTH_LABEL="$token_label"
-  GIT_PUSH_AUTH_PROVIDER="$provider"
+  git_auth_env_for_url "$1"
+  GIT_PUSH_AUTH_ENV=("${GIT_AUTH_ENV[@]}")
+  GIT_PUSH_AUTH_LABEL="$GIT_AUTH_LABEL"
+  GIT_PUSH_AUTH_PROVIDER="$GIT_AUTH_PROVIDER"
 }
 
 # Parse --force flag
