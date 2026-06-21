@@ -60,6 +60,8 @@ Newcomer greeting template:
 
 Then run `ws orient`.
 
+**Bootstrap (fresh machine).** If `ws orient` errors with a missing-prerequisite message (e.g. "yq (v4+) is required"), the machine isn't set up yet. Run `ws preflight` — it runs without yq and prints per-OS install hints — help the human install what's missing, have them restart the shell so PATH updates apply, then re-run `ws orient`. Required tools (bash/git/yq/jq) are the local tier; a provider token isn't needed until the first remote action, so don't gate the session on it.
+
 ### Parse `ws orient`'s output for post-orient signals
 
 `ws orient` is the deterministic truth about workspace state. Look for:

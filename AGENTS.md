@@ -17,6 +17,8 @@ On every session start, after compaction, or when dispatched fresh, you **MUST**
 
 `ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids.
 
+**First session on a new machine:** run `ws preflight` before `ws orient`. It checks the required tools (bash, git, yq, jq) plus a provider CLI and prints per-OS install hints — and unlike `ws orient` it runs *without* yq, so it works on a bare machine. (Skip it and `ws orient` fails fast on the first missing required tool, pointing you back to preflight.) After installing tools, restart the shell so PATH updates apply. Those required tools are the *local* tier; a provider token in `.env` is only needed when you first clone a remote, push, or open a CR — `ws diagnose <comp>` validates that at the time, so auth is never a session-start gate.
+
 Two conventions you need before anything else:
 
 1. **Workspace skills are plain markdown.** Files under `.agent/skills/<name>/SKILL.md` are read with the Read tool — do not invoke them via the Skill tool. This applies to every workspace skill, not just orientation. (Plugin skills like `superpowers:executing-plans` use the Skill tool — see Companion plugin below.)

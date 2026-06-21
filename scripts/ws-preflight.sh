@@ -178,6 +178,7 @@ echo ""
 
 if [[ "$MISSING_REQUIRED" -eq 1 ]]; then
     echo "✗ Some required tools are missing or wrong version. See hints above."
+    echo "  After installing, open a fresh shell (or restart your editor) so PATH updates take effect."
     [[ "$SOFT" == false ]] && exit 1
 fi
 
