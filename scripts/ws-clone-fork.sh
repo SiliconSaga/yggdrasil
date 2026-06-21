@@ -434,7 +434,7 @@ if [[ "$FORK_TRANSPORT" == "https" ]]; then
             UPSTREAM_REMOTE_URL="$UPSTREAM_HTTP_URL"
             echo "  Transport: https (token-injected, no credential-manager prompt)"
         else
-            echo "  Transport: ssh (no .env token covers $UPSTREAM_HOST for https injection)"
+            echo "  Transport: ssh (https injection unavailable for $UPSTREAM_HOST — no covering .env token, or host not injectable)"
         fi
     else
         echo "  Transport: ssh (provider returned no http_url_to_repo)"

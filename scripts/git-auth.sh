@@ -63,6 +63,12 @@ git_auth_resolve_token() {
   normalized="$(git_auth_normalize_url "$remote_url")"
   if declare -F ws_resolve_token_var >/dev/null 2>&1; then
     token_var="$(ws_resolve_token_var "$normalized" 2>/dev/null || true)"
+    # ws_resolve_token_var returns an env var NAME. If a gitTokens value isn't a
+    # valid shell identifier, the ${!token_var} indirection below would error
+    # ("bad substitution") and abort before the default fallback — treat an
+    # invalid name as unmapped and fall through. ("null" is a valid identifier
+    # pattern, so the explicit != "null" check below still earns its keep.)
+    [[ "$token_var" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || token_var=""
     if [[ -n "$token_var" && "$token_var" != "null" ]]; then
       token_value="${!token_var:-}"
       if [[ -n "$token_value" ]]; then
@@ -135,20 +141,25 @@ git_auth_env_for_url() {
       ;;
   esac
 
-  GIT_AUTH_TOKEN_LABEL=""
-  GIT_AUTH_TOKEN_VALUE=""
+  # Declared local so the resolved raw token (set by git_auth_resolve_token via
+  # dynamic scope) doesn't linger as a readable global after this returns.
+  local GIT_AUTH_TOKEN_LABEL="" GIT_AUTH_TOKEN_VALUE=""
   git_auth_resolve_token "$remote_url" "$default_token_var" || return 0
   token="$GIT_AUTH_TOKEN_VALUE"
   token_label="$GIT_AUTH_TOKEN_LABEL"
   [[ -n "$token" ]] || return 0
   header="$(git_auth_basic_header "$user" "$token")"
+  # Append our two entries after any GIT_CONFIG_* already in the environment
+  # rather than hard-coding COUNT=2, which would shadow inherited git config
+  # (entries 0..base-1 stay inherited; git reads all base+2).
+  local base="${GIT_CONFIG_COUNT:-0}"
   GIT_AUTH_ENV=(
     "GIT_TERMINAL_PROMPT=0"
-    "GIT_CONFIG_COUNT=2"
-    "GIT_CONFIG_KEY_0=credential.helper"
-    "GIT_CONFIG_VALUE_0="
-    "GIT_CONFIG_KEY_1=http.https://${host}/.extraheader"
-    "GIT_CONFIG_VALUE_1=$header"
+    "GIT_CONFIG_COUNT=$((base + 2))"
+    "GIT_CONFIG_KEY_${base}=credential.helper"
+    "GIT_CONFIG_VALUE_${base}="
+    "GIT_CONFIG_KEY_$((base + 1))=http.https://${host}/.extraheader"
+    "GIT_CONFIG_VALUE_$((base + 1))=$header"
   )
   GIT_AUTH_LABEL="$token_label"
   GIT_AUTH_PROVIDER="$provider"
