@@ -48,8 +48,12 @@ Token resolution is automatic: longest-prefix match on
 defaults.gitTokens against the fork's namespace. .env is already
 sourced by the ws dispatcher, so no manual sourcing is needed.
 
-Transport is SSH. If the upstream URL in ecosystem config is HTTPS,
-the SSH URL is read from the provider's project-details API response
+Transport defaults to HTTPS with the .env token injected per-process
+(no SSH keys, no credential-manager prompt — same mechanism as ws push).
+Set defaults.forkTransport: ssh to use key-based SSH instead. HTTPS
+auto-falls-back to SSH when no .env token covers the host (e.g. a
+self-hosted GitLab on a non-gitlab.* domain). Both the SSH and HTTPS
+remote URLs come from the provider's project-details API response
 (provider-agnostic — no host-specific port handling here).
 
 Idempotent: re-runs on an already-prepared clone simply re-sync main.
@@ -131,6 +135,18 @@ fi
 
 FORK_CONVENTION=$(yq '.defaults.forkConvention // "nested"' "$ECO" 2>/dev/null)
 [[ "$FORK_CONVENTION" == "null" ]] && FORK_CONVENTION="nested"
+
+# Transport for the fork/upstream remotes. https (default) injects the .env
+# token per-process — no SSH keys, no credential-manager prompt — the same
+# mechanism as ws push/clone (see git-auth.sh). ssh keeps key-based transport.
+# https auto-falls-back to ssh when no .env token covers the host (e.g.
+# self-hosted GitLab on a non-gitlab.* domain), so SSH-key users don't regress.
+FORK_TRANSPORT=$(yq '.defaults.forkTransport // "https"' "$ECO" 2>/dev/null)
+[[ "$FORK_TRANSPORT" == "null" || -z "$FORK_TRANSPORT" ]] && FORK_TRANSPORT="https"
+case "$FORK_TRANSPORT" in
+    https|ssh) ;;
+    *) echo "ERROR: Unknown defaults.forkTransport '$FORK_TRANSPORT'. Use 'https' or 'ssh'." >&2; exit 1 ;;
+esac
 
 # --- parse upstream URL -----------------------------------------------------
 # Returns host and path (no .git suffix). Path is e.g. "acme/team/widget".
@@ -388,9 +404,8 @@ if [[ -z "$FORK_DETAILS" ]]; then
     fi
 fi
 
-FORK_SSH_URL=$(echo "$FORK_DETAILS" | jq -r '.ssh_url_to_repo')
-
-# Need upstream SSH URL too. Re-fetch upstream if we didn't already.
+# Need upstream details too (for remote URLs + default branch). Re-fetch if
+# we didn't already capture them during fork creation.
 if [[ -z "${local_upstream_details:-}" ]]; then
     if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
         echo "ERROR: Failed to fetch upstream project details." >&2
@@ -399,7 +414,34 @@ if [[ -z "${local_upstream_details:-}" ]]; then
     fi
     rm -f "$ERR_TMP"
 fi
+
+# The provider API returns both ssh_url_to_repo and http_url_to_repo. Pick the
+# remote URLs per FORK_TRANSPORT, auto-falling-back to ssh when https can't be
+# token-covered for this host (so self-hosted/keys-only setups keep working).
+FORK_SSH_URL=$(echo "$FORK_DETAILS" | jq -r '.ssh_url_to_repo')
 UPSTREAM_SSH_URL=$(echo "$local_upstream_details" | jq -r '.ssh_url_to_repo')
+FORK_HTTP_URL=$(echo "$FORK_DETAILS" | jq -r '.http_url_to_repo')
+UPSTREAM_HTTP_URL=$(echo "$local_upstream_details" | jq -r '.http_url_to_repo')
+
+FORK_REMOTE_URL="$FORK_SSH_URL"
+UPSTREAM_REMOTE_URL="$UPSTREAM_SSH_URL"
+if [[ "$FORK_TRANSPORT" == "https" ]]; then
+    if [[ -n "$FORK_HTTP_URL" && "$FORK_HTTP_URL" != "null" ]]; then
+        GIT_AUTH_ENV=()
+        git_auth_env_for_url "$FORK_HTTP_URL"
+        if [[ ${#GIT_AUTH_ENV[@]} -gt 0 ]]; then
+            FORK_REMOTE_URL="$FORK_HTTP_URL"
+            UPSTREAM_REMOTE_URL="$UPSTREAM_HTTP_URL"
+            echo "  Transport: https (token-injected, no credential-manager prompt)"
+        else
+            echo "  Transport: ssh (no .env token covers $UPSTREAM_HOST for https injection)"
+        fi
+    else
+        echo "  Transport: ssh (provider returned no http_url_to_repo)"
+    fi
+else
+    echo "  Transport: ssh"
+fi
 
 # --- clone or repair local checkout -----------------------------------------
 TARGET="$COMPONENTS_DIR/$COMPONENT"
@@ -427,26 +469,28 @@ if [[ -d "$TARGET/.git" ]]; then
     # Pre-existing real clone — verify remotes and proceed
     echo "         ✓ clone already present; verifying remotes"
 
-    # Fork remote: ensure it's named correctly and points at the fork SSH URL
+    # Fork remote: ensure it's named correctly and points at the fork remote
+    # URL for the chosen transport. Re-running after a transport change
+    # migrates the stored remote (e.g. ssh → https) idempotently.
     if git -C "$TARGET" remote get-url "$FORK_ORG" &>/dev/null; then
         existing_url=$(git -C "$TARGET" remote get-url "$FORK_ORG")
-        if [[ "$existing_url" != "$FORK_SSH_URL" ]]; then
-            git -C "$TARGET" remote set-url "$FORK_ORG" "$FORK_SSH_URL"
+        if [[ "$existing_url" != "$FORK_REMOTE_URL" ]]; then
+            git -C "$TARGET" remote set-url "$FORK_ORG" "$FORK_REMOTE_URL"
             echo "         updated fork remote URL"
         fi
     else
         # Maybe origin still points at fork — rename it if so
         if git -C "$TARGET" remote get-url origin &>/dev/null; then
             existing_origin=$(git -C "$TARGET" remote get-url origin)
-            if [[ "$existing_origin" == "$FORK_SSH_URL" ]]; then
+            if [[ "$existing_origin" == "$FORK_REMOTE_URL" ]]; then
                 git -C "$TARGET" remote rename origin "$FORK_ORG"
                 echo "         renamed origin → $FORK_ORG"
             else
-                git -C "$TARGET" remote add "$FORK_ORG" "$FORK_SSH_URL"
+                git -C "$TARGET" remote add "$FORK_ORG" "$FORK_REMOTE_URL"
                 echo "         added fork remote: $FORK_ORG"
             fi
         else
-            git -C "$TARGET" remote add "$FORK_ORG" "$FORK_SSH_URL"
+            git -C "$TARGET" remote add "$FORK_ORG" "$FORK_REMOTE_URL"
             echo "         added fork remote: $FORK_ORG"
         fi
     fi
@@ -454,26 +498,30 @@ if [[ -d "$TARGET/.git" ]]; then
     # Upstream remote
     if git -C "$TARGET" remote get-url "$UPSTREAM_REMOTE_NAME" &>/dev/null; then
         existing_up=$(git -C "$TARGET" remote get-url "$UPSTREAM_REMOTE_NAME")
-        if [[ "$existing_up" != "$UPSTREAM_SSH_URL" ]]; then
-            git -C "$TARGET" remote set-url "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_SSH_URL"
+        if [[ "$existing_up" != "$UPSTREAM_REMOTE_URL" ]]; then
+            git -C "$TARGET" remote set-url "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
             echo "         updated upstream remote URL"
         fi
     else
-        git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_SSH_URL"
+        git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
         echo "         added upstream remote: $UPSTREAM_REMOTE_NAME"
     fi
 else
     # Fresh clone from fork
-    echo "         CLONE: $FORK_SSH_URL → $TARGET (origin: $FORK_ORG)"
-    git clone --origin "$FORK_ORG" "$FORK_SSH_URL" "$TARGET"
-    git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_SSH_URL"
+    echo "         CLONE: $FORK_REMOTE_URL → $TARGET (origin: $FORK_ORG)"
+    GIT_AUTH_ENV=()
+    git_auth_env_for_url "$FORK_REMOTE_URL"
+    env "${GIT_AUTH_ENV[@]}" git clone --origin "$FORK_ORG" "$FORK_REMOTE_URL" "$TARGET"
+    git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
 fi
 
 # --- sync main with upstream ------------------------------------------------
 echo ""
 echo "  Step 3: sync local + fork main with upstream ..."
 
-git -C "$TARGET" fetch "$UPSTREAM_REMOTE_NAME" --quiet
+GIT_AUTH_ENV=()
+git_auth_env_for_url "$UPSTREAM_REMOTE_URL"
+env "${GIT_AUTH_ENV[@]}" git -C "$TARGET" fetch "$UPSTREAM_REMOTE_NAME" --quiet
 
 # Determine the upstream default branch (might be "main" or "master")
 DEFAULT_BRANCH=$(echo "$local_upstream_details" | jq -r '.default_branch // "main"')
@@ -535,7 +583,9 @@ echo "  Step 4: push synced $DEFAULT_BRANCH to fork ..."
 # correct today, but relying on that for an if-condition pipeline is
 # subtle and a future edit could silently break it. Capture output
 # and status, then stream the output and branch on the real status.
-if push_output=$(git -C "$TARGET" push "$FORK_ORG" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
+GIT_AUTH_ENV=()
+git_auth_env_for_url "$FORK_REMOTE_URL"
+if push_output=$(env "${GIT_AUTH_ENV[@]}" git -C "$TARGET" push "$FORK_ORG" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
     push_ok=true
 else
     push_ok=false
