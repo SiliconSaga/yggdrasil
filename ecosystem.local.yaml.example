@@ -30,15 +30,17 @@ identity:
 # Default upstream remote for `ws cr --upstream` when a repo has multiple remotes.
 # Usually set in your realm; override here to temporarily target a different remote.
 #   upstreamRemote: myorg
+#
+# Fork transport for `ws clone-fork` (https | ssh; default https). https injects
+# your .env token per-process (no SSH keys, no credential-manager prompt) and
+# auto-falls-back to ssh when no token covers the host.
+#   forkTransport: ssh
 
 # Realm selector — uncomment to override auto-detection.
 # realm: realm-siliconsaga
 
 # Component overrides — uncomment and modify as needed.
 # components:
-#   echo-test:
-#     disabled: false         # Enable to test chart resolution
 #   some-component:
-#     forceChart: true        # Use chart even with local source
-#     values:
-#       key: local-value
+#     disabled: true          # Skip this component on `ws clone --all`
+#     repo: <git-url>         # Override the declared repo URL
