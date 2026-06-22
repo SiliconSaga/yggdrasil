@@ -15,9 +15,7 @@ On every session start, after compaction, or when dispatched fresh, you **MUST**
 1. **Execute `ws orient`** for initial discovery of workspace utilities, the active realm, per-component adapter wiring, and the skill index. This is the deterministic answer to "what's here right now?" — verbs, realm, adapters, skills.
 2. **Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence — Thalamus parsing, trust verification, mode/role setup, staleness checks.
 
-`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids.
-
-**First session on a new machine:** run `ws preflight` before `ws orient`. It checks the required tools (bash, git, yq, jq) plus a provider CLI and prints per-OS install hints — and unlike `ws orient` it runs *without* yq, so it works on a bare machine. (Skip it and `ws orient` fails fast on the first missing required tool, pointing you back to preflight.) After installing tools, restart the shell so PATH updates apply. Those required tools are the *local* tier; a provider token in `.env` is only needed when you first clone a remote, push, or open a CR — `ws diagnose <comp>` validates that at the time, so auth is never a session-start gate.
+`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids. (On a bare machine `ws orient` self-diagnoses — if yq/jq are missing it runs `ws preflight` for you and reports what to install; prereqs are otherwise covered in [`docs/dev-setup.md`](docs/dev-setup.md).)
 
 Two conventions you need before anything else:
 
@@ -69,7 +67,7 @@ A post-dispatch stderr footer fires after every `ws` subcommand to keep `ws orie
 
 ## Companion plugin (recommended)
 
-Several GDD plans and practice skills reference [Obra Superpowers](https://github.com/obra/superpowers) skills via the `superpowers:*` namespace: `superpowers:executing-plans`, `superpowers:subagent-driven-development`, `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:receiving-code-review`. Install Superpowers for the smoothest experience — the orientation skill checks at startup and surfaces a one-line nudge if not detected.
+Several GDD plans and practice skills reference [Obra Superpowers](https://github.com/obra/superpowers) skills via the `superpowers:*` namespace: `superpowers:executing-plans`, `superpowers:subagent-driven-development`, `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:receiving-code-review`. Install Superpowers for the smoothest experience — the orientation skill checks at startup and surfaces a one-line nudge if not detected. The install command is agent-specific (it differs between Claude Code and Codex), so it lives in your agent's overrides file rather than here — Claude Code: [`CLAUDE.md`](CLAUDE.md).
 
 Reference forms in skill bodies:
 
