@@ -55,12 +55,11 @@ if ! command -v yq &>/dev/null; then
     # WITHOUT yq) so the user gets the full per-OS install hints in one
     # pass, then say what to do next. Exit nonzero — orientation didn't run.
     echo "ws orient needs yq + jq to read the ecosystem config, but they aren't on PATH yet."
-    echo "Looks like a fresh machine — running 'ws preflight' to show what's missing:"
+    echo "Might be a fresh machine — running 'ws preflight' to show what's missing:"
     echo ""
     bash "$SCRIPT_DIR/ws-preflight.sh" --soft
     echo ""
-    echo "Install the missing required tools (hints above), open a fresh shell so PATH"
-    echo "updates apply, then re-run 'ws orient'."
+    echo "Once the required tools are installed (and a fresh shell opened, per the note above), re-run 'ws orient'."
     exit 1
 fi
 

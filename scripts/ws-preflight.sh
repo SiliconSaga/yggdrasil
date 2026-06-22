@@ -174,6 +174,21 @@ check_tool uv         optional
 check_tool realpath   optional
 check_tool shellcheck optional
 
+# scripts/ on PATH? The `ws <cmd>` shorthand and the Bash(ws …) permission
+# allowlist entries depend on it; without it everything must go through the
+# longer `bash scripts/ws …` form. Advisory only — not a tool requirement,
+# so it never flips the exit code.
+echo "Workspace PATH:"
+_WS_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if command -v ws >/dev/null 2>&1 && [[ "$(command -v ws)" -ef "$_WS_SCRIPTS_DIR/ws" ]]; then
+    echo "  ✓ ws on PATH (scripts/ is exported)"
+else
+    echo "  ⚠ scripts/ not on PATH — add it so the 'ws <cmd>' shorthand works and the"
+    echo "       Bash(ws …) permission allowlist can match. In your shell profile:"
+    echo "         export PATH=\"$_WS_SCRIPTS_DIR:\$PATH\""
+    echo "       then open a fresh shell. (On Windows, Git's installer PATH option covers Git Bash itself.)"
+fi
+
 echo ""
 
 if [[ "$MISSING_REQUIRED" -eq 1 ]]; then
