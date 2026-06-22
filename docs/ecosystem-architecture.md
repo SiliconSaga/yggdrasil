@@ -131,6 +131,6 @@ A vendor mirror is **read-only**: never commit local edits to it (that would for
 ## Related Docs
 
 - [`docs/gdd/index.md`](gdd/index.md) — Guardian Driven Development overview.
-- [`docs/dev-setup.md`](dev-setup.md) — required tools (bash, git, yq, jq, gh/glab, optional uv).
+- [`docs/workspace-setup.md`](workspace-setup.md) — prerequisites, PATH, workspace shape, agent permissions.
 - [`docs/ws-cli-guide.md`](ws-cli-guide.md) — full `ws` CLI reference.
 - For the SiliconSaga-flavoured concrete stack: [SiliconSaga/realm-siliconsaga: `docs/stack.md`](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) and the per-tier docs alongside it (locally at `realms/realm-siliconsaga/docs/stack.md` once you've cloned the realm).
