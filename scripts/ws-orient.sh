@@ -50,8 +50,16 @@ fi
 # short-circuit so a fresh-machine user can still discover `ws orient`
 # before installing every prerequisite.
 if ! command -v yq &>/dev/null; then
-    echo "ERROR: yq (v4+) is required." >&2
-    echo "  Install: see docs/dev-setup.md or 'ws preflight' for the platform-specific hint." >&2
+    # Fresh machine: ws orient can't read the ecosystem config without yq.
+    # Rather than a bare error, flow straight into preflight (which runs
+    # WITHOUT yq) so the user gets the full per-OS install hints in one
+    # pass, then say what to do next. Exit nonzero — orientation didn't run.
+    echo "ws orient needs yq + jq to read the ecosystem config, but they aren't on PATH yet."
+    echo "Might be a fresh machine — running 'ws preflight' to show what's missing:"
+    echo ""
+    bash "$SCRIPT_DIR/ws-preflight.sh" --soft
+    echo ""
+    echo "Once the required tools are installed (and a fresh shell opened, per the note above), re-run 'ws orient'."
     exit 1
 fi
 

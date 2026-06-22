@@ -60,6 +60,8 @@ Newcomer greeting template:
 
 Then run `ws orient`.
 
+**Bootstrap (fresh machine).** On a bare machine `ws orient` self-diagnoses: when yq/jq are missing it runs `ws preflight` for you and prints the per-OS install hints. When you see that, help the human install the missing required tools, have them restart the shell so PATH updates apply, then re-run `ws orient`. Required tools (bash/git/yq/jq) are the local tier; a provider token isn't needed until the first remote action, so don't gate the session on it.
+
 ### Parse `ws orient`'s output for post-orient signals
 
 `ws orient` is the deterministic truth about workspace state. Look for:

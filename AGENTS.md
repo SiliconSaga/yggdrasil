@@ -15,7 +15,7 @@ On every session start, after compaction, or when dispatched fresh, you **MUST**
 1. **Execute `ws orient`** for initial discovery of workspace utilities, the active realm, per-component adapter wiring, and the skill index. This is the deterministic answer to "what's here right now?" — verbs, realm, adapters, skills.
 2. **Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence — Thalamus parsing, trust verification, mode/role setup, staleness checks.
 
-`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids.
+`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids. (On a bare machine `ws orient` self-diagnoses — if yq/jq are missing it runs `ws preflight` for you and reports what to install; prereqs are otherwise covered in [`docs/dev-setup.md`](docs/dev-setup.md).)
 
 Two conventions you need before anything else:
 
@@ -67,7 +67,7 @@ A post-dispatch stderr footer fires after every `ws` subcommand to keep `ws orie
 
 ## Companion plugin (recommended)
 
-Several GDD plans and practice skills reference [Obra Superpowers](https://github.com/obra/superpowers) skills via the `superpowers:*` namespace: `superpowers:executing-plans`, `superpowers:subagent-driven-development`, `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:receiving-code-review`. Install Superpowers for the smoothest experience — the orientation skill checks at startup and surfaces a one-line nudge if not detected.
+Several GDD plans and practice skills reference [Obra Superpowers](https://github.com/obra/superpowers) skills via the `superpowers:*` namespace: `superpowers:executing-plans`, `superpowers:subagent-driven-development`, `superpowers:brainstorming`, `superpowers:test-driven-development`, `superpowers:receiving-code-review`. Install Superpowers for the smoothest experience — the orientation skill checks at startup and surfaces a one-line nudge if not detected. The install command is agent-specific (it differs between Claude Code and Codex), so it lives in your agent's overrides file rather than here — Claude Code: [`CLAUDE.md`](CLAUDE.md).
 
 Reference forms in skill bodies:
 

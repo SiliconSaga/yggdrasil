@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-After cloning, run `bash scripts/ws preflight` from the workspace root — it checks each tool below and prints per-OS install hints for anything missing.
+After cloning, run `bash scripts/ws preflight` from the workspace root — it checks each tool below and prints per-OS install hints for anything missing. It verifies the tools are *present*, not that any git provider is *authenticated* — provider tokens are a later step (see [`docs/git-provider-setup.md`](git-provider-setup.md)) and are only needed once you start cloning remotes, pushing, or opening CRs. After installing any tool, open a fresh shell (or restart your editor) so PATH updates take effect — a freshly-installed tool won't appear in an already-running shell.
 
 **Required:**
 

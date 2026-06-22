@@ -70,7 +70,16 @@ pull_repo() {
     fi
 
     echo "PULL: $name ($branch)"
-    if ! git -C "$target" pull --rebase 2>&1 | sed 's/^/  /'; then
+    # Inject the .env token for the tracking remote so private HTTPS pulls
+    # don't fall through to the OS credential manager (mirrors ws push).
+    local upstream_ref remote_name remote_url
+    upstream_ref=$(git -C "$target" rev-parse --abbrev-ref "@{upstream}" 2>/dev/null)
+    remote_name="${upstream_ref%%/*}"
+    remote_url=$(git -C "$target" remote get-url "$remote_name" 2>/dev/null || echo "")
+    local -a GIT_AUTH_ENV=()
+    local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+    [[ -n "$remote_url" ]] && git_auth_env_for_url "$remote_url"
+    if ! env "${GIT_AUTH_ENV[@]}" git -C "$target" pull --rebase 2>&1 | sed 's/^/  /'; then
         echo "  CONFLICT: aborting rebase — resolve manually in $target"
         git -C "$target" rebase --abort 2>/dev/null
         HAD_FAILURES=1
