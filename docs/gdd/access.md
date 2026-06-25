@@ -120,6 +120,8 @@ GitLab's API model differs from GitHub's enough that the same abstract pattern (
 
 **The biggest model flip:** on GitHub, `gh pr create` POSTs to the **upstream's** API. On GitLab, `glab mr create` POSTs to the **fork's** API — the `--repo` flag looks like a target but the actual POST goes through the fork project. Consequence: the **fork write token**, not the upstream reporter token, is the one needed for MR creation, even though the MR targets upstream. This may catch people the first time.
 
+For fork creation, use more precise terms: the **source project** is the project being forked, and the **destination namespace** is the fork-home group where GitLab creates the fork. After the fork exists, the same source project is usually the MR target/upstream.
+
 **Two-token model.** Every fork-based GitLab operation needs two distinct tokens, configured in `defaults.gitTokens` (longest URL prefix wins, so a fork-group entry shadows the upstream group entry for repos in the fork namespace):
 
 | Token | Role | Used for |
@@ -127,14 +129,29 @@ GitLab's API model differs from GitHub's enough that the same abstract pattern (
 | **Fork write** | Developer on fork group | Push branches, create MRs |
 | **Upstream reporter** | Reporter on upstream group | Read default branch, read MR threads (`ws review`), file issues |
 
-**GitLab PATs cannot be downscoped.** A Personal Access Token runs *as you* and inherits your full account access — there's no way to issue a "read-only on group X" PAT when you're an Owner there. The GitLab-native workaround is **Group Access Tokens** or **Project Access Tokens**, which carry an explicit role independent of any user. On paid tiers and self-hosted instances, create one at `Settings → Access Tokens` for the group/project. On gitlab.com free tier these aren't available — point both token vars at the same PAT and accept the over-scope.
+**GitLab PATs cannot be downscoped.** A Personal Access Token runs *as you* and inherits your full account access — there's no way to issue a "read-only on group X" PAT when you're an Owner there. Prefer a narrower GitLab-native actor when your instance supports one.
 
-**Bot attribution trade-off.** MRs opened via a Group Access Token appear as authored by `project_NNN_bot_...`, not your personal account. The workspace mitigates this with two layers: (1) the fork namespace path makes your username visible in the MR source header, (2) `@HUMAN_ACCOUNT` substitution puts your handle in the MR body. Adequate for team workflows; not sufficient for formal audit trails that require the GitLab `author` field to be a human identity.
+**GitLab actor ladder.** Use the narrowest actor that can perform the operation:
+
+| Actor | Best fit | Notes |
+|-------|----------|-------|
+| **Group / Project Access Token** | Self-managed/Dedicated GitLab, or GitLab.com Premium/Ultimate | Explicit role independent of your human account. Good for fork-group write and source-project read tokens. Access-token bot users are scoped to the project/group that created them and cannot be invited directly to unrelated groups. If the source project/group invites the fork-home group, a fork-group access-token bot can gain source-project read through that group membership and satisfy GitLab's fork API. |
+| **Group Service Account** | GitLab.com Free/Premium/Ultimate, or self-managed instances that expose group service accounts to top-level group Owners | Good fork-home actor when it can read the source project and create the fork in a non-personal namespace. It can only be added to its creation group or descendants, so sibling/external source projects must be public, same-hierarchy readable, or available through GitLab project/group sharing to the fork-home group. Service-account forks must target a group/project namespace, not a personal namespace. |
+| **Instance Service Account** | Admin-managed self-hosted/Dedicated instances | Closest to a general robot user because it can be invited across groups. Too heavyweight for normal per-user GDD setup. |
+| **Personal Access Token** | Universal fallback | Works when no narrower actor exists, but carries your full GitLab account permissions. For split-token config, point both env vars at the same PAT to preserve routing even though isolation is lost. |
+| **Manual UI fork** | Human-only authority boundary | `ws clone-fork` emits a prefilled fork URL when the configured fork actor cannot read the upstream. The human completes the fork, then reruns the command. |
+
+**Bot attribution trade-off.** MRs opened via a Group Access Token, Project Access Token, or service-account token appear as authored by the bot/service-account user, not your personal account. The workspace mitigates this with two layers: (1) the fork namespace path makes your username visible in the MR source header, (2) `@HUMAN_ACCOUNT` substitution puts your handle in the MR body. Adequate for team workflows; not sufficient for formal audit trails that require the GitLab `author` field to be a human identity.
+
+**Cross-group fork creation.** GitLab's fork API requires the caller to read the source project and create in the destination namespace. `ws clone-fork` handles this automatically when the fork token has both rights. If a group service account or access-token bot can create in the fork group but cannot read the source project, the API cannot create the fork; use GitLab's project/group "Invite a group" sharing mechanism, a different actor, or the manual UI helper. This is group-to-group or project-to-group sharing, not a token-specific share.
+
+For a step-by-step setup walkthrough, see [`docs/git-provider-setup.md`](../git-provider-setup.md) § Set Up a GitLab Fork Group for GDD.
 
 **glab gotchas worth knowing up front:**
 
 - `glab issue list` and several other subcommands require `GITLAB_HOST` in the environment for self-hosted instances. There's no `--hostname` flag on subcommands. Set it in `.env`.
 - `glab auth login` configures API calls but does **not** automatically make raw HTTPS Git operations non-interactive. `ws push` uses the matching `.env` / `defaults.gitTokens` token for its own HTTPS push process and disables credential-helper prompts, so it does not need a keychain entry. Raw `git clone` / `git push` still need SSH URLs or a credential helper if you run them outside `ws`.
+- `ws clone-fork` also injects the matching token for its own HTTPS clone/fetch/push operations, but the resulting checkout stores normal HTTPS remotes. IDE background fetches or raw `git` commands against that checkout can still hit the OS credential helper and show Keychain/Git Credential Manager prompts. Use `ws` commands, configure a credential helper, or set `defaults.forkTransport: ssh` if you want non-`ws` Git clients to avoid HTTPS credential prompts.
 - `GITLAB_TOKEN` must be set for `glab` to authenticate (parallel to `GH_TOKEN` for `gh`).
 - `glab mr create --head <ref>` expects the **full fork project slug** (e.g. `<your-user>/<repo>`), not just a branch name.
 

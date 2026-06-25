@@ -90,15 +90,19 @@ On GitHub you have two legitimate options for limiting the blast radius of an au
 
 The key point: on GitHub, option 1 lets you post as your own human account while still running with restricted permissions.
 
-### GitLab: PATs cannot be downscoped
+### GitLab: scoped actors, PAT fallback
 
 A GitLab Personal Access Token runs as the creating user and inherits their full access level. If your account is Owner of `group/project`, your PAT is effectively Owner too — there is no way to issue a PAT that has only Reporter access to a group where you have Owner access.
 
-The GitLab-native solution is **Group Access Tokens** and **Project Access Tokens**, which are created with an explicit role independent of any user. This is what yggdrasil uses on self-hosted/paid tiers (e.g. `GITLAB_GDD_GROUP_REPORTER_TOKEN`, `GITLAB_GDD_GROUP_WRITE_TOKEN`). On gitlab.com free tier, these token types are not available — use a Personal Access Token instead, and point both env vars at the same PAT to maintain the routing pattern.
+The GitLab-native solutions are **Group Access Tokens**, **Project Access Tokens**, and **Service Accounts**. Group/project access tokens carry an explicit role independent of any human user; they are available on self-managed/Dedicated GitLab and on GitLab.com paid tiers. Group service accounts are a useful GitLab.com Free-compatible path when the GitLab instance exposes them to group Owners, but they are not general cross-group machine users: they can only be added to their creation group or descendants, so sibling/external source-project access must come from public visibility, same-hierarchy membership, or GitLab project/group sharing to the fork-home group.
 
-**Machine users on corporate GitLab** are often not an option either — user accounts may be managed by IT/SSO, so you can't create a dedicated bot account as easily as you could on the public cloud GitLab or GitHub.
+Group sharing has one non-obvious consequence for fork creation: a fork-group access-token bot cannot be directly invited to a sibling/external source project, but if the source project or parent group invites the fork-home group, the bot can gain source-project read through that group membership. Then the same fork-group token may satisfy GitLab's fork API requirement: one caller identity with source-project read and destination-namespace create rights.
 
-The result: on GitLab, CRs submitted by the agent appear as opened by a bot user (`project_NNN_bot_...`), not your personal account.
+**Machine users on corporate GitLab** are often not an option either — user accounts may be managed by IT/SSO, so you can't create a dedicated bot account as easily as you could on public GitHub. Instance service accounts are the closest GitLab analogue, but they require administrator involvement and are usually too heavyweight for per-developer GDD setup.
+
+When no scoped actor is available, use a Personal Access Token and point both env vars at the same PAT to maintain the two-token routing pattern. This preserves the mechanics but loses permission isolation.
+
+The result: on GitLab, CRs submitted by the agent usually appear as opened by a bot or service-account user (`project_NNN_bot_...`, `group_NNN_bot_...`, or a named service account), not your personal account.
 
 ### Human attribution on GitLab
 
@@ -108,7 +112,7 @@ Since the GitLab UI shows the bot as the MR author, yggdrasil uses two layers of
 
 2. **`@HUMAN_ACCOUNT` in the MR body** — the CR template substitutes the `identity.human_account` value (e.g. `@youruser`) into the body at creation time, so the human is explicitly named in the description.
 
-This is an accepted trade-off for now. It provides adequate attribution for most team workflows, but may not satisfy formal audit requirements that expect the GitLab *author* field to match a human identity. If that becomes a requirement, the path forward would be a per-developer PAT with exactly Reporter access to the upstream — but since GitLab PATs can't be downscoped, that token would carry your full account permissions on that group, which is a wider blast radius than the Group Access Token approach.
+This is an accepted trade-off for now. It provides adequate attribution for most team workflows, but may not satisfy formal audit requirements that expect the GitLab *author* field to match a human identity. If that becomes a requirement, the only human-author path is a per-developer PAT, and because GitLab PATs cannot be downscoped that carries a wider blast radius than the scoped-actor approach.
 
 ## See Also
 

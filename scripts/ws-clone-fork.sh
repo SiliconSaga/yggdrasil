@@ -34,8 +34,9 @@ Usage: ws clone-fork <component>
 
 Prepare a ready-to-work fork-based clone of <component>:
 
-  1. Ensure the user's personal fork exists in identity.forkOrg (creates it
-     via API if missing).
+  1. Ensure the user's fork-home copy exists in identity.forkOrg (creates it
+     via API when the configured token can read the source project and create
+     in the fork destination).
   2. Clone the fork (SSH) into components/<component>/, with origin renamed
      to <forkOrg>.
   3. Add the upstream as a second remote, named after the upstream group's
@@ -59,12 +60,18 @@ remote URLs come from the provider's project-details API response
 Idempotent: re-runs on an already-prepared clone simply re-sync main.
 
 Cross-group forks (e.g. forking from one GitLab group into a fork
-home that lives in another group) hit a GitLab API limitation: the
-fork API requires one caller identity with both Reporter+ on source
-and Maintainer+ on destination, and bot users created by access
-tokens cannot be cross-invited (Gitlab issue #355659). When the script
-detects this case it emits a one-click fork-via-UI URL and exits with
-code 2 ("manual step needed"). Re-run after user interaction.
+home that lives in another group) require one caller identity with
+read access on the source project and project-create/fork rights on
+the destination namespace. Access-token bot users cannot be invited
+directly to unrelated groups (GitLab issue #355659), but a source
+project/group can invite the fork-home group; the fork-group token can
+then gain source-project read through that group membership. Group
+service-account tokens follow the same capability rule: they work when
+the service account can read the source project through public visibility,
+same-hierarchy access, or GitLab project/group sharing to the fork-home
+group. When the configured fork token cannot read the source project, this
+script emits a one-click fork-via-UI URL and exits with code 2 ("manual
+step needed"). Re-run after user interaction.
 HELP
         exit 0
     fi
@@ -285,9 +292,13 @@ emit_cross_group_helper() {
     echo "  Cross-group fork detected — manual step needed." >&2
     echo "" >&2
     echo "  Your fork-home token (\$$FORK_TOKEN_VAR) has write access on" >&2
-    echo "  '$FORK_NAMESPACE' but no read access on '$UPSTREAM_PATH'. GitLab's" >&2
-    echo "  fork API needs one identity with both rights, and bot users created" >&2
-    echo "  by access tokens cannot be cross-invited to other groups" >&2
+    echo "  '$FORK_NAMESPACE' but no read access on source project '$UPSTREAM_PATH'." >&2
+    echo "  GitLab's fork API needs one identity with both rights." >&2
+    echo "" >&2
+    echo "  This can be automated by giving the fork token source-project read" >&2
+    echo "  through public visibility, same-hierarchy access, or GitLab" >&2
+    echo "  project/group sharing to the fork-home group. Access-token bot users" >&2
+    echo "  cannot be invited directly to unrelated groups." >&2
     echo "" >&2
     echo "  Click here to fork in the GitLab UI:" >&2
     echo "" >&2

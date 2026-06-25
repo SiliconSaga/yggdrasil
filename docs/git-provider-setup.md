@@ -111,27 +111,79 @@ After install, open a fresh Git Bash session so the updated `PATH` is picked up.
 
 **Linux:** See https://gitlab.com/gitlab-org/cli#installation
 
-### Create a Token
+### Create a Token or Service Account
 
-GitLab offers three token types with increasing scope. Use the narrowest one that covers your use case:
+GitLab offers several token-bearing actors. Use the narrowest one that covers your use case:
 
-| Token type | Scope | How to create |
+| Actor | Scope | How to create |
 |------------|-------|---------------|
 | **Project Access Token** | Single project | Project → Settings → Access Tokens |
 | **Group Access Token** | All repos in a group | Group → Settings → Access Tokens |
+| **Group Service Account** | A named service-account user under a top-level group | Group → Settings → Service Accounts, then create a token for the service account |
+| **Instance Service Account** | A named service-account user that admins can invite across groups | Admin-created; too broad/heavy for normal per-user setup |
 | **Personal Access Token** | Entire account | User Settings → Access Tokens |
 
-**Recommended:** use a **Project Access Token** for a single test repo, or a **Group Access Token** if your workspace components all live under one group. Personal Access Tokens with `api` scope work but give broader access than needed.
+**Recommended:** use a **Project Access Token** for a single test repo, a **Group Access Token** when your workspace components all live under one group, or a **Group Service Account** when your GitLab instance exposes it and you want a named fork-home actor on a Free-compatible GitLab setup. Personal Access Tokens with `api` scope work but give broader access than needed.
 
-> **gitlab.com free tier:** Group and Project Access Tokens require a paid subscription (Premium+). Use a **Personal Access Token** with `api` scope instead. For the multi-token setup (fork → upstream), you can point multiple env vars at the same PAT (see `.env.example` for variable names) — the token routing logic still works, you just don't get the access-level separation that scoped tokens provide.
+> **GitLab.com Free and older self-managed instances:** Group and Project Access Tokens require a paid GitLab.com subscription, while group service accounts may be available when the instance exposes `Settings → Service Accounts` to top-level group Owners. If that section is absent, the instance version or admin settings likely do not support the flow. Use a **Personal Access Token** with `api` scope as the fallback. For the multi-token setup (fork → upstream), you can point multiple env vars at the same PAT (see `.env.example` for variable names) — the token routing logic still works, you just don't get the access-level separation that scoped actors provide.
 
 Choose the narrowest role that matches the token's job:
 - **Developer** for fork/write tokens that must push branches or create MRs.
 - **Reporter** for upstream read/review/issue tokens in the split-token setup.
+- **Maintainer** may be required on a destination group for API-created forks, depending on instance settings around project creation/import. If a Developer token fails with "not allowed to import projects," raise only the fork-home token's role.
+
+For cross-group fork creation, the fork token must be able to read the source project and create in the destination namespace. A fork-group access-token bot cannot be invited directly to a sibling/external source group, but GitLab's project/group "Invite a group" sharing can grant source-project read by inviting the fork-home group. This is a group-sharing grant, not a token-specific grant.
+
+### Set Up a GitLab Fork Group for GDD
+
+Use a fork group when you want GDD agents to push branches and open MRs from a controlled namespace instead of pushing directly to source projects. The fork group is the **destination namespace** for forks; the project being forked is the **source project**.
+
+1. Choose a fork-home namespace. Good generic shapes are `gitlab.example.com/<team>/gdd/<user>-fork-group`, `gitlab.example.com/<team>/<user>-forks`, or `gitlab.example.com/<user>-forks`. Pick a path you can administer and that makes the human owner obvious in MR source paths.
+2. Create the group in GitLab. Go to **Groups → New group**, create the chosen fork-home group, and keep it empty at first. You need enough access on this group to create projects/forks and create tokens.
+3. Create the fork-write actor. Preferred: create a **Group Access Token** on the fork-home group with `api` scope and the Maintainer role to allow fork creation.
+4. Add the token to `.env` with a descriptive variable name:
+
+   ```bash
+   export GITLAB_FORKGROUP_ALICE_WRITE=glpat-or-token-value
+   ```
+
+5. Map the fork group in `ecosystem.local.yaml`. Use the full fork-home group path as the `gitTokens` key so longest-prefix matching sends fork operations to the fork-write token:
+
+   ```yaml
+   defaults:
+     gitProviders:
+       gitlab.example.com: gitlab        # self-hosted instances only; gitlab.com is auto-detected
+     gitTokens:
+       gitlab.example.com/my-team/gdd/alice-fork-group: GITLAB_FORKGROUP_ALICE_WRITE
+
+   identity:
+     human_account: alice
+     forkOrg: alice-fork-group           # remote name and current fork-derivation hint
+   ```
+
+6. Make source projects readable to the fork actor. For source projects under the same GitLab group tree, the fork token may already read them. For private sibling/external source projects, either add a separate Reporter token mapping for the source project/group, or ask the source project/group owner to use GitLab's **Invite a group** sharing to grant Reporter access to the fork-home group. The sharing option can let the fork-group token satisfy GitLab's fork API because the same caller can read the source project and create in the destination namespace.
+7. Declare or override the component. If the default `forkOrg` derivation would put the fork in the wrong path, add an explicit `forkRepo`:
+
+   ```yaml
+   components:
+     example-service:
+       tier: supporting
+       repo: https://gitlab.example.com/source-team/example-service.git
+       forkRepo: https://gitlab.example.com/my-team/gdd/alice-fork-group/example-service.git
+   ```
+
+8. Verify and clone:
+
+   ```bash
+   ws gitlab-auth --status
+   ws clone-fork example-service
+   ```
+
+`ws clone-fork` creates the fork if the configured fork token can read the source project and create in the destination namespace. If not, it prints a prefilled GitLab UI fork URL; complete the fork as a human, then rerun the command.
 
 #### Token naming
 
-**GitLab display name** (what appears as the MR/issue author bot):
+**GitLab display name** (what appears as the MR/issue author bot or service-account user):
 
 Pattern: `<scope>-<owner>-<role>` where scope is the group or project slug, owner is your username, and role is the GitLab role level. For personal namespaces (no shared scope), omit the scope prefix and use `<owner>-<role>`.
 
@@ -142,7 +194,7 @@ Pattern: `<scope>-<owner>-<role>` where scope is the group or project slug, owne
 | Personal namespace write | `rpraestholm-developer` | Namespace + role |
 | Single-project write | `aws-ops-wheel-rpraestholm-developer` | Project + owner + role |
 
-With a well-named token, an MR opened by the agent shows as authored by e.g. `gdd-rpraestholm-developer` — the human connection is clear even though it's a bot account. Combined with `@HUMAN_ACCOUNT` in the MR body, this is the primary attribution mechanism on GitLab (see `docs/gdd/cr-internals.md`).
+With a well-named token or service account, an MR opened by the agent shows as authored by e.g. `gdd-rpraestholm-developer` — the human connection is clear even though it is not the human GitLab account. Combined with `@HUMAN_ACCOUNT` in the MR body, this is the primary attribution mechanism on GitLab (see `docs/gdd/cr-internals.md`).
 
 **Env var name** (used in `.env` and referenced in `gitTokens`):
 
