@@ -9,9 +9,9 @@ When you run `ws cr <component> --upstream`, yggdrasil operates with two tokens 
 | Token | Role | Used for |
 |---|---|---|
 | Fork write token | Developer (fork group) | Pushing branches, creating MRs/PRs |
-| Upstream reporter token | Reporter (upstream group) | Reading upstream metadata, creating issues, reading MR comments and threads (`ws review`) |
+| Source reporter token | Reporter (source-project group) | Reading source-project metadata, creating issues, reading MR comments and threads (`ws review`) |
 
-Both tokens are needed. The upstream reporter token covers all read and issue operations against the upstream project — not just default-branch lookup. Eliminating it from the CR path would still leave it required for `ws review` and `ws issue`.
+Both tokens are needed. The source reporter token covers all read and issue operations against the source project — not just default-branch lookup. Eliminating it from the CR path would still leave it required for `ws review` and `ws issue`.
 
 These tokens are configured in the ecosystem config's `defaults.gitTokens` map, keyed by URL prefix. The longest matching prefix wins, so a fork-group token (longer path) takes precedence over a parent-group token for the same host.
 
@@ -20,18 +20,18 @@ These tokens are configured in the ecosystem config's `defaults.gitTokens` map, 
 ```text
 ws cr <component> --upstream
   └─ gh pr create
-       --repo  upstream-org/repo         ← upstream (target)
+       --repo  source-org/repo           ← source project (target)
        --head  fork-org:branch           ← fork branch reference
        --base  main
 ```
 
-On **GitHub**, the `gh` CLI creates the PR by calling the **upstream project's API**. PR creation only requires read access to the upstream (GitHub allows PR creation from any repo you can read, including public ones).
+On **GitHub**, the `gh` CLI creates the PR by calling the target/source project's API. PR creation only requires read access to the source project (GitHub allows PR creation from any repo you can read, including public ones).
 
 **Whether one or two tokens are needed depends on token type:**
 
-- **Classic PAT or account with team membership on both sides**: a single token covers push to fork and PR creation against upstream. No split needed.
-- **Fine-grained PAT scoped to fork org only**: works when the upstream is public (readable without explicit access). The SiliconSaga/MovingBlocks setup is an example — `GH_TOKEN` is scoped to SiliconSaga, and MovingBlocks repos are public.
-- **Fine-grained PAT with explicit upstream access**: also a single token, just scoped to both orgs.
+- **Classic PAT or account with team membership on both sides**: a single token covers push to fork and PR creation against the source project. No split needed.
+- **Fine-grained PAT scoped to fork org only**: works when the source project is public (readable without explicit access). The SiliconSaga/MovingBlocks setup is an example — `GH_TOKEN` is scoped to SiliconSaga, and MovingBlocks repos are public.
+- **Fine-grained PAT with explicit source-project access**: also a single token, just scoped to both orgs.
 
 The two-token split is not a GitHub requirement — it's a GitLab necessity that happens to map onto GitHub fine-grained tokens naturally.
 
@@ -40,13 +40,13 @@ The two-token split is not a GitHub requirement — it's a GitLab necessity that
 ```text
 ws cr <component> --upstream
   └─ glab mr create
-       --repo   myorg/upstream-repo            ← upstream (target)
+       --repo   myorg/source-repo              ← source project (target)
        --head   myfork/fork-repo              ← fork project slug
        --source-branch  fix/my-feature
        --target-branch  main
 ```
 
-On **GitLab**, `glab mr create` uses the `--head OWNER/REPO` flag to identify the fork. With this flag, glab calls the **fork project's API** to create the MR — not the upstream's API. GitLab's MR creation endpoint lives on the source (fork) project.
+On **GitLab**, `glab mr create` uses the `--head OWNER/REPO` flag to identify the fork. With this flag, glab calls the **fork project's API** to create the MR — not the target/source project's API. GitLab's MR creation endpoint lives on the source-branch project, which is the fork in this workflow.
 
 This is the opposite of how GitHub works, and opposite of what the `--repo` argument implies at first glance.
 
@@ -54,10 +54,10 @@ This is the opposite of how GitHub works, and opposite of what the `--repo` argu
 
 ```text
 1. gp_set_token_for_url "$UPSTREAM_URL"   ← reporter token
-   gp_default_branch "$UPSTREAM_SLUG"     ← reads upstream (needs reporter)
+   gp_default_branch "$UPSTREAM_SLUG"     ← reads source project (needs reporter)
 
 2. gp_set_token_for_url "$FORK_URL"       ← fork write token
-   gp_create_pr --repo upstream \
+   gp_create_pr --repo source-project \
                 --head fork-slug \         ← glab POSTs to fork project
                 ...
 ```
@@ -69,14 +69,14 @@ The token must be switched between the two calls. Using only the reporter token 
 | Operation | GitHub | GitLab ≥1.65 |
 |---|---|---|
 | Push branch | Fork write token | Fork write token |
-| Read upstream default branch | Any token with upstream read | Upstream reporter token |
-| Create PR/MR API call | Any token with upstream read | **Fork write token** |
-| `ws review` (MR comments, threads) | Any token with upstream read | Upstream reporter token |
-| `ws issue` (create issue on upstream) | Any token with upstream read | Upstream reporter token |
+| Read source-project default branch | Any token with source-project read | Source reporter token |
+| Create PR/MR API call | Any token with source-project read | **Fork write token** |
+| `ws review` (MR comments, threads) | Any token with source-project read | Source reporter token |
+| `ws issue` (create issue on source project) | Any token with source-project read | Source reporter token |
 
-On GitHub, "any token with upstream read" may be a single token that also covers the fork — especially with classic PATs or public upstreams. On GitLab with private groups, separate tokens are required because the fork group and upstream group each need explicit access grants.
+On GitHub, "any token with source-project read" may be a single token that also covers the fork — especially with classic PATs or public source projects. On GitLab with private groups, separate tokens are required because the fork group and source-project group each need explicit access grants.
 
-The fundamental difference: GitHub owns the PR on the upstream side; GitLab owns the MR on the source (fork) side. This is reflected in which project's API endpoint is called during creation.
+The fundamental difference: GitHub owns the PR on the target/source-project side; GitLab owns the MR on the source-branch project side, which is the fork in this workflow. This is reflected in which project's API endpoint is called during creation.
 
 ## Token Types, Machine Users, and Corporate GitLab
 
@@ -84,7 +84,7 @@ The fundamental difference: GitHub owns the PR on the upstream side; GitLab owns
 
 On GitHub you have two legitimate options for limiting the blast radius of an automation token:
 
-1. **Fine-grained PAT on your own account** — GitHub lets you scope these below your actual access level. You can be an org owner and issue a PAT that only has write on your fork org and read on the upstream. The PR is posted as *you*, with your full username and avatar visible in the GitHub UI. The scoping is enforced at the token level, not the account level.
+1. **Fine-grained PAT on your own account** — GitHub lets you scope these below your actual access level. You can be an org owner and issue a PAT that only has write on your fork org and read on the source project. The PR is posted as *you*, with your full username and avatar visible in the GitHub UI. The scoping is enforced at the token level, not the account level.
 
 2. **Dedicated machine user** (separate GitHub account) — an older pattern that predates fine-grained PATs. A separate account with a classic token is granted only the team memberships it needs. The PR appears as the machine user, not you personally. Still common and valid, but no longer strictly necessary on GitHub.
 

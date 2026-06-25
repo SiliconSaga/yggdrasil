@@ -125,11 +125,11 @@ GitLab offers several token-bearing actors. Use the narrowest one that covers yo
 
 **Recommended:** use a **Project Access Token** for a single test repo, a **Group Access Token** when your workspace components all live under one group, or a **Group Service Account** when your GitLab instance exposes it and you want a named fork-home actor on a Free-compatible GitLab setup. Personal Access Tokens with `api` scope work but give broader access than needed.
 
-> **GitLab.com Free and older self-managed instances:** Group and Project Access Tokens require a paid GitLab.com subscription, while group service accounts may be available when the instance exposes `Settings → Service Accounts` to top-level group Owners. If that section is absent, the instance version or admin settings likely do not support the flow. Use a **Personal Access Token** with `api` scope as the fallback. For the multi-token setup (fork → upstream), you can point multiple env vars at the same PAT (see `.env.example` for variable names) — the token routing logic still works, you just don't get the access-level separation that scoped actors provide.
+> **GitLab.com Free and older self-managed instances:** Group and Project Access Tokens require a paid GitLab.com subscription, while group service accounts may be available when the instance exposes `Settings → Service Accounts` to top-level group Owners. If that section is absent, the instance version or admin settings likely do not support the flow. Use a **Personal Access Token** with `api` scope as the fallback. For the multi-token setup (fork → source project), you can point multiple env vars at the same PAT (see `.env.example` for variable names) — the token routing logic still works, you just don't get the access-level separation that scoped actors provide.
 
 Choose the narrowest role that matches the token's job:
 - **Developer** for fork/write tokens that must push branches or create MRs.
-- **Reporter** for upstream read/review/issue tokens in the split-token setup.
+- **Reporter** for source-project read/review/issue tokens in the split-token setup.
 - **Maintainer** may be required on a destination group for API-created forks, depending on instance settings around project creation/import. If a Developer token fails with "not allowed to import projects," raise only the fork-home token's role.
 
 For cross-group fork creation, the fork token must be able to read the source project and create in the destination namespace. A fork-group access-token bot cannot be invited directly to a sibling/external source group, but GitLab's project/group "Invite a group" sharing can grant source-project read by inviting the fork-home group. This is a group-sharing grant, not a token-specific grant.
@@ -158,18 +158,21 @@ Use a fork group when you want GDD agents to push branches and open MRs from a c
 
    identity:
      human_account: alice
-     forkOrg: alice-fork-group           # remote name and current fork-derivation hint
+     forkRemote: alice-fork-group        # git remote name used by ws push/ws cr
+     homes:
+       fork:
+         namespace: gitlab.example.com/my-team/gdd/alice-fork-group
    ```
 
 6. Make source projects readable to the fork actor. For source projects under the same GitLab group tree, the fork token may already read them. For private sibling/external source projects, either add a separate Reporter token mapping for the source project/group, or ask the source project/group owner to use GitLab's **Invite a group** sharing to grant Reporter access to the fork-home group. The sharing option can let the fork-group token satisfy GitLab's fork API because the same caller can read the source project and create in the destination namespace.
-7. Declare or override the component. If the default `forkOrg` derivation would put the fork in the wrong path, add an explicit `forkRepo`:
+7. Declare or override the component. With `identity.homes.fork.namespace` set, `ws clone-fork` creates or uses `gitlab.example.com/my-team/gdd/alice-fork-group/<repo>` automatically. Use an explicit `forkRepo` only for one-off exceptions:
 
    ```yaml
    components:
      example-service:
        tier: supporting
        repo: https://gitlab.example.com/source-team/example-service.git
-       forkRepo: https://gitlab.example.com/my-team/gdd/alice-fork-group/example-service.git
+       # forkRepo: https://gitlab.example.com/my-team/special-forks/example-service.git
    ```
 
 8. Verify and clone:
@@ -207,7 +210,7 @@ Patterns (no redundant `_TOKEN` suffix; all entries are tokens):
 
 | Token's job | Env var | Notes |
 |---|---|---|
-| GDD upstream group read | `GITLAB_GDD_REPORTER` | Group path slug, reporter role |
+| GDD source group read | `GITLAB_GDD_REPORTER` | Group path slug, reporter role |
 | GDD fork group write | `GITLAB_GDD_RPRAESTHOLM_DEVELOPER` | Full fork-group path + owner |
 | Personal namespace write | `GITLAB_RPRAESTHOLM_DEVELOPER` | Namespace + role |
 | Personal access token | `GITLAB_RPRAESTHOLM_PAT` | Full-account token; `_PAT` signals broad scope |

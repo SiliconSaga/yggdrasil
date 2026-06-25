@@ -83,7 +83,7 @@ The ask-list is defined in `.claude/hooks/hook-rules` (committed baseline) and c
 These three raw commands deny at Tier 2 with a message pointing at the workspace's `ws` wrappers. The wrappers handle work the raw commands don't:
 
 - `ws commit` — Co-Authored-By trailer, bodyfile-driven staging
-- `ws push` — fork-remote selection from `identity.forkOrg`, sets upstream
+- `ws push` — fork-remote selection from `identity.forkRemote`, sets upstream
 - `ws cr` — bodyfile-driven PR body, identity substitutions, right token + remote
 
 The deny is corrective, not punitive — when you see it, retry through the named `ws` subcommand. AGENTS.md's `ws`-first reflex check table maps every raw command in this category to its wrapper.

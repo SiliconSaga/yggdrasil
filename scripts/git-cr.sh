@@ -131,18 +131,18 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]];
 fi
 
 # Find the fork remote.
-# Single remote: use it. Multiple: match forkOrg. No match: fail.
+# Single remote: use it. Multiple: match forkRemote. No match: fail.
 mapfile -t _ALL_REMOTES < <(git remote)
 
 FORK_REMOTE=""
 if [[ ${#_ALL_REMOTES[@]} -eq 1 ]]; then
   FORK_REMOTE="${_ALL_REMOTES[0]}"
 elif [[ -n "$_ECO" ]]; then
-  _FORK_ORG=$(yq '.identity.forkOrg // ""' "$_ECO" 2>/dev/null)
-  [[ "$_FORK_ORG" == "null" ]] && _FORK_ORG=""
-  if [[ -n "$_FORK_ORG" ]]; then
+  _FORK_REMOTE=$(yq '.identity.forkRemote // ""' "$_ECO" 2>/dev/null)
+  [[ "$_FORK_REMOTE" == "null" ]] && _FORK_REMOTE=""
+  if [[ -n "$_FORK_REMOTE" ]]; then
     for _r in "${_ALL_REMOTES[@]}"; do
-      if [[ "${_r,,}" == "${_FORK_ORG,,}" ]]; then
+      if [[ "${_r,,}" == "${_FORK_REMOTE,,}" ]]; then
         FORK_REMOTE="$_r"
         break
       fi
@@ -155,7 +155,7 @@ if [[ -z "$FORK_REMOTE" ]]; then
   else
     echo "ERROR: Multiple remotes found — cannot determine fork remote." >&2
     echo "  Available remotes: ${_ALL_REMOTES[*]}" >&2
-    echo "  Set identity.forkOrg in ecosystem.local.yaml." >&2
+    echo "  Set identity.forkRemote in ecosystem.local.yaml." >&2
   fi
   exit 1
 fi

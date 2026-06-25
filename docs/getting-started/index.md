@@ -73,7 +73,9 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
 
    Edit `ecosystem.local.yaml` and set at minimum:
    - `identity.human_account` — your GitHub/GitLab username
-   - `identity.forkOrg` — the org/group name for your git remote (e.g., `SiliconSaga`)
+   - `identity.forkRemote` — the git remote name used for fork push/CR flows (e.g., `SiliconSaga`)
+
+   For GitLab fork groups, also set `identity.homes.fork.namespace` to the full fork-home namespace, such as `gitlab.example.com/my-team/gdd/alice-fork-group`.
 
 3. **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env` and install the CLI tools (`gh` for GitHub, `glab` for GitLab). This enables the `ws` CLI to push, file issues, and manage PRs/MRs.
 

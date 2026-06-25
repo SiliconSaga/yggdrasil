@@ -14,11 +14,15 @@ defaults:
 
 # Your identity — used for commit attribution, PR/issue templates, and push.
 # human_account is personal and should NOT be in shared realm configs.
-# forkOrg is the org/group name used as the default git remote for push/issue.
+# forkRemote is the git remote name used for fork push/CR flows.
+# homes.fork.namespace is the absolute fork-home namespace for GitLab fork groups.
 # co_authored_by is typically set by the realm; override here if needed.
 identity:
   human_account: your-github-username
-  forkOrg: your-org-name               # matches your git remote name
+  forkRemote: your-fork-remote-name
+  # homes:
+  #   fork:
+  #     namespace: gitlab.example.com/team/gdd/your-fork-group
   # co_authored_by: "Claude Opus 4.6"   # override realm default
 
 # Git provider detection — usually auto-detected from remote URLs.
