@@ -63,7 +63,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
    bash scripts/ws preflight
    ```
 
-   It verifies bash, git, `yq` (v4+ — Mike Farah's, not the Python yq), `jq`, and a provider CLI (`gh` or `glab`). Anything missing prints a per-OS install hint. Re-run after installing to confirm.
+   It verifies bash, git, `yq` (v4+ — Mike Farah's, not the Python yq), `jq`, and a provider CLI (`gh` or `glab`), and flags whether `scripts/` is on your PATH. Anything missing prints a per-OS install hint. Re-run after installing to confirm. (These early steps use the full `bash scripts/ws …` form; step 4 adds `ws` to your PATH so later commands can drop the prefix.)
 
 2. **Configure your identity** — copy the example config and fill in your details:
 
@@ -92,8 +92,8 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
    Note that these components are fairly centric to nerdy homelab or indie game dev projects.
 
    ```bash
-   bash scripts/ws list             # see what's available
-   bash scripts/ws clone terasology # or any component that interests you
+   ws list              # see what's available
+   ws clone terasology  # or any component that interests you
    ```
 
    Not sure what to clone? Some suggestions:
@@ -165,9 +165,7 @@ This means you can use GDD to contribute to any project, even one that hasn't ad
 
 <!-- Backlink anchor from https://siliconsaga.net/guardian-driven-development/ -->
 
-Initial design — details will evolve!
-
-The idea is a three-layer configuration:
+Adoption uses a three-layer configuration — implemented today:
 
 1. **Yggdrasil upstream** — fork or clone the generic workspace. Ships with tutorial components and sample configuration. Works out of the box for exploring GDD.
 
