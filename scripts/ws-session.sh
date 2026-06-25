@@ -32,24 +32,62 @@ ws_session_identity_path() {
     ws_session_identity_path_for "$(ws_resolve_session_id)"
 }
 
-# Echo the GDD_CO_AUTHOR value stored in an identity file, or empty if the
-# path is empty / missing / sets nothing. Identity files are data, not shell:
-# parse the first GDD_CO_AUTHOR= line directly so shell syntax in an identity
-# is preserved literally and never executed.
-ws_read_identity_file() {
-    local path="${1:-}"
-    [[ -n "$path" && -f "$path" ]] || return 0
-    local line val
+# Read a single KEY from the session file (or a given path). Data-only —
+# never sourced. Prints the value of the first matching KEY= line; empty
+# if absent. Usage: ws_session_get <KEY> [path]
+ws_session_get() {
+    local key="${1:-}" path="${2:-}"
+    [[ -n "$path" ]] || path="$(ws_session_identity_path)"
+    [[ -n "$key" && -n "$path" && -f "$path" ]] || return 0
+    local line
     while IFS= read -r line || [[ -n "$line" ]]; do
         line="${line%$'\r'}"
         case "$line" in
-            GDD_CO_AUTHOR=*)
-                val="${line#GDD_CO_AUTHOR=}"
-                printf '%s' "$val"
-                return 0
-                ;;
+            "$key="*) printf '%s' "${line#"$key="}"; return 0 ;;
         esac
     done < "$path"
+}
+
+# Atomic read-modify-write of one KEY in the session file, preserving all
+# other keys. Writes to a temp file in the same dir then mv (atomic rename)
+# so a concurrent reader never sees a half-written file. Usage:
+# ws_session_set <KEY> <VALUE>
+ws_session_set() {
+    local key="${1:-}" value="${2:-}" path; path="$(ws_session_identity_path)"
+    if [[ -z "$path" ]]; then
+        echo "ERROR: No session id (GDD_SESSION_ID / CLAUDE_CODE_SESSION_ID / CODEX_THREAD_ID) — cannot write session config." >&2
+        return 1
+    fi
+    [[ -n "$key" ]] || { echo "ERROR: ws_session_set requires a KEY." >&2; return 1; }
+    if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+        echo "ERROR: session value cannot contain newlines." >&2
+        return 1
+    fi
+    mkdir -p "$(dirname "$path")"
+    local tmp; tmp="$(mktemp "$(dirname "$path")/.session.XXXXXX")"
+    local found=0 line
+    if [[ -f "$path" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%$'\r'}"
+            case "$line" in
+                "$key="*) printf '%s=%s\n' "$key" "$value" >> "$tmp"; found=1 ;;
+                *)        printf '%s\n' "$line" >> "$tmp" ;;
+            esac
+        done < "$path"
+    fi
+    [[ "$found" -eq 0 ]] && printf '%s=%s\n' "$key" "$value" >> "$tmp"
+    mv "$tmp" "$path"
+}
+
+# Echo the GDD_CO_AUTHOR value stored in an identity file, or empty if the
+# path is empty / missing / sets nothing. Identity files are data, not shell:
+# delegates to ws_session_get which parses the first GDD_CO_AUTHOR= line
+# directly so shell syntax in an identity is preserved literally and never
+# executed.
+ws_read_identity_file() {
+    local path="${1:-}"
+    [[ -n "$path" && -f "$path" ]] || return 0
+    ws_session_get "GDD_CO_AUTHOR" "$path"
 }
 
 # Write the current session's identity file with GDD_CO_AUTHOR=<$1>.
@@ -65,8 +103,7 @@ ws_write_session_identity() {
         echo "ERROR: session identity cannot contain newlines." >&2
         return 1
     fi
-    mkdir -p "$(dirname "$path")"
-    printf 'GDD_CO_AUTHOR=%s\n' "$identity" > "$path"
+    ws_session_set "GDD_CO_AUTHOR" "$identity"
 }
 
 # Resolve the Co-Authored-By identity. First match wins:
