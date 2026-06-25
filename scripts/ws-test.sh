@@ -88,6 +88,9 @@ test_help() {
         echo "  ws test knarr tests/test_foo.py            # runs that file"
         echo "  ws test knarr tests/test_foo.py::test_bar  # runs that test"
         echo "  ws test knarr some_keyword                 # -k some_keyword"
+        echo ""
+        echo "For unittest adapters, a positional selector becomes a -k pattern:"
+        echo "  ws test gangplank slack_prompt             # -k slack_prompt"
     } >&"$stream"
 }
 
@@ -246,7 +249,7 @@ case "$runner" in
                 gradle_argv=("${adapter_argv[@]}")
             else
                 # Non-Gradle adapter. A positional test selector can be
-                # translated for pytest commands; other runners can't.
+                # translated for runners with known filter semantics.
                 if [[ -n "$test_filter" ]]; then
                     if [[ "$adapter_cmd" == *pytest* ]]; then
                         # A selector that resolves to an on-disk path or a
@@ -262,8 +265,12 @@ case "$runner" in
                         fi
                         exit 0
                     fi
-                    echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle or pytest." >&2
-                    echo "  Test name filters are only supported for Gradle, Go, Python, and pytest adapters." >&2
+                    if [[ "$adapter_cmd" == *unittest* ]]; then
+                        "${adapter_argv[@]}" -k "$test_filter" "${runner_args[@]}"
+                        exit 0
+                    fi
+                    echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle, pytest, or unittest." >&2
+                    echo "  Test name filters are only supported for Gradle, Go, Python, pytest adapters, and unittest adapters." >&2
                     echo "  Use 'ws exec $comp <runner> <args>' to run '$test_filter' directly." >&2
                     exit 1
                 fi

@@ -53,9 +53,16 @@ setup() {
     [[ "$output" == *"ARGS:tests/foo.py -v"* ]]
 }
 
-@test "non-pytest, non-Gradle adapter still rejects a positional filter" {
+@test "unittest adapter: a non-path keyword becomes a -k filter" {
+    write_adapter_test "./python -m unittest discover"
+    run_ws_test yggdrasil some_keyword
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:-m unittest discover -k some_keyword"* ]]
+}
+
+@test "non-pytest, non-unittest, non-Gradle adapter still rejects a positional filter" {
     write_adapter_test "true"
     run_ws_test yggdrasil somefilter
     [ "$status" -ne 0 ]
-    [[ "$output" == *"not Gradle or pytest"* ]]
+    [[ "$output" == *"not Gradle, pytest, or unittest"* ]]
 }
