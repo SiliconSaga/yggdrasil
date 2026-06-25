@@ -249,13 +249,13 @@ fi
 if [[ -n "$FORK_REPO_OVERRIDE" ]]; then
     read -r _FORK_HOST FORK_PATH < <(parse_git_url "$FORK_REPO_OVERRIDE")
     if [[ "$_FORK_HOST" != "$UPSTREAM_HOST" ]]; then
-        echo "ERROR: forkRepo host ($_FORK_HOST) differs from upstream host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
+        echo "ERROR: forkRepo host ($_FORK_HOST) differs from source host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
         exit 1
     fi
 elif [[ -n "$FORK_HOME_NAMESPACE" ]]; then
     read -r _FORK_HOST FORK_NAMESPACE < <(parse_fork_home_namespace "$FORK_HOME_NAMESPACE" "$UPSTREAM_HOST")
     if [[ "$_FORK_HOST" != "$UPSTREAM_HOST" ]]; then
-        echo "ERROR: identity.homes.fork.namespace host ($_FORK_HOST) differs from upstream host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
+        echo "ERROR: identity.homes.fork.namespace host ($_FORK_HOST) differs from source host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
         exit 1
     fi
     FORK_PATH="${FORK_NAMESPACE}/${UPSTREAM_REPO_NAME}"
@@ -319,7 +319,7 @@ urlencode() {
 # Callers that want the error body on failure capture stderr to a file
 # at the call site (see $ERR_TMP usage below).
 #
-# --hostname is pinned to the upstream host explicitly. Without it,
+# --hostname is pinned to the source-project host explicitly. Without it,
 # glab picks the instance from its own config or the cwd's git remote
 # — which for a script targeting a specific upstream could silently
 # hit the wrong GitLab (e.g. gitlab.com instead of a corporate one).

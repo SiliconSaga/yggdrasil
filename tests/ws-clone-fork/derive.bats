@@ -77,6 +77,28 @@ YAML
     [[ "$output" != *"Fork     : my-team/gdd/alice-fork-group/widget"* ]]
 }
 
+@test "homes.fork.namespace rejects a different host" {
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: alice-fork-group
+  homes:
+    fork:
+      namespace: other-gitlab.example.com/my-team/gdd/alice-fork-group
+defaults:
+  gitTokens:
+    gitlab.example.com/source/team/widget: SOURCE_TOKEN
+components:
+  widget:
+    tier: supporting
+    repo: https://gitlab.example.com/source/team/widget.git
+YAML
+
+    run_clone_fork
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"identity.homes.fork.namespace host (other-gitlab.example.com) differs from source host (gitlab.example.com)"* ]]
+}
+
 @test "nested forkRemote derivation remains supported" {
     write_ecosystem <<'YAML'
 identity:
