@@ -311,6 +311,18 @@ emit_component_adapters() {
     fi
 }
 
+# Surface the workspace-root self-test. yggdrasil itself is treated as a
+# "component" by ws-test.sh, whose suite is the vendored-bats files under
+# tests/ (excluding tests/vendor/). It has no realm adapter, so it never
+# shows up in emit_component_adapters — surface it here so `ws test
+# yggdrasil` is discoverable from orient, the lowest-effort entry point.
+emit_workspace_selftest() {
+    [[ -n "$(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print -quit 2>/dev/null)" ]] || return 0
+    printf '\nWorkspace root — self-test:\n'
+    printf '  yggdrasil\n'
+    printf '    ws test yggdrasil [runs: bats tests/**/*.bats]\n'
+}
+
 # Render one component's adapter wiring. Walks the three plan-named
 # verbs explicitly (test/lint/build) so a typo in the YAML doesn't
 # silently swallow a missing slot — the diagnostic message stays
@@ -445,4 +457,5 @@ _resolve_orient_realm
 emit_subcommand_survey
 emit_active_realm
 emit_component_adapters
+emit_workspace_selftest
 emit_skill_index
