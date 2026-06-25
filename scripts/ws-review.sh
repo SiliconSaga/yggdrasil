@@ -556,6 +556,15 @@ review_comments() {
         trap - EXIT
         echo "Saved: $output_path"
     fi
+
+    # Reply nudge — to stderr so it never lands in --output snapshots or
+    # downstream greps of stdout. Replies are the exception, not the rule:
+    # addressing a finding normally lets CodeRabbit self-resolve, so only reach
+    # for `reply` when rejecting a comment or explaining a non-obvious fix.
+    if (( n_comments > 0 )); then
+        echo "" >&2
+        echo "↪ Reply to a thread: ws review <comp> reply <cr#> <thread-id> <msg> [--resolve] — only when rejecting a comment or explaining an unexpected fix; just addressing it usually lets the bot self-resolve." >&2
+    fi
 }
 
 review_notes() {

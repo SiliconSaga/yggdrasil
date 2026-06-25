@@ -440,6 +440,20 @@ HELP
         exit 1
     fi
 
+    # Workspace root is not an ecosystem component, but ws-test.sh treats
+    # `yggdrasil` as one whose suite is the vendored-bats files under tests/.
+    # Surface that self-test instead of erroring on "not declared in config".
+    if [[ "$comp" == "yggdrasil" ]]; then
+        echo "=== yggdrasil (workspace root) ==="
+        if [[ -n "$(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print -quit 2>/dev/null)" ]]; then
+            echo "Self-test (vendored bats):"
+            echo "  test    ws test yggdrasil   [bats tests/**/*.bats]"
+        else
+            echo "  (no .bats files under tests/)"
+        fi
+        return 0
+    fi
+
     local eco
     eco="$(ws_resolve_ecosystem)"
     local exists
