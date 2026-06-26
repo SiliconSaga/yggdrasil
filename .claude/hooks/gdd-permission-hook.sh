@@ -508,6 +508,15 @@ if [[ -n "$_rules_dir" ]]; then
     _parse_rules_file "$_rules_dir/hook-rules"
     [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local" local
 fi
+# Source the k8s guard for scoped-redirect evaluation (Tier 2b). The
+# guard exposes k8s_guard_evaluate; silently no-ops if not found.
+# Use BASH_SOURCE[0] so the path resolves relative to the hook file
+# itself (two levels up from .claude/hooks/ to the workspace root),
+# not relative to the agent's cwd — the agent's cwd can be anywhere.
+# Deviation from brief: brief used ${_rules_dir%/.claude/hooks}/scripts/
+# which fails in the test environment (cwd → $WORK, no $WORK/scripts/).
+# shellcheck source=../../scripts/ws-k8s-guard.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ws-k8s-guard.sh" 2>/dev/null || true
 
 # ─── Tool routing: non-Bash branch (Edit / Write) ──────────────────
 #
@@ -882,6 +891,70 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
         fi
         deny "$_t2_suggestion"
     fi
+done
+
+# ─── Tier 2b — scoped redirects (session-key-gated) ─────────────────
+#
+# Walk scoped_redirect_commands (parsed from [scoped-redirect-commands]
+# in hook-rules). Each entry gates on a session env-file key; when the
+# key is set in .tmp/gdd-agent-sessions/<sid>.env the tier activates:
+#
+#   (a) `ws k8s …` / `k8s …` → route by k8s_guard_evaluate verdict.
+#       READ_IN_SCOPE: auto-allow; BLOCK: deny; otherwise: fall through.
+#   (b) raw command matching the pattern → redirect deny.
+#   (c) shell script invocation whose file contains raw kubectl → deny.
+#
+# Bypass marker (written by `ws hook-bypass <slug>`) turns the deny
+# into a continue (falls through to later tiers). Mirrors Tier 2.
+
+_sr_envfile=""
+if [[ -n "$_t2_session_id" ]]; then
+    _sr_safe="${_t2_session_id//[^A-Za-z0-9._-]/_}"
+    _sr_envfile="$_t2_project_root/.tmp/gdd-agent-sessions/${_sr_safe}.env"
+fi
+_sr_get() {  # read one KEY from the session env file as data
+    local key="$1"; [[ -n "$_sr_envfile" && -f "$_sr_envfile" ]] || return 0
+    local l; while IFS= read -r l || [[ -n "$l" ]]; do l="${l%$'\r'}"
+        case "$l" in "$key="*) printf '%s' "${l#"$key="}"; return 0 ;; esac
+    done < "$_sr_envfile"
+}
+for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
+    _sr_slug="${_entry%%|*}"; _sr_rest="${_entry#*|}"
+    _sr_pattern="${_sr_rest%%|*}"; _sr_rest="${_sr_rest#*|}"
+    _sr_key="${_sr_rest%%|*}"; _sr_suggestion="${_sr_rest#*|}"
+    _sr_keyval="$(_sr_get "$_sr_key")"
+    [[ -n "$_sr_keyval" ]] || continue   # gate: only active when the session key is set
+    _sr_marker="$_t2_project_root/.tmp/hook-bypass/$_sr_slug.bypass"
+    if [[ -f "$_sr_marker" ]]; then
+        _sr_msid="$(grep '^session_id:' "$_sr_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
+        [[ -n "$_t2_session_id" && "$_sr_msid" == "$_t2_session_id" ]] && continue
+    fi
+    _sr_ctx="$(_sr_get GDD_K8S_CONTEXT)"; _sr_ns="$(_sr_get GDD_K8S_NAMESPACES)"
+    # (a) ws k8s commands → route by guard verdict.
+    if [[ "$match_cmd" == ws\ k8s\ * || "$match_cmd" == k8s\ * ]]; then
+        # shellcheck disable=SC2086
+        _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $match_cmd 2>/dev/null || true)"
+        case "$_sr_verdict" in
+            READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
+            BLOCK:*) deny "ws k8s blocked: ${_sr_verdict#BLOCK:}. $_sr_suggestion" ;;
+            *) : ;;  # WRITE_IN_SCOPE / NO_SCOPE → normal flow (prompt)
+        esac
+        continue
+    fi
+    # (b) raw tool matching the pattern → redirect.
+    # shellcheck disable=SC2053
+    if [[ "$match_cmd" == $_sr_pattern ]]; then
+        deny "$_sr_suggestion"
+    fi
+    # (c) temp-script scan: a script-exec whose file contains a raw match.
+    case "$match_cmd" in
+        bash\ *|sh\ *|source\ *|./*)
+            _sr_file="${match_cmd#* }"; _sr_file="${_sr_file%% *}"
+            if [[ -f "$_sr_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_sr_file" 2>/dev/null; then
+                deny "Script $_sr_file calls raw kubectl under an active practice scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+            fi
+            ;;
+    esac
 done
 
 # ─── Tier 3: Adapter-aware redirect — raw test/lint runners ─────────

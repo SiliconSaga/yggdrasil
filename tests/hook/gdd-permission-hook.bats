@@ -1387,3 +1387,55 @@ EOF
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+# ─── Tier 2b: scoped-redirect-commands ──────────────────────────────
+#
+# A [scoped-redirect-commands] entry gates on a session env key.  When
+# the key is present in the session file, raw kubectl is redirected to
+# `ws k8s`; in-scope `ws k8s` reads auto-approve; out-of-scope writes
+# deny; and a script containing raw kubectl is blocked.
+
+seed_k8s_scope() {  # $1=session_id, $2=context, $3=namespaces
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    cat > "$WORK/.tmp/gdd-agent-sessions/$1.env" <<EOF
+GDD_K8S_CONTEXT=$2
+GDD_K8S_NAMESPACES=$3
+EOF
+}
+
+@test "scoped-redirect: raw kubectl redirects to ws k8s when scope active" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws k8s"* ]]
+}
+@test "scoped-redirect: raw kubectl passes through when NO scope" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session 'kubectl get pods' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: in-scope ws k8s read auto-approves" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s get pods -n kube-system' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: out-of-scope ws k8s write denies" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: temp script containing kubectl is denied under scope" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$WORK/danger.sh"
+    run_hook_with_session "bash $WORK/danger.sh" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
