@@ -193,6 +193,79 @@ YAML
     [ "$(git -C "$TARGET" remote get-url upstream-2)" = "$SOURCE_BARE" ]
 }
 
+@test "existing source-named remote pointing elsewhere is preserved" {
+    SOURCE_BARE="$BATS_TEST_TMPDIR/source.git"
+    FORK_BARE="$BATS_TEST_TMPDIR/fork.git"
+    UNRELATED_BARE="$BATS_TEST_TMPDIR/unrelated.git"
+    SEED="$BATS_TEST_TMPDIR/seed"
+    git init -q "$SEED"
+    git -C "$SEED" config user.name "Test User"
+    git -C "$SEED" config user.email "test@example.local"
+    echo "seed" > "$SEED/file.txt"
+    git -C "$SEED" add file.txt
+    git -C "$SEED" commit -q -m "seed"
+    git -C "$SEED" branch -M main
+    git init -q --bare "$SOURCE_BARE"
+    git init -q --bare "$FORK_BARE"
+    git init -q --bare "$UNRELATED_BARE"
+    git -C "$SEED" push -q "$SOURCE_BARE" main
+    git -C "$SEED" push -q "$FORK_BARE" main
+    git -C "$SEED" push -q "$UNRELATED_BARE" main
+
+    TARGET="$COMPONENTS_DIR/widget"
+    git clone -q "$FORK_BARE" "$TARGET"
+    git -C "$TARGET" remote rename origin alice-fork-group
+    git -C "$TARGET" remote add team "$UNRELATED_BARE"
+
+    cat > "$TEST_BIN/glab" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" != "api" ]]; then
+  exit 1
+fi
+project="${@: -1}"
+case "$project" in
+  projects/source%2Fteam%2Fwidget)
+    cat <<JSON
+{"id":1,"default_branch":"main","ssh_url_to_repo":"$SOURCE_BARE","http_url_to_repo":"$SOURCE_BARE","web_url":"https://gitlab.example.com/source/team/widget"}
+JSON
+    ;;
+  projects/forks%2Falice-fork-group%2Fwidget)
+    cat <<JSON
+{"id":2,"default_branch":"main","import_status":"finished","ssh_url_to_repo":"$FORK_BARE","http_url_to_repo":"$FORK_BARE","web_url":"https://gitlab.example.com/forks/alice-fork-group/widget"}
+JSON
+    ;;
+  *)
+    echo "unexpected glab api call: $*" >&2
+    exit 1
+    ;;
+esac
+SH
+    chmod +x "$TEST_BIN/glab"
+    export SOURCE_BARE FORK_BARE
+
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: alice-fork-group
+  homes:
+    fork:
+      namespace: gitlab.example.com/forks/alice-fork-group
+defaults:
+  gitTokens:
+    gitlab.example.com/source/team/widget: SOURCE_TOKEN
+    gitlab.example.com/forks/alice-fork-group: FORK_TOKEN
+components:
+  widget:
+    tier: supporting
+    repo: https://gitlab.example.com/source/team/widget.git
+YAML
+
+    run_clone_fork
+
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$TARGET" remote get-url team)" = "$UNRELATED_BARE" ]
+    [ "$(git -C "$TARGET" remote get-url team-2)" = "$SOURCE_BARE" ]
+}
+
 @test "fork-token source probe surfaces transient errors instead of cross-group helper" {
     cat > "$TEST_BIN/glab" <<'SH'
 #!/usr/bin/env bash

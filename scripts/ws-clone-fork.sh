@@ -226,15 +226,11 @@ if [[ "$UPSTREAM_LEAF_GROUP" == "." || -z "$UPSTREAM_LEAF_GROUP" ]]; then
 else
     UPSTREAM_REMOTE_NAME="$(basename "$UPSTREAM_LEAF_GROUP")"
 fi
-UPSTREAM_REMOTE_NAME_COLLISION_FALLBACK=0
 # The fork remote is named after $FORK_REMOTE. If the upstream group's
 # leaf segment happens to equal $FORK_REMOTE, the two `git remote add`
-# calls would collide. Use "upstream" as the preferred fallback, then
-# choose a numbered variant later if an existing clone already uses
-# "upstream" for a different remote.
+# calls would collide. Use "upstream" as the preferred fallback.
 if [[ "$UPSTREAM_REMOTE_NAME" == "$FORK_REMOTE" ]]; then
     UPSTREAM_REMOTE_NAME="upstream"
-    UPSTREAM_REMOTE_NAME_COLLISION_FALLBACK=1
 fi
 
 # --- derive fork path -------------------------------------------------------
@@ -588,12 +584,10 @@ if [[ -d "$TARGET/.git" ]]; then
         fi
     fi
 
-    if [[ "$UPSTREAM_REMOTE_NAME_COLLISION_FALLBACK" -eq 1 ]]; then
-        selected_upstream_remote_name=$(select_available_source_remote_name "$TARGET" "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL")
-        if [[ "$selected_upstream_remote_name" != "$UPSTREAM_REMOTE_NAME" ]]; then
-            echo "         source remote '$UPSTREAM_REMOTE_NAME' already points elsewhere; using '$selected_upstream_remote_name'"
-            UPSTREAM_REMOTE_NAME="$selected_upstream_remote_name"
-        fi
+    selected_upstream_remote_name=$(select_available_source_remote_name "$TARGET" "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL")
+    if [[ "$selected_upstream_remote_name" != "$UPSTREAM_REMOTE_NAME" ]]; then
+        echo "         source remote '$UPSTREAM_REMOTE_NAME' already points elsewhere; using '$selected_upstream_remote_name'"
+        UPSTREAM_REMOTE_NAME="$selected_upstream_remote_name"
     fi
 
     # Upstream remote
