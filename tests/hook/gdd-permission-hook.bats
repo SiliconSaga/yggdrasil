@@ -1449,3 +1449,35 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
     grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.claude/hook-audit.log"
 }
+
+# ─── Tier 2b: ws k8s scope management NOT denied when scope armed ────
+#
+# Fix 1 regression guards: once a scope is armed, the hook's Tier 2b arm
+# must NOT deny the wrapper's own management subcommands (scope show/clear/set).
+# Before the fix, the guard treated `scope` as an unknown write verb, resolved
+# it against the practice namespace, and returned BLOCK — causing the hook to
+# deny scope management calls after the scope was first armed.
+
+@test "scoped-redirect: ws k8s scope show is NOT denied when scope armed" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s scope show' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "scoped-redirect: ws k8s scope clear is NOT denied when scope armed" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s scope clear' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "scoped-redirect: ws k8s scope set is NOT denied when scope armed" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s scope set --context kind-practice --namespace alice-sandbox' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}

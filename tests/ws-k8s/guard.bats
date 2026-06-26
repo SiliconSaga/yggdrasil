@@ -76,3 +76,11 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
     [[ "$output" == BLOCK:* ]]
 }
+@test "scope show is NOT_K8S (wrapper management, not a kubectl command)" {
+    run_guard "kind-practice" "alice-sandbox" ws k8s scope show
+    [ "$output" = "NOT_K8S" ]
+}
+@test "scope set is NOT_K8S (wrapper management, not a kubectl command)" {
+    run_guard "kind-practice" "alice-sandbox" ws k8s scope set --context kind-practice --namespace alice-sandbox
+    [ "$output" = "NOT_K8S" ]
+}

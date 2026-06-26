@@ -45,7 +45,8 @@ main() {
         BLOCK:*) echo "ws k8s: blocked — ${verdict#BLOCK:}" >&2
                  echo "  widen with: ws k8s scope set --context $ctx --namespace <ns>" >&2; return 1 ;;
         NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
-        *) exec "$KUBECTL" --context "$ctx" "$@" ;;
+        READ_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
+        *) echo "ws k8s: unrecognized guard verdict '$verdict'" >&2; return 1 ;;
     esac
 }
 main "$@"

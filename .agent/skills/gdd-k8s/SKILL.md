@@ -29,7 +29,7 @@ When the skill fires for the first time in a session (no scope set yet), walk th
 
 ## Guard Behavior (Teach This)
 
-Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash and PowerShell tool call:
+Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash tool call:
 
 | Situation | Result |
 |-----------|--------|

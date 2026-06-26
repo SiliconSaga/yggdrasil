@@ -126,15 +126,15 @@ Then follow the printed instructions and `components/my-page/README.md`. The tut
 
 6. **Start Claude Code** from the `yggdrasil/` directory
 
-7. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your mode, and ask what you want to work on.
+7. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your stance, and ask what you want to work on.
 
    **Heads-up about the "scary red" output you might see early on.** In the first few tool calls of a session, you'll often see the agent get a stream of red-looking error messages — things like "Output / input redirection is disallowed" or "File-descriptor merges aren't needed". Those aren't crashes. They're the workspace's PreToolUse hook gently rejecting the agent's generic shell habits and pointing at the local way to do the same thing. The agent reads each message on its next turn and retries; after a handful of denies it has the conventions cached and the noise drops to nearly zero. Nothing was harmed (the rejected commands never ran). See [agent-training.md](../gdd/agent-training.md) for the full explanation if you're curious.
 
-8. **Ask for Mentoring mode.** This is the key for your first session:
+8. **Ask for the mentoring overlay.** This is the key for your first session:
 
-   > "Let's use mentoring mode. I'm new to this workspace and want to understand how things work."
+   > "Let's use the mentoring overlay. I'm new to this workspace and want to understand how things work."
 
-   In Mentoring mode, the AI explains its decisions, teaches practices in context, and walks you through the tools. It's like pair programming with someone who knows the codebase.
+   In the mentoring overlay, the AI explains its decisions, teaches practices in context, and walks you through the tools. It's like pair programming with someone who knows the codebase.
 
 9. **Pick something small to do.** Some ideas:
    - Explore a component: "What does tafl do? Walk me through the code."
@@ -142,7 +142,7 @@ Then follow the printed instructions and `components/my-page/README.md`. The tut
    - Fix something: Check the [open issues](https://github.com/SiliconSaga/yggdrasil/issues) for anything labeled `good first issue`.
    - Just explore: "What's in this workspace? Show me around."
 
-   The Mentoring mode will explain the `ws` CLI, the component structure, and GDD itself as you encounter them naturally.
+   The mentoring overlay will explain the `ws` CLI, the component structure, and GDD itself as you encounter them naturally.
 
 ## What Happens Next
 

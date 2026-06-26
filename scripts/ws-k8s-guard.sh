@@ -43,6 +43,11 @@ k8s_guard_evaluate() {
         i=$((i+1))
     done
 
+    # `scope` is a wrapper-management verb (show/set/clear); it is not a
+    # kubectl command. Return NOT_K8S so the hook passes it to the normal
+    # permission flow instead of blocking it as an unrecognized write verb.
+    if [[ "$verb" == "scope" ]]; then printf 'NOT_K8S'; return 0; fi
+
     if [[ -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:explicit --context %s != practice context %s' "$ctx_arg" "$scope_ctx"; return 0
     fi
