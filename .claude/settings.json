@@ -53,6 +53,8 @@
       "Bash(ws component -h)",
       "Bash(ws component list)",
       "Bash(ws component init:*)",
+      "Bash(ws session:*)",
+      "Bash(bash scripts/ws session:*)",
       "Bash(ws test:*)",
       "Bash(bash scripts/ws test:*)",
       "Bash(ws lint:*)",
