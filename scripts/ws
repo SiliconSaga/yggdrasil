@@ -15,9 +15,9 @@
 #                      both remotes, sync main with upstream. Idempotent.
 #   pull [comp]       Pull all or one component
 #   vscode            Generate VS Code workspace file
-#   push [comp] [branch|tag] [--force] Push branch or tag (remote from identity.forkOrg)
-#   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
-#   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkOrg)
+#   push [comp] [branch|tag] [--force] Push branch or tag (remote from identity.forkRemote)
+#   cr <comp> [--remote <remote>] [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR)
+#   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkRemote)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
@@ -25,7 +25,7 @@
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
 #   whoami [--set "Name <email>"]  Show/set this session's commit identity
-#   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
+#   exec <comp> <cmd...> Run a command in a component dir
 #   realm init        Clone template realm for tutorials
 #   realm <url>       Clone a community realm
 #   realm use <name>  Set active realm
@@ -95,19 +95,19 @@ ws_help() {
     sed -n '/^# Usage:$/,/^$/p' "${BASH_SOURCE[0]}" | grep '^#' | sed 's/^# \?//'
 }
 
-# Resolve identity.forkOrg from merged ecosystem config.
-# Returns the forkOrg value (e.g. "SiliconSaga") or empty string.
-_ws_fork_org="" # cached
-ws_resolve_fork_org() {
-    if [[ -n "$_ws_fork_org" ]]; then
-        echo "$_ws_fork_org"
+# Resolve identity.forkRemote from merged ecosystem config.
+# Returns the fork remote name (e.g. "SiliconSaga") or empty string.
+_ws_fork_remote="" # cached
+ws_resolve_fork_remote() {
+    if [[ -n "$_ws_fork_remote" ]]; then
+        echo "$_ws_fork_remote"
         return
     fi
     local eco
     eco="$(ws_resolve_ecosystem 2>/dev/null)" || return 0
-    _ws_fork_org=$(yq '.identity.forkOrg // ""' "$eco" 2>/dev/null)
-    [[ "$_ws_fork_org" == "null" ]] && _ws_fork_org=""
-    echo "$_ws_fork_org"
+    _ws_fork_remote=$(yq '.identity.forkRemote // ""' "$eco" 2>/dev/null)
+    [[ "$_ws_fork_remote" == "null" ]] && _ws_fork_remote=""
+    echo "$_ws_fork_remote"
 }
 
 ws_exec() {
@@ -119,7 +119,7 @@ ws_exec() {
 Usage: ws exec <component> <command...>
 
   component  Component, realm, or hoard whose dir to run in
-  command    Command + args (max 6 args) to run inside that dir
+  command    Command + args to run inside that dir
 
 Runs a one-off command inside the target dir without manual cd.
 For complex commands, use a Makefile target or shell script.
@@ -128,11 +128,6 @@ HELP
     fi
     if [[ $# -lt 2 ]]; then
         echo "Usage: ws exec <component> <command...>" >&2
-        exit 1
-    fi
-    if [[ $# -gt 7 ]]; then
-        echo "ERROR: Too many arguments (max 7: component + 6 command args)." >&2
-        echo "  For complex commands, use a Makefile target or shell script." >&2
         exit 1
     fi
     local comp="$1"
@@ -156,7 +151,7 @@ Usage: ws push [component] [branch|tag] [--force]
   --force    Force push a branch (use with care; refused for tags)
 
 Pushes to the component's per-developer fork remote (resolved via
-identity.forkOrg in ecosystem config). For repos you own directly,
+identity.forkRemote in ecosystem config). For repos you own directly,
 pushes to the configured remote.
 HELP
             return 0
@@ -178,11 +173,11 @@ HELP
         esac
     done
     ws_resolve_target "$comp"
-    # Pass forkOrg as push remote hint (only if set and not already overridden)
-    local fork_org
-    fork_org=$(ws_resolve_fork_org)
-    if [[ -n "$fork_org" && -z "${GIT_PUSH_REMOTE:-}" ]]; then
-        export GIT_PUSH_REMOTE="$fork_org"
+    # Pass forkRemote as push remote hint (only if set and not already overridden)
+    local fork_remote
+    fork_remote=$(ws_resolve_fork_remote)
+    if [[ -n "$fork_remote" && -z "${GIT_PUSH_REMOTE:-}" ]]; then
+        export GIT_PUSH_REMOTE="$fork_remote"
     fi
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
@@ -193,9 +188,10 @@ ws_cr() {
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws cr <component> [--upstream] <title> <bodyfile>
+Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>
 
   component   Component, realm, or hoard to open the CR against
+  --remote    Use this git remote as the fork/head remote for this CR
   --upstream  Target the upstream repo instead of the fork remote
   title       CR (PR / MR) title
   bodyfile    Path (relative to workspace root) to a change bodyfile
@@ -206,18 +202,50 @@ HELP
             return 0
         fi
     done
-    if [[ $# -lt 3 || $# -gt 4 ]]; then
-        echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
+    if [[ $# -lt 3 || $# -gt 6 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
     shift
     ws_resolve_target "$comp"
+    local cr_remote=""
+    local args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --remote)
+                if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+                    echo "ERROR: --remote requires a git remote name" >&2
+                    exit 1
+                fi
+                cr_remote="$2"
+                shift 2
+                ;;
+            --remote=*)
+                cr_remote="${1#--remote=}"
+                if [[ -z "$cr_remote" || "$cr_remote" == -* ]]; then
+                    echo "ERROR: --remote requires a git remote name" >&2
+                    exit 1
+                fi
+                shift
+                ;;
+            *)
+                args+=("$1")
+                shift
+                ;;
+        esac
+    done
+    if [[ ${#args[@]} -lt 2 || ${#args[@]} -gt 3 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>" >&2
+        exit 1
+    fi
     # Resolve bodyfile path before cd (last arg is always the bodyfile)
-    local args=("$@")
     local last_idx=$(( ${#args[@]} - 1 ))
     if [[ "${args[$last_idx]}" != /* ]]; then
         args[$last_idx]="$ROOT_DIR/${args[$last_idx]}"
+    fi
+    if [[ -n "$cr_remote" ]]; then
+        export GIT_CR_REMOTE="$cr_remote"
     fi
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr.sh" "${args[@]}"
 }
@@ -504,7 +532,7 @@ Usage: ws issue <component> [remote] <title> <label> <bodyfile>
 
   component  Component, realm, or hoard to file the issue against
   remote     Optional; auto-detects if a single remote, else uses
-             identity.forkOrg
+             identity.forkRemote
   title      Issue title
   label      Issue label (must exist on the repo)
   bodyfile   Path (relative to workspace root) to an issue bodyfile
@@ -517,7 +545,7 @@ HELP
     done
     if [[ $# -lt 4 || $# -gt 5 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
-        echo "  remote auto-detects if single remote, uses forkOrg if multiple." >&2
+        echo "  remote auto-detects if single remote, uses forkRemote if multiple." >&2
         exit 1
     fi
     local comp="$1"
@@ -528,8 +556,8 @@ HELP
         remote="$1"
         shift
     else
-        # Let git-issue.sh auto-detect; pass forkOrg as hint for multi-remote
-        remote=$(ws_resolve_fork_org)
+        # Let git-issue.sh auto-detect; pass forkRemote as hint for multi-remote
+        remote=$(ws_resolve_fork_remote)
         # remote may be empty — git-issue.sh handles auto-detect for single remote
     fi
     bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
@@ -601,13 +629,13 @@ HELP
     # Remotes
     echo ""
     echo "  Remotes:"
-    local fork_org
-    fork_org=$(ws_resolve_fork_org)
+    local fork_remote
+    fork_remote=$(ws_resolve_fork_remote)
     while IFS= read -r remote; do
         local url
         url=$(git -C "$comp_dir" remote get-url "$remote" 2>/dev/null || echo "(no url)")
         local push_marker=""
-        [[ -n "$fork_org" && "${remote,,}" == "${fork_org,,}" ]] && push_marker=" ← push/cr remote (identity.forkOrg)"
+        [[ -n "$fork_remote" && "${remote,,}" == "${fork_remote,,}" ]] && push_marker=" ← push/cr remote (identity.forkRemote)"
         echo "    $remote → $url$push_marker"
     done < <(git -C "$comp_dir" remote)
 
@@ -724,32 +752,37 @@ ws_gitlab_auth() {
         return 0
     fi
 
-    # Find forkOrg to identify the write (Developer) token
-    local fork_org
-    fork_org=$(yq '.identity.forkOrg // ""' "$eco")
-    [[ "$fork_org" == "null" ]] && fork_org=""
-    if [[ -z "$fork_org" ]]; then
-        echo "ERROR: identity.forkOrg is not set in ecosystem config." >&2
+    # Use the configured fork-home namespace to identify the write
+    # (Developer) token. `identity.forkRemote` is only a local git remote
+    # alias; it is not a trust or token-selection boundary.
+    local write_token_var="" write_key=""
+    local fork_namespace fork_token_target
+    fork_namespace=$(yq '.identity.homes.fork.namespace // ""' "$eco")
+    [[ "$fork_namespace" == "null" ]] && fork_namespace=""
+    if [[ -z "$fork_namespace" ]]; then
+        echo "ERROR: identity.homes.fork.namespace is not set in ecosystem config." >&2
+        echo "  Add 'identity.homes.fork.namespace: <host>/<group-path>' to ecosystem.local.yaml." >&2
         exit 1
     fi
 
-    # Find gitTokens entry whose key is host/<...>/forkOrg (exact leaf match)
-    local write_token_var="" write_key=""
+    fork_token_target=$(printf '%s' "$fork_namespace" \
+        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
+    fork_token_target="${fork_token_target#/}"
+    if [[ "$fork_token_target" != "$host" && "$fork_token_target" != "$host/"* ]]; then
+        fork_token_target="$host/$fork_token_target"
+    fi
     while IFS= read -r key; do
         [[ -z "$key" || "$key" == "null" ]] && continue
         [[ "$key" != "$host/"* ]] && continue
-        local leaf="${key##*/}"
-        if [[ "$leaf" == "$fork_org" ]]; then
-            if [[ ${#key} -gt ${#write_key} ]]; then
-                write_key="$key"
-                write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
-            fi
+        if [[ ( "$fork_token_target" == "$key" || "$fork_token_target" == "$key/"* ) && ${#key} -gt ${#write_key} ]]; then
+            write_key="$key"
+            write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
         fi
     done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
 
     if [[ -z "$write_token_var" || "$write_token_var" == "null" ]]; then
-        echo "ERROR: No gitTokens entry found for host '$host' and forkOrg '$fork_org'." >&2
-        echo "  Expected a key like: $host/<group-path>/$fork_org" >&2
+        echo "ERROR: No gitTokens entry found for fork namespace '$fork_namespace' on host '$host'." >&2
+        echo "  Expected a key covering: ${fork_token_target:-$fork_namespace}" >&2
         echo "  Add it to defaults.gitTokens in ecosystem.local.yaml." >&2
         exit 1
     fi
@@ -773,15 +806,42 @@ ws_gitlab_auth() {
         exit 1
     fi
 
-    # 2. Store write token in git credential helper for HTTPS clone/push
-    echo "2. Storing write token in git credential helper..."
-    git credential approve <<EOF
+    # 2. Store configured host tokens path-scoped in git credential helper.
+    # Path scoping lets a split source-read / fork-write setup keep both
+    # credentials available without one host-wide credential shadowing the other.
+    echo "2. Storing path-scoped credentials in git credential helper..."
+    git config --global "credential.https://$host.useHttpPath" true
+    local stored_count=0
+    approve_git_credential() {
+        local cred_path="$1"
+        local token_val="$2"
+        git credential approve <<EOF
 protocol=https
 host=$host
+path=$cred_path
 username=oauth2
-password=$write_token
+password=$token_val
 EOF
-    echo "   ✓ Stored in $(git config --global credential.helper || echo 'credential store') for $host"
+        stored_count=$((stored_count + 1))
+    }
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local token_var token_val cred_path normalized_path git_path
+        token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        [[ -z "$token_var" || "$token_var" == "null" ]] && continue
+        token_val="${!token_var:-}"
+        [[ -z "$token_val" ]] && continue
+        cred_path="${key#"$host/"}"
+        [[ -z "$cred_path" ]] && continue
+        normalized_path="${cred_path%.git}"
+        approve_git_credential "$normalized_path" "$token_val"
+        git_path="$normalized_path.git"
+        if [[ "$git_path" != "$normalized_path" ]]; then
+            approve_git_credential "$git_path" "$token_val"
+        fi
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    echo "   ✓ Stored path-scoped credentials in $(git config --global credential.helper || echo 'credential store') for $host ($stored_count entries)"
 
     # 3. Verify with git ls-remote on a declared component URL
     echo "3. Verifying git access..."
@@ -792,8 +852,14 @@ EOF
     done < <(yq '.components[].repo // ""' "$eco" 2>/dev/null)
 
     if [[ -n "$test_url" ]]; then
-        if git ls-remote "$test_url" HEAD &>/dev/null; then
-            echo "   ✓ git access verified ($test_url)"
+        GIT_AUTH_ENV=()
+        git_auth_env_for_url "$test_url"
+        if env "${GIT_AUTH_ENV[@]}" git ls-remote "$test_url" HEAD &>/dev/null; then
+            if [[ -n "${GIT_AUTH_LABEL:-}" ]]; then
+                echo "   ✓ git access verified using $GIT_AUTH_LABEL ($test_url)"
+            else
+                echo "   ✓ git access verified ($test_url)"
+            fi
         else
             echo "   ✗ git ls-remote failed: $test_url" >&2
             echo "   Token may lack read access to this repo." >&2

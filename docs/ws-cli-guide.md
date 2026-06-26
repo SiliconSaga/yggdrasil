@@ -69,28 +69,25 @@ ws_mycommand() {
 
 Every subcommand falls into one of three tiers:
 
-| Tier | Auto-approve? | Deny rule? | Examples |
+| Tier | Auto-approve? | Committed prompt rule? | Representative examples |
 |------|---------------|------------|----------|
-| **Safe** | Yes (allow) | No | `orient`, `list`, `status`, `clone`, `pull`, `vscode`, `test`, `lint`, `review` (listing/status), `log`, `clean`, `realm list`, `realm init`, `hoard list`, `hoard init`, `hoard init <template>`, `hoard init <template> <args>`, `component list`, `component init <flavor>`, `component init <flavor> <name>`, `actions`, `audit-permissions`, `preflight` |
-| **Side-effect** | User's choice (ask) | No | `push`, `push --force`, `pr`, `issue`, `commit`, `review --resolve*`, `realm <url>`, `hoard <url>` (URL clones touch arbitrary external git URLs), `hook-bypass` (ask-tier enforced — even with an allow pattern present, the hook always force-prompts) |
-| **Arbitrary execution** | Always asks (deny) | Yes | `exec` |
+| **Auto-approved wrapper** | Yes (allow) | No | `orient`, `status`, `clone`, `test`, `lint`, `commit`, `log`, `preflight` |
+| **Side-effect** | User's choice (ask) | No | `push`, `cr`, `issue`, `review reply/resolve`, `realm <url>`, `hoard <url>` |
+| **Arbitrary execution** | Always asks | Yes (`hook-rules` ask-list) | `exec` |
 
-**Safe:** Read-only or creates local files only. Add to the `allow` list in `.claude/settings.json`.
+**Auto-approved wrapper:** Read-only, wrapper-bounded local actions, or trusted adapter dispatches. Add to the `allow` list in `.claude/settings.json`.
 
-**Side-effect:** Modifies external state (pushes code, creates issues/PRs, sends messages). Prompts by default but users *can* whitelist for bulk operations. Do NOT add a deny rule — let users decide.
+**Side-effect:** Modifies shared state or adopts external repositories. Prompts by default but users *can* whitelist common bulk operations. Do NOT add a deny rule — let users decide.
 
-**Arbitrary execution:** Takes user-provided commands and runs them. Must have a deny rule in `.claude/settings.json`. Currently only `exec` is in this tier.
+**Arbitrary execution:** Takes user-provided commands and runs them. Must have an ask-list entry in `.claude/hooks/hook-rules` and must not be allowlisted. Currently only `exec` is in this tier.
 
-### 4. Update `.claude/settings.json`
+### 4. Update permission policy
+
+For auto-approved wrapper commands, add the narrowest useful pattern to `.claude/settings.json`:
 
 ```json
 {
   "permissions": {
-    "deny": [
-      "Bash(bash scripts/ws exec *)",
-      "Bash(bash scripts/ws exec * *)",
-      "Bash(bash scripts/ws exec * * *)"
-    ],
     "allow": [
       "Bash(bash scripts/ws mycommand)",
       "Bash(bash scripts/ws mycommand *)"
@@ -99,7 +96,12 @@ Every subcommand falls into one of three tiers:
 }
 ```
 
-> **Note:** Deny patterns shown above are truncated. The actual `.claude/settings.json` includes patterns for all supported arities (up to 7 wildcards). Always check the repo's committed file for the full set.
+For arbitrary-execution commands, add the normalized `ws` form to `.claude/hooks/hook-rules` under `[ask-commands]` instead. The hook normalizes `bash scripts/ws <subcommand>` to `ws <subcommand>` before matching, so a single bare `ws ...` pattern covers both invocation styles:
+
+```text
+[ask-commands]
+ws exec *
+```
 
 ### 5. Update docs
 
@@ -115,12 +117,14 @@ These apply to all subcommands:
 1. **Never `eval`** — use `"$@"` for command passthrough
 2. **Validate target names** — use `ws_resolve_target`, which resolves realm/hoard directory names and checks component names against a strict regex plus the merged `ecosystem.yaml` (see Component name validation below)
 3. **Quote everything** — `"$target"`, `"$@"`, `"$ROOT_DIR"`
-4. **Don't source `.env` in the dispatcher** — only in scripts that need tokens
+4. **Treat `.env` as high-trust process state** — the dispatcher sources the root `.env` so provider tokens are available to subcommands; keep token-bearing commands narrow, and keep arbitrary execution (`ws exec`) ask-gated because child commands inherit that environment
 5. **Bash 4+ is the floor** — `mapfile` and `${var,,}` are used (git-push.sh, git-cr.sh, git-issue.sh, ws). Git Bash on Windows and Linux distros qualify; macOS's system bash 3.2 does not — `brew install bash` (the `ws preflight` hint covers this). Defensive 3.2-safe idioms (e.g. `${arr[@]+"${arr[@]}"}` for empty arrays) are still used in hook and test-critical scripts so failures surface as preflight hints rather than crashes.
 
 ### Why `exec` always requires human approval
 
-`ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were auto-approvable, a compromised prompt or injected instruction could run anything on the system. The deny rule in `.claude/settings.json` ensures every `exec` invocation requires human approval, regardless of user settings.
+`ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were auto-approvable, a compromised prompt or injected instruction could run anything on the system. The committed ask-list entry in `.claude/hooks/hook-rules` ensures every `exec` invocation requires human approval before it can run.
+
+Recurring `ws exec` shapes should not become muscle memory. If a command is common enough to want auto-approval, promote it into an adapter-backed `ws test` / `ws lint` / `ws build` type path, a focused `ws` subcommand, or a reviewed component-local script invoked by a narrower wrapper.
 
 ### Component name validation
 
@@ -157,15 +161,15 @@ If you add new subcommand keywords to any `ws-*.sh` script, guard them before th
 
 Side-effect commands (`push`, `cr`, `issue`) prompt for approval by default. (`ws commit` is **allowlisted by default** — see [ws commit](#ws-commit) below — so it needs no local override.) For bulk operations (filing multiple issues, pushing several components), you can auto-approve the rest in your local settings.
 
-**Setup:** Create `.claude/settings.local.json` (gitignored) and add the patterns you want to auto-approve. In Claude Code permission rules, each `*` matches **one argument** (not multiple). So multi-argument commands need one `*` per argument:
+**Setup:** Create `.claude/settings.local.json` (gitignored) and add the patterns you want to auto-approve. Current GDD hook matching no longer requires one `*` per argument; a tail wildcard can cover the remaining normalized command string. Keep these patterns scoped to side-effect commands you intentionally want to bulk-approve:
 
 ```json
 {
   "permissions": {
     "allow": [
-      "Bash(bash scripts/ws push * *)",
-      "Bash(bash scripts/ws cr * * *)",
-      "Bash(bash scripts/ws issue * * * *)"
+      "Bash(ws push *)",
+      "Bash(ws cr *)",
+      "Bash(ws issue *)"
     ]
   }
 }
@@ -173,12 +177,15 @@ Side-effect commands (`push`, `cr`, `issue`) prompt for approval by default. (`w
 
 | Pattern | Matches | Example |
 |---|---|---|
-| `Bash(bash scripts/ws push *)` | Push with component only | `ws push mimir` |
-| `Bash(bash scripts/ws push * *)` | Push with component + branch | `ws push mimir feat/foo` |
-| `Bash(bash scripts/ws cr * * *)` | CR with component + title + bodyfile | `ws cr mimir "feat: add X" .crs/x.md` |
-| `Bash(bash scripts/ws issue * * * *)` | Issue with all 4 args | `ws issue mimir "fix: Y" bug .issues/y.md` |
+| `Bash(ws push *)` | Push with component or component + branch | `ws push mimir feat/foo` |
+| `Bash(ws cr *)` | CR creation with title and bodyfile, including rare remote overrides | `ws cr mimir --remote siliconsaga "feat: add X" .crs/x.md` |
+| `Bash(ws issue *)` | Issue creation with title, label, and bodyfile | `ws issue mimir "fix: Y" bug .issues/y.md` |
 
-**Note:** `ws exec` **always requires human approval** — the project-level deny rule in `.claude/settings.json` cannot be overridden by local settings. See "Why exec always requires human approval" above.
+Use the bare `ws ...` form for normal GDD sessions. Add parallel `Bash(bash scripts/ws ...)` patterns only if you intentionally want native Claude Code permission matching to work when the GDD hook is absent or disabled; with the hook active, wrapper-form commands normalize to `ws ...` before matching.
+
+For CRs, `identity.forkRemote` remains the default fork/head remote. Use `ws cr <comp> --remote <remote> ...` or `GIT_CR_REMOTE=<remote> ws cr <comp> ...` only for the rare case where a local checkout has an alternate fork/project remote you want to target for this one review request.
+
+**Note:** `ws exec` **always requires human approval** — the committed ask-list entry in `.claude/hooks/hook-rules` runs before local allow patterns, so it cannot be silently auto-approved by `.claude/settings.local.json`. See "Why exec always requires human approval" above.
 
 ## ws orient
 

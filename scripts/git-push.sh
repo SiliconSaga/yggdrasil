@@ -15,7 +15,7 @@
 #   N remotes → use GIT_PUSH_REMOTE to disambiguate (case-insensitive)
 #   N remotes, no match → fail with clear error
 #
-# GIT_PUSH_REMOTE is typically set by ws from identity.forkOrg in ecosystem config.
+# GIT_PUSH_REMOTE is typically set by ws from identity.forkRemote in ecosystem config.
 
 set -euo pipefail
 
@@ -94,15 +94,15 @@ elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
     fi
   done
   if [[ -z "$REMOTE_NAME" ]]; then
-    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from identity.forkOrg)." >&2
+    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from identity.forkRemote)." >&2
     echo "  Available remotes: ${REMOTES[*]}" >&2
-    echo "  Set identity.forkOrg in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
+    echo "  Set identity.forkRemote in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
     exit 1
   fi
 else
   echo "ERROR: Multiple remotes found — cannot determine which to push to." >&2
   echo "  Available remotes: ${REMOTES[*]}" >&2
-  echo "  Set identity.forkOrg in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
+  echo "  Set identity.forkRemote in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
   exit 1
 fi
 

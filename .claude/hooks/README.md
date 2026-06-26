@@ -10,7 +10,7 @@ Fires before every Bash tool call. Five decision tiers, then a passthrough:
 
 1. **Deny shell composition** (`&&`, `||`, `;`, pipes, command substitution, redirects) with a corrective message that tells the agent how to retry. Trains the agent to use separate tool calls and native `ws` flags (`--limit`, `--compact`, `--output`) instead of shell composition.
 2. **Deny raw `git commit` / `git push` / `gh pr create`** (and any other entry in the `[redirect-commands]` section of `hook-rules`) with a corrective message pointing at the right `ws` subcommand. A session-scoped bypass marker — written by `ws hook-bypass <slug>` after a human-approved ask prompt — overrides the deny for that slug. See [Redirect tier and bypass](#redirect-tier-and-bypass) below.
-3. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` on some directory within the workspace that `acceptEdits` would otherwise auto-approve silently (to perhaps some surprise! But mass file deletion *could* be considered an "edit" technically).
+3. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` and arbitrary-execution escape hatches like `ws exec` before they can auto-run silently.
 4. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
 5. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
 6. **Pass** everything else goes to default behavior based on other config.
@@ -34,7 +34,7 @@ The format is flat sectioned text: `[section]` headers, one entry per line, `#` 
 
 **`[scratch-dirs]`** — workspace-relative paths under which Edit/Write tool calls auto-allow. Keeps in lockstep with the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore). Entries in `hook-rules.local` add to the baseline; they never replace it.
 
-**`[ask-commands]`** — glob patterns for destructive Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 4 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
+**`[ask-commands]`** — glob patterns for destructive or arbitrary-execution Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 3 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
 
 **`[adapter-redirect-commands]`** — Tier 3 patterns for raw test/lint/build runners. The hook resolves the component from `$cwd` and the active realm's adapter file; wired adapters get a deny-with-bypass, missing adapters get a one-line stderr nudge and fall through. See `[adapter-redirect-commands]` in `hook-rules` for the format.
 
@@ -57,7 +57,7 @@ The Tier 2 redirect-deny channels three raw commands toward the workspace's `ws`
 | Slug | Pattern | Use this instead |
 |---|---|---|
 | `git-commit` | `git commit*` | `ws commit <comp> <bodyfile>` — bodyfile-driven, attaches the Co-Authored-By trailer |
-| `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkOrg`, sets upstream on first push |
+| `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkRemote`, sets upstream on first push |
 | `gh-pr-create` | `gh pr create*` | `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions |
 
 A deny here is a *training* signal, not a safety floor (that's Tier 4 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, the right token. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:

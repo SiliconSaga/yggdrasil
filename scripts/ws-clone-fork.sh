@@ -4,9 +4,9 @@
 #
 # Usage: ws-clone-fork.sh <component>
 #
-# Ensures the user's personal fork of <component>'s upstream exists,
+# Ensures the user's personal fork of <component>'s source project exists,
 # clones it to components/<name>/, wires up both remotes (fork and
-# upstream), and syncs the local + fork main with upstream.
+# source), and syncs the local + fork main with the source project.
 #
 # Idempotent: re-running on an already-prepared clone re-syncs main
 # and exits cleanly. The agent can call this any time without
@@ -15,14 +15,14 @@
 # Per-component override (in ecosystem config):
 #   components:
 #     <name>:
-#       repo: <upstream-url>
+#       repo: <source-project-url>
 #       forkRepo: <fork-url>          # explicit fork URL (overrides derivation)
 #
-# Realm-level convention (defaults.forkConvention):
-#   nested  — insert forkOrg before the repo name (default; e.g.
-#             acme/team/<repo> + forkOrg=alice → acme/team/alice/<repo>)
-#   flat    — replace the first segment with forkOrg (GitHub-style:
-#             org/<repo> + forkOrg=alice → alice/<repo>)
+# Preferred per-developer fork home (in ecosystem config):
+#   identity:
+#     homes:
+#       fork:
+#         namespace: <host>/<group-path>  # e.g. gitlab.example.com/acme/gdd/alice
 
 set -euo pipefail
 
@@ -34,13 +34,14 @@ Usage: ws clone-fork <component>
 
 Prepare a ready-to-work fork-based clone of <component>:
 
-  1. Ensure the user's personal fork exists in identity.forkOrg (creates it
-     via API if missing).
-  2. Clone the fork (SSH) into components/<component>/, with origin renamed
-     to <forkOrg>.
-  3. Add the upstream as a second remote, named after the upstream group's
-     leaf segment (or "upstream" if no leaf is sensible).
-  4. Sync local main with upstream main. Push synced main back to the
+  1. Ensure the user's fork-home copy exists in components.<name>.forkRepo
+     or identity.homes.fork.namespace (creates it via API when the configured
+     token can read the source project and create in the fork destination).
+  2. Clone the fork into components/<component>/, with the initial remote
+     named <forkRemote>.
+  3. Add the source project as a second remote, named after the source
+     project's parent group's leaf segment (or "upstream" if no leaf is sensible).
+  4. Sync local main with the source project's main. Push synced main back to the
      fork so future clones start clean. Force-pushes never happen — if
      histories diverge, the script stops and asks the user to resolve.
 
@@ -59,12 +60,18 @@ remote URLs come from the provider's project-details API response
 Idempotent: re-runs on an already-prepared clone simply re-sync main.
 
 Cross-group forks (e.g. forking from one GitLab group into a fork
-home that lives in another group) hit a GitLab API limitation: the
-fork API requires one caller identity with both Reporter+ on source
-and Maintainer+ on destination, and bot users created by access
-tokens cannot be cross-invited (Gitlab issue #355659). When the script
-detects this case it emits a one-click fork-via-UI URL and exits with
-code 2 ("manual step needed"). Re-run after user interaction.
+home that lives in another group) require one caller identity with
+read access on the source project and project-create/fork rights on
+the destination namespace. Access-token bot users cannot be invited
+directly to unrelated groups (GitLab issue #355659), but a source
+project/group can invite the fork-home group; the fork-group token can
+then gain source-project read through that group membership. Group
+service-account tokens follow the same capability rule: they work when
+the service account can read the source project through public visibility,
+same-hierarchy access, or GitLab project/group sharing to the fork-home
+group. When the configured fork token cannot read the source project, this
+script emits a one-click fork-via-UI URL and exits with code 2 ("manual
+step needed"). Re-run after user interaction.
 HELP
         exit 0
     fi
@@ -117,7 +124,7 @@ if [[ -z "$UPSTREAM_URL" || "$UPSTREAM_URL" == "null" ]]; then
     echo "    components:" >&2
     echo "      $COMPONENT:" >&2
     echo "        tier: supporting" >&2
-    echo "        repo: <upstream-git-url>" >&2
+    echo "        repo: <source-project-git-url>" >&2
     exit 1
 fi
 
@@ -125,16 +132,16 @@ fi
 FORK_REPO_OVERRIDE=$(COMP="$COMPONENT" yq '.components[strenv(COMP)].forkRepo // ""' "$ECO" 2>/dev/null)
 [[ "$FORK_REPO_OVERRIDE" == "null" ]] && FORK_REPO_OVERRIDE=""
 
-FORK_ORG=$(yq '.identity.forkOrg // ""' "$ECO" 2>/dev/null)
-[[ "$FORK_ORG" == "null" ]] && FORK_ORG=""
-if [[ -z "$FORK_ORG" ]]; then
-    echo "ERROR: identity.forkOrg is not set in ecosystem config." >&2
-    echo "  Add 'identity.forkOrg: <your-fork-namespace>' to ecosystem.local.yaml." >&2
+FORK_HOME_NAMESPACE=$(yq '.identity.homes.fork.namespace // ""' "$ECO" 2>/dev/null)
+[[ "$FORK_HOME_NAMESPACE" == "null" ]] && FORK_HOME_NAMESPACE=""
+
+FORK_REMOTE=$(yq '.identity.forkRemote // ""' "$ECO" 2>/dev/null)
+[[ "$FORK_REMOTE" == "null" ]] && FORK_REMOTE=""
+if [[ -z "$FORK_REMOTE" ]]; then
+    echo "ERROR: identity.forkRemote is not set in ecosystem config." >&2
+    echo "  Add 'identity.forkRemote: <your-fork-remote-name>' to ecosystem.local.yaml." >&2
     exit 1
 fi
-
-FORK_CONVENTION=$(yq '.defaults.forkConvention // "nested"' "$ECO" 2>/dev/null)
-[[ "$FORK_CONVENTION" == "null" ]] && FORK_CONVENTION="nested"
 
 # Transport for the fork/upstream remotes. https (default) injects the .env
 # token per-process — no SSH keys, no credential-manager prompt — the same
@@ -170,6 +177,46 @@ parse_git_url() {
     echo "$host" "$path"
 }
 
+parse_fork_home_namespace() {
+    local raw="$1"
+    local default_host="$2"
+    local host path first
+
+    raw="${raw%/}"
+    if [[ "$raw" =~ ^https?://([^/]+)/(.+)$ ]]; then
+        host="${BASH_REMATCH[1]}"
+        path="${BASH_REMATCH[2]}"
+    elif [[ "$raw" == *"://"* ]]; then
+        echo "ERROR: Cannot parse identity.homes.fork.namespace: $raw" >&2
+        return 1
+    elif [[ "$raw" == "$default_host/"* ]]; then
+        host="$default_host"
+        path="${raw#"$default_host/"}"
+    elif [[ "$raw" == */* ]]; then
+        first="${raw%%/*}"
+        if [[ "$first" == *.* || "$first" == *:* ]]; then
+            host="$first"
+            path="${raw#*/}"
+        else
+            host="$default_host"
+            path="$raw"
+        fi
+    else
+        host="$default_host"
+        path="$raw"
+    fi
+
+    path="${path#/}"
+    path="${path%/}"
+    path="${path%.git}"
+    if [[ -z "$path" || "$path" == "." ]]; then
+        echo "ERROR: identity.homes.fork.namespace must include a namespace path." >&2
+        return 1
+    fi
+
+    echo "$host" "$path"
+}
+
 read -r UPSTREAM_HOST UPSTREAM_PATH < <(parse_git_url "$UPSTREAM_URL")
 UPSTREAM_LEAF_GROUP="$(dirname "$UPSTREAM_PATH")"        # e.g. "acme/team"
 UPSTREAM_REPO_NAME="$(basename "$UPSTREAM_PATH")"        # e.g. "widget"
@@ -179,11 +226,10 @@ if [[ "$UPSTREAM_LEAF_GROUP" == "." || -z "$UPSTREAM_LEAF_GROUP" ]]; then
 else
     UPSTREAM_REMOTE_NAME="$(basename "$UPSTREAM_LEAF_GROUP")"
 fi
-# The fork remote is named after $FORK_ORG. If the upstream group's
-# leaf segment happens to equal $FORK_ORG, the two `git remote add`
-# calls would collide — the second clobbers or fails. Fall back to
-# the literal "upstream" so the two remotes always have distinct names.
-if [[ "$UPSTREAM_REMOTE_NAME" == "$FORK_ORG" ]]; then
+# The fork remote is named after $FORK_REMOTE. If the upstream group's
+# leaf segment happens to equal $FORK_REMOTE, the two `git remote add`
+# calls would collide. Use "upstream" as the preferred fallback.
+if [[ "$UPSTREAM_REMOTE_NAME" == "$FORK_REMOTE" ]]; then
     UPSTREAM_REMOTE_NAME="upstream"
 fi
 
@@ -191,22 +237,21 @@ fi
 if [[ -n "$FORK_REPO_OVERRIDE" ]]; then
     read -r _FORK_HOST FORK_PATH < <(parse_git_url "$FORK_REPO_OVERRIDE")
     if [[ "$_FORK_HOST" != "$UPSTREAM_HOST" ]]; then
-        echo "ERROR: forkRepo host ($_FORK_HOST) differs from upstream host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
+        echo "ERROR: forkRepo host ($_FORK_HOST) differs from source host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
         exit 1
     fi
+elif [[ -n "$FORK_HOME_NAMESPACE" ]]; then
+    read -r _FORK_HOST FORK_NAMESPACE < <(parse_fork_home_namespace "$FORK_HOME_NAMESPACE" "$UPSTREAM_HOST")
+    if [[ "$_FORK_HOST" != "$UPSTREAM_HOST" ]]; then
+        echo "ERROR: identity.homes.fork.namespace host ($_FORK_HOST) differs from source host ($UPSTREAM_HOST). Cross-host forks are not supported by this script." >&2
+        exit 1
+    fi
+    FORK_PATH="${FORK_NAMESPACE}/${UPSTREAM_REPO_NAME}"
 else
-    case "$FORK_CONVENTION" in
-        nested)
-            FORK_PATH="${UPSTREAM_LEAF_GROUP}/${FORK_ORG}/${UPSTREAM_REPO_NAME}"
-            ;;
-        flat)
-            FORK_PATH="${FORK_ORG}/${UPSTREAM_REPO_NAME}"
-            ;;
-        *)
-            echo "ERROR: Unknown forkConvention '$FORK_CONVENTION'. Use 'nested' or 'flat'." >&2
-            exit 1
-            ;;
-    esac
+    echo "ERROR: identity.homes.fork.namespace is not set in ecosystem config." >&2
+    echo "  Add 'identity.homes.fork.namespace: <host>/<group-path>' to ecosystem.local.yaml," >&2
+    echo "  or set components.$COMPONENT.forkRepo for an exact one-off fork URL." >&2
+    exit 1
 fi
 
 FORK_NAMESPACE="$(dirname "$FORK_PATH")"  # destination namespace for project creation
@@ -239,7 +284,7 @@ require_token() {
     fi
 }
 
-require_token "$UPSTREAM_TOKEN_VAR" "upstream read"
+require_token "$UPSTREAM_TOKEN_VAR" "source-project read"
 require_token "$FORK_TOKEN_VAR"     "fork write/create"
 
 # --- helpers: API + URL encoding -------------------------------------------
@@ -254,7 +299,7 @@ urlencode() {
 # Callers that want the error body on failure capture stderr to a file
 # at the call site (see $ERR_TMP usage below).
 #
-# --hostname is pinned to the upstream host explicitly. Without it,
+# --hostname is pinned to the source-project host explicitly. Without it,
 # glab picks the instance from its own config or the cwd's git remote
 # — which for a script targeting a specific upstream could silently
 # hit the wrong GitLab (e.g. gitlab.com instead of a corporate one).
@@ -285,9 +330,13 @@ emit_cross_group_helper() {
     echo "  Cross-group fork detected — manual step needed." >&2
     echo "" >&2
     echo "  Your fork-home token (\$$FORK_TOKEN_VAR) has write access on" >&2
-    echo "  '$FORK_NAMESPACE' but no read access on '$UPSTREAM_PATH'. GitLab's" >&2
-    echo "  fork API needs one identity with both rights, and bot users created" >&2
-    echo "  by access tokens cannot be cross-invited to other groups" >&2
+    echo "  '$FORK_NAMESPACE' but no read access on source project '$UPSTREAM_PATH'." >&2
+    echo "  GitLab's fork API needs one identity with both rights." >&2
+    echo "" >&2
+    echo "  This can be automated by giving the fork token source-project read" >&2
+    echo "  through public visibility, same-hierarchy access, or GitLab" >&2
+    echo "  project/group sharing to the fork-home group. Access-token bot users" >&2
+    echo "  cannot be invited directly to unrelated groups." >&2
     echo "" >&2
     echo "  Click here to fork in the GitLab UI:" >&2
     echo "" >&2
@@ -296,16 +345,27 @@ emit_cross_group_helper() {
     echo "  In the fork form:" >&2
     echo "    Destination namespace: $FORK_NAMESPACE" >&2
     echo "    Project slug:          $UPSTREAM_REPO_NAME (default)" >&2
-    echo "    Visibility:            match upstream (default)" >&2
+    echo "    Visibility:            match source project (default)" >&2
     echo "" >&2
     echo "  Once GitLab finishes the import (usually <1 minute), re-run:" >&2
     echo "    ws clone-fork $COMPONENT" >&2
     echo "" >&2
 }
 
+source_probe_denied() {
+    local message="$1"
+    # GitLab commonly hides private projects as 404 when the caller lacks
+    # read access; some versions return 403. Those map to the cross-group
+    # helper. Transport/tool/auth failures should surface as normal errors.
+    [[ "$message" =~ (^|[^0-9])(403|404)([^0-9]|$) ]] && return 0
+    [[ "$message" =~ [Nn]ot[[:space:]]+[Ff]ound ]] && return 0
+    [[ "$message" =~ [Ff]orbidden ]] && return 0
+    return 1
+}
+
 # --- ensure fork exists -----------------------------------------------------
 echo "[ ws clone-fork: $COMPONENT ]"
-echo "  Upstream : $UPSTREAM_PATH on $UPSTREAM_HOST"
+echo "  Source   : $UPSTREAM_PATH on $UPSTREAM_HOST"
 echo "  Fork     : $FORK_PATH"
 
 UPSTREAM_ENCODED="$(urlencode "$UPSTREAM_PATH")"
@@ -336,22 +396,33 @@ if [[ -z "$FORK_DETAILS" ]]; then
     # FORK_TOKEN typically has create on destination but no read on source.
     # Detect this up front and surface a UI-fork helper rather than letting
     # the API call fail with a cryptic 404.
-    if ! api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" >/dev/null 2>&1; then
-        emit_cross_group_helper
-        exit 2
+    fork_probe_result=""
+    if ! fork_probe_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
+        fork_probe_error="$(cat "$ERR_TMP" 2>/dev/null || true)"
+        rm -f "$ERR_TMP"
+        fork_probe_message="${fork_probe_error}${fork_probe_result}"
+        if source_probe_denied "$fork_probe_message"; then
+            emit_cross_group_helper
+            exit 2
+        fi
+        echo "ERROR: Fork token failed while probing source-project access." >&2
+        [[ -n "$fork_probe_error" ]] && printf '%s\n' "$fork_probe_error" >&2
+        [[ -n "$fork_probe_result" ]] && printf '%s\n' "$fork_probe_result" >&2
+        exit 1
     fi
+    rm -f "$ERR_TMP"
 
     # Get upstream project ID (needed for fork API)
     local_upstream_details=""
     if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
-        echo "ERROR: Failed to fetch upstream project details." >&2
+        echo "ERROR: Failed to fetch source project details." >&2
         cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
         exit 1
     fi
     rm -f "$ERR_TMP"
     UPSTREAM_ID=$(echo "$local_upstream_details" | jq -r '.id')
     if [[ -z "$UPSTREAM_ID" || "$UPSTREAM_ID" == "null" ]]; then
-        echo "ERROR: Could not determine upstream project ID." >&2
+        echo "ERROR: Could not determine source project ID." >&2
         echo "$local_upstream_details" | head -20 >&2
         exit 1
     fi
@@ -408,7 +479,7 @@ fi
 # we didn't already capture them during fork creation.
 if [[ -z "${local_upstream_details:-}" ]]; then
     if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
-        echo "ERROR: Failed to fetch upstream project details." >&2
+        echo "ERROR: Failed to fetch source project details." >&2
         cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
         exit 1
     fi
@@ -448,6 +519,24 @@ TARGET="$COMPONENTS_DIR/$COMPONENT"
 echo ""
 echo "  Step 2: prepare local clone at $TARGET ..."
 
+select_available_source_remote_name() {
+    local target="$1"
+    local base="$2"
+    local source_url="$3"
+    local candidate="$base"
+    local suffix=2
+    local existing_url
+    while existing_url=$(git -C "$target" remote get-url "$candidate" 2>/dev/null); do
+        if [[ "$existing_url" == "$source_url" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+        candidate="${base}-${suffix}"
+        suffix=$((suffix + 1))
+    done
+    echo "$candidate"
+}
+
 # A leftover directory at $TARGET that is NOT a usable git clone
 # blocks the clone step below. Only auto-remove it when it is
 # genuinely EMPTY (e.g., an empty stub left by an IDE file-watcher).
@@ -472,10 +561,10 @@ if [[ -d "$TARGET/.git" ]]; then
     # Fork remote: ensure it's named correctly and points at the fork remote
     # URL for the chosen transport. Re-running after a transport change
     # migrates the stored remote (e.g. ssh → https) idempotently.
-    if git -C "$TARGET" remote get-url "$FORK_ORG" &>/dev/null; then
-        existing_url=$(git -C "$TARGET" remote get-url "$FORK_ORG")
+    if git -C "$TARGET" remote get-url "$FORK_REMOTE" &>/dev/null; then
+        existing_url=$(git -C "$TARGET" remote get-url "$FORK_REMOTE")
         if [[ "$existing_url" != "$FORK_REMOTE_URL" ]]; then
-            git -C "$TARGET" remote set-url "$FORK_ORG" "$FORK_REMOTE_URL"
+            git -C "$TARGET" remote set-url "$FORK_REMOTE" "$FORK_REMOTE_URL"
             echo "         updated fork remote URL"
         fi
     else
@@ -483,16 +572,22 @@ if [[ -d "$TARGET/.git" ]]; then
         if git -C "$TARGET" remote get-url origin &>/dev/null; then
             existing_origin=$(git -C "$TARGET" remote get-url origin)
             if [[ "$existing_origin" == "$FORK_REMOTE_URL" ]]; then
-                git -C "$TARGET" remote rename origin "$FORK_ORG"
-                echo "         renamed origin → $FORK_ORG"
+                git -C "$TARGET" remote rename origin "$FORK_REMOTE"
+                echo "         renamed origin → $FORK_REMOTE"
             else
-                git -C "$TARGET" remote add "$FORK_ORG" "$FORK_REMOTE_URL"
-                echo "         added fork remote: $FORK_ORG"
+                git -C "$TARGET" remote add "$FORK_REMOTE" "$FORK_REMOTE_URL"
+                echo "         added fork remote: $FORK_REMOTE"
             fi
         else
-            git -C "$TARGET" remote add "$FORK_ORG" "$FORK_REMOTE_URL"
-            echo "         added fork remote: $FORK_ORG"
+            git -C "$TARGET" remote add "$FORK_REMOTE" "$FORK_REMOTE_URL"
+            echo "         added fork remote: $FORK_REMOTE"
         fi
+    fi
+
+    selected_upstream_remote_name=$(select_available_source_remote_name "$TARGET" "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL")
+    if [[ "$selected_upstream_remote_name" != "$UPSTREAM_REMOTE_NAME" ]]; then
+        echo "         source remote '$UPSTREAM_REMOTE_NAME' already points elsewhere; using '$selected_upstream_remote_name'"
+        UPSTREAM_REMOTE_NAME="$selected_upstream_remote_name"
     fi
 
     # Upstream remote
@@ -500,24 +595,24 @@ if [[ -d "$TARGET/.git" ]]; then
         existing_up=$(git -C "$TARGET" remote get-url "$UPSTREAM_REMOTE_NAME")
         if [[ "$existing_up" != "$UPSTREAM_REMOTE_URL" ]]; then
             git -C "$TARGET" remote set-url "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
-            echo "         updated upstream remote URL"
+            echo "         updated source remote URL"
         fi
     else
         git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
-        echo "         added upstream remote: $UPSTREAM_REMOTE_NAME"
+        echo "         added source remote: $UPSTREAM_REMOTE_NAME"
     fi
 else
     # Fresh clone from fork
-    echo "         CLONE: $FORK_REMOTE_URL → $TARGET (origin: $FORK_ORG)"
+    echo "         CLONE: $FORK_REMOTE_URL → $TARGET (remote: $FORK_REMOTE)"
     GIT_AUTH_ENV=()
     git_auth_env_for_url "$FORK_REMOTE_URL"
-    env "${GIT_AUTH_ENV[@]}" git clone --origin "$FORK_ORG" "$FORK_REMOTE_URL" "$TARGET"
+    env "${GIT_AUTH_ENV[@]}" git clone --origin "$FORK_REMOTE" "$FORK_REMOTE_URL" "$TARGET"
     git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
 fi
 
 # --- sync main with upstream ------------------------------------------------
 echo ""
-echo "  Step 3: sync local + fork main with upstream ..."
+echo "  Step 3: sync local + fork main with source project ..."
 
 GIT_AUTH_ENV=()
 git_auth_env_for_url "$UPSTREAM_REMOTE_URL"
@@ -541,7 +636,7 @@ else
             read -r ahead behind < <(git -C "$TARGET" rev-list --left-right --count "$DEFAULT_BRANCH...$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH")
             if [[ "$behind" -gt 0 && "$ahead" -eq 0 ]]; then
                 git -C "$TARGET" update-ref "refs/heads/$DEFAULT_BRANCH" "$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
-                echo "         fast-forwarded $DEFAULT_BRANCH ref to upstream (without checkout)"
+                echo "         fast-forwarded $DEFAULT_BRANCH ref to source project (without checkout)"
             elif [[ "$ahead" -gt 0 && "$behind" -gt 0 ]]; then
                 echo "ERROR: Local $DEFAULT_BRANCH has diverged from $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH ($ahead ahead, $behind behind)." >&2
                 echo "  Resolve manually before re-running ws clone-fork." >&2
@@ -565,7 +660,7 @@ if [[ "$(git -C "$TARGET" rev-parse --abbrev-ref HEAD)" == "$DEFAULT_BRANCH" ]];
         echo "ERROR: Local $DEFAULT_BRANCH has diverged from $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH ($ahead ahead, $behind behind)." >&2
         echo "  This script will not force-push or rebase. Resolve manually:" >&2
         echo "    - inspect the local commits with: git -C $TARGET log $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH..$DEFAULT_BRANCH" >&2
-        echo "    - either push those commits upstream as their own MRs, or discard them with a hard reset" >&2
+        echo "    - either push those commits to the source project as their own MRs, or discard them with a hard reset" >&2
         exit 1
     fi
 fi
@@ -585,14 +680,14 @@ echo "  Step 4: push synced $DEFAULT_BRANCH to fork ..."
 # and status, then stream the output and branch on the real status.
 GIT_AUTH_ENV=()
 git_auth_env_for_url "$FORK_REMOTE_URL"
-if push_output=$(env "${GIT_AUTH_ENV[@]}" git -C "$TARGET" push "$FORK_ORG" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
+if push_output=$(env "${GIT_AUTH_ENV[@]}" git -C "$TARGET" push "$FORK_REMOTE" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
     push_ok=true
 else
     push_ok=false
 fi
 printf '%s\n' "$push_output" | sed 's/^/         /'
 if $push_ok; then
-    echo "         ✓ fork $DEFAULT_BRANCH now matches upstream"
+    echo "         ✓ fork $DEFAULT_BRANCH now matches source project"
 else
     echo "         (push to fork $DEFAULT_BRANCH did not fast-forward — leaving fork main as is; clone retry will sync on next run)"
     # Don't fail the whole run on this; the local checkout is good.
@@ -602,5 +697,5 @@ fi
 echo ""
 echo "  Ready:"
 echo "    $TARGET"
-echo "    remotes: $FORK_ORG (fork), $UPSTREAM_REMOTE_NAME (upstream)"
+echo "    remotes: $FORK_REMOTE (fork), $UPSTREAM_REMOTE_NAME (source)"
 echo "    $DEFAULT_BRANCH: synced with $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"

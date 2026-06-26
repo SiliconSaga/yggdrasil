@@ -53,9 +53,101 @@ setup() {
     [[ "$output" == *"ARGS:tests/foo.py -v"* ]]
 }
 
-@test "non-pytest, non-Gradle adapter still rejects a positional filter" {
+@test "pytest adapter: multiple existing path filters are passed positionally" {
+    write_adapter_test "./pytest"
+    touch "$ROOT_DIR/tests/foo.py" "$ROOT_DIR/tests/bar.py"
+    run_ws_test yggdrasil tests/foo.py tests/bar.py
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:tests/foo.py tests/bar.py"* ]]
+    [[ "$output" != *"-k"* ]]
+}
+
+@test "bats runner: multiple existing path filters select those files" {
+    ln -s "$REPO_ROOT/tests/vendor" "$ROOT_DIR/tests/vendor"
+    cat > "$ROOT_DIR/tests/one.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "one selected" {
+  true
+}
+EOF
+    cat > "$ROOT_DIR/tests/two.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "two selected" {
+  true
+}
+EOF
+    cat > "$ROOT_DIR/tests/unselected.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "unselected failure" {
+  false
+}
+EOF
+
+    run_ws_test yggdrasil tests/one.bats tests/two.bats
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"one selected"* ]]
+    [[ "$output" == *"two selected"* ]]
+    [[ "$output" != *"unselected failure"* ]]
+}
+
+@test "bats runner: more than six path filters are accepted" {
+    ln -s "$REPO_ROOT/tests/vendor" "$ROOT_DIR/tests/vendor"
+    selected=()
+    for name in one two three four five six seven; do
+        selected+=("tests/$name.bats")
+        cat > "$ROOT_DIR/tests/$name.bats" <<EOF
+#!/usr/bin/env bats
+@test "$name selected" {
+  true
+}
+EOF
+    done
+
+    run_ws_test yggdrasil "${selected[@]}"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "unittest adapter: a non-path keyword becomes a -k filter" {
+    write_adapter_test "./python -m unittest discover"
+    run_ws_test yggdrasil some_keyword
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:[-m][unittest][discover][-k][some_keyword]"* ]]
+}
+
+@test "unittest-like wrapper adapter rejects positional filters" {
+    cat > "$ROOT_DIR/unittest-wrapper" <<'EOF'
+#!/usr/bin/env bash
+echo "WRAPPER:$*"
+EOF
+    chmod +x "$ROOT_DIR/unittest-wrapper"
+    write_adapter_test "./unittest-wrapper"
+    run_ws_test yggdrasil some_keyword
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not Gradle, pytest, or unittest"* ]]
+    [[ "$output" != *"WRAPPER:"* ]]
+}
+
+@test "unittest adapter preserves quoted filter as one argv element" {
+    write_adapter_test "./python -m unittest discover"
+    run_ws_test yggdrasil "some keyword"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:[-m][unittest][discover][-k][some\\ keyword]"* ]]
+}
+
+@test "unittest adapter rejects multiple keyword filters with runner-neutral guidance" {
+    write_adapter_test "./python -m unittest discover"
+    run_ws_test yggdrasil alpha beta
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Multiple positional selectors for unittest are not supported in this form"* ]]
+    [[ "$output" == *"Pass one keyword expression, or use the runner's native selector flag explicitly"* ]]
+    [[ "$output" != *"must be existing paths or nodeids"* ]]
+}
+
+@test "non-pytest, non-unittest, non-Gradle adapter still rejects a positional filter" {
     write_adapter_test "true"
     run_ws_test yggdrasil somefilter
     [ "$status" -ne 0 ]
-    [[ "$output" == *"not Gradle or pytest"* ]]
+    [[ "$output" == *"not Gradle, pytest, or unittest"* ]]
 }

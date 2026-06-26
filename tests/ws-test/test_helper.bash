@@ -28,6 +28,15 @@ setup_synthetic_realm() {
 echo "ARGS:$*"
 EOF
     chmod +x "$ROOT_DIR/pytest"
+
+    # Stub `python` for adapter command dispatch tests.
+    cat > "$ROOT_DIR/python" <<'EOF'
+#!/usr/bin/env bash
+printf 'ARGS:'
+printf '[%q]' "$@"
+printf '\n'
+EOF
+    chmod +x "$ROOT_DIR/python"
 }
 
 # Write the realm adapter's commands.test for the synthetic component.

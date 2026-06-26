@@ -39,12 +39,14 @@ The hook script at `.claude/hooks/gdd-permission-hook.sh` was designed to encour
 The hook produces three possible decisions for a Bash command:
 
 - **deny** — shell composition or other forbidden patterns. The command is blocked and the agent receives a corrective message.
-- **ask** — the command matches the `[ask-commands]` glob list in `hook-rules` (or `hook-rules.local`). The hook emits `permissionDecision: "ask"`, forcing a human-facing permission prompt regardless of the session permission mode. This overrides `acceptEdits` and `bypassPermissions` — the prompt always surfaces. The command is NOT blocked; once the human approves, it runs normally. Destructive commands like `rm -rf` and `git reset --hard` live here.
+- **ask** — the command matches the `[ask-commands]` glob list in `hook-rules` (or `hook-rules.local`). The hook emits `permissionDecision: "ask"`, forcing a human-facing permission prompt regardless of the session permission mode. This overrides `acceptEdits` and `bypassPermissions` — the prompt always surfaces. The command is NOT blocked; once the human approves, it runs normally. Destructive commands like `rm -rf` and `git reset --hard` live here, as do arbitrary-execution escape hatches like `ws exec`.
 - **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 4) or an `[allow-extras]` glob in `hook-rules.local` (Tier 5). It proceeds without a prompt.
 
 A secondary effect of the hook is that it can sometimes re-map GDD's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
 
 See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `hook-rules.local` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
+
+`hook-rules` patterns are Bash globs matched against the hook's normalized command string, not Claude Code `Bash(...)` matcher entries. For example, the committed ask-list entry `ws exec *` matches `ws exec yggdrasil git status` and `ws exec yggdrasil printf %s a b c d e f g h` alike, because the `*` spans the remaining command tail. The hook also normalizes `bash scripts/ws exec ...` to `ws exec ...` before this match, so one bare pattern covers both invocation styles. This is distinct from the spaced `*` forms in `.claude/settings.json`, which are Claude matcher syntax and are documented under [Pattern shapes](#pattern-shapes).
 
 ### Redirect tier and bypass
 
@@ -205,6 +207,8 @@ A decision tree for adding a new `Bash(...)` pattern:
 
 When in doubt, narrower wins. You can always widen later. Narrowing post-hoc is harder (you've already trained yourself to expect the wide form).
 
+`ws exec` is intentionally ask-gated rather than allowlisted. If a `ws exec` shape becomes common enough that you want it to run without a human prompt, treat that as a design signal: promote the behavior into an adapter-backed `ws test` / `ws lint` / `ws build` path, a focused `ws` subcommand, or a reviewed component-local script behind a narrower wrapper.
+
 ---
 
 ## Cross-reference rule
@@ -219,6 +223,8 @@ Drift between them is a real bug — humans trust the doc, agents trust the doc,
 
 The `gdd-permissions` skill enforces this rule operationally: when an agent adds a pattern, the skill includes the doc update as part of the same change.
 
+When you modify `.claude/hooks/hook-rules`, update this doc or [Agent Training](agent-training.md) if the user-facing policy changes, and add focused hook tests in `tests/hook/gdd-permission-hook.bats`. Hook-rule globs are not Claude matcher entries, so they need test coverage rather than rows in the empirical Claude matcher table unless `.claude/settings.json` also changes.
+
 ---
 
 ## Future Directions
@@ -227,4 +233,4 @@ The `gdd-permissions` skill enforces this rule operationally: when an agent adds
 
 - **Automated regression testing** (issue #46). Today the empirical findings table in **Empirical matcher findings** is the source of truth, but there's no test harness that re-asserts those findings against new Claude Code versions. The future regression suite will execute each (pattern, command, expected) triple and flag matcher-behavior changes.
 
-- **Sandboxing tooling.** Personal exploration of AI-tooling sandboxing patterns lives in `realms/realm-siliconsaga/docs/agent-security/` (relocated from this repo's `docs/` in the same hygiene PR that introduced this doc). Some of that work — particularly Nvidia's OpenShell / NemoClaw lineage — could inform a future GDD security category that sits next to permissions.
+- **Sandboxing tooling.** Personal exploration of AI-tooling sandboxing patterns lives in `realms/realm-siliconsaga/docs/agent-security/` (relocated from this repo's `docs/` in the same hygiene PR that introduced this doc). That research could inform a future GDD security category that sits next to permissions.

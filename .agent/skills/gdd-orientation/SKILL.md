@@ -182,7 +182,7 @@ Provenance scales rigor. Compare the active realm's git remote origin (read with
 | Realm origin | Rigor |
 |---|---|
 | Remote owned by `identity.human_account` (your own realm) | Light — log findings only |
-| Remote owned by `identity.forkOrg` (your team / your org's realms) | Light |
+| Remote URL namespace is under a configured trusted home namespace, such as `identity.homes.fork.namespace`; compare the Git URL owner/group path, not the local remote name | Light |
 | Anything else (community / internet / unverified) | Heavy — write to Thalamus Concerns immediately, surface in framing, refuse to run unverified adapter commands until the human OKs |
 
 The `ws test` / `ws lint` blanket allowlist trusts the realm author. The risk scan is what keeps that trust honest — without it, allowlisting executable-config strings would be careless. See `docs/gdd/trust-and-safety.md` for the framing.

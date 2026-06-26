@@ -31,6 +31,7 @@ git*clean -d*
 find * -delete*
 find*-exec*
 find*-execdir*
+ws exec *
 ws hook-bypass [a-z]*
 # ws review reads are allowlisted via Bash(ws review:*); the outward-
 # facing forms stay human-gated here (ask runs before the allow tier):
@@ -47,7 +48,7 @@ ws review * threads * --resolve*
 # Pattern is a bash glob. Suggestion is free text, ends the line, may contain
 # pipes (parsing splits on the first two " | " only).
 git-commit   | git commit*    | Use `ws commit <comp> <bodyfile>` — handles Co-Authored-By trailer + bodyfile-driven staging. See `ws help commit`. If `ws commit` doesn't fit (rare), run `ws hook-bypass git-commit` to request a session-scoped bypass.
-git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-remote selection from identity.forkOrg and sets upstream on first push. `ws hook-bypass git-push` for a session-scoped bypass.
+git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-remote selection from identity.forkRemote and sets upstream on first push. `ws hook-bypass git-push` for a session-scoped bypass.
 gh-pr-create | gh pr create*  | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions, picks the right token + remote. `ws hook-bypass gh-pr-create` for a session-scoped bypass.
 
 [adapter-redirect-commands]

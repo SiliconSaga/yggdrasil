@@ -61,8 +61,8 @@ gp_create_pr() {
     # GitHub cross-fork PRs use "Org:branch" as head ref
     local head_ref="$head"
     if [[ -n "$fork_slug" ]]; then
-        local fork_org="${fork_slug%%/*}"
-        head_ref="${fork_org}:${head}"
+        local fork_owner="${fork_slug%%/*}"
+        head_ref="${fork_owner}:${head}"
     fi
 
     gh pr create \

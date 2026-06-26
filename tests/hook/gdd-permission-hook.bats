@@ -509,6 +509,30 @@ git reset --hard*"
     [[ "$output" != *"symlinks"* ]]
 }
 
+@test "ask: ws exec matches the baseline ask-list and emits ask" {
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    run_hook "ws exec yggdrasil git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: bash scripts/ws exec normalizes to the ws exec ask-list entry" {
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    run_hook "bash scripts/ws exec yggdrasil git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "ask: ws exec ask-list entry matches many command arguments" {
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    run_hook "ws exec yggdrasil printf %s a b c d e f g h"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
 @test "ask: ws hook-bypass gets a tailored message naming the slug + reason" {
     write_project_hook_rules "[ask-commands]
 ws hook-bypass [a-z]*"
@@ -715,6 +739,20 @@ ws review * threads * --resolve*"
         echo "$gitignore_dirs"
         echo "--- hook-rules [scratch-dirs] ---"
         echo "$hookrules_dirs"
+        return 1
+    fi
+}
+
+@test "drift: committed ask-list force-prompts ws exec" {
+    local ask_entries
+    ask_entries=$(awk '/^\[ask-commands\]/{f=1; next} /^\[/{f=0} f' \
+        "$REPO_ROOT/.claude/hooks/hook-rules" \
+        | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$')
+
+    if ! grep -Fxq 'ws exec *' <<< "$ask_entries"; then
+        echo "hook-rules [ask-commands] must include: ws exec *"
+        echo "--- hook-rules [ask-commands] ---"
+        echo "$ask_entries"
         return 1
     fi
 }
