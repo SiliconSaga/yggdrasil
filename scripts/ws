@@ -369,9 +369,10 @@ ws_clean() {
     for arg in "$@"; do
         case "$arg" in
             --force) force=1 ;;
-            --sessions) clean_sessions=1 ;;
+            --sessions) ;;  # accepted but no longer prunes; use --sessions-all to sweep ended sessions
+            --sessions-all) clean_sessions=1 ;;
             -h|--help)
-                echo "Usage: ws clean [--force] [--sessions]"
+                echo "Usage: ws clean [--force] [--sessions-all]"
                 echo ""
                 echo "Remove draft files from .issues/, .crs/, .commits/, .outputs/,"
                 echo "and the workspace scratch area .tmp/."
@@ -385,14 +386,16 @@ ws_clean() {
                 echo "Session identity files under .tmp/gdd-agent-sessions/ are"
                 echo "SPARED by default — wiping them would break a concurrent"
                 echo "session's commit identity (and any future per-session"
-                echo "settings). Pass --sessions to also clear ended sessions'"
+                echo "settings). Pass --sessions-all to also clear ended sessions'"
                 echo "files (your own current session's file is still spared)."
-                echo "Recommend --sessions only during deliberate housekeeping,"
+                echo "Use --sessions-all only during deliberate housekeeping,"
                 echo "once you've confirmed no other live sessions need them."
+                echo "(--sessions is accepted for backwards compatibility but is now"
+                echo "a no-op for session pruning; --sessions-all is the pruning form.)"
                 return 0
                 ;;
             *)
-                echo "Usage: ws clean [--force] [--sessions]" >&2
+                echo "Usage: ws clean [--force] [--sessions-all]" >&2
                 return 1
                 ;;
         esac
