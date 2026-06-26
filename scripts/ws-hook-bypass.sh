@@ -10,8 +10,9 @@
 #   ws hook-bypass <slug> [--reason "<text>"]
 #
 # <slug> must appear as column 1 of a row in .claude/hooks/hook-rules
-# under [redirect-commands] (Tier 2) or [adapter-redirect-commands]
-# (Tier 3), or be a built-in tool-deny slug (currently: powershell —
+# under [redirect-commands] (Tier 2), [adapter-redirect-commands]
+# (Tier 3), or [scoped-redirect-commands] (Tier 2b), or be a built-in
+# tool-deny slug (currently: powershell —
 # unblocks the hook's whole-tool PowerShell deny for the session).
 # The script writes .tmp/hook-bypass/<slug>.bypass with frontmatter
 # the PreToolUse hook parses (session_id, slug, created_at, reason).
