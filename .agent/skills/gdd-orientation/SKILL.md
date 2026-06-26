@@ -144,6 +144,8 @@ If they accept: `ws session set GDD_MENTORING true`. Session-scoped only. Don't 
 
 If they decline or don't respond, continue without the mentoring overlay. Ask once.
 
+A k8s-practice signal ("practice kubectl", "test cluster access", "nervous about prod", or `GDD_K8S_CONTEXT` already set) independently triggers the `gdd-k8s` skill — load it regardless of whether the mentoring overlay is active.
+
 ### Commit identity (main agent only)
 
 `ws commit` attributes via a per-session identity file, established here. Determine your own identity from what you are — Claude → `Claude <model>` + `noreply@anthropic.com`, Codex → `Codex <model>` + `noreply@openai.com` — and set it with the split name + bare-email form (the email is a separate arg so no angle brackets hit the Bash permission hook):
