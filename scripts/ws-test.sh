@@ -265,7 +265,7 @@ case "$runner" in
                         fi
                         exit 0
                     fi
-                    if [[ "$adapter_cmd" == *unittest* ]]; then
+                    if [[ "${adapter_argv[1]:-}" == "-m" && "${adapter_argv[2]:-}" == "unittest" ]]; then
                         "${adapter_argv[@]}" -k "$test_filter" "${runner_args[@]}"
                         exit 0
                     fi

@@ -57,7 +57,27 @@ setup() {
     write_adapter_test "./python -m unittest discover"
     run_ws_test yggdrasil some_keyword
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ARGS:-m unittest discover -k some_keyword"* ]]
+    [[ "$output" == *"ARGS:[-m][unittest][discover][-k][some_keyword]"* ]]
+}
+
+@test "unittest-like wrapper adapter rejects positional filters" {
+    cat > "$ROOT_DIR/unittest-wrapper" <<'EOF'
+#!/usr/bin/env bash
+echo "WRAPPER:$*"
+EOF
+    chmod +x "$ROOT_DIR/unittest-wrapper"
+    write_adapter_test "./unittest-wrapper"
+    run_ws_test yggdrasil some_keyword
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not Gradle, pytest, or unittest"* ]]
+    [[ "$output" != *"WRAPPER:"* ]]
+}
+
+@test "unittest adapter preserves quoted filter as one argv element" {
+    write_adapter_test "./python -m unittest discover"
+    run_ws_test yggdrasil "some keyword"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:[-m][unittest][discover][-k][some\\ keyword]"* ]]
 }
 
 @test "non-pytest, non-unittest, non-Gradle adapter still rejects a positional filter" {

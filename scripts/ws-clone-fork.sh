@@ -237,12 +237,15 @@ if [[ "$UPSTREAM_LEAF_GROUP" == "." || -z "$UPSTREAM_LEAF_GROUP" ]]; then
 else
     UPSTREAM_REMOTE_NAME="$(basename "$UPSTREAM_LEAF_GROUP")"
 fi
+UPSTREAM_REMOTE_NAME_COLLISION_FALLBACK=0
 # The fork remote is named after $FORK_REMOTE. If the upstream group's
 # leaf segment happens to equal $FORK_REMOTE, the two `git remote add`
-# calls would collide — the second clobbers or fails. Fall back to
-# the literal "upstream" so the two remotes always have distinct names.
+# calls would collide. Use "upstream" as the preferred fallback, then
+# choose a numbered variant later if an existing clone already uses
+# "upstream" for a different remote.
 if [[ "$UPSTREAM_REMOTE_NAME" == "$FORK_REMOTE" ]]; then
     UPSTREAM_REMOTE_NAME="upstream"
+    UPSTREAM_REMOTE_NAME_COLLISION_FALLBACK=1
 fi
 
 # --- derive fork path -------------------------------------------------------
@@ -517,6 +520,24 @@ TARGET="$COMPONENTS_DIR/$COMPONENT"
 echo ""
 echo "  Step 2: prepare local clone at $TARGET ..."
 
+select_available_source_remote_name() {
+    local target="$1"
+    local base="$2"
+    local source_url="$3"
+    local candidate="$base"
+    local suffix=2
+    local existing_url
+    while existing_url=$(git -C "$target" remote get-url "$candidate" 2>/dev/null); do
+        if [[ "$existing_url" == "$source_url" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+        candidate="${base}-${suffix}"
+        suffix=$((suffix + 1))
+    done
+    echo "$candidate"
+}
+
 # A leftover directory at $TARGET that is NOT a usable git clone
 # blocks the clone step below. Only auto-remove it when it is
 # genuinely EMPTY (e.g., an empty stub left by an IDE file-watcher).
@@ -561,6 +582,14 @@ if [[ -d "$TARGET/.git" ]]; then
         else
             git -C "$TARGET" remote add "$FORK_REMOTE" "$FORK_REMOTE_URL"
             echo "         added fork remote: $FORK_REMOTE"
+        fi
+    fi
+
+    if [[ "$UPSTREAM_REMOTE_NAME_COLLISION_FALLBACK" -eq 1 ]]; then
+        selected_upstream_remote_name=$(select_available_source_remote_name "$TARGET" "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL")
+        if [[ "$selected_upstream_remote_name" != "$UPSTREAM_REMOTE_NAME" ]]; then
+            echo "         source remote '$UPSTREAM_REMOTE_NAME' already points elsewhere; using '$selected_upstream_remote_name'"
+            UPSTREAM_REMOTE_NAME="$selected_upstream_remote_name"
         fi
     fi
 

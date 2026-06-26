@@ -34,7 +34,7 @@ The format is flat sectioned text: `[section]` headers, one entry per line, `#` 
 
 **`[scratch-dirs]`** — workspace-relative paths under which Edit/Write tool calls auto-allow. Keeps in lockstep with the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore). Entries in `hook-rules.local` add to the baseline; they never replace it.
 
-**`[ask-commands]`** — glob patterns for destructive or arbitrary-execution Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 4 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
+**`[ask-commands]`** — glob patterns for destructive or arbitrary-execution Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 3 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
 
 **`[adapter-redirect-commands]`** — Tier 3 patterns for raw test/lint/build runners. The hook resolves the component from `$cwd` and the active realm's adapter file; wired adapters get a deny-with-bypass, missing adapters get a one-line stderr nudge and fall through. See `[adapter-redirect-commands]` in `hook-rules` for the format.
 

@@ -32,7 +32,9 @@ EOF
     # Stub `python` for adapter command dispatch tests.
     cat > "$ROOT_DIR/python" <<'EOF'
 #!/usr/bin/env bash
-echo "ARGS:$*"
+printf 'ARGS:'
+printf '[%q]' "$@"
+printf '\n'
 EOF
     chmod +x "$ROOT_DIR/python"
 }
