@@ -45,15 +45,18 @@ For provider authentication setup (PATs, `.env` configuration, multi-provider wo
 
 ## Add `scripts/` to your PATH
 
-This isn't really optional — it's expected. Adding the workspace `scripts/` directory to your PATH lets you call `ws <command>` directly instead of `bash scripts/ws <command>`, and — more importantly — the AI-agent permission allowlist is written against the `ws …` form, so the shorthand keeps auto-approvals matching cleanly. `ws preflight` flags it when `scripts/` isn't on your PATH.
+Treat this as a required step, not a nicety. Putting the workspace `scripts/` directory on your PATH lets you call `ws <command>` directly instead of `bash scripts/ws <command>` — and, more importantly, the AI-agent permission allowlist is written against the bare `ws …` form, so the shorthand keeps auto-approvals matching cleanly. `ws preflight` flags it when `scripts/` isn't on your PATH.
 
-Add it to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
+**macOS / Linux / Git Bash** — add it to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.), then open a fresh shell (or `source` the profile) and run `ws help` to confirm:
 
 ```bash
 export PATH="/path/to/yggdrasil/scripts:$PATH"
 ```
 
-Then open a fresh shell (or `source` the profile) and run `ws help` to confirm. On Windows, accepting Git's installer PATH option already puts Git Bash itself on PATH; this step adds the workspace `scripts/` on top.
+**Windows** — two wrinkles worth knowing:
+
+- **`bash` itself may not be on your *system* PATH.** Git for Windows offers a few PATH choices at install time; the common "Git from the command line and also from 3rd-party software" option adds Git's `cmd\` directory (so `git` works in cmd/PowerShell) but **not** the `bin\` / `usr\bin\` directory that holds `bash.exe`. If `bash` isn't found outside Git Bash, add `C:\Program Files\Git\bin` (or `…\usr\bin`) to your PATH.
+- **Adding `scripts/` persistently.** Inside Git Bash, the `~/.bashrc` export above is enough. To also run `ws` from cmd/PowerShell, add the scripts directory to your Windows PATH via **Settings → System → About → Advanced system settings → Environment Variables**, edit **Path**, and append the full path to `…\yggdrasil\scripts`. Open a new terminal afterward.
 
 ## Workspace CLI (`ws`)
 
@@ -69,22 +72,22 @@ ws <cmd> --help    # full flags + behavior for any subcommand
 
 ## First steps
 
-With prerequisites in place:
+With prerequisites in place and `scripts/` on your PATH (previous step):
 
 ```bash
-bash scripts/ws list          # what components the ecosystem declares
-bash scripts/ws clone --all   # clone them locally (or one: ws clone <comp>)
+ws list          # what components the ecosystem declares
+ws clone --all   # clone them locally (or one: ws clone <comp>)
 ```
 
 For a guided, narrated first run — identity + auth setup, cloning a component, and the full edit → PR → review → deploy loop on a tiny target — follow [Getting Started](getting-started/index.md). New here? Start a session and ask the agent to **walk you through the tutorial** in mentoring mode — it'll scaffold the `gh-pages` tutorial (`ws component init gh-pages …`) and narrate the whole GDD loop.
 
 ## Workspace shape
 
-Three kinds of thing live alongside the workspace root, each an independent git repo:
+Three directories sit alongside the workspace root. Each holds independent, nested git repos — their own history, gitignored from yggdrasil itself:
 
-- **Components** (`components/`) — the projects you actually work on (code or otherwise), cloned via `ws clone`.
-- **Realms** (`realms/`) — a community's shared configuration (which components, identity, adapters), adopted via `ws realm`. See [`ecosystem-architecture.md`](ecosystem-architecture.md).
-- **Hoards** (`hoards/`) — oddly-shaped non-code collections: per-machine Thalamus notes, or an Obsidian vault for personal organizing. Scaffolded via `ws hoard`.
+- **Components** (`components/`) — the projects you actually work on, code or otherwise; each is its own repo, cloned via `ws clone`.
+- **Realms** (`realms/`) — a community's or team's shared configuration (which components, identity, adapters), adopted via `ws realm`. See [`ecosystem-architecture.md`](ecosystem-architecture.md).
+- **Hoards** (`hoards/`) — oddly-shaped non-code collections: per-machine Thalamus notes, or an Obsidian vault for personal organizing; scaffolded via `ws hoard`.
 
 The [GDD Features Tour](gdd/features.md) covers all three in context.
 
