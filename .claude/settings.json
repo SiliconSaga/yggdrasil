@@ -89,6 +89,12 @@
       "Bash(git -C * remote -v)",
       "Bash(git -C * branch --show-current)",
       "Bash(git -C * ls-tree *)",
+      "Bash(git -C * rev-parse *)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
       "Bash(git fetch *)"
     ]
   },
