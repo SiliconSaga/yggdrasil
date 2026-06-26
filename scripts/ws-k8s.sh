@@ -43,10 +43,17 @@ _k8s_scope() {
 }
 
 # When no session id resolves (e.g. a human's own terminal, which has no
-# CLAUDE_CODE_SESSION_ID), gather the guard scope from ALL active local session
-# files so `ws k8s` still guards. Unions namespaces when every active scope
-# shares a context; refuses (exit 2) when scopes target different contexts.
-# Prints "context|namespaces" on success, nothing when no scope is active.
+# CLAUDE_CODE_SESSION_ID), gather the guard scope from ALL local session files
+# so `ws k8s` still guards. Unions namespaces when every scope shares a context;
+# refuses (exit 2) when scopes target different contexts. Prints
+# "context|namespaces" on success, nothing when no scope is active.
+#
+# Deliberately reads every session file without filtering by age: this model has
+# no liveness marker, and gating on age would be basing an action on staleness,
+# which is a soft-nudge signal only — never a gate (see the session-liveness-
+# marker arc). An ended session's lingering scope only ever over-restricts
+# (fail-safe) or makes the ambient path decline to guard, in which case a human
+# falls back to raw kubectl. Remedy for stale scopes: `ws clean --sessions-all`.
 _k8s_ambient_scope() {
     local dir="$ROOT_DIR/.tmp/gdd-agent-sessions"
     [[ -d "$dir" ]] || return 0
