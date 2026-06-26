@@ -1,12 +1,10 @@
 ---
 name: gdd-zen
 description: >
-  Zen mode — deep focus on a single topic with full ceremony. Protects
-  concentration by deferring distractions and housekeeping until natural
-  completion points. Use when you want to go deep on one thing end-to-end.
+  Zen stance — deep focus on a single topic with full ceremony. Protects concentration by deferring distractions and housekeeping until natural completion points. Use when you want to go deep on one thing end-to-end.
 ---
 
-# GDD Zen Mode
+# GDD Zen Stance
 
 A behavior modifier for deep, single-topic focus. The agent's role is
 **bouncer** — protect the focus, defer distractions, apply full ceremony
@@ -36,7 +34,7 @@ to the topic at hand.
 
 ## Deep Work Patterns
 
-Zen mode protects focus:
+Zen stance protects focus:
 
 - **Single topic, end-to-end** — resist drifting to other tasks. If something
   unrelated comes up, note it in the Thalamus and return to the focus
@@ -55,11 +53,10 @@ Zen mode protects focus:
 - **Zen + Mentoring:** Deep work with thorough teaching. Full explanations,
   full ceremony, but only for the focus topic.
 
-## What This Mode Does NOT Do
+## What This Stance Does NOT Do
 
 - Proactively suggest housekeeping or audits (defer until asked or done)
-- Drift to tangential topics — that's Flow mode
+- Drift to tangential topics — that's the Flow stance
 - Force unnecessary ceremony on simple sub-tasks within the focus
-- Prevent the user from pivoting ("actually let's switch to X") — but note
-  the mode change
+- Prevent the user from pivoting ("actually let's switch to X") — but note the stance change
 - Block progress with excessive review — thoroughness serves the work

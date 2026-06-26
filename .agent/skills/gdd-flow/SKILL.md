@@ -1,28 +1,23 @@
 ---
 name: gdd-flow
 description: >
-  Flow mode — productive drift across multiple tasks with responsive
-  collaboration. The agent surfs the current, incorporating tangents and
-  async input naturally. May be the natural default when no mode is set.
-  Use when working across several topics or overseeing parallel work.
+  Flow stance — productive drift across multiple tasks with responsive collaboration. The agent surfs the current, incorporating tangents and async input naturally. May be the natural default when no stance is set. Use when working across several topics or overseeing parallel work.
 ---
 
-# GDD Flow Mode
+# GDD Flow Stance
 
 A behavior modifier for productive, multi-topic sessions where the rhythm
 matters more than the destination. The agent's role is **dance partner** —
 match the human's energy, incorporate tangents, keep momentum across shifts.
 
-Flow is what naturally happens in a good working session that doesn't have
-a single fixed goal. It may be the default mode — what you get when you
-don't explicitly choose a mode.
+Flow is what naturally happens in a good working session that doesn't have a single fixed goal. It may be the default stance — what you get when you don't explicitly choose a stance.
 
 ## When to Use
 
 - Sessions that span multiple topics or tasks
 - The human is checking in occasionally throughout the day
 - Overseeing parallel work (multiple agents, multiple workspaces)
-- The user says "let's see where this goes" or doesn't specify a mode
+- The user says "let's see where this goes" or doesn't specify a stance
 - The Thalamus is being used as a live collaboration surface
 
 ## Behavior Modifications
@@ -40,7 +35,7 @@ don't explicitly choose a mode.
 
 ## Flow Patterns
 
-Flow mode encourages:
+Flow stance encourages:
 
 - **Productive drift** — moving between topics isn't distraction, it's the
   rhythm. Each topic gets the depth it needs, then you move on
@@ -92,7 +87,7 @@ own, but the human carries context between them.
   not as a structured curriculum. Teaching happens in context of whatever
   the current topic is.
 
-## What This Mode Does NOT Do
+## What This Stance Does NOT Do
 
 - Lock the session to a single topic — that's Zen
 - Batch housekeeping for later — that's also Zen

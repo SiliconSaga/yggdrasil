@@ -1,29 +1,29 @@
 ---
 name: gdd-orientation
-description: Use at session start, after compaction, when a new component or realm is discovered, or when the user asks to change mode or role.
+description: Use at session start, after compaction, when a new component or realm is discovered, or when the user asks to change stance or role.
 ---
 
 # GDD Orientation
 
-Session startup skill for Guardian Driven Development. The contract: greet appropriately for what the user's first turn looks like, run `ws orient`, parse what it surfaced, then handle Thalamus / mode / trust / framing based on what's actually here.
+Session startup skill for Guardian Driven Development. The contract: greet appropriately for what the user's first turn looks like, run `ws orient`, parse what it surfaced, then handle Thalamus / stance / trust / framing based on what's actually here.
 
-`ws orient` is the deterministic source of workspace facts (verbs, realm, adapters, skills). This skill keeps only the judgment: tone, trust, mode, attribution, framing.
+`ws orient` is the deterministic source of workspace facts (verbs, realm, adapters, skills). This skill keeps only the judgment: tone, trust, stance, attribution, framing.
 
 ## When to Use
 
 - **Every session start** — first thing in any new session or after compaction.
 - **New components / realms discovered** — `ws clone` or `ws realm` adds something mid-session.
-- **Re-orientation** — user asks to change mode or role.
+- **Re-orientation** — user asks to change stance or role.
 
 ## The Startup Sequence
 
 Three phases:
 
 1. **First contact** — read the user's opening turn, preface, run `ws orient`.
-2. **Workspace alignment** — Thalamus, mode/role, model attribution, trust verification.
+2. **Workspace alignment** — Thalamus, stance/role, model attribution, trust verification.
 3. **Session framing** — based on what was found, set the human up to work.
 
-Keep the **first response brief**. Deeper sections (full trust scan, mode handling) usually happen after the human's first reply.
+Keep the **first response brief**. Deeper sections (full trust scan, stance handling) usually happen after the human's first reply.
 
 ---
 
@@ -129,20 +129,20 @@ Read the YAML between the leading `---` markers. Update `last_session` to today'
 
 Not a gate. Don't repeat the nudge during the session.
 
-### Tutorial detection — offer mentoring mode
+### Tutorial detection — offer mentoring
 
-If the current mode is **not already mentoring** and any tutorial-shaped signal fires:
+If the mentoring overlay is **not yet active** (`ws session get GDD_MENTORING` is not `true`) and any tutorial-shaped signal fires:
 
 - **Component tutorial** — opening a README in `templates/components/<flavor>/`, running `ws component init` first time, or "let me try the tutorial" / "walk me through this".
 - **Methodology tutorial** — "teach me GDD" / "I'm new to this" / "how does this methodology work" / "explain this workspace".
 
-Offer the swap:
+Offer the overlay:
 
-> "Looks like you're starting a tutorial. Want to switch to mentoring mode for the duration? I'll explain commands and decisions as we go rather than just running them. We can swap back any time."
+> "Looks like you're starting a tutorial. Want to enable the mentoring overlay for the duration? I'll explain commands and decisions as we go rather than just running them. We can disable it any time."
 
-Session-scoped only. Don't update Thalamus frontmatter unless the human asks.
+If they accept: `ws session set GDD_MENTORING true`. Session-scoped only. Don't update Thalamus frontmatter unless the human asks.
 
-If they decline or don't respond, continue at the current mode without further mention. Ask once.
+If they decline or don't respond, continue without the mentoring overlay. Ask once.
 
 ### Commit identity (main agent only)
 
@@ -206,22 +206,22 @@ If `ws audit-permissions` errors (missing dependency, shell incompatibility), no
 
 ### Hoard vault scan (when role is null)
 
-If frontmatter `role: null`, also call `ws hoard scan --flavor vault`. Parse the YAML output and surface a brief inventory alongside the role question:
+If `ws session get GDD_ROLE` is empty (role not yet established), also call `ws hoard scan --flavor vault`. Parse the YAML output and surface a brief inventory alongside the role question:
 
-> "role is null. Detected vaults: `mynotes` (obsidian), `vault-test` (obsidian). Want scribe role for vault work, or another (developer / designer / reviewer)?"
+> "Role not set. Detected vaults: `mynotes` (obsidian), `vault-test` (obsidian). Want scribe role for vault work, or another (developer / designer / reviewer)?"
 
 No vaults detected → ask the role question normally. Don't surface "no vaults found" noise.
 
-Already `role: scribe` → skip; Step `mode and role` already loads the scribe skill, which runs its own binding sub-flow.
+Already `GDD_ROLE=scribe` → skip; the scribe skill runs its own binding sub-flow.
 
 ---
 
 ## Phase 3: Session Framing
 
-Brief the human based on mode, role, active concerns, and post-orient signals:
+Brief the human based on stance, role, active concerns, and post-orient signals:
 
 - **Newcomer (post-orient signals strong):** walk through what orient surfaced. Name the wired verbs, name the active realm if any, ask what they're trying to learn or build.
-- **Mid-session pickup:** *"Picking up in Developer/Zen mode. Last session noted X. Open concerns: Y. What's the session about?"*
+- **Mid-session pickup:** *"Picking up in Developer/Zen stance. Last session noted X. Open concerns: Y. What's the session about?"*
 
 ### Active arcs (when a thalami hoard is active)
 
@@ -245,11 +245,11 @@ If the hoard root has `Intake.md` with at least one bullet `- …` item in `## I
 
 Advisory only. Draining is `@gdd-housekeeping` Step 2.6's job; orientation just makes items visible.
 
-### Mode adaptation of orientation itself
+### Stance adaptation of orientation itself
 
-- **Quick mode:** keep orientation brief — surface concerns + staleness, skip detailed content review.
-- **Zen mode:** full orientation; may proactively suggest addressing stale concerns or doing housekeeping first.
-- **Mentoring mode:** explain what orientation is doing and why as you go.
+- **Quick stance:** keep orientation brief — surface concerns + staleness, skip detailed content review.
+- **Zen stance:** full orientation; may proactively suggest addressing stale concerns or doing housekeeping first.
+- **Mentoring overlay:** explain what orientation is doing and why as you go.
 
 ---
 
@@ -262,7 +262,7 @@ Once orientation is done, this skill governs Thalamus writes during work.
 | Category | When to write | Ask first? |
 |---|---|---|
 | **Concerns** | Immediately, before processing further (black-box pattern) | No — write first, surface after |
-| **Observations** | At natural pauses — end of task, before mode switch, recurring pattern noticed | No — don't interrupt flow to announce |
+| **Observations** | At natural pauses — end of task, before stance switch, recurring pattern noticed | No — don't interrupt flow to announce |
 | **Preferences** | When the human states one or confirms an agent-proposed one | Yes for agent-proposed |
 | **Audit Log** | During housekeeping only (see `@gdd-housekeeping`) | N/A — part of the housekeeping process |
 
@@ -300,7 +300,7 @@ Load on demand; don't preload. The footer on every `ws` subcommand keeps `ws ori
 
 ## What This Skill Does NOT Do
 
-- Force a mode or role on the user.
+- Force a stance or role on the user.
 - Block session start if Thalamus is missing or empty.
 - Overwrite human-written content without asking.
 - Commit Thalamus to git under any circumstances (it's gitignored at workspace root; hoard thalami are the human's commit decision).
