@@ -22,7 +22,7 @@ Training wheels: accident-prevention for nervous practitioners, not a security b
 When the skill fires for the first time in a session (no scope set yet), walk through these steps with the user, narrating each one before running it:
 
 1. **Explain what's about to happen and why** — the guard will intercept raw `kubectl`, redirect it through `ws k8s`, and block any write that targets a namespace outside the captured scope.
-2. **Offer context discovery** — run `ws k8s` (which surfaces available contexts) and/or invite the user to run `kubectl config get-contexts` to pick the practice context.
+2. **Offer context discovery** — run `kubectl config get-contexts` to list available contexts and invite the user to pick one. (`ws k8s config get-contexts` works equivalently once a scope is armed.)
 3. **Confirm the target namespace(s)** — per-namespace: check each one exists on the chosen context before arming. For multiple namespaces, confirm each individually so the user understands what is and is not in scope.
 4. **Arm the scope** — run `ws k8s scope set --context <ctx> --namespace <ns[,ns]>`. The command validates the context and each namespace live against the cluster before writing the session vars.
 5. **Confirm the guard is armed** — run `ws k8s scope show` and echo the result. Explain what the user will see when a command is allowed, prompted, or blocked.
