@@ -421,7 +421,7 @@ ws_clean() {
     # the whole dir is spared: a plain `ws clean` from a finishing session
     # must not wipe a CONCURRENT session's identity (or future per-session
     # settings) out from under it — you can't tell ended from still-live.
-    # With --sessions, ended sessions' files are swept, but the current
+    # With --sessions-all, ended sessions' files are swept, but the current
     # session's (`keep`) is still spared so the running agent survives.
     # `keep` is empty when no session id resolves (a human shell).
     local sessions_dir="$tmp_dir/gdd-agent-sessions"
@@ -503,7 +503,7 @@ ws_clean() {
         for e in "${tmp_entries[@]}"; do
             if [[ "$e" == "$sessions_dir" ]]; then
                 # The session-identity dir is spared as a unit (it stays for
-                # next use). Default: leave every file. --sessions: sweep its
+                # next use). Default: leave every file. --sessions-all: sweep its
                 # children except the current session's `keep`. Either way the
                 # dir itself is retained, so it counts as spared, not cleaned.
                 spared=$(( spared + 1 ))
