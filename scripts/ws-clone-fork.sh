@@ -23,12 +23,6 @@
 #     homes:
 #       fork:
 #         namespace: <host>/<group-path>  # e.g. gitlab.example.com/acme/gdd/alice
-#
-# Realm-level convention (defaults.forkConvention):
-#   nested  — insert forkRemote before the repo name (default; e.g.
-#             acme/team/<repo> + forkRemote=alice → acme/team/alice/<repo>)
-#   flat    — replace the first segment with forkRemote (GitHub-style:
-#             org/<repo> + forkRemote=alice → alice/<repo>)
 
 set -euo pipefail
 
@@ -40,11 +34,9 @@ Usage: ws clone-fork <component>
 
 Prepare a ready-to-work fork-based clone of <component>:
 
-  1. Ensure the user's fork-home copy exists in components.<name>.forkRepo,
-     identity.homes.fork.namespace, or the identity.forkRemote /
-     defaults.forkConvention-derived destination (creates it via API when
-     the configured token can read the source project and create in the
-     fork destination).
+  1. Ensure the user's fork-home copy exists in components.<name>.forkRepo
+     or identity.homes.fork.namespace (creates it via API when the configured
+     token can read the source project and create in the fork destination).
   2. Clone the fork into components/<component>/, with the initial remote
      named <forkRemote>.
   3. Add the source project as a second remote, named after the source
@@ -150,9 +142,6 @@ if [[ -z "$FORK_REMOTE" ]]; then
     echo "  Add 'identity.forkRemote: <your-fork-remote-name>' to ecosystem.local.yaml." >&2
     exit 1
 fi
-
-FORK_CONVENTION=$(yq '.defaults.forkConvention // "nested"' "$ECO" 2>/dev/null)
-[[ "$FORK_CONVENTION" == "null" ]] && FORK_CONVENTION="nested"
 
 # Transport for the fork/upstream remotes. https (default) injects the .env
 # token per-process — no SSH keys, no credential-manager prompt — the same
@@ -263,18 +252,10 @@ elif [[ -n "$FORK_HOME_NAMESPACE" ]]; then
     fi
     FORK_PATH="${FORK_NAMESPACE}/${UPSTREAM_REPO_NAME}"
 else
-    case "$FORK_CONVENTION" in
-        nested)
-            FORK_PATH="${UPSTREAM_LEAF_GROUP}/${FORK_REMOTE}/${UPSTREAM_REPO_NAME}"
-            ;;
-        flat)
-            FORK_PATH="${FORK_REMOTE}/${UPSTREAM_REPO_NAME}"
-            ;;
-        *)
-            echo "ERROR: Unknown forkConvention '$FORK_CONVENTION'. Use 'nested' or 'flat'." >&2
-            exit 1
-            ;;
-    esac
+    echo "ERROR: identity.homes.fork.namespace is not set in ecosystem config." >&2
+    echo "  Add 'identity.homes.fork.namespace: <host>/<group-path>' to ecosystem.local.yaml," >&2
+    echo "  or set components.$COMPONENT.forkRepo for an exact one-off fork URL." >&2
+    exit 1
 fi
 
 FORK_NAMESPACE="$(dirname "$FORK_PATH")"  # destination namespace for project creation

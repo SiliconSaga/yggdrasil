@@ -127,7 +127,7 @@ The parallel permission system: which **remote Git operations** the agent can pe
 
 The two-identity model gives reviewable attribution (every commit and PR is clearly authored by one or the other), scope minimization (the agent token holds *just enough* permission for routine work), and clean revocation (compromise the agent token? revoke without disrupting your own access). The fork-or-collaborator pattern lets the agent push to repos it doesn't own:
 
-- **Forks** for upstream contribution: `identity.homes.fork.namespace` can declare a GitLab fork-home namespace, `forkRemote` names the fork remote, and PRs/MRs target the upstream from the fork.
+- **Forks** for source-project contribution: `identity.homes.fork.namespace` declares the fork-home namespace, `forkRemote` names the local fork remote, and PRs/MRs target the source project from the fork.
 - **Collaborator** for personal repos (typical for hoards): add the agent as a `push`-permission collaborator on your personal repo; no fork needed.
 
 Multi-provider workflows (GitHub + GitLab + self-hosted) work without per-command configuration — `ws push` / `ws cr` / `ws review` auto-detect provider from remote URL and pick the right CLI and token.

@@ -752,61 +752,37 @@ ws_gitlab_auth() {
         return 0
     fi
 
-    # Find forkRemote to identify the write (Developer) token
-    local fork_remote
-    fork_remote=$(yq '.identity.forkRemote // ""' "$eco")
-    [[ "$fork_remote" == "null" ]] && fork_remote=""
-    if [[ -z "$fork_remote" ]]; then
-        echo "ERROR: identity.forkRemote is not set in ecosystem config." >&2
-        exit 1
-    fi
-
-    # Prefer the configured fork-home namespace. `identity.forkRemote` is a
-    # local git remote alias, so use its leaf-name heuristic only as a fallback
-    # for older configs that predate `identity.homes.fork.namespace`.
+    # Use the configured fork-home namespace to identify the write
+    # (Developer) token. `identity.forkRemote` is only a local git remote
+    # alias; it is not a trust or token-selection boundary.
     local write_token_var="" write_key=""
     local fork_namespace fork_token_target
     fork_namespace=$(yq '.identity.homes.fork.namespace // ""' "$eco")
     [[ "$fork_namespace" == "null" ]] && fork_namespace=""
-    if [[ -n "$fork_namespace" ]]; then
-        fork_token_target=$(printf '%s' "$fork_namespace" \
-            | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
-        fork_token_target="${fork_token_target#/}"
-        if [[ "$fork_token_target" != "$host" && "$fork_token_target" != "$host/"* ]]; then
-            fork_token_target="$host/$fork_token_target"
-        fi
-        while IFS= read -r key; do
-            [[ -z "$key" || "$key" == "null" ]] && continue
-            [[ "$key" != "$host/"* ]] && continue
-            if [[ ( "$fork_token_target" == "$key" || "$fork_token_target" == "$key/"* ) && ${#key} -gt ${#write_key} ]]; then
-                write_key="$key"
-                write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
-            fi
-        done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    if [[ -z "$fork_namespace" ]]; then
+        echo "ERROR: identity.homes.fork.namespace is not set in ecosystem config." >&2
+        echo "  Add 'identity.homes.fork.namespace: <host>/<group-path>' to ecosystem.local.yaml." >&2
+        exit 1
     fi
 
-    if [[ -z "$write_token_var" || "$write_token_var" == "null" ]]; then
-        while IFS= read -r key; do
-            [[ -z "$key" || "$key" == "null" ]] && continue
-            [[ "$key" != "$host/"* ]] && continue
-            local leaf="${key##*/}"
-            if [[ "$leaf" == "$fork_remote" ]]; then
-                if [[ ${#key} -gt ${#write_key} ]]; then
-                    write_key="$key"
-                    write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
-                fi
-            fi
-        done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    fork_token_target=$(printf '%s' "$fork_namespace" \
+        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
+    fork_token_target="${fork_token_target#/}"
+    if [[ "$fork_token_target" != "$host" && "$fork_token_target" != "$host/"* ]]; then
+        fork_token_target="$host/$fork_token_target"
     fi
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        if [[ ( "$fork_token_target" == "$key" || "$fork_token_target" == "$key/"* ) && ${#key} -gt ${#write_key} ]]; then
+            write_key="$key"
+            write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        fi
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
 
     if [[ -z "$write_token_var" || "$write_token_var" == "null" ]]; then
-        if [[ -n "$fork_namespace" ]]; then
-            echo "ERROR: No gitTokens entry found for fork namespace '$fork_namespace' on host '$host'." >&2
-            echo "  Expected a key covering: ${fork_token_target:-$fork_namespace}" >&2
-        else
-            echo "ERROR: No gitTokens entry found for host '$host' and forkRemote '$fork_remote'." >&2
-            echo "  Expected a key like: $host/<group-path>/$fork_remote" >&2
-        fi
+        echo "ERROR: No gitTokens entry found for fork namespace '$fork_namespace' on host '$host'." >&2
+        echo "  Expected a key covering: ${fork_token_target:-$fork_namespace}" >&2
         echo "  Add it to defaults.gitTokens in ecosystem.local.yaml." >&2
         exit 1
     fi

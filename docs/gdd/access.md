@@ -38,7 +38,7 @@ For repos owned by an org you're not a maintainer of (typical for external open-
 2. `ws push <component> <branch>` pushes to that fork.
 3. `ws cr <component> "<title>" <bodyfile>` opens a PR/MR from the fork to the source project.
 
-The fork home is configured per-developer in `ecosystem.local.yaml`. For GitLab fork groups, set `identity.homes.fork.namespace` to the absolute fork-home namespace, such as `gitlab.example.com/my-team/gdd/alice-fork-group`. `ws clone-fork` uses that namespace to create or find `<namespace>/<repo>`. Set `identity.forkRemote` to the local git remote name used by `ws push`, `ws cr`, and the `forkRemote` + `forkConvention` derivation rules. With a single remote on a component, no disambiguation is needed; with multiple remotes, `forkRemote` picks which side to push to.
+The fork home is configured per-developer in `ecosystem.local.yaml`. For GitLab fork groups, set `identity.homes.fork.namespace` to the absolute fork-home namespace, such as `gitlab.example.com/my-team/gdd/alice-fork-group`. `ws clone-fork` uses that namespace to create or find `<namespace>/<repo>`. Set `identity.forkRemote` to the local git remote name used by `ws push` and `ws cr`. With a single remote on a component, no disambiguation is needed; with multiple remotes, `forkRemote` picks which side to push to.
 
 For repos you DO own (your personal namespace), no fork is needed — the workspace just pushes to your remote directly.
 
@@ -57,7 +57,7 @@ A complex local checkout may have several remotes: an external source project, a
 | Inspect token coverage and remote detection | All configured remotes | No remote selector; diagnostic output lists remotes and token matches | `ws diagnose <name>` |
 | Push or fetch an arbitrary fourth remote | Operator-selected remote | `GIT_PUSH_REMOTE=<remote>` for `ws push`, or explicit Git through `ws exec` for unsupported flows | `GIT_PUSH_REMOTE=scratch ws push <name> [branch]`; `ws exec <name> git fetch scratch` |
 
-The pending `homes.{fork,internal,external}` design should make the internal/external distinction first-class. Until then, use `defaults.upstreamRemote` for the one non-fork source-project remote that `ws cr --upstream` should target, use `ws cr --remote` for rare alternate fork/head remotes, and treat any fourth remote as an explicit escape hatch rather than workspace policy.
+The implemented homes model currently makes the fork home first-class through `identity.homes.fork.namespace`. The `homes.internal` and `homes.external` routing distinction remains future design work; until then, use `defaults.upstreamRemote` for the one non-fork source-project remote that `ws cr --upstream` should target, use `ws cr --remote` for rare alternate fork/head remotes, and treat any fourth remote as an explicit escape hatch rather than workspace policy.
 
 ---
 
@@ -172,7 +172,7 @@ For a step-by-step setup walkthrough, see [`docs/git-provider-setup.md`](../git-
 - `GITLAB_TOKEN` must be set for `glab` to authenticate (parallel to `GH_TOKEN` for `gh`).
 - `glab mr create --head <ref>` expects the **full fork project slug** (e.g. `<your-user>/<repo>`), not just a branch name.
 
-**GitLab fork-group config.** Set `identity.homes.fork.namespace` to the full fork-home namespace, including host, when your forks live somewhere other than the `forkRemote` + `forkConvention` derivation path. Keep `identity.forkRemote` as the Git remote name, normally the final namespace segment such as `<your-user>` or `<user>-fork-group`.
+**GitLab fork-group config.** Set `identity.homes.fork.namespace` to the full fork-home namespace, including host. This is the source of truth for where `ws clone-fork` creates or finds fork-home projects. Keep `identity.forkRemote` as the Git remote name, normally the final namespace segment such as `<your-user>` or `<user>-fork-group`.
 
 **The verified workflow on GitLab** (in practice on self-hosted, mirrors the GitHub flow but with provider-specific details substituted):
 

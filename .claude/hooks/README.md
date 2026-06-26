@@ -57,7 +57,7 @@ The Tier 2 redirect-deny channels three raw commands toward the workspace's `ws`
 | Slug | Pattern | Use this instead |
 |---|---|---|
 | `git-commit` | `git commit*` | `ws commit <comp> <bodyfile>` — bodyfile-driven, attaches the Co-Authored-By trailer |
-| `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkOrg`, sets upstream on first push |
+| `git-push` | `git push*` | `ws push <comp> [branch]` — picks the fork remote from `identity.forkRemote`, sets upstream on first push |
 | `gh-pr-create` | `gh pr create*` | `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions |
 
 A deny here is a *training* signal, not a safety floor (that's Tier 4 ask). The hook trusts the workspace's own `ws` wrappers to do the right thing — attribution, remote selection, the right token. When a legitimate edge case exists (`ws` doesn't yet support what you need), the agent can request a bypass:

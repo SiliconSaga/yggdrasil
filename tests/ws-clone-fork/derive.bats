@@ -100,12 +100,11 @@ YAML
     [[ "$output" == *"identity.homes.fork.namespace host (other-gitlab.example.com) differs from source host (gitlab.example.com)"* ]]
 }
 
-@test "nested forkRemote derivation remains supported" {
+@test "missing homes.fork.namespace is rejected without forkRepo override" {
     write_ecosystem <<'YAML'
 identity:
   forkRemote: alice-fork-group
 defaults:
-  forkConvention: nested
   gitTokens:
     gitlab.example.com/source/team/widget: SOURCE_TOKEN
     gitlab.example.com/source/team/alice-fork-group/widget: FORK_TOKEN
@@ -117,8 +116,8 @@ YAML
 
     run_clone_fork
 
-    [ "$status" -eq 2 ]
-    [[ "$output" == *"Fork     : source/team/alice-fork-group/widget"* ]]
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"identity.homes.fork.namespace is not set in ecosystem config"* ]]
 }
 
 @test "source remote collision keeps unrelated upstream remote intact" {

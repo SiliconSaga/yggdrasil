@@ -83,11 +83,17 @@ test_help() {
         echo "  ws test mimir -run TestFoo -v"
         echo "  ws test terasology --tests '*.SomeTest'"
         echo ""
-        echo "For pytest adapters, a selector that names an existing path or"
-        echo "nodeid runs just that target; anything else becomes a -k filter:"
+        echo "For pytest adapters, selectors that name existing paths or"
+        echo "nodeids run those targets; anything else becomes a -k filter:"
         echo "  ws test knarr tests/test_foo.py            # runs that file"
         echo "  ws test knarr tests/test_foo.py::test_bar  # runs that test"
+        echo "  ws test knarr tests/a.py tests/b.py        # runs both files"
         echo "  ws test knarr some_keyword                 # -k some_keyword"
+        echo ""
+        echo "For the workspace Bats suite, existing path selectors run just"
+        echo "those files; a single non-path selector becomes a --filter regex:"
+        echo "  ws test yggdrasil tests/ws-smoke/read-only.bats tests/ws-test/pytest-filter.bats"
+        echo "  ws test yggdrasil 'orientation'"
         echo ""
         echo "For unittest adapters, a positional selector becomes a -k pattern:"
         echo "  ws test gangplank slack_prompt             # -k slack_prompt"
@@ -103,12 +109,6 @@ fi
 
 if [[ $# -lt 1 ]]; then
     test_help 2
-    exit 1
-fi
-
-if [[ $# -gt 7 ]]; then
-    echo "ERROR: Too many arguments (max 7: component + 6 test args)." >&2
-    echo "  Use 'ws exec <comp> <cmd>' for complex test invocations." >&2
     exit 1
 fi
 
@@ -184,11 +184,11 @@ if [[ -z "$runner" ]]; then
 fi
 
 # --- Separate test filter from runner flags ---
-# Flags (args starting with -) and their values pass through; the first
-# non-flag positional arg is treated as the test name filter. Known
-# value-expecting flags keep the next arg as part of the flag pair.
+# Flags (args starting with -) and their values pass through; non-flag
+# positional args are collected as test selectors. Known value-expecting
+# flags keep the next arg as part of the flag pair.
 
-test_filter=""
+test_selectors=()
 runner_args=()
 expect_value=false
 for arg in "$@"; do
@@ -221,12 +221,28 @@ for arg in "$@"; do
             -r)
                 [[ "$runner" == "python" ]] && expect_value=true ;;
         esac
-    elif [[ -z "$test_filter" ]]; then
-        test_filter="$arg"
     else
-        runner_args+=("$arg")
+        test_selectors+=("$arg")
     fi
 done
+test_filter="${test_selectors[0]:-}"
+
+all_selectors_resolve_to_paths() {
+    [[ $# -gt 0 ]] || return 1
+    local selector path
+    for selector in "$@"; do
+        path="${selector%%::*}"
+        [[ -e "$path" ]] || return 1
+    done
+    return 0
+}
+
+reject_multiple_keyword_selectors() {
+    local runner_name="$1"
+    echo "ERROR: Multiple positional selectors for $runner_name must be existing paths or nodeids." >&2
+    echo "  For keyword expressions, pass one expression, or use the runner's native flag explicitly." >&2
+    exit 1
+}
 
 # --- Parse adapter command into an array for safe exec ---
 # Contract: adapter commands are whitespace-separated tokens only. Args with
@@ -250,7 +266,7 @@ case "$runner" in
             else
                 # Non-Gradle adapter. A positional test selector can be
                 # translated for runners with known filter semantics.
-                if [[ -n "$test_filter" ]]; then
+                if [[ ${#test_selectors[@]} -gt 0 ]]; then
                     if [[ "$adapter_cmd" == *pytest* ]]; then
                         # A selector that resolves to an on-disk path or a
                         # pytest nodeid (path::node) is passed positionally so
@@ -258,14 +274,19 @@ case "$runner" in
                         # single file run when unrelated modules have
                         # collection errors (e.g. mid-refactor). Anything else
                         # is treated as a keyword expression for -k.
-                        if [[ -e "$test_filter" || ( "$test_filter" == *"::"* && -e "${test_filter%%::*}" ) ]]; then
-                            "${adapter_argv[@]}" "$test_filter" "${runner_args[@]}"
-                        else
+                        if all_selectors_resolve_to_paths "${test_selectors[@]}"; then
+                            "${adapter_argv[@]}" "${test_selectors[@]}" "${runner_args[@]}"
+                        elif [[ ${#test_selectors[@]} -eq 1 ]]; then
                             "${adapter_argv[@]}" -k "$test_filter" "${runner_args[@]}"
+                        else
+                            reject_multiple_keyword_selectors "pytest"
                         fi
                         exit 0
                     fi
                     if [[ "${adapter_argv[1]:-}" == "-m" && "${adapter_argv[2]:-}" == "unittest" ]]; then
+                        if [[ ${#test_selectors[@]} -gt 1 ]]; then
+                            reject_multiple_keyword_selectors "unittest"
+                        fi
                         "${adapter_argv[@]}" -k "$test_filter" "${runner_args[@]}"
                         exit 0
                     fi
@@ -279,6 +300,9 @@ case "$runner" in
             fi
         else
             gradle_argv=(./gradlew test)
+        fi
+        if [[ ${#test_selectors[@]} -gt 1 ]]; then
+            reject_multiple_keyword_selectors "Gradle"
         fi
         if [[ -n "$test_filter" ]]; then
             # Build --tests pattern: pass through FQNs and wildcards as-is,
@@ -318,6 +342,9 @@ case "$runner" in
         make test
         ;;
     go)
+        if [[ ${#test_selectors[@]} -gt 1 ]]; then
+            reject_multiple_keyword_selectors "go test"
+        fi
         if [[ -n "$test_filter" ]]; then
             go test ./... -count=1 -run "$test_filter" "${runner_args[@]}"
         elif [[ ${#runner_args[@]} -gt 0 ]]; then
@@ -327,7 +354,11 @@ case "$runner" in
         fi
         ;;
     python)
-        if [[ -n "$test_filter" ]]; then
+        if [[ ${#test_selectors[@]} -gt 0 ]] && all_selectors_resolve_to_paths "${test_selectors[@]}"; then
+            uv run pytest "${test_selectors[@]}" "${runner_args[@]}"
+        elif [[ ${#test_selectors[@]} -gt 1 ]]; then
+            reject_multiple_keyword_selectors "pytest"
+        elif [[ -n "$test_filter" ]]; then
             uv run pytest -k "$test_filter" "${runner_args[@]}"
         elif [[ ${#runner_args[@]} -gt 0 ]]; then
             uv run pytest "${runner_args[@]}"
@@ -347,15 +378,24 @@ case "$runner" in
             exit 1
         fi
         bats_files=()
-        while IFS= read -r f; do
-            bats_files+=("$f")
-        done < <(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print | LC_ALL=C sort)
+        bats_selectors_are_paths=false
+        if [[ ${#test_selectors[@]} -gt 0 ]] && all_selectors_resolve_to_paths "${test_selectors[@]}"; then
+            bats_selectors_are_paths=true
+            bats_files=("${test_selectors[@]}")
+        else
+            while IFS= read -r f; do
+                bats_files+=("$f")
+            done < <(LC_ALL=C find "$ROOT_DIR/tests" -path "$ROOT_DIR/tests/vendor" -prune -o -type f -name '*.bats' -print | LC_ALL=C sort)
+        fi
         if [[ ${#bats_files[@]} -eq 0 ]]; then
             echo "(no .bats files found under tests/)" >&2
             exit 0
         fi
         bats_argv=("$bats_bin")
-        if [[ -n "$test_filter" ]]; then
+        if [[ ${#test_selectors[@]} -gt 1 && "$bats_selectors_are_paths" != true ]]; then
+            reject_multiple_keyword_selectors "bats"
+        fi
+        if [[ ${#test_selectors[@]} -eq 1 && "$bats_selectors_are_paths" != true ]]; then
             bats_argv+=(--filter "$test_filter")
         fi
         bats_argv+=("${runner_args[@]}" "${bats_files[@]}")

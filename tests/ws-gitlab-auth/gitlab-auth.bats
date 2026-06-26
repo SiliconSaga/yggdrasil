@@ -82,7 +82,7 @@ SH
     export PATH="$STUB_BIN:$PATH"
 }
 
-@test "gitlab-auth selects write token from fork-home namespace before forkRemote leaf fallback" {
+@test "gitlab-auth selects write token from fork-home namespace" {
     run bash "$WS_BIN" gitlab-auth
 
     [ "$status" -eq 0 ]
@@ -101,4 +101,28 @@ SH
     [[ "$(cat "$GIT_LOG")" == *"password=source-token"* ]]
     [[ "$output" == *"Stored path-scoped credentials"* ]]
     [[ "$output" == *"verified using SOURCE_TOKEN"* ]]
+}
+
+@test "gitlab-auth requires explicit fork-home namespace for write token selection" {
+    cat > "$ECOSYSTEM" <<'YAML'
+identity:
+  human_account: testuser
+  forkRemote: fork
+defaults:
+  gitProviders:
+    gitlab.example.com: gitlab
+  gitTokens:
+    gitlab.example.com/source/team/widget: SOURCE_TOKEN
+    gitlab.example.com/source/team/fork: FORK_NAMESPACE_TOKEN
+components:
+  widget:
+    repo: https://gitlab.example.com/source/team/widget.git
+YAML
+
+    run bash "$WS_BIN" gitlab-auth
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"identity.homes.fork.namespace is not set in ecosystem config"* ]]
+    [[ ! -s "$GLAB_LOG" ]]
+    [[ ! -s "$GIT_LOG" ]]
 }

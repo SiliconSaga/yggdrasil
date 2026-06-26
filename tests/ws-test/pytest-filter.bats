@@ -53,6 +53,62 @@ setup() {
     [[ "$output" == *"ARGS:tests/foo.py -v"* ]]
 }
 
+@test "pytest adapter: multiple existing path filters are passed positionally" {
+    write_adapter_test "./pytest"
+    touch "$ROOT_DIR/tests/foo.py" "$ROOT_DIR/tests/bar.py"
+    run_ws_test yggdrasil tests/foo.py tests/bar.py
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:tests/foo.py tests/bar.py"* ]]
+    [[ "$output" != *"-k"* ]]
+}
+
+@test "bats runner: multiple existing path filters select those files" {
+    ln -s "$REPO_ROOT/tests/vendor" "$ROOT_DIR/tests/vendor"
+    cat > "$ROOT_DIR/tests/one.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "one selected" {
+  true
+}
+EOF
+    cat > "$ROOT_DIR/tests/two.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "two selected" {
+  true
+}
+EOF
+    cat > "$ROOT_DIR/tests/unselected.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "unselected failure" {
+  false
+}
+EOF
+
+    run_ws_test yggdrasil tests/one.bats tests/two.bats
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"one selected"* ]]
+    [[ "$output" == *"two selected"* ]]
+    [[ "$output" != *"unselected failure"* ]]
+}
+
+@test "bats runner: more than six path filters are accepted" {
+    ln -s "$REPO_ROOT/tests/vendor" "$ROOT_DIR/tests/vendor"
+    selected=()
+    for name in one two three four five six seven; do
+        selected+=("tests/$name.bats")
+        cat > "$ROOT_DIR/tests/$name.bats" <<EOF
+#!/usr/bin/env bats
+@test "$name selected" {
+  true
+}
+EOF
+    done
+
+    run_ws_test yggdrasil "${selected[@]}"
+
+    [ "$status" -eq 0 ]
+}
+
 @test "unittest adapter: a non-path keyword becomes a -k filter" {
     write_adapter_test "./python -m unittest discover"
     run_ws_test yggdrasil some_keyword
