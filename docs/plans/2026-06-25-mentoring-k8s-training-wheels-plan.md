@@ -636,7 +636,7 @@ k8s_guard_evaluate() {
     for ns in "${_scope_ns[@]}"; do
         [[ "$ns" == "$target_ns" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
     done
-    printf 'BLOCK:write target namespace %s is outside practice scope (%s)' "$target_ns" "$scope_ns_csv"
+    printf 'BLOCK:write target namespace %s is outside allowed scope (%s)' "$target_ns" "$scope_ns_csv"
 }
 ```
 

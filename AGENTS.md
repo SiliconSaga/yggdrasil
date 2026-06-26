@@ -13,7 +13,7 @@ This file is the **L0 menu** — the slim contract that loads into every session
 On every session start, after compaction, or when dispatched fresh, you **MUST** do BOTH:
 
 1. **Execute `ws orient`** for initial discovery of workspace utilities, the active realm, per-component adapter wiring, and the skill index. This is the deterministic answer to "what's here right now?" — verbs, realm, adapters, skills.
-2. **Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence — Thalamus parsing, trust verification, mode/role setup, staleness checks.
+2. **Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence — Thalamus parsing, trust verification, stance/role setup, staleness checks.
 
 `ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids. (On a bare machine `ws orient` self-diagnoses — if `yq` is missing it runs `ws preflight` for you, which reports every missing prerequisite; prereqs are otherwise covered in [`docs/workspace-setup.md`](docs/workspace-setup.md).)
 

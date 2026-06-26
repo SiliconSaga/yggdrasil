@@ -1,8 +1,8 @@
 # Getting Started
 
-The fastest way to experience GDD is to clone the yggdrasil workspace and start a session in **Mentoring mode** — the AI will explain the workspace, the methodology, and the tools as you go. You don't need to understand everything upfront.
+The fastest way to experience GDD is to clone the yggdrasil workspace and start a session with **mentoring** on — the AI will explain the workspace, the methodology, and the tools as you go. You don't need to understand everything upfront.
 
-If you'd rather see what's in the box first before diving in, the [GDD Features Tour](../gdd/features.md) is a quick read covering the workspace, realms, hoards, component templates, the bot-driven review loop, modes, and permissions.
+If you'd rather see what's in the box first before diving in, the [GDD Features Tour](../gdd/features.md) is a quick read covering the workspace, realms, hoards, component templates, the bot-driven review loop, stances, and permissions.
 
 Note that this currently assumes a variety of prerequisites:
 
@@ -150,7 +150,7 @@ As you work, the AI captures observations in the **Thalamus** — a shared think
 
 After a few sessions, try **housekeeping** — review what's accumulated, promote useful observations to issues or skill updates, prune what's resolved. This is how GDD improves itself through use.
 
-When you're comfortable, try other modes:
+When you're comfortable, try other stances:
 
 - **Quick** for 15-minute sessions between other responsibilities
 - **Zen** for deep work sessions where you want full ceremony

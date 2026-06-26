@@ -40,7 +40,7 @@ Mentoring composes with any stance:
 
 When the mentoring overlay is active and a k8s-practice signal fires — the user says "practice kubectl", "test cluster access", "nervous about prod", or `GDD_K8S_CONTEXT` is already set — read `.agent/skills/gdd-k8s/SKILL.md` and run its scope-capture flow. Any stance can invoke gdd-k8s on this signal; mentoring is the overlay most likely to, and the one that narrates each step.
 
-In mentoring mode, narrate each step of the scope-capture flow before running it: explain what the guard is, why each namespace confirmation matters, and what the user will see when a command is blocked. The goal is internalization, not just arming the guard.
+With mentoring active, narrate each step of the scope-capture flow before running it: explain what the guard is, why each namespace confirmation matters, and what the user will see when a command is blocked. The goal is internalization, not just arming the guard.
 
 ## What This Overlay Does NOT Do
 
