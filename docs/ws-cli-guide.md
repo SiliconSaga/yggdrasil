@@ -104,8 +104,8 @@ Every subcommand falls into one of three tiers:
 ### 5. Update docs
 
 - `scripts/ws` help text (already done in step 2a)
-- `CLAUDE.md` — add to the Available commands list if it's a common command
-- `docs/dev-setup.md` — add to the commands table
+- `CLAUDE.md` — no command list to maintain (it points at `ws help` / `ws orient`); touch only if the command changes a documented convention
+- `docs/workspace-setup.md` — only if the command changes setup/PATH guidance (no per-command table to maintain anymore — it points at `ws help` / `ws orient`)
 - This file — update the tier table above if adding a new tier
 
 ## Security Rules

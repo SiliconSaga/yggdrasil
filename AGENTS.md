@@ -15,7 +15,7 @@ On every session start, after compaction, or when dispatched fresh, you **MUST**
 1. **Execute `ws orient`** for initial discovery of workspace utilities, the active realm, per-component adapter wiring, and the skill index. This is the deterministic answer to "what's here right now?" — verbs, realm, adapters, skills.
 2. **Read `.agent/skills/gdd-orientation/SKILL.md`** and follow its startup sequence — Thalamus parsing, trust verification, mode/role setup, staleness checks.
 
-`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids. (On a bare machine `ws orient` self-diagnoses — if yq/jq are missing it runs `ws preflight` for you and reports what to install; prereqs are otherwise covered in [`docs/dev-setup.md`](docs/dev-setup.md).)
+`ws orient` answers *what's available*; the orientation skill governs *how to work with the human*. Both are session-start prerequisites, not optional discovery aids. (On a bare machine `ws orient` self-diagnoses — if `yq` is missing it runs `ws preflight` for you, which reports every missing prerequisite; prereqs are otherwise covered in [`docs/workspace-setup.md`](docs/workspace-setup.md).)
 
 Two conventions you need before anything else:
 
@@ -99,7 +99,7 @@ The orientation skill is the right starting point; these pointers are here so a 
 - [`docs/gdd/index.md`](docs/gdd/index.md) — Guardian Driven Development overview.
 - [`docs/ecosystem-architecture.md`](docs/ecosystem-architecture.md) — three-tier model, workspace structure, config merge.
 - [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md) — full `ws` CLI reference + how to add new subcommands.
-- [`docs/dev-setup.md`](docs/dev-setup.md) — required tools (bash, git, yq, jq, gh/glab, optional uv).
+- [`docs/workspace-setup.md`](docs/workspace-setup.md) — prerequisites, PATH setup, workspace shape (components/realms/hoards), agent permissions.
 - [`docs/git-provider-setup.md`](docs/git-provider-setup.md) — auth, token scopes, `.env` setup.
 - [`docs/code-style.md`](docs/code-style.md) — commenting + documentation conventions.
 - [`docs/ide-setup.md`](docs/ide-setup.md) — VS Code, JetBrains, terminal editor setup.

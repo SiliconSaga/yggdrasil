@@ -50,7 +50,7 @@ nav:
   - Home: index.md
   - Yggdrasil:
     - Ecosystem Architecture: ecosystem-architecture.md
-    - Dev Setup: dev-setup.md
+    - Workspace Setup: workspace-setup.md
     - IDE Setup: ide-setup.md
     - WS CLI Guide: ws-cli-guide.md
     - Code Style: code-style.md

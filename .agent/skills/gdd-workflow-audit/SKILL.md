@@ -92,4 +92,4 @@ When the user approves a proposed fix that involves a new `ws` subcommand:
 1. Follow the contributor guide at `docs/ws-cli-guide.md`
 2. Classify the permission tier (safe / side-effect / arbitrary)
 3. Update `.claude/settings.json` with allow or deny rules
-4. Update `AGENTS.md`, `CLAUDE.md`, and `docs/dev-setup.md`
+4. Update `AGENTS.md`, `CLAUDE.md`, and `docs/workspace-setup.md`
