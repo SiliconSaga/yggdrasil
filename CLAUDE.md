@@ -1,21 +1,18 @@
 # Yggdrasil — Claude Code
 
-**Read [`AGENTS.md`](AGENTS.md) first** — it contains shared workspace instructions including **session startup** (GDD orientation), repo roles, skills, git workflow, utility scripts, auth setup, and issue/CR conventions.
+**Read [`AGENTS.md`](AGENTS.md) first.** It carries the shared, agent-agnostic workspace instructions — session startup (GDD orientation), the `ws` CLI reflex contract, repo roles, skills, the git/commit workflow, auth, and issue/CR conventions. Run `ws orient` at session start for the live command/skill/realm inventory.
 
-This file covers only Claude-specific overrides.
+This file holds only what's specific to running GDD in **Claude Code**.
 
 ---
 
-## Session Conventions
+## Launching
 
-- **Start Claude from `yggdrasil/`** — this is the workspace root. All sessions should use it as the working directory. Avoid starting from `GitWS/` or component subdirectories.
-- **Workspace CLI:** The `ws` CLI is the shared interface for both humans and AI agents. Always use `bash scripts/ws <cmd>` for workspace operations. Use `bash scripts/ws exec <component> <cmd>` to run commands in component directories — never manually `cd` to components. Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint) also accept realm and hoard names, not just components. Run `ws help` for the full subcommand list and `ws orient` for what's wired here.
-- **Keep commands simple.** Prefer `bash scripts/ws exec <comp> <cmd>` over manual `cd` + command. (Prerequisites and per-OS install hints are agent-agnostic — run `bash scripts/ws preflight` or see `docs/workspace-setup.md`.)
-- On first use of `ws` in a session, briefly note: "Using the workspace CLI (`scripts/ws`). Run `bash scripts/ws help` in your terminal for available commands. Add `export PATH="<yggdrasil>/scripts:$PATH"` to your shell profile for shorthand access."
+Start Claude Code from the `yggdrasil/` root — not `GitWS/` or a component subdirectory. The orientation skill and the PreToolUse permission hook key off your working directory (e.g. resolving which component an adapter command applies to), so launching elsewhere skews that.
 
-## Companion plugin (Claude Code)
+## Companion plugin
 
-[Obra Superpowers](https://github.com/obra/superpowers) is the recommended companion — see [`AGENTS.md`](AGENTS.md) for what GDD uses it for. Install it in Claude Code with:
+[Obra Superpowers](https://github.com/obra/superpowers) is the recommended companion — see [`AGENTS.md`](AGENTS.md) for what GDD uses it for and how it degrades without it. Install it in Claude Code with:
 
 ```text
 /plugin marketplace add obra/superpowers-marketplace
@@ -23,48 +20,4 @@ This file covers only Claude-specific overrides.
 /reload-plugins
 ```
 
-This lives here (not `AGENTS.md`) because the install path is agent-specific — Codex installs the same plugin a different way.
-
-## Workspace Structure
-
-Yggdrasil is the workspace root. Component repos live in `components/` and community realms in `realms/` — both gitignored, independent Git repos.
-
-```text
-yggdrasil/
-  ecosystem.yaml          # Upstream defaults (generic, no components)
-  ecosystem.local.yaml    # Per-developer overrides (gitignored)
-  components/
-    nordri/               # Cloned via ws clone
-    mimir/
-    ...
-  realms/
-    realm-siliconsaga/    # Community config (components, identity, adapters)
-    realm-template/       # Tutorial realm
-  scripts/
-    ws                    # Unified CLI — run `ws help` for subcommands
-    ws-realm.sh           # Realm management + shared config merge functions
-    ws-clone.sh           # Clone components from merged ecosystem config
-    ws-status.sh          # Git status across workspace
-    ws-pull.sh            # Pull all cloned components
-    ws-list.sh            # List components and local status
-    ws-vscode.sh          # Generate VS Code workspace file
-```
-
-Config is three-layer merged: `ecosystem.yaml` → realm → `ecosystem.local.yaml`. Use `bash scripts/ws list` to see what's declared and what's checked out locally.
-
-
-## Committing
-
-**Always use `ws commit`** — never raw `git add` / `git commit`. The `ws commit` command handles file staging (via bodyfile `add:` frontmatter) and appends the Co-Authored-By trailer automatically. Write a bodyfile to `.commits/` and use:
-
-```bash
-bash scripts/ws commit <component> .commits/<name>.md
-```
-
-The Co-Authored-By trailer format (handled by `ws commit`):
-
-```
-Co-Authored-By: Claude <model> <noreply@anthropic.com>
-```
-
-Replace `<model>` with the model name (e.g. `Sonnet 4.6`, `Opus 4.6`).
+This lives here rather than in `AGENTS.md` because the install path is agent-specific — Codex and other harnesses install the same plugin their own way. (Skill-loading conventions — Read tool for workspace `.agent/skills/`, the Skill tool for plugin `superpowers:*` skills — are covered in `AGENTS.md`.)
