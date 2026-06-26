@@ -143,6 +143,12 @@ YAML
     git clone -q "$FORK_BARE" "$TARGET"
     git -C "$TARGET" remote rename origin alice-fork-group
     git -C "$TARGET" remote add upstream "$UNRELATED_BARE"
+    # Git for Windows normalizes local paths when storing a remote URL
+    # (/d/… → D:/…), so assert against what git stored, not the raw shell path.
+    UNRELATED_STORED="$(git -C "$TARGET" remote get-url upstream)"
+    git -C "$TARGET" remote add _srcprobe "$SOURCE_BARE"
+    SOURCE_STORED="$(git -C "$TARGET" remote get-url _srcprobe)"
+    git -C "$TARGET" remote remove _srcprobe
 
     cat > "$TEST_BIN/glab" <<'SH'
 #!/usr/bin/env bash
@@ -189,8 +195,8 @@ YAML
     run_clone_fork
 
     [ "$status" -eq 0 ]
-    [ "$(git -C "$TARGET" remote get-url upstream)" = "$UNRELATED_BARE" ]
-    [ "$(git -C "$TARGET" remote get-url upstream-2)" = "$SOURCE_BARE" ]
+    [ "$(git -C "$TARGET" remote get-url upstream)" = "$UNRELATED_STORED" ]
+    [ "$(git -C "$TARGET" remote get-url upstream-2)" = "$SOURCE_STORED" ]
 }
 
 @test "existing source-named remote pointing elsewhere is preserved" {
@@ -216,6 +222,11 @@ YAML
     git clone -q "$FORK_BARE" "$TARGET"
     git -C "$TARGET" remote rename origin alice-fork-group
     git -C "$TARGET" remote add team "$UNRELATED_BARE"
+    # See the upstream test above — assert against git's stored form, not the raw path.
+    UNRELATED_STORED="$(git -C "$TARGET" remote get-url team)"
+    git -C "$TARGET" remote add _srcprobe "$SOURCE_BARE"
+    SOURCE_STORED="$(git -C "$TARGET" remote get-url _srcprobe)"
+    git -C "$TARGET" remote remove _srcprobe
 
     cat > "$TEST_BIN/glab" <<'SH'
 #!/usr/bin/env bash
@@ -262,8 +273,8 @@ YAML
     run_clone_fork
 
     [ "$status" -eq 0 ]
-    [ "$(git -C "$TARGET" remote get-url team)" = "$UNRELATED_BARE" ]
-    [ "$(git -C "$TARGET" remote get-url team-2)" = "$SOURCE_BARE" ]
+    [ "$(git -C "$TARGET" remote get-url team)" = "$UNRELATED_STORED" ]
+    [ "$(git -C "$TARGET" remote get-url team-2)" = "$SOURCE_STORED" ]
 }
 
 @test "fork-token source probe surfaces transient errors instead of cross-group helper" {
