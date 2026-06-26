@@ -214,7 +214,7 @@ HELP
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --remote)
-                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
                     echo "ERROR: --remote requires a git remote name" >&2
                     exit 1
                 fi
@@ -223,7 +223,7 @@ HELP
                 ;;
             --remote=*)
                 cr_remote="${1#--remote=}"
-                if [[ -z "$cr_remote" ]]; then
+                if [[ -z "$cr_remote" || "$cr_remote" == -* ]]; then
                     echo "ERROR: --remote requires a git remote name" >&2
                     exit 1
                 fi
@@ -830,15 +830,32 @@ ws_gitlab_auth() {
         exit 1
     fi
 
-    # 2. Store write token in git credential helper for HTTPS clone/push
-    echo "2. Storing write token in git credential helper..."
-    git credential approve <<EOF
+    # 2. Store configured host tokens path-scoped in git credential helper.
+    # Path scoping lets a split source-read / fork-write setup keep both
+    # credentials available without one host-wide credential shadowing the other.
+    echo "2. Storing path-scoped credentials in git credential helper..."
+    git config --global "credential.https://$host.useHttpPath" true
+    local stored_count=0
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local token_var token_val cred_path
+        token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        [[ -z "$token_var" || "$token_var" == "null" ]] && continue
+        token_val="${!token_var:-}"
+        [[ -z "$token_val" ]] && continue
+        cred_path="${key#"$host/"}"
+        [[ -z "$cred_path" ]] && continue
+        git credential approve <<EOF
 protocol=https
 host=$host
+path=$cred_path
 username=oauth2
-password=$write_token
+password=$token_val
 EOF
-    echo "   ✓ Stored in $(git config --global credential.helper || echo 'credential store') for $host"
+        stored_count=$((stored_count + 1))
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    echo "   ✓ Stored path-scoped credentials in $(git config --global credential.helper || echo 'credential store') for $host ($stored_count entries)"
 
     # 3. Verify with git ls-remote on a declared component URL
     echo "3. Verifying git access..."
@@ -849,8 +866,14 @@ EOF
     done < <(yq '.components[].repo // ""' "$eco" 2>/dev/null)
 
     if [[ -n "$test_url" ]]; then
-        if git ls-remote "$test_url" HEAD &>/dev/null; then
-            echo "   ✓ git access verified ($test_url)"
+        GIT_AUTH_ENV=()
+        git_auth_env_for_url "$test_url"
+        if env "${GIT_AUTH_ENV[@]}" git ls-remote "$test_url" HEAD &>/dev/null; then
+            if [[ -n "${GIT_AUTH_LABEL:-}" ]]; then
+                echo "   ✓ git access verified using $GIT_AUTH_LABEL ($test_url)"
+            else
+                echo "   ✓ git access verified ($test_url)"
+            fi
         else
             echo "   ✗ git ls-remote failed: $test_url" >&2
             echo "   Token may lack read access to this repo." >&2

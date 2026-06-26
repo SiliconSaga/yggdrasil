@@ -82,7 +82,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --remote)
-      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+      if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
         echo "ERROR: --remote requires a git remote name" >&2
         exit 1
       fi
@@ -91,7 +91,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --remote=*)
       CR_REMOTE="${1#--remote=}"
-      if [[ -z "$CR_REMOTE" ]]; then
+      if [[ -z "$CR_REMOTE" || "$CR_REMOTE" == -* ]]; then
         echo "ERROR: --remote requires a git remote name" >&2
         exit 1
       fi

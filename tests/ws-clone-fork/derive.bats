@@ -8,6 +8,7 @@ setup() {
 
     cat > "$TEST_BIN/glab" <<'SH'
 #!/usr/bin/env bash
+echo "404 Project Not Found" >&2
 exit 1
 SH
     chmod +x "$TEST_BIN/glab"
@@ -191,4 +192,56 @@ YAML
     [ "$status" -eq 0 ]
     [ "$(git -C "$TARGET" remote get-url upstream)" = "$UNRELATED_BARE" ]
     [ "$(git -C "$TARGET" remote get-url upstream-2)" = "$SOURCE_BARE" ]
+}
+
+@test "fork-token source probe surfaces transient errors instead of cross-group helper" {
+    cat > "$TEST_BIN/glab" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" != "api" ]]; then
+  exit 1
+fi
+case "${@: -1}" in
+  projects/forks%2Falice-fork-group%2Fwidget)
+    echo "404 Project Not Found" >&2
+    exit 1
+    ;;
+  projects/source%2Fteam%2Fwidget)
+    if [[ "${GITLAB_TOKEN:-}" == "fork-token" ]]; then
+      echo "dial tcp: lookup gitlab.example.com: no such host" >&2
+      exit 1
+    fi
+    cat <<JSON
+{"id":1,"default_branch":"main","ssh_url_to_repo":"git@gitlab.example.com:source/team/widget.git","http_url_to_repo":"https://gitlab.example.com/source/team/widget.git","web_url":"https://gitlab.example.com/source/team/widget"}
+JSON
+    ;;
+  *)
+    echo "unexpected glab api call: $*" >&2
+    exit 1
+    ;;
+esac
+SH
+    chmod +x "$TEST_BIN/glab"
+
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: alice-fork-group
+  homes:
+    fork:
+      namespace: gitlab.example.com/forks/alice-fork-group
+defaults:
+  gitTokens:
+    gitlab.example.com/source/team/widget: SOURCE_TOKEN
+    gitlab.example.com/forks/alice-fork-group: FORK_TOKEN
+components:
+  widget:
+    tier: supporting
+    repo: https://gitlab.example.com/source/team/widget.git
+YAML
+
+    run_clone_fork
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Fork token failed while probing source-project access"* ]]
+    [[ "$output" == *"dial tcp"* ]]
+    [[ "$output" != *"Cross-group fork detected"* ]]
 }

@@ -58,10 +58,15 @@ SH
 #!/usr/bin/env bash
 case "${1:-} ${2:-}" in
   "credential approve")
-    cat > "$GIT_LOG"
+    cat >> "$GIT_LOG"
+    printf '%s\n' "---" >> "$GIT_LOG"
     exit 0
     ;;
   "config --global")
+    if [[ "${4:-}" == "true" ]]; then
+      printf 'config %s=%s\n' "${3:-}" "${4:-}" >> "$GIT_LOG"
+      exit 0
+    fi
     echo "stub-helper"
     exit 0
     ;;
@@ -84,4 +89,16 @@ SH
     [[ "$(cat "$GLAB_LOG")" == *"--token fork-namespace-token"* ]]
     [[ "$(cat "$GIT_LOG")" == *"password=fork-namespace-token"* ]]
     [[ "$output" == *"Registering write token (FORK_NAMESPACE_TOKEN)"* ]]
+}
+
+@test "gitlab-auth stores path-scoped source and fork credentials and verifies with source token" {
+    run bash "$WS_BIN" gitlab-auth
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GIT_LOG")" == *"path=my-team/alice"* ]]
+    [[ "$(cat "$GIT_LOG")" == *"password=fork-namespace-token"* ]]
+    [[ "$(cat "$GIT_LOG")" == *"path=source/team/widget"* ]]
+    [[ "$(cat "$GIT_LOG")" == *"password=source-token"* ]]
+    [[ "$output" == *"Stored path-scoped credentials"* ]]
+    [[ "$output" == *"verified using SOURCE_TOKEN"* ]]
 }

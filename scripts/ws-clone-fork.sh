@@ -375,6 +375,17 @@ emit_cross_group_helper() {
     echo "" >&2
 }
 
+source_probe_denied() {
+    local message="$1"
+    # GitLab commonly hides private projects as 404 when the caller lacks
+    # read access; some versions return 403. Those map to the cross-group
+    # helper. Transport/tool/auth failures should surface as normal errors.
+    [[ "$message" =~ (^|[^0-9])(403|404)([^0-9]|$) ]] && return 0
+    [[ "$message" =~ [Nn]ot[[:space:]]+[Ff]ound ]] && return 0
+    [[ "$message" =~ [Ff]orbidden ]] && return 0
+    return 1
+}
+
 # --- ensure fork exists -----------------------------------------------------
 echo "[ ws clone-fork: $COMPONENT ]"
 echo "  Source   : $UPSTREAM_PATH on $UPSTREAM_HOST"
@@ -408,10 +419,21 @@ if [[ -z "$FORK_DETAILS" ]]; then
     # FORK_TOKEN typically has create on destination but no read on source.
     # Detect this up front and surface a UI-fork helper rather than letting
     # the API call fail with a cryptic 404.
-    if ! api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" >/dev/null 2>&1; then
-        emit_cross_group_helper
-        exit 2
+    fork_probe_result=""
+    if ! fork_probe_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
+        fork_probe_error="$(cat "$ERR_TMP" 2>/dev/null || true)"
+        rm -f "$ERR_TMP"
+        fork_probe_message="${fork_probe_error}${fork_probe_result}"
+        if source_probe_denied "$fork_probe_message"; then
+            emit_cross_group_helper
+            exit 2
+        fi
+        echo "ERROR: Fork token failed while probing source-project access." >&2
+        [[ -n "$fork_probe_error" ]] && printf '%s\n' "$fork_probe_error" >&2
+        [[ -n "$fork_probe_result" ]] && printf '%s\n' "$fork_probe_result" >&2
+        exit 1
     fi
+    rm -f "$ERR_TMP"
 
     # Get upstream project ID (needed for fork API)
     local_upstream_details=""

@@ -4,14 +4,14 @@ This document covers the internal mechanics of cross-fork CR creation in yggdras
 
 ## Overview: The Two-Token Model
 
-When you run `ws cr <component> --upstream`, yggdrasil operates with two tokens in the cross-fork case:
+When you run `ws cr <component> --upstream`, yggdrasil can operate with two tokens in the split GitLab fork-group case:
 
 | Token | Role | Used for |
 |---|---|---|
-| Fork write token | Developer (fork group) | Pushing branches, creating MRs/PRs |
+| Fork write token | Developer (fork group) | Pushing branches, authenticating MR/PR creation from the fork |
 | Source reporter token | Reporter (source-project group) | Reading source-project metadata, creating issues, reading MR comments and threads (`ws review`) |
 
-Both tokens are needed. The source reporter token covers all read and issue operations against the source project — not just default-branch lookup. Eliminating it from the CR path would still leave it required for `ws review` and `ws issue`.
+Both roles are needed when no single credential has all required grants. The source reporter token covers read and issue operations against the source project — not just default-branch lookup. Eliminating it from the CR path would still leave source-project read access required for `ws review` and `ws issue`.
 
 These tokens are configured in the ecosystem config's `defaults.gitTokens` map, keyed by URL prefix. The longest matching prefix wins, so a fork-group token (longer path) takes precedence over a parent-group token for the same host.
 
@@ -46,9 +46,9 @@ ws cr <component> --upstream
        --target-branch  main
 ```
 
-On **GitLab**, `glab mr create` uses the `--head OWNER/REPO` flag to identify the fork. With this flag, glab calls the **fork project's API** to create the MR — not the target/source project's API. GitLab's MR creation endpoint lives on the source-branch project, which is the fork in this workflow.
+On **GitLab**, `glab mr create` uses `--repo` for the target/source project and `--head OWNER/REPO` to identify the fork project that owns the source branch. The MR is created against the target/source project, but the caller must still be allowed to use the fork project and source branch.
 
-This is the opposite of how GitHub works, and opposite of what the `--repo` argument implies at first glance.
+This is different from GitHub's `owner:branch` head syntax, but the high-level access split is similar: the target/source project must be readable, and the fork/source-branch side must be writable by the actor creating the request.
 
 **Consequence for token selection in git-cr.sh:**
 
@@ -56,13 +56,13 @@ This is the opposite of how GitHub works, and opposite of what the `--repo` argu
 1. gp_set_token_for_url "$UPSTREAM_URL"   ← reporter token
    gp_default_branch "$UPSTREAM_SLUG"     ← reads source project (needs reporter)
 
-2. gp_set_token_for_url "$FORK_URL"       ← fork write token
+2. gp_set_token_for_url "$FORK_URL"       ← fork write token with source-project read
    gp_create_pr --repo source-project \
-                --head fork-slug \         ← glab POSTs to fork project
+                --head fork-slug \         ← glab targets source project with fork head
                 ...
 ```
 
-The token must be switched between the two calls. Using only the reporter token for both will produce a `403 Forbidden` from the fork project, since the reporter token has no write access there.
+The token must be switched between the metadata read and MR creation calls in split-token setups. Using only the reporter token for both can fail because the reporter token has no write/source-branch rights on the fork. Using only the fork token can fail when it lacks source-project read; group sharing or a same-hierarchy/public source project can make the fork token sufficient for MR creation.
 
 ## Summary: Which Token Goes Where
 
@@ -70,13 +70,13 @@ The token must be switched between the two calls. Using only the reporter token 
 |---|---|---|
 | Push branch | Fork write token | Fork write token |
 | Read source-project default branch | Any token with source-project read | Source reporter token |
-| Create PR/MR API call | Any token with source-project read | **Fork write token** |
+| Create PR/MR API call | Any token with source-project read | Fork write token with source-project read |
 | `ws review` (MR comments, threads) | Any token with source-project read | Source reporter token |
 | `ws issue` (create issue on source project) | Any token with source-project read | Source reporter token |
 
-On GitHub, "any token with source-project read" may be a single token that also covers the fork — especially with classic PATs or public source projects. On GitLab with private groups, separate tokens are required because the fork group and source-project group each need explicit access grants.
+On GitHub, "any token with source-project read" may be a single token that also covers the fork — especially with classic PATs or public source projects. On GitLab with private source and fork groups, separate tokens are often useful because the fork group and source-project group each need explicit access grants; a PAT or a fork-group token that has been granted source-project read can cover both roles, but with less isolation.
 
-The fundamental difference: GitHub owns the PR on the target/source-project side; GitLab owns the MR on the source-branch project side, which is the fork in this workflow. This is reflected in which project's API endpoint is called during creation.
+The practical difference for yggdrasil is token routing: source-project metadata, review, and issue operations use a source-readable token, while MR creation uses an actor that can write to the fork/source branch and read the target/source project.
 
 ## Token Types, Machine Users, and Managed GitLab
 

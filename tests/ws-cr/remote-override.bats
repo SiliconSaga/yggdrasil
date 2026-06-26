@@ -91,3 +91,19 @@ SH
     [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
     [[ "$(cat "$GH_LOG")" == *"--head feature/cr-remote-override"* ]]
 }
+
+@test "ws cr --remote rejects a following option as the remote name" {
+    run bash "$WS_BIN" cr yggdrasil --remote --upstream "test: invalid remote" .crs/body.md
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--remote requires a git remote name"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "git-cr.sh --remote rejects a following option as the remote name" {
+    run bash -c 'cd "$1" || exit 1; bash "$2" --remote --upstream "test: invalid remote" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--remote requires a git remote name"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
