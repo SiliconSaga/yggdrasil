@@ -927,7 +927,12 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     _sr_marker="$_t2_project_root/.tmp/hook-bypass/$_sr_slug.bypass"
     if [[ -f "$_sr_marker" ]]; then
         _sr_msid="$(grep '^session_id:' "$_sr_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
-        [[ -n "$_t2_session_id" && "$_sr_msid" == "$_t2_session_id" ]] && continue
+        if [[ -n "$_t2_session_id" && "$_sr_msid" == "$_t2_session_id" ]]; then
+            # Audit the scope-guard bypass so an operator can grep for sessions
+            # where enforcement was lifted (parallels Tier 2's BYPASS-ALLOW).
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [$_sr_slug] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+            continue
+        fi
     fi
     _sr_ctx="$(_sr_get GDD_K8S_CONTEXT)"; _sr_ns="$(_sr_get GDD_K8S_NAMESPACES)"
     # (a) ws k8s commands → route by guard verdict.

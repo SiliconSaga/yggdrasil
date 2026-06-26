@@ -1439,3 +1439,13 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
 }
+
+@test "scoped-redirect: matching bypass marker lifts the redirect and audits BYPASS-SCOPE" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    write_bypass_marker "k8s" "sk8s" "practicing"
+    run_hook_with_session 'kubectl delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+    grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.claude/hook-audit.log"
+}
