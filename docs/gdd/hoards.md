@@ -132,6 +132,6 @@ Each new type ships as a `templates/hoards/<type>/` directory with its own scaff
 - [GDD Features Tour](features.md) — where hoards fit in the larger feature set.
 - [Thalamus](thalamus.md) — the thinking-space concept the thalami type is built around.
 - [Trust and Safety](trust-and-safety.md) — hoards' trust level (your own content, equivalent to your other instructions).
-- [Roles and Modes](roles-and-modes.md) — the per-machine `mode:` and `role:` defaults that live in thalamus frontmatter.
+- [Roles and Stances](roles-and-stances.md) — the role and stance concepts that sessions are configured with.
 - [`gdd-orientation` skill](../../.agent/skills/gdd-orientation/SKILL.md) — how Step 0a uses `ws hoard cadence`.
 - [`gdd-housekeeping` skill](../../.agent/skills/gdd-housekeeping/SKILL.md) — multi-thalami review process.

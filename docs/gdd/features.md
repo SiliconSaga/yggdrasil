@@ -97,7 +97,7 @@ Sessions run in one of four modes that shape how chatty or careful the agent is:
 - **Flow** — the middle gear; sessions naturally drift across topics.
 - **Mentoring** — the agent explains decisions, teaches as it goes. This is the right first-session mode for new contributors.
 
-Modes are picked at session start (and can be re-picked mid-session). The default lives in your Thalamus frontmatter (`mode:`). Roles (developer, designer, reviewer, scribe) compose with modes — see [roles-and-modes.md](roles-and-modes.md).
+Modes are picked at session start (and can be re-picked mid-session). The default lives in your Thalamus frontmatter (`mode:`). Roles (developer, designer, reviewer, scribe) compose with modes — see [roles-and-stances.md](roles-and-stances.md).
 
 ---
 

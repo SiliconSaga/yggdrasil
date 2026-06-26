@@ -24,7 +24,7 @@ This positioning enables a community angle that the other extremes don't natural
 
 - **Filling the gap** — between AI-private memory (invisible to humans) and committed project instructions (formal, policy-level), GDD introduces the [Thalamus](thalamus.md): a shared, co-authored thinking space where observations, concerns, and preferences live while they're being figured out.
 
-- **Adaptive ceremony** — [roles and modes](roles-and-modes.md) let the framework meet you where you are. 15 minutes on your phone? Quick mode. Saturday deep dive? Zen mode. First time in the codebase? Mentoring mode. Modes compose freely.
+- **Adaptive ceremony** — [roles and stances](roles-and-stances.md) let the framework meet you where you are. 15 minutes on your phone? Quick mode. Saturday deep dive? Zen mode. First time in the codebase? Mentoring mode. Modes compose freely.
 
 - **Trust as a first-class concern** — AI agents read instructions from nested project components, and not all of those are trustworthy. GDD's [trust hierarchy and black-box safety pattern](trust-and-safety.md) ensure the agent logs concerns before they can be overwritten by hostile content.
 
@@ -68,7 +68,7 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 
 **Methodology and concepts:**
 
-- [Roles and Modes](roles-and-modes.md) — how GDD adapts to who you are and what you're doing
+- [Roles and Stances](roles-and-stances.md) — how GDD adapts to who you are and what you're doing
 - [The Thalamus](thalamus.md) — shared thinking space between human and AI
 - [Trust and Safety](trust-and-safety.md) — trust hierarchy, black-box pattern, community responsibility
 - [Permissions](permissions.md) — `.claude/settings.json` reference and the two-layer defense model (local shell commands)
