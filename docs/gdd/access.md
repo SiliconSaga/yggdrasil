@@ -52,11 +52,12 @@ A complex local checkout may have several remotes: an external source project, a
 | Create or find the fork-home copy | Fork group home | `identity.homes.fork.namespace`; `components.<name>.forkRepo` for one-off exact URLs | `ws clone-fork <name>` |
 | Name the fork remote used for normal branch pushes | Fork group home remote | `identity.forkRemote` matching the local remote name | `ws push <name> [branch]` |
 | Open a CR/MR against the fork project itself | Fork group home remote | `identity.forkRemote`; no `--upstream` | `ws cr <name> "<title>" <bodyfile>` |
+| Open a CR/MR against a rare alternate fork/project remote | Operator-selected fork/head remote | `--remote <remote>` or `GIT_CR_REMOTE=<remote>` for this invocation only | `ws cr <name> --remote siliconsaga "<title>" <bodyfile>` |
 | Open a CR/MR from the fork to a source project | The non-fork source-project remote | `--upstream`; `defaults.upstreamRemote` breaks ties when more than one non-fork remote exists | `ws cr <name> --upstream "<title>" <bodyfile>` |
 | Inspect token coverage and remote detection | All configured remotes | No remote selector; diagnostic output lists remotes and token matches | `ws diagnose <name>` |
 | Push or fetch an arbitrary fourth remote | Operator-selected remote | `GIT_PUSH_REMOTE=<remote>` for `ws push`, or explicit Git through `ws exec` for unsupported flows | `GIT_PUSH_REMOTE=scratch ws push <name> [branch]`; `ws exec <name> git fetch scratch` |
 
-The pending `homes.{fork,internal,external}` design should make the internal/external distinction first-class. Until then, use `defaults.upstreamRemote` for the one non-fork source-project remote that `ws cr --upstream` should target, and treat any fourth remote as an explicit escape hatch rather than workspace policy.
+The pending `homes.{fork,internal,external}` design should make the internal/external distinction first-class. Until then, use `defaults.upstreamRemote` for the one non-fork source-project remote that `ws cr --upstream` should target, use `ws cr --remote` for rare alternate fork/head remotes, and treat any fourth remote as an explicit escape hatch rather than workspace policy.
 
 ---
 

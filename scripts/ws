@@ -16,7 +16,7 @@
 #   pull [comp]       Pull all or one component
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch|tag] [--force] Push branch or tag (remote from identity.forkRemote)
-#   cr <comp> [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR; --upstream for cross-fork)
+#   cr <comp> [--remote <remote>] [--upstream] <title> <bodyfile>  Open a CR (change request/PR/MR)
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkRemote)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
@@ -188,9 +188,10 @@ ws_cr() {
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws cr <component> [--upstream] <title> <bodyfile>
+Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>
 
   component   Component, realm, or hoard to open the CR against
+  --remote    Use this git remote as the fork/head remote for this CR
   --upstream  Target the upstream repo instead of the fork remote
   title       CR (PR / MR) title
   bodyfile    Path (relative to workspace root) to a change bodyfile
@@ -201,18 +202,50 @@ HELP
             return 0
         fi
     done
-    if [[ $# -lt 3 || $# -gt 4 ]]; then
-        echo "Usage: ws cr <component> [--upstream] <title> <bodyfile>" >&2
+    if [[ $# -lt 3 || $# -gt 6 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
     shift
     ws_resolve_target "$comp"
+    local cr_remote=""
+    local args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --remote)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    echo "ERROR: --remote requires a git remote name" >&2
+                    exit 1
+                fi
+                cr_remote="$2"
+                shift 2
+                ;;
+            --remote=*)
+                cr_remote="${1#--remote=}"
+                if [[ -z "$cr_remote" ]]; then
+                    echo "ERROR: --remote requires a git remote name" >&2
+                    exit 1
+                fi
+                shift
+                ;;
+            *)
+                args+=("$1")
+                shift
+                ;;
+        esac
+    done
+    if [[ ${#args[@]} -lt 2 || ${#args[@]} -gt 3 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>" >&2
+        exit 1
+    fi
     # Resolve bodyfile path before cd (last arg is always the bodyfile)
-    local args=("$@")
     local last_idx=$(( ${#args[@]} - 1 ))
     if [[ "${args[$last_idx]}" != /* ]]; then
         args[$last_idx]="$ROOT_DIR/${args[$last_idx]}"
+    fi
+    if [[ -n "$cr_remote" ]]; then
+        export GIT_CR_REMOTE="$cr_remote"
     fi
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr.sh" "${args[@]}"
 }

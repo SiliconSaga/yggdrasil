@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # git-cr.sh — open a change request (PR/MR) from the current branch
 #
-# Usage: git-cr.sh [--upstream] TITLE BODYFILE
+# Usage: git-cr.sh [--remote REMOTE] [--upstream] TITLE BODYFILE
+#   --remote REMOTE — use this git remote as the fork/head remote.
+#                     Defaults to GIT_CR_REMOTE, then identity.forkRemote.
 #   --upstream — target the upstream (non-fork) remote instead of the fork.
 #                Creates a cross-fork CR: fork:branch → upstream:base.
 #   TITLE     — CR title
@@ -70,12 +72,44 @@ _create_pr_with_prominent_url() {
   return $rc
 }
 
-# Parse --upstream flag
+# Parse flags
 UPSTREAM=""
-if [[ "${1:-}" == "--upstream" ]]; then
-  UPSTREAM="1"
-  shift
-fi
+CR_REMOTE="${GIT_CR_REMOTE:-}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --upstream)
+      UPSTREAM="1"
+      shift
+      ;;
+    --remote)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "ERROR: --remote requires a git remote name" >&2
+        exit 1
+      fi
+      CR_REMOTE="$2"
+      shift 2
+      ;;
+    --remote=*)
+      CR_REMOTE="${1#--remote=}"
+      if [[ -z "$CR_REMOTE" ]]; then
+        echo "ERROR: --remote requires a git remote name" >&2
+        exit 1
+      fi
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "ERROR: unknown option '$1'" >&2
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 TITLE="${1:-}"
 BODYFILE="${2:-}"
@@ -86,8 +120,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 # Ensure .crs/ clearinghouse exists
 mkdir -p "$REPO_ROOT/.crs"
 
-if [[ -z "$TITLE" || -z "$BODYFILE" ]]; then
-  echo "Usage: $0 [--upstream] TITLE BODYFILE" >&2
+if [[ -z "$TITLE" || -z "$BODYFILE" || $# -ne 2 ]]; then
+  echo "Usage: $0 [--remote REMOTE] [--upstream] TITLE BODYFILE" >&2
   echo "  See templates/change.md for a ready-to-copy bodyfile template. CR bodyfiles conventionally live in .crs/." >&2
   exit 1
 fi
@@ -131,11 +165,23 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]];
 fi
 
 # Find the fork remote.
-# Single remote: use it. Multiple: match forkRemote. No match: fail.
+# Explicit override: match it. Single remote: use it. Multiple: match forkRemote. No match: fail.
 mapfile -t _ALL_REMOTES < <(git remote)
 
 FORK_REMOTE=""
-if [[ ${#_ALL_REMOTES[@]} -eq 1 ]]; then
+if [[ -n "$CR_REMOTE" ]]; then
+  for _r in "${_ALL_REMOTES[@]}"; do
+    if [[ "${_r,,}" == "${CR_REMOTE,,}" ]]; then
+      FORK_REMOTE="$_r"
+      break
+    fi
+  done
+  if [[ -z "$FORK_REMOTE" ]]; then
+    echo "ERROR: No remote matching '$CR_REMOTE' (from --remote/GIT_CR_REMOTE)." >&2
+    echo "  Available remotes: ${_ALL_REMOTES[*]:-(none)}" >&2
+    exit 1
+  fi
+elif [[ ${#_ALL_REMOTES[@]} -eq 1 ]]; then
   FORK_REMOTE="${_ALL_REMOTES[0]}"
 elif [[ -n "$_ECO" ]]; then
   _FORK_REMOTE=$(yq '.identity.forkRemote // ""' "$_ECO" 2>/dev/null)
