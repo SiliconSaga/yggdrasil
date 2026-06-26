@@ -88,16 +88,16 @@ Full design: [thalamus.md](thalamus.md). Operational mechanics: [hoards.md](hoar
 
 ---
 
-## Modes — agent demeanor
+## Stances — agent demeanor
 
-Sessions run in one of four modes that shape how chatty or careful the agent is:
+Sessions run in one of three stances (plus an optional mentoring overlay) that shape how chatty or careful the agent is:
 
 - **Quick** — terse, no ceremony, get-it-done.
 - **Zen** — full ceremony, deep work, frequent housekeeping.
 - **Flow** — the middle gear; sessions naturally drift across topics.
-- **Mentoring** — the agent explains decisions, teaches as it goes. This is the right first-session mode for new contributors.
+- **Mentoring overlay** — the agent explains decisions, teaches as it goes. Layer it on any stance for unfamiliar areas or your first session.
 
-Modes are picked at session start (and can be re-picked mid-session). The default lives in your Thalamus frontmatter (`mode:`). Roles (developer, designer, reviewer, scribe) compose with modes — see [roles-and-stances.md](roles-and-stances.md).
+Stances are picked at session start (and can be re-picked mid-session). The active stance is established per session (`ws session`). Roles (developer, designer, reviewer, scribe) compose with stances — see [roles-and-stances.md](roles-and-stances.md).
 
 ---
 

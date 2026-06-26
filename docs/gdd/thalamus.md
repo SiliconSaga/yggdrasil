@@ -19,7 +19,7 @@ The Thalamus is a shared, gitignored markdown file — a thinking space co-autho
 
 ## What It Captures
 
-- **Preferences** — mode defaults, interaction style, session habits
+- **Preferences** — stance/role defaults (now session-established), interaction style, session habits
 - **Observations** — patterns noticed, friction points, things that worked well
 - **Concerns** — trust issues, suspicious instructions, safety flags (written **immediately** as part of the black-box safety pattern)
 - **Audit Log** — when was content last reviewed, what was promoted or pruned
@@ -42,12 +42,10 @@ The template includes YAML frontmatter that the orientation skill reads on sessi
 ```yaml
 last_session: 2026-03-20
 last_audit: 2026-03-15
-mode: zen
-role: developer
 staleness_days: 14
 ```
 
-This enables session continuity — the AI knows when you last worked, whether an audit is overdue, and what mode to default to.
+This enables session continuity — the AI knows when you last worked and whether an audit is overdue. Stance, role, and mentoring are no longer stored here; they're established per session via `ws session`.
 
 ## Cross-machine sync — the thalami hoard
 

@@ -71,7 +71,7 @@ If the user declines, capture the tangent as a normal Observations entry (the ex
 
 ## Multi-Agent and Multi-Workspace
 
-Flow is the natural mode for a human overseeing parallel work:
+Flow is the natural stance for a human overseeing parallel work:
 
 - Two agent sessions on different machines working on related features
 - Checking in on one session while another runs in the background
