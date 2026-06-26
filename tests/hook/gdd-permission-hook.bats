@@ -1026,6 +1026,20 @@ YAML
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+# ─── scoped-redirect-commands: parse-safety guard ───────────────────
+
+@test "scoped-redirect: section parses without aborting the file (no scope → passthrough)" {
+    write_project_hook_rules "$(cat <<'EOF'
+[scoped-redirect-commands]
+k8s | kubectl* | GDD_K8S_CONTEXT | Use `ws k8s <args>`.
+EOF
+)"
+    run_hook 'kubectl get pods'
+    [ "$status" -eq 0 ]
+    # No session/scope present → no redirect, and the file must NOT be skipped (no parse warning behavior).
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
 @test "redirect: command outside [redirect-commands] passes through Tier 2" {
     write_project_hook_rules "$(cat <<'EOF'
 [redirect-commands]

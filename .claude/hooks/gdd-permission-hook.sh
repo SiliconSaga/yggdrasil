@@ -354,6 +354,7 @@ ask_commands=()
 allow_extras=()
 redirect_commands=()  # entries: "<slug>|<pattern>|<suggestion>"
 adapter_redirect_commands=()  # entries: "<slug>|<pattern>|<verb>"
+scoped_redirect_commands=()  # entries: "<slug>|<pattern>|<session-key>|<suggestion>"
 
 # Parse one rules file, appending entries to the section arrays.
 # $1 = file path; $2 = non-empty when parsing hook-rules.local (local).
@@ -452,6 +453,29 @@ _parse_rules_file() {
                                 ;;
                         esac
                         adapter_redirect_commands+=("$ar_slug|$ar_pattern|$ar_verb")
+                        ;;
+                    scoped-redirect-commands)
+                        # 4 columns: slug | pattern | session-key | suggestion.
+                        local sr_slug sr_pattern sr_key sr_suggestion sr_rest
+                        if [[ "$line" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [scoped-redirect-commands], missing separator): $file" >> "$audit_log"
+                            continue
+                        fi
+                        sr_slug="${line%% | *}"; sr_rest="${line#* | }"
+                        sr_pattern="${sr_rest%% | *}"; sr_rest="${sr_rest#* | }"
+                        if [[ "$sr_rest" != *" | "* ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: malformed [scoped-redirect-commands], need 4 columns): $file" >> "$audit_log"
+                            continue
+                        fi
+                        sr_key="${sr_rest%% | *}"; sr_suggestion="${sr_rest#* | }"
+                        sr_slug="${sr_slug%"${sr_slug##*[![:space:]]}"}"
+                        sr_pattern="${sr_pattern%"${sr_pattern##*[![:space:]]}"}"
+                        sr_key="${sr_key%"${sr_key##*[![:space:]]}"}"
+                        if [[ ! "$sr_slug" =~ ^[a-z][a-z0-9-]*$ ]]; then
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules: bad slug '$sr_slug'): $file" >> "$audit_log"
+                            continue
+                        fi
+                        scoped_redirect_commands+=("$sr_slug|$sr_pattern|$sr_key|$sr_suggestion")
                         ;;
                     *)
                         if [[ -z "$section" ]]; then
