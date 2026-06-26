@@ -2,8 +2,6 @@
 # Thalamus frontmatter — read by orientation skill on session start
 last_session: null
 last_audit: null
-mode: null          # zen, quick, flow, mentoring — or null for "ask me"
-role: null          # developer, designer, reviewer, scribe — or null for "ask me"
 active_vault: null  # name of the vault-flavored hoard scribe should
                     # auto-bind to (skip the "which vault?" prompt
                     # when multiple vaults exist). Leave null to be
@@ -25,8 +23,10 @@ arcs: []            # in-flight strands of work — see docs/plans/2026-05-07-th
 
 Shared thinking space between one human and one local AI agent (at a time). Created from `templates/thalamus.md`. This file is gitignored — it is local to this workspace instance.
 
+> Stance, role, and mentoring are established per session in the session file (`ws session set …`), not stored here — they move around too much to pin per-machine.
+
 ## Preferences
-<!-- Mode defaults, interaction style, session habits -->
+<!-- Interaction style, session habits -->
 
 ## Observations
 <!-- Patterns noticed, friction points, things that worked well -->

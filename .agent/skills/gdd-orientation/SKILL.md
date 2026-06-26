@@ -116,9 +116,10 @@ If the human agrees to commit now: `ws commit <hoard> <bodyfile>` → `ws pull <
 
 Read the YAML between the leading `---` markers. Update `last_session` to today's date **only if parsing succeeded** — never rewrite frontmatter on a parse failure (the file may be hand-edited; clobbering loses the human's edits).
 
-- Mode from frontmatter → session default
-- Role from frontmatter → session default
-- Either null → ask the human after framing (don't gate the response on it)
+- Establish **stance** for this session: `ws session set GDD_STANCE <quick|zen|flow>` — ask the human if unset, or default to `flow` when they want to move fast.
+- Establish **role**: `ws session set GDD_ROLE <developer|designer|reviewer|scribe>` — ask if unset, default `developer`.
+- Establish **mentoring** (composable overlay): `ws session set GDD_MENTORING <true|false>` — default `false`; offer to enable on a tutorial/practice signal.
+- Read the current values any time with `ws session get GDD_STANCE` (etc.).
 
 ### Staleness check
 
