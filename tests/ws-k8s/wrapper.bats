@@ -41,7 +41,7 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     : > "$ROOT_DIR/kubectl.log"
     run_ws k8s delete pod foo -n prod
     [ "$status" -ne 0 ]
-    [[ "$output" == *"outside practice scope"* || "$output" == *"blocked"* ]]
+    [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
 @test "scope set rejects a nonexistent namespace" {
@@ -53,4 +53,34 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     run_ws k8s scope clear
     run_ws k8s scope show
     [[ "$output" == *"none"* ]]
+}
+@test "ambient: no session id falls back to active-session guard scope" {
+    unset GDD_SESSION_ID
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=alice-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s1.env"
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s delete pod foo -n prod
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "ambient: same-context scopes union their namespaces" {
+    unset GDD_SESSION_ID
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=alice-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s1.env"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=bob-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s2.env"
+    run_ws k8s delete pod y -n bob-sandbox
+    [ "$status" -eq 0 ]
+    run_ws k8s delete pod x -n carol
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
+}
+@test "ambient: different contexts refuse to guard" {
+    unset GDD_SESSION_ID
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=ctx-a\nGDD_K8S_NAMESPACES=alice\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s1.env"
+    printf 'GDD_K8S_CONTEXT=ctx-b\nGDD_K8S_NAMESPACES=bob\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s2.env"
+    run_ws k8s get pods
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"different contexts"* ]]
 }

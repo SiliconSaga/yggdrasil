@@ -49,7 +49,7 @@ k8s_guard_evaluate() {
     if [[ "$verb" == "scope" ]]; then printf 'NOT_K8S'; return 0; fi
 
     if [[ -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
-        printf 'BLOCK:explicit --context %s != practice context %s' "$ctx_arg" "$scope_ctx"; return 0
+        printf 'BLOCK:explicit --context %s != the guard-scope context %s' "$ctx_arg" "$scope_ctx"; return 0
     fi
     # Fix A: config set-context/use-context/set are writes; other config sub-commands stay READ.
     if _k8s_is_read_verb "$verb"; then
@@ -79,7 +79,7 @@ k8s_guard_evaluate() {
                 local -a _sns  # Fix B: declare local to avoid caller-scope leak
                 IFS=',' read -ra _sns <<< "$scope_ns_csv"
                 for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
-                [[ $ok -eq 1 ]] || { printf 'BLOCK:-f %s targets namespace %s outside scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
+                [[ $ok -eq 1 ]] || { printf 'BLOCK:-f %s targets namespace %s outside the guard scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
             done < <(yq -r '.metadata.namespace // ""' "$f" 2>/dev/null)
             [[ $docs_seen -eq 0 ]] && { printf 'BLOCK:-f %s parsed no documents (yq failed or empty)' "$f"; return 0; }
         done
@@ -97,5 +97,5 @@ k8s_guard_evaluate() {
     for ns in "${_scope_ns[@]}"; do
         [[ "$ns" == "$target_ns" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
     done
-    printf 'BLOCK:write target namespace %s is outside practice scope (%s)' "$target_ns" "$scope_ns_csv"
+    printf 'BLOCK:write target namespace %s is outside the guard scope (%s)' "$target_ns" "$scope_ns_csv"
 }

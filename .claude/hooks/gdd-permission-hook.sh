@@ -941,7 +941,7 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
         _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $match_cmd 2>/dev/null || true)"
         case "$_sr_verdict" in
             READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
-            BLOCK:*) deny "ws k8s blocked: ${_sr_verdict#BLOCK:}. $_sr_suggestion" ;;
+            BLOCK:*) deny "REJECTED by the k8s scope guard: ${_sr_verdict#BLOCK:}. Reads are allowed cluster-wide; to write here, widen the scope ('ws k8s scope set --namespace <ns>') or lift the guard for this session ('ws hook-bypass $_sr_slug')." ;;
             *) : ;;  # WRITE_IN_SCOPE / NO_SCOPE → normal flow (prompt)
         esac
         continue
@@ -956,7 +956,7 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
         bash\ *|sh\ *|source\ *|./*)
             _sr_file="${match_cmd#* }"; _sr_file="${_sr_file%% *}"
             if [[ -f "$_sr_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_sr_file" 2>/dev/null; then
-                deny "Script $_sr_file calls raw kubectl under an active practice scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+                deny "Script $_sr_file calls raw kubectl within a guarded scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
             fi
             ;;
     esac
