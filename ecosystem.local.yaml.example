@@ -23,7 +23,6 @@ identity:
   # homes:
   #   fork:
   #     namespace: gitlab.example.com/team/gdd/your-fork-group
-  # co_authored_by: "Claude Opus 4.6"   # override realm default
 
 # Git provider detection — usually auto-detected from remote URLs.
 # Uncomment under the existing defaults: block above for self-hosted instances.
