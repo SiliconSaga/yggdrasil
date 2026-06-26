@@ -812,16 +812,9 @@ ws_gitlab_auth() {
     echo "2. Storing path-scoped credentials in git credential helper..."
     git config --global "credential.https://$host.useHttpPath" true
     local stored_count=0
-    while IFS= read -r key; do
-        [[ -z "$key" || "$key" == "null" ]] && continue
-        [[ "$key" != "$host/"* ]] && continue
-        local token_var token_val cred_path
-        token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
-        [[ -z "$token_var" || "$token_var" == "null" ]] && continue
-        token_val="${!token_var:-}"
-        [[ -z "$token_val" ]] && continue
-        cred_path="${key#"$host/"}"
-        [[ -z "$cred_path" ]] && continue
+    approve_git_credential() {
+        local cred_path="$1"
+        local token_val="$2"
         git credential approve <<EOF
 protocol=https
 host=$host
@@ -830,6 +823,23 @@ username=oauth2
 password=$token_val
 EOF
         stored_count=$((stored_count + 1))
+    }
+    while IFS= read -r key; do
+        [[ -z "$key" || "$key" == "null" ]] && continue
+        [[ "$key" != "$host/"* ]] && continue
+        local token_var token_val cred_path normalized_path git_path
+        token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        [[ -z "$token_var" || "$token_var" == "null" ]] && continue
+        token_val="${!token_var:-}"
+        [[ -z "$token_val" ]] && continue
+        cred_path="${key#"$host/"}"
+        [[ -z "$cred_path" ]] && continue
+        normalized_path="${cred_path%.git}"
+        approve_git_credential "$normalized_path" "$token_val"
+        git_path="$normalized_path.git"
+        if [[ "$git_path" != "$normalized_path" ]]; then
+            approve_git_credential "$git_path" "$token_val"
+        fi
     done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
     echo "   ✓ Stored path-scoped credentials in $(git config --global credential.helper || echo 'credential store') for $host ($stored_count entries)"
 

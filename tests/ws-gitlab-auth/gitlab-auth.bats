@@ -98,6 +98,7 @@ SH
     [[ "$(cat "$GIT_LOG")" == *"path=my-team/alice"* ]]
     [[ "$(cat "$GIT_LOG")" == *"password=fork-namespace-token"* ]]
     [[ "$(cat "$GIT_LOG")" == *"path=source/team/widget"* ]]
+    [[ "$(cat "$GIT_LOG")" == *"path=source/team/widget.git"* ]]
     [[ "$(cat "$GIT_LOG")" == *"password=source-token"* ]]
     [[ "$output" == *"Stored path-scoped credentials"* ]]
     [[ "$output" == *"verified using SOURCE_TOKEN"* ]]

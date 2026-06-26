@@ -239,8 +239,8 @@ all_selectors_resolve_to_paths() {
 
 reject_multiple_keyword_selectors() {
     local runner_name="$1"
-    echo "ERROR: Multiple positional selectors for $runner_name must be existing paths or nodeids." >&2
-    echo "  For keyword expressions, pass one expression, or use the runner's native flag explicitly." >&2
+    echo "ERROR: Multiple positional selectors for $runner_name are not supported in this form." >&2
+    echo "  Pass one keyword expression, or use the runner's native selector flag explicitly." >&2
     exit 1
 }
 

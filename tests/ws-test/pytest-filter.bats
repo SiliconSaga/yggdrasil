@@ -136,6 +136,15 @@ EOF
     [[ "$output" == *"ARGS:[-m][unittest][discover][-k][some\\ keyword]"* ]]
 }
 
+@test "unittest adapter rejects multiple keyword filters with runner-neutral guidance" {
+    write_adapter_test "./python -m unittest discover"
+    run_ws_test yggdrasil alpha beta
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Multiple positional selectors for unittest are not supported in this form"* ]]
+    [[ "$output" == *"Pass one keyword expression, or use the runner's native selector flag explicitly"* ]]
+    [[ "$output" != *"must be existing paths or nodeids"* ]]
+}
+
 @test "non-pytest, non-unittest, non-Gradle adapter still rejects a positional filter" {
     write_adapter_test "true"
     run_ws_test yggdrasil somefilter
