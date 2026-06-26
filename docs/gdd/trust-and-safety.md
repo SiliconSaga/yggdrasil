@@ -67,13 +67,13 @@ The agent can't prevent a human from doing harmful things, but it can make them 
 
 ## The Ask-Tier Safety Floor
 
-The hook's ask-tier provides a workspace-level safety floor for destructive shell commands, regardless of what session permission mode is active.
+The hook's ask-tier provides a workspace-level safety floor for destructive shell commands and arbitrary-execution escape hatches, regardless of what session permission mode is active.
 
 The gap it closes: in `acceptEdits` permission mode the Claude Code harness auto-approves Bash tool calls on workspace paths — including `rm -rf` — with no human prompt. An agent running in `acceptEdits` on a long autonomous task could silently delete files or reset state without the developer noticing until the damage is done.
 
-The ask-tier intercepts commands matching the `[ask-commands]` list in `.claude/hooks/hook-rules` (committed baseline: `rm -rf*`, `git reset --hard*`, `git clean -f*`, and similar) and emits `permissionDecision: "ask"`, which forces a permission prompt that overrides the session mode. The command does not run until the human explicitly approves it.
+The ask-tier intercepts commands matching the `[ask-commands]` list in `.claude/hooks/hook-rules` (committed baseline: `rm -rf*`, `git reset --hard*`, `git clean -f*`, `ws exec *`, and similar) and emits `permissionDecision: "ask"`, which forces a permission prompt that overrides the session mode. The command does not run until the human explicitly approves it.
 
-This is not a deny tier — approving the prompt runs the command normally. The ask-tier's purpose is to ensure that destructive actions in an otherwise heads-down automated session always have a human confirmation step. It sits below the hook's Tier 1 (composition deny) and above the settings.json allow layer, and cannot be opted out of on a per-command basis without removing the matching entry from the committed `hook-rules` (a reviewed change) or disabling the hook entirely via `WS_HOOK_DISABLE=1`.
+This is not a deny tier — approving the prompt runs the command normally. The ask-tier's purpose is to ensure that high-risk actions in an otherwise heads-down automated session always have a human confirmation step. It sits below the hook's Tier 1 (composition deny) and above the settings.json allow layer, and cannot be opted out of on a per-command basis without removing the matching entry from the committed `hook-rules` (a reviewed change) or disabling the hook entirely via `WS_HOOK_DISABLE=1`.
 
 ## The Redirect Tier (training aid, not a floor)
 

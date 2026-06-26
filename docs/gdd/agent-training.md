@@ -56,15 +56,15 @@ If you're new and the deny stream worries you, watch what happens on the next ag
 
 ## What the hook does
 
-The PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs before every Bash tool call. It rejects shell composition (`&&`, `||`, `;`, `|`, backticks, `$(...)`, `>`, `<`, FD merges like `2>&1`) with command-specific corrective messages. It denies raw `git commit` / `git push` / `gh pr create` (Tier 2 redirect) with a message pointing at the matching `ws` wrapper, with a session-scoped `ws hook-bypass` escape hatch. It forces a permission prompt (ask-tier) for destructive commands like `rm -rf` and `git reset --hard`, even in `acceptEdits` mode. It allows commands matching `.claude/settings.json` patterns or the `[allow-extras]` section of the per-machine `hook-rules.local` file. Everything else passes through to the normal Claude Code prompt. The audit log at `~/.claude/hook-audit.log` records every ALLOW / ASK / DENY decision (passthroughs are intentionally not logged — they'd balloon the log under normal use).
+The PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs before every Bash tool call. It rejects shell composition (`&&`, `||`, `;`, `|`, backticks, `$(...)`, `>`, `<`, FD merges like `2>&1`) with command-specific corrective messages. It denies raw `git commit` / `git push` / `gh pr create` (Tier 2 redirect) with a message pointing at the matching `ws` wrapper, with a session-scoped `ws hook-bypass` escape hatch. It forces a permission prompt (ask-tier) for destructive commands like `rm -rf` and `git reset --hard`, plus arbitrary-execution escape hatches like `ws exec`, even in `acceptEdits` mode. It allows commands matching `.claude/settings.json` patterns or the `[allow-extras]` section of the per-machine `hook-rules.local` file. Everything else passes through to the normal Claude Code prompt. The audit log at `~/.claude/hook-audit.log` records every ALLOW / ASK / DENY decision (passthroughs are intentionally not logged — they'd balloon the log under normal use).
 
 For the deny taxonomy, allow-pattern shape, opt-out, and the malformed-JSON / Windows-path edge cases, read the [hook README](../../.claude/hooks/README.md). The rest of this doc is about *why* the hook exists and what it costs.
 
 ---
 
-## The ask-tier — destructive commands always prompt
+## The ask-tier — high-risk commands always prompt
 
-Some commands — `rm -rf`, `git reset --hard`, `git clean -f`, and similar — are on the hook's ask-list. When the agent tries to run one of these, the hook doesn't deny it; instead it forces a permission prompt that surfaces to you regardless of what permission mode the session is in. That includes `acceptEdits`, which would otherwise auto-approve Bash mutations on workspace paths without showing you anything.
+Some commands — `rm -rf`, `git reset --hard`, `git clean -f`, `ws exec`, and similar — are on the hook's ask-list. When the agent tries to run one of these, the hook doesn't deny it; instead it forces a permission prompt that surfaces to you regardless of what permission mode the session is in. That includes `acceptEdits`, which would otherwise auto-approve some Bash mutations on workspace paths without showing you anything.
 
 This is deliberate: the hook is acting as a confirmation checkpoint, not a gatekeeper. The pattern is: agent proposes → human reviews → human approves → command runs. If you approve, the command executes normally. If you decline, the agent is told to find another approach.
 
@@ -74,7 +74,7 @@ What you'll see when an ask-tier command fires:
 - No red deny message — the prompt is the whole interaction
 - The audit log records the hook's decision as `ASK` — the hook fires once when the command is intercepted, not again when you respond to the prompt.
 
-The ask-list is defined in `.claude/hooks/hook-rules` (committed baseline) and can be extended — never shortened — in `hook-rules.local`. If you find yourself declining the same destructive command repeatedly, that's a signal to revisit whether the agent should be reaching for that command at all.
+The ask-list is defined in `.claude/hooks/hook-rules` (committed baseline) and can be extended — never shortened — in `hook-rules.local`. If you find yourself declining the same high-risk command repeatedly, that's a signal to revisit whether the agent should be reaching for that command at all.
 
 ---
 

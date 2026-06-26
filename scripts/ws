@@ -25,7 +25,7 @@
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
 #   whoami [--set "Name <email>"]  Show/set this session's commit identity
-#   exec <comp> <cmd...> Run a command in a component dir (max 6 cmd args)
+#   exec <comp> <cmd...> Run a command in a component dir
 #   realm init        Clone template realm for tutorials
 #   realm <url>       Clone a community realm
 #   realm use <name>  Set active realm
@@ -119,7 +119,7 @@ ws_exec() {
 Usage: ws exec <component> <command...>
 
   component  Component, realm, or hoard whose dir to run in
-  command    Command + args (max 6 args) to run inside that dir
+  command    Command + args to run inside that dir
 
 Runs a one-off command inside the target dir without manual cd.
 For complex commands, use a Makefile target or shell script.
@@ -128,11 +128,6 @@ HELP
     fi
     if [[ $# -lt 2 ]]; then
         echo "Usage: ws exec <component> <command...>" >&2
-        exit 1
-    fi
-    if [[ $# -gt 7 ]]; then
-        echo "ERROR: Too many arguments (max 7: component + 6 command args)." >&2
-        echo "  For complex commands, use a Makefile target or shell script." >&2
         exit 1
     fi
     local comp="$1"

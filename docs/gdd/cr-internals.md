@@ -78,7 +78,7 @@ On GitHub, "any token with source-project read" may be a single token that also 
 
 The fundamental difference: GitHub owns the PR on the target/source-project side; GitLab owns the MR on the source-branch project side, which is the fork in this workflow. This is reflected in which project's API endpoint is called during creation.
 
-## Token Types, Machine Users, and Corporate GitLab
+## Token Types, Machine Users, and Managed GitLab
 
 ### GitHub: two approaches to scoping
 
@@ -98,7 +98,7 @@ The GitLab-native solutions are **Group Access Tokens**, **Project Access Tokens
 
 Group sharing has one non-obvious consequence for fork creation: a fork-group access-token bot cannot be directly invited to a sibling/external source project, but if the source project or parent group invites the fork-home group, the bot can gain source-project read through that group membership. Then the same fork-group token may satisfy GitLab's fork API requirement: one caller identity with source-project read and destination-namespace create rights.
 
-**Machine users on corporate GitLab** are often not an option either — user accounts may be managed by IT/SSO, so you can't create a dedicated bot account as easily as you could on public GitHub. Instance service accounts are the closest GitLab analogue, but they require administrator involvement and are usually too heavyweight for per-developer GDD setup.
+**Machine users on managed GitLab** are often not an option either — user accounts may be managed by SSO or central administration, so you can't create a dedicated bot account as easily as you could on public GitHub. Instance service accounts are the closest GitLab analogue, but they require administrator involvement and are usually too heavyweight for per-developer GDD setup.
 
 When no scoped actor is available, use a Personal Access Token and point both env vars at the same PAT to maintain the two-token routing pattern. This preserves the mechanics but loses permission isolation.
 

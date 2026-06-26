@@ -271,6 +271,12 @@ setup() {
     [[ "$output" != *"Usage: ws exec"* ]]
 }
 
+@test "ws exec: passes more than six command args to the wrapped command" {
+    run_ws exec yggdrasil printf '%s\n' a b c d e f g h
+    [ "$status" -eq 0 ]
+    [[ "$output" == $'a\nb\nc\nd\ne\nf\ng\nh' ]]
+}
+
 # ─── list (empty ecosystem) ─────────────────────────────────────────
 
 @test "ws list: empty ecosystem produces deterministic output" {

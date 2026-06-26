@@ -31,6 +31,7 @@ git*clean -d*
 find * -delete*
 find*-exec*
 find*-execdir*
+ws exec *
 ws hook-bypass [a-z]*
 # ws review reads are allowlisted via Bash(ws review:*); the outward-
 # facing forms stay human-gated here (ask runs before the allow tier):
