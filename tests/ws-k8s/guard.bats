@@ -66,3 +66,13 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl config use-context other
     [[ "$output" != "READ_IN_SCOPE" ]]
 }
+@test "apply -f manifest with no namespace falls back to in-scope -n" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "apply -f manifest with no namespace and no -n BLOCKs" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+}

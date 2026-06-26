@@ -64,8 +64,11 @@ k8s_guard_evaluate() {
                 -|http://*|https://*) printf 'BLOCK:-f %s cannot be parsed for namespace (stdin/remote)' "$f"; return 0 ;;
             esac
             [[ -f "$f" ]] || { printf 'BLOCK:-f %s not found on disk' "$f"; return 0; }
+            local docs_seen=0
             while IFS= read -r doc_ns; do
+                docs_seen=$((docs_seen + 1))
                 [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
+                # Cluster-scoped resources have no metadata.namespace; they BLOCK here when no -n is given — documented limitation.
                 [[ -z "$doc_ns" ]] && { printf 'BLOCK:-f %s has a namespaced doc with no namespace and no -n' "$f"; return 0; }
                 local ok=0 n
                 local -a _sns  # Fix B: declare local to avoid caller-scope leak
@@ -73,6 +76,7 @@ k8s_guard_evaluate() {
                 for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
                 [[ $ok -eq 1 ]] || { printf 'BLOCK:-f %s targets namespace %s outside scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
             done < <(yq -r '.metadata.namespace // ""' "$f" 2>/dev/null)
+            [[ $docs_seen -eq 0 ]] && { printf 'BLOCK:-f %s parsed no documents (yq failed or empty)' "$f"; return 0; }
         done
         printf 'WRITE_IN_SCOPE'; return 0
     fi
