@@ -44,3 +44,25 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl frobnicate -n prod
     [[ "$output" == BLOCK:* ]]
 }
+@test "apply -f with in-scope manifest namespace is WRITE_IN_SCOPE" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "apply -f with out-of-scope manifest namespace BLOCKs" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: prod\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+}
+@test "apply -f a remote URL BLOCKs (cannot resolve)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f https://example.com/x.yaml
+    [[ "$output" == BLOCK:* ]]
+}
+@test "apply -f - (stdin) BLOCKs" {
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f -
+    [[ "$output" == BLOCK:* ]]
+}
+@test "config use-context is treated as a write (not a free read)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl config use-context other
+    [[ "$output" != "READ_IN_SCOPE" ]]
+}

@@ -23,7 +23,8 @@ k8s_guard_evaluate() {
     fi
     [[ -z "$scope_ctx" ]] && { printf 'NO_SCOPE'; return 0; }
 
-    local verb="" ctx_arg="" ns_arg="" all_ns=0 a
+    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 a
+    local ffiles=()
     local args=("$@")
     local i=0
     while [[ $i -lt ${#args[@]} ]]; do
@@ -34,8 +35,10 @@ k8s_guard_evaluate() {
             -n|--namespace) ns_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
             -n=*|--namespace=*) ns_arg="${a#*=}";;
             -A|--all-namespaces) all_ns=1 ;;
+            -f|--filename) ffiles+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
+            -f=*|--filename=*) ffiles+=("${a#*=}");;
             -*) : ;;
-            *) [[ -z "$verb" ]] && verb="$a" ;;
+            *) if [[ -z "$verb" ]]; then verb="$a"; else [[ -z "$verb2" ]] && verb2="$a"; fi ;;
         esac
         i=$((i+1))
     done
@@ -43,14 +46,44 @@ k8s_guard_evaluate() {
     if [[ -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:explicit --context %s != practice context %s' "$ctx_arg" "$scope_ctx"; return 0
     fi
-    if _k8s_is_read_verb "$verb"; then printf 'READ_IN_SCOPE'; return 0; fi
+    # Fix A: config set-context/use-context/set are writes; other config sub-commands stay READ.
+    if _k8s_is_read_verb "$verb"; then
+        if [[ "$verb" == "config" ]] && [[ "$verb2" == "set-context" || "$verb2" == "use-context" || "$verb2" == "set" ]]; then
+            : # fall through to write path
+        else
+            printf 'READ_IN_SCOPE'; return 0
+        fi
+    fi
     if [[ $all_ns -eq 1 ]]; then printf 'BLOCK:--all-namespaces write is not scope-bounded'; return 0; fi
+
+    # -f manifest resolution (writes only). Any unresolved input is a BLOCK.
+    if [[ ${#ffiles[@]} -gt 0 ]]; then
+        local f doc_ns
+        for f in "${ffiles[@]}"; do
+            case "$f" in
+                -|http://*|https://*) printf 'BLOCK:-f %s cannot be parsed for namespace (stdin/remote)' "$f"; return 0 ;;
+            esac
+            [[ -f "$f" ]] || { printf 'BLOCK:-f %s not found on disk' "$f"; return 0; }
+            while IFS= read -r doc_ns; do
+                [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
+                [[ -z "$doc_ns" ]] && { printf 'BLOCK:-f %s has a namespaced doc with no namespace and no -n' "$f"; return 0; }
+                local ok=0 n
+                local -a _sns  # Fix B: declare local to avoid caller-scope leak
+                IFS=',' read -ra _sns <<< "$scope_ns_csv"
+                for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
+                [[ $ok -eq 1 ]] || { printf 'BLOCK:-f %s targets namespace %s outside scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
+            done < <(yq -r '.metadata.namespace // ""' "$f" 2>/dev/null)
+        done
+        printf 'WRITE_IN_SCOPE'; return 0
+    fi
+
     local target_ns="$ns_arg"
     if [[ -z "$target_ns" ]]; then
         target_ns="$("${KUBECTL:-kubectl}" config view --minify --context "$scope_ctx" -o 'jsonpath={..namespace}' 2>/dev/null)"
         [[ -z "$target_ns" ]] && target_ns="default"
     fi
     local ns
+    local -a _scope_ns  # Fix B: declare local to avoid caller-scope leak
     IFS=',' read -ra _scope_ns <<< "$scope_ns_csv"
     for ns in "${_scope_ns[@]}"; do
         [[ "$ns" == "$target_ns" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
