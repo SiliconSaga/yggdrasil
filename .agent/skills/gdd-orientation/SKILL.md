@@ -118,7 +118,7 @@ Read the YAML between the leading `---` markers. Update `last_session` to today'
 
 - Establish **stance** for this session: `ws session set GDD_STANCE <quick|zen|flow>` — ask the human if unset, or default to `flow` when they want to move fast.
 - Establish **role**: `ws session set GDD_ROLE <developer|designer|reviewer|scribe>` — ask if unset, default `developer`.
-- Establish **mentoring** (composable overlay): `ws session set GDD_MENTORING <true|false>` — default `false`; offer to enable on a tutorial/practice signal.
+- Establish **mentoring** (composable overlay): `ws session set GDD_MENTORING <true|false>` — default `false`; offer to enable on a tutorial-shaped signal (a practice signal routes straight to `gdd-k8s`, not the mentoring overlay).
 - Read the current values any time with `ws session get GDD_STANCE` (etc.).
 
 ### Staleness check

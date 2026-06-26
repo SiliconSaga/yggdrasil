@@ -46,7 +46,7 @@ The thalami hoard contains one `<machine>-thalamus.md` file per workstation you 
 
 Each per-machine file carries:
 
-- **Frontmatter** for per-machine state: `last_session`, `last_audit`, default `role` (stance/mentoring are session-established), plus the audit `staleness_days` (housekeeping cadence — distinct from the hoard-wide commit cadence covered below, which lives in `.ws-cadence.yaml` at the hoard root).
+- **Frontmatter** for per-machine state: `last_session`, `last_audit`, and the audit `staleness_days` (housekeeping cadence — distinct from the hoard-wide commit cadence covered below, which lives in `.ws-cadence.yaml` at the hoard root). Role, stance, and mentoring are not stored here; they're established per session via `ws session`.
 - **Body sections**: Preferences, Observations, Concerns, Audit Log (per the Thalamus model — see [thalamus.md](thalamus.md)).
 
 Per-machine files also carry an `arcs:` list — short entries (slug, status, next step) that surface as a live cross-host table when the hoard is opened as an Obsidian vault with the Dataview plugin installed. See [the arc dashboard design](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the schema, lifecycle, and skill integration; see the hoard's own `ArcDashboard.md` for the rendered view.

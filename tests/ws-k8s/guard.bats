@@ -62,9 +62,25 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f -
     [[ "$output" == BLOCK:* ]]
 }
-@test "config use-context is treated as a write (not a free read)" {
+@test "config use-context is blocked (mutates kubeconfig, not a free read)" {
     run_guard "kind-practice" "alice-sandbox" kubectl config use-context other
-    [[ "$output" != "READ_IN_SCOPE" ]]
+    [[ "$output" == BLOCK:* ]]
+}
+@test "config delete-context is blocked (fail closed)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl config delete-context other
+    [[ "$output" == BLOCK:* ]]
+}
+@test "config view is READ_IN_SCOPE" {
+    run_guard "kind-practice" "alice-sandbox" kubectl config view
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+@test "auth reconcile is blocked (mutating auth, fail closed)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl auth reconcile -f /dev/null
+    [[ "$output" == BLOCK:* ]]
+}
+@test "auth can-i is READ_IN_SCOPE" {
+    run_guard "kind-practice" "alice-sandbox" kubectl auth can-i create pods
+    [ "$output" = "READ_IN_SCOPE" ]
 }
 @test "apply -f manifest with no namespace falls back to in-scope -n" {
     printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/m.yaml"

@@ -21,8 +21,12 @@ _k8s_scope() {
         set)
             local ctx="" ns=""
             while [[ $# -gt 0 ]]; do case "$1" in
-                --context) ctx="$2"; shift 2 ;;
-                --namespace) ns="$2"; shift 2 ;;
+                --context)
+                    [[ $# -ge 2 && -n "${2:-}" ]] || { echo "ERROR: --context requires a value" >&2; return 1; }
+                    ctx="$2"; shift 2 ;;
+                --namespace)
+                    [[ $# -ge 2 && -n "${2:-}" ]] || { echo "ERROR: --namespace requires a value" >&2; return 1; }
+                    ns="$2"; shift 2 ;;
                 *) echo "ERROR: unknown arg '$1'" >&2; return 1 ;;
             esac; done
             [[ -n "$ctx" && -n "$ns" ]] || { echo "Usage: ws k8s scope set --context <c> --namespace <n[,n]>" >&2; return 1; }
@@ -77,7 +81,11 @@ main() {
     else
         # No session id (e.g. a human's own terminal) — fall back to the ambient
         # guard scope aggregated across all active local sessions.
-        local ambient; ambient="$(_k8s_ambient_scope)" || return 1
+        # Preserve the ambient exit code: 2 specifically signals an ambiguous
+        # multi-context refusal, which callers/tests distinguish from a generic
+        # failure (1).
+        local ambient
+        ambient="$(_k8s_ambient_scope)" || return $?
         ctx="${ambient%%|*}"; ns="${ambient#*|}"
     fi
     local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" kubectl "$@")"

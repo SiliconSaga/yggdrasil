@@ -59,11 +59,28 @@ ws_session_set() {
         return 1
     fi
     [[ -n "$key" ]] || { echo "ERROR: ws_session_set requires a KEY." >&2; return 1; }
+    # The file is env-style KEY=VALUE lines; a key with '=', a newline, or other
+    # non-identifier characters would corrupt or inject sibling entries.
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || {
+        echo "ERROR: session key must be an env-style identifier (letters, digits, underscore; not leading with a digit)." >&2
+        return 1
+    }
     if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
         echo "ERROR: session value cannot contain newlines." >&2
         return 1
     fi
     mkdir -p "$(dirname "$path")"
+    # Serialize the read-modify-write so two concurrent writers (e.g. a
+    # foreground and a backgrounded call sharing this session id) can't both
+    # read the old file and have the later mv drop the earlier writer's key.
+    # An mkdir lock is atomic across processes; the wait is bounded so a crashed
+    # writer's stale lock degrades to a (still atomic) unlocked write instead of
+    # deadlocking forever.
+    local lockdir="${path}.lock" _try=0
+    while ! mkdir "$lockdir" 2>/dev/null; do
+        _try=$((_try + 1)); [[ $_try -ge 100 ]] && break
+        sleep 0.05
+    done
     local tmp; tmp="$(mktemp "$(dirname "$path")/.session.XXXXXX")"
     local found=0 line
     if [[ -f "$path" ]]; then
@@ -77,6 +94,7 @@ ws_session_set() {
     fi
     [[ "$found" -eq 0 ]] && printf '%s=%s\n' "$key" "$value" >> "$tmp"
     mv "$tmp" "$path"
+    rmdir "$lockdir" 2>/dev/null || true
 }
 
 # Echo the GDD_CO_AUTHOR value stored in an identity file, or empty if the

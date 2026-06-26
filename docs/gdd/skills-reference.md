@@ -38,7 +38,7 @@ Skills that handle session-level coordination — start, end, cross-cutting work
 | Skill | Use when |
 |---|---|
 | **gdd** | The top-level orchestrator. Detects active stance/role and delegates to the right skills. |
-| **gdd-orientation** | Session start, after compaction, or when new components / realms are discovered. Greets newcomer-aware, runs `ws orient` (delegates workspace facts), establishes this session's commit identity via `ws whoami --set`, scans adapter command strings on realm activation, verifies trust, sets stance/role. |
+| **gdd-orientation** | Session start, after compaction, or when new components / realms are discovered. Greets newcomer-aware, runs `ws orient` (delegates workspace facts), establishes this session's commit identity via `ws whoami --set`, scans adapter command strings on realm activation, verifies trust, sets stance/role/mentoring. |
 | **gdd-housekeeping** | Triage thalamus content — review observations and concerns, promote to issues/skills, prune resolved items. |
 | **gdd-review-triage** | After pushing, when CR review comments arrive (CodeRabbit, Copilot, others). Dedupes and triages. |
 | **gdd-branch-workflow** | About to commit and push; deciding direct-to-main vs topic branch. |

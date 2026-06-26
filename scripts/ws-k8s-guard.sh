@@ -2,9 +2,12 @@
 # ws-k8s-guard.sh — shared k8s practice guard (sourced by ws-k8s.sh and the
 # permission hook). Single source of truth for the allow/block verdict.
 
+# Plain read verbs. `auth` and `config` are deliberately NOT here: they are
+# mixed read/write families (`config use-context`, `auth reconcile`, … mutate
+# state) and are classified by sub-command in k8s_guard_evaluate, fail-closed.
 _k8s_is_read_verb() {
     case "$1" in
-        get|describe|logs|top|explain|events|api-resources|api-versions|version|diff|wait|auth|config) return 0 ;;
+        get|describe|logs|top|explain|events|api-resources|api-versions|version|diff|wait) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -51,14 +54,23 @@ k8s_guard_evaluate() {
     if [[ -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:explicit --context %s != the guard-scope context %s' "$ctx_arg" "$scope_ctx"; return 0
     fi
-    # Fix A: config set-context/use-context/set are writes; other config sub-commands stay READ.
-    if _k8s_is_read_verb "$verb"; then
-        if [[ "$verb" == "config" ]] && [[ "$verb2" == "set-context" || "$verb2" == "use-context" || "$verb2" == "set" ]]; then
-            : # fall through to write path
-        else
-            printf 'READ_IN_SCOPE'; return 0
-        fi
-    fi
+    # auth / config are mixed read+write families: only an explicit read-only
+    # sub-command is auto-allowed; everything else fails closed to a BLOCK so a
+    # mutating call (auth reconcile, config use-context/delete-context, …) can
+    # never be classified READ_IN_SCOPE or routed through namespace-write logic.
+    case "$verb" in
+        auth)
+            case "$verb2" in
+                can-i|whoami) printf 'READ_IN_SCOPE'; return 0 ;;
+                *) printf 'BLOCK:kubectl auth %s is not a scoped read (only `auth can-i` / `auth whoami` are auto-allowed)' "${verb2:-(none)}"; return 0 ;;
+            esac ;;
+        config)
+            case "$verb2" in
+                view|get-contexts|current-context|get-clusters|get-users) printf 'READ_IN_SCOPE'; return 0 ;;
+                *) printf 'BLOCK:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
+            esac ;;
+    esac
+    if _k8s_is_read_verb "$verb"; then printf 'READ_IN_SCOPE'; return 0; fi
     if [[ $all_ns -eq 1 ]]; then printf 'BLOCK:--all-namespaces write is not scope-bounded'; return 0; fi
 
     # -f manifest resolution (writes only). Any unresolved input is a BLOCK.

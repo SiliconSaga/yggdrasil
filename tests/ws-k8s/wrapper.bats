@@ -32,6 +32,7 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
 }
 @test "in-scope read is allowed and forces --context" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"  # drop the scope-set lines so the grep proves the read forced --context
     run_ws k8s get pods -n kube-system
     [ "$status" -eq 0 ]
     grep -q -- '--context kind-practice' "$ROOT_DIR/kubectl.log"
