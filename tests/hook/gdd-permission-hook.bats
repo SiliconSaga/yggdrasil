@@ -1439,6 +1439,29 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
 }
+@test "scoped-redirect: raw in-scope kubectl READ auto-approves (agent path)" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl get pods -n kube-system' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: raw in-scope kubectl WRITE still redirects to ws k8s (context injection)" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl delete pod foo -n alice-sandbox' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws k8s"* ]]
+}
+@test "scoped-redirect: raw out-of-scope kubectl write denies with the guard message" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+}
 @test "scoped-redirect: in-scope ws k8s read auto-approves" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"

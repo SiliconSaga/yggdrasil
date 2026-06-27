@@ -946,6 +946,22 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
         esac
         continue
     fi
+    # (a2) raw kubectl → route by guard verdict so an in-scope READ auto-allows
+    # (reads are free cluster-wide; forcing a redirect for a harmless read is
+    # pure friction). A blocked command denies with the guard's own class-aware
+    # message instead of the bare redirect text. An in-scope WRITE deliberately
+    # falls through to the (b) redirect so it runs via `ws k8s`, which injects
+    # --context — a raw write hitting the current-but-wrong context is exactly
+    # the accident the guard exists to prevent.
+    if [[ "$match_cmd" == kubectl\ * || "$match_cmd" == kubectl ]]; then
+        # shellcheck disable=SC2086
+        _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $match_cmd 2>/dev/null || true)"
+        case "$_sr_kverdict" in
+            READ_IN_SCOPE) allow "raw kubectl in-scope read (guard)" ;;
+            BLOCK:*) deny "$(k8s_render_block "$_sr_kverdict" "$_sr_ctx" "$_sr_slug")" ;;
+            *) : ;;  # WRITE_IN_SCOPE → fall through to (b) redirect
+        esac
+    fi
     # (b) raw tool matching the pattern → redirect.
     # shellcheck disable=SC2053
     if [[ "$match_cmd" == $_sr_pattern ]]; then
