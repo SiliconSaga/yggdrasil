@@ -75,11 +75,12 @@ ws_session_set() {
     # read the old file and have the later mv drop the earlier writer's key.
     # An mkdir lock is atomic across processes; the wait is bounded so a crashed
     # writer's stale lock degrades to a (still atomic) unlocked write instead of
-    # deadlocking forever.
-    local lockdir="${path}.lock" _try=0
-    while ! mkdir "$lockdir" 2>/dev/null; do
-        _try=$((_try + 1)); [[ $_try -ge 100 ]] && break
-        sleep 0.05
+    # deadlocking forever. We track whether THIS call acquired the lock and only
+    # release it then — timing out must never rmdir another live writer's lock.
+    local lockdir="${path}.lock" _try=0 _have_lock=0 _max="${WS_SESSION_LOCK_TRIES:-100}"
+    while (( _try < _max )); do
+        if mkdir "$lockdir" 2>/dev/null; then _have_lock=1; break; fi
+        _try=$((_try + 1)); sleep 0.05
     done
     local tmp; tmp="$(mktemp "$(dirname "$path")/.session.XXXXXX")"
     local found=0 line
@@ -94,7 +95,7 @@ ws_session_set() {
     fi
     [[ "$found" -eq 0 ]] && printf '%s=%s\n' "$key" "$value" >> "$tmp"
     mv "$tmp" "$path"
-    rmdir "$lockdir" 2>/dev/null || true
+    [[ "$_have_lock" -eq 1 ]] && { rmdir "$lockdir" 2>/dev/null || true; }
 }
 
 # Echo the GDD_CO_AUTHOR value stored in an identity file, or empty if the

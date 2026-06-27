@@ -50,3 +50,12 @@ setup() { setup_session_env; }
     run_session 'GDD_SESSION_ID=s1 ws_session_get BAD'
     [ -z "$output" ]
 }
+
+@test "session_set does not remove a lock it did not acquire (and still writes)" {
+    # Pre-create the lockdir to simulate another live writer holding it. With a
+    # short retry bound, this call times out without acquiring, must still write
+    # (atomic mv), and must NOT rmdir the foreign lock.
+    run_session 'lp="$(GDD_SESSION_ID=s1 ws_session_identity_path)"; mkdir -p "$lp.lock"; GDD_SESSION_ID=s1 WS_SESSION_LOCK_TRIES=2 ws_session_set GDD_STANCE flow; v="$(GDD_SESSION_ID=s1 ws_session_get GDD_STANCE)"; [[ -d "$lp.lock" ]] && echo "lock-kept:$v"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "lock-kept:flow" ]
+}
