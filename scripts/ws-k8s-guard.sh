@@ -135,7 +135,10 @@ k8s_guard_evaluate() {
                 IFS=',' read -ra _sns <<< "$scope_ns_csv"
                 for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
                 [[ $ok -eq 1 ]] || { printf 'BLOCK:-f %s targets namespace %s outside the guard scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
-            done < <(yq -r '(.kind // "") + "\t" + (.metadata.namespace // "")' "$f" 2>/dev/null)
+            # Expand a `kind: List` wrapper into its items so each embedded
+            # resource gets its own kind/namespace scope check (a List can carry
+            # items in several namespaces); non-List docs pass through unchanged.
+            done < <(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' "$f" 2>/dev/null)
             [[ $docs_seen -eq 0 ]] && { printf 'BLOCK:-f %s parsed no documents (yq failed or empty)' "$f"; return 0; }
         done
         printf 'WRITE_IN_SCOPE'; return 0

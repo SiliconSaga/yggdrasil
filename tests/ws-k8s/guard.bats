@@ -130,6 +130,21 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl get namespace prod
     [ "$output" = "READ_IN_SCOPE" ]
 }
+@test "apply -f a kind:List blocks when an embedded item is out of scope" {
+    printf 'apiVersion: v1\nkind: List\nitems:\n  - {apiVersion: v1, kind: Pod, metadata: {name: a, namespace: alice-sandbox}}\n  - {apiVersion: v1, kind: Pod, metadata: {name: b, namespace: prod}}\n' > "$BATS_TEST_TMPDIR/l.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/l.yaml"
+    [[ "$output" == BLOCK:* ]]
+}
+@test "apply -f a kind:List with all items in scope is WRITE_IN_SCOPE" {
+    printf 'apiVersion: v1\nkind: List\nitems:\n  - {apiVersion: v1, kind: Pod, metadata: {name: a, namespace: alice-sandbox}}\n  - {apiVersion: v1, kind: ConfigMap, metadata: {name: c, namespace: alice-sandbox}}\n' > "$BATS_TEST_TMPDIR/l.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/l.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "apply -f a kind:List with a cluster-scoped item BLOCKs" {
+    printf 'apiVersion: v1\nkind: List\nitems:\n  - {apiVersion: v1, kind: Pod, metadata: {name: a, namespace: alice-sandbox}}\n  - {apiVersion: rbac.authorization.k8s.io/v1, kind: ClusterRole, metadata: {name: c}}\n' > "$BATS_TEST_TMPDIR/l.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/l.yaml"
+    [[ "$output" == BLOCK:* ]]
+}
 @test "scope show is NOT_K8S (wrapper management, not a kubectl command)" {
     run_guard "kind-practice" "alice-sandbox" ws k8s scope show
     [ "$output" = "NOT_K8S" ]
