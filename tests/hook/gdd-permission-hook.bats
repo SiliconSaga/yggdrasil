@@ -1261,6 +1261,28 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+# ws orient / ws audit-permissions are MUST-run session-start commands (the
+# orientation contract). Both are read-only and were missing from the shipped
+# allowlist, so every fresh session prompted on them. Regression guards.
+@test "allow: ws orient is allowlisted" {
+    seed_real_project_config
+    run_hook "ws orient"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "allow: bash scripts/ws orient is allowlisted" {
+    seed_real_project_config
+    run_hook "bash scripts/ws orient"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "allow: ws audit-permissions is allowlisted" {
+    seed_real_project_config
+    run_hook "ws audit-permissions"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 # SECURITY: a general env-prefix strip must NOT exist — an arbitrary env
 # assignment on an allowlisted command must not silently auto-approve.
 @test "security: LD_PRELOAD prefix on an allowlisted command does NOT auto-allow" {

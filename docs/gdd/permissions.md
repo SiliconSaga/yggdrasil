@@ -173,6 +173,10 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `Bash(ws preflight)` | `ws preflight` | Allowed without prompt | Exact-form for the bare prereq check |
 | `Bash(ws preflight --soft)` | `ws preflight --soft` | Allowed without prompt | Exact-form for the soft-exit variant |
 | `Bash(ws preflight)` | `ws preflight --json` | Prompted | Hypothetical flag not allowlisted; exact-form pinning honored |
+| `Bash(ws orient)` | `ws orient` | Allowed without prompt | Exact-form for the MUST-run session-start discovery probe (read-only) |
+| `Bash(ws orient)` | `ws orient --json` | Prompted | Exact-form pinning — a hypothetical flag isn't covered |
+| `Bash(ws audit-permissions)` | `ws audit-permissions` | Allowed without prompt | Exact-form for the startup permission-breadth audit (read-only; exit code = finding count) |
+| `Bash(ws audit-permissions)` | `ws audit-permissions --verbose` | Prompted | Exact-form — an extra arg doesn't match |
 | `Bash(ws review:*)` | `ws review yggdrasil 52 > /tmp/r.txt` | Prompted | Stdout redirect treated as side-effect regardless of LHS — destination opaque to static analysis |
 | `Bash(ws review:*)` | `ws review yggdrasil 52 --output snap` | Allowed without prompt | Colon-prefix covers the wrapper-side `--output <phrase>` form, which validates destination is under `.outputs/` — bounded blast radius |
 | `Bash(ws review:*)` | `ws review yggdrasil 94 --compact` | Allowed without prompt | Read-only triage is frictionless under the colon-prefix form |
