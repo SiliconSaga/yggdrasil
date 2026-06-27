@@ -45,6 +45,16 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
+@test "cluster-scoped write rejection renders 'unbounded' remediation (no widen advice, no class tag leak)" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s delete namespace prod
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+    [[ "$output" != *"unbounded:"* ]]
+    [[ "$output" != *"widen the scope"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
 @test "scope set rejects a nonexistent namespace" {
     run_ws k8s scope set --context kind-practice --namespace prod
     [ "$status" -ne 0 ]

@@ -97,8 +97,7 @@ main() {
     fi
     local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" kubectl "$@")"
     case "$verdict" in
-        BLOCK:*) echo "ws k8s: REJECTED by the guard — ${verdict#BLOCK:}." >&2
-                 echo "  Widen with 'ws k8s scope set --context $ctx --namespace <ns>', or lift with 'ws hook-bypass k8s'." >&2; return 1 ;;
+        BLOCK:*) k8s_render_block "$verdict" "$ctx" "k8s" >&2; printf '\n' >&2; return 1 ;;
         NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
         READ_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
         *) echo "ws k8s: unrecognized guard verdict '$verdict'" >&2; return 1 ;;

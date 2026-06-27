@@ -1431,6 +1431,16 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
 }
+@test "scoped-redirect: cluster-scoped ws k8s write deny renders class-appropriate remediation" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s delete namespace prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+    # The raw verdict class tag must not leak into the user-facing message.
+    [[ "$output" != *"unbounded:"* ]]
+}
 @test "scoped-redirect: temp script containing kubectl is denied under scope" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"

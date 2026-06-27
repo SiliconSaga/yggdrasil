@@ -941,7 +941,7 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
         _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $match_cmd 2>/dev/null || true)"
         case "$_sr_verdict" in
             READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
-            BLOCK:*) deny "REJECTED by the k8s scope guard: ${_sr_verdict#BLOCK:}. Reads are allowed cluster-wide; to write here, widen the scope ('ws k8s scope set --namespace <ns>') or lift the guard for this session ('ws hook-bypass $_sr_slug')." ;;
+            BLOCK:*) deny "$(k8s_render_block "$_sr_verdict" "$_sr_ctx" "$_sr_slug")" ;;
             *) : ;;  # WRITE_IN_SCOPE / NO_SCOPE → normal flow (prompt)
         esac
         continue
