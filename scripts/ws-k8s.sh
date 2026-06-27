@@ -80,7 +80,36 @@ _k8s_ambient_scope() {
     printf '%s|%s' "$found_ctx" "$all_ns"
 }
 
+_k8s_help() {
+    cat <<'HELP'
+Usage: ws k8s scope set|show|clear        # manage the practice guard scope
+       ws k8s <kubectl args...>           # guarded kubectl passthrough
+
+A practice guard ("training wheels") that bounds accidental kubectl WRITES to
+an armed context + namespace(s). Reads are free cluster-wide; out-of-scope or
+cluster-scoped writes are blocked before kubectl runs. Accident-prevention,
+not a security boundary — see the gdd-k8s skill.
+
+Scope management:
+  ws k8s scope set --context <ctx> --namespace <ns[,ns]>   arm the guard
+  ws k8s scope show                                        print the armed scope
+  ws k8s scope clear                                       disarm
+
+Guarded passthrough (any other args go to kubectl, with --context injected):
+  ws k8s get pods                  in-scope read  → runs
+  ws k8s get pods -n kube-system   any-namespace read → runs (reads are free)
+  ws k8s run probe --image=pause -n <ns>   in-scope write → runs
+  ws k8s delete pod x -n other     out-of-scope write → REJECTED
+
+Lift the guard for a session with 'ws hook-bypass k8s'. A kubectl subcommand's
+own help still passes through, e.g. 'ws k8s get --help'.
+HELP
+}
+
 main() {
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
+        _k8s_help; return 0
+    fi
     if [[ "${1:-}" == "scope" ]]; then shift; _k8s_scope "$@"; return; fi
     local ctx ns
     if [[ -n "$(ws_resolve_session_id)" ]]; then

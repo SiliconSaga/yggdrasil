@@ -26,6 +26,14 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" == *"kind-practice"* ]]
     [[ "$output" == *"alice-sandbox"* ]]
 }
+@test "ws k8s --help shows the guard/scope wrapper help, not a kubectl passthrough" {
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"scope"* ]]
+    [[ "$output" == *"guard"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
 @test "no scope set: passthrough to kubectl" {
     run_ws k8s get pods
     [ "$status" -eq 0 ]
