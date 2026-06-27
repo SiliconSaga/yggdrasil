@@ -162,6 +162,18 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl delete namespace/prod
     [[ "$output" == BLOCK:scope:* ]]
 }
+@test "space-form --dry-run does NOT consume the mode (kubectl NoOptDefVal); out-of-scope name blocks" {
+    # kubectl's --dry-run has a NoOptDefVal, so `--dry-run client` does NOT consume
+    # 'client' — kubectl itself reads it as a second namespace target. The guard
+    # must NOT treat --dry-run as value-consuming, or it would fail OPEN on the
+    # out-of-scope 'client'. (The correct mode form is --dry-run=client.)
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace alice-sandbox --dry-run client
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "equals-form --dry-run=client is a single token and does not affect name parsing" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace alice-sandbox --dry-run=client
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
 @test "delete namespace with no name (e.g. --all) stays cluster-scoped unbounded" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete namespace --all
     [[ "$output" == BLOCK:unbounded:* ]]

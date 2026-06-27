@@ -63,6 +63,12 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [ "$status" -eq 0 ]
     [[ "$output" == *"GH_ARGS: pr --help"* ]]
 }
+@test "ws gh -h (short form) passes through without requiring a token" {
+    printf '\n' > "$WORK/.env"
+    run_ws gh -h
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: -h"* ]]
+}
 @test "ws gh passes a subcommand --help through to gh (not the wrapper)" {
     printf 'export GH_TOKEN=t\n' > "$WORK/.env"
     run_ws gh pr --help
@@ -89,4 +95,10 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     run_ws glab --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"GLAB_ARGS: --help"* ]]
+}
+@test "ws glab -h (short form) passes through without requiring a token" {
+    printf '\n' > "$WORK/.env"
+    run_ws glab -h
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GLAB_ARGS: -h"* ]]
 }
