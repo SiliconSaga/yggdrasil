@@ -82,6 +82,19 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl auth can-i create pods
     [ "$output" = "READ_IN_SCOPE" ]
 }
+@test "attached -n short form (-nprod) is parsed: out-of-scope write BLOCKs" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod foo -nprod
+    [[ "$output" == BLOCK:* ]]
+}
+@test "attached -n short form (-nalice-sandbox) is parsed: in-scope write OK" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod foo -nalice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "attached -f short form (-f<file>) is parsed for the manifest namespace" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: prod\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f"$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+}
 @test "apply -f manifest with no namespace falls back to in-scope -n" {
     printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/m.yaml"
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" -n alice-sandbox
@@ -91,6 +104,31 @@ setup() { make_kubectl_stub "default"; }
     printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/m.yaml"
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
     [[ "$output" == BLOCK:* ]]
+}
+@test "delete namespace is blocked even with an in-scope -n (cluster-scoped)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace prod -n alice-sandbox
+    [[ "$output" == BLOCK:* ]]
+}
+@test "delete ns short alias is blocked (cluster-scoped)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete ns prod
+    [[ "$output" == BLOCK:* ]]
+}
+@test "create clusterrole is blocked (cluster-scoped)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl create clusterrole foo --verb=get --resource=pods
+    [[ "$output" == BLOCK:* ]]
+}
+@test "cordon node is blocked (node-level verb)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl cordon node1
+    [[ "$output" == BLOCK:* ]]
+}
+@test "apply -f a cluster-scoped Kind is blocked even with in-scope -n" {
+    printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/cr.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/cr.yaml" -n alice-sandbox
+    [[ "$output" == BLOCK:* ]]
+}
+@test "reading a cluster-scoped resource is still allowed (reads are free)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get namespace prod
+    [ "$output" = "READ_IN_SCOPE" ]
 }
 @test "scope show is NOT_K8S (wrapper management, not a kubectl command)" {
     run_guard "kind-practice" "alice-sandbox" ws k8s scope show

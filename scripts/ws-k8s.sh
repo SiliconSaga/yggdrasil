@@ -31,7 +31,7 @@ _k8s_scope() {
             esac; done
             [[ -n "$ctx" && -n "$ns" ]] || { echo "Usage: ws k8s scope set --context <c> --namespace <n[,n]>" >&2; return 1; }
             "$KUBECTL" config get-contexts "$ctx" >/dev/null 2>&1 || { echo "ERROR: context '$ctx' not found." >&2; return 1; }
-            local one; IFS=',' read -ra _ns <<< "$ns"
+            local one; local -a _ns; IFS=',' read -ra _ns <<< "$ns"
             for one in "${_ns[@]}"; do
                 "$KUBECTL" --context "$ctx" get namespace "$one" >/dev/null 2>&1 || { echo "ERROR: namespace '$one' not found on context '$ctx'." >&2; return 1; }
             done

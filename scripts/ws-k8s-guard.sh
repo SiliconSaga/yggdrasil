@@ -12,6 +12,31 @@ _k8s_is_read_verb() {
     esac
 }
 
+# True when a kubectl resource type or manifest Kind is cluster-scoped (has no
+# namespace). A write to one of these can never be bounded to the guard's
+# namespace scope, so the guard fails closed on it regardless of -n. Best-effort
+# accident-prevention list of the common/dangerous types (this is not a security
+# boundary); accepts singular/plural/short-alias and PascalCase Kind forms.
+_k8s_is_cluster_scoped() {
+    local t="${1,,}"   # lowercase (folds PascalCase Kinds onto the same entries)
+    t="${t%%/*}"       # strip a /name suffix (ns/prod → ns)
+    t="${t%%.*}"       # strip an api-group suffix (clusterroles.rbac.authorization.k8s.io → clusterroles)
+    case "$t" in
+        namespace|namespaces|ns|node|nodes|no|persistentvolume|persistentvolumes|pv|\
+        clusterrole|clusterroles|clusterrolebinding|clusterrolebindings|\
+        customresourcedefinition|customresourcedefinitions|crd|crds|\
+        storageclass|storageclasses|sc|priorityclass|priorityclasses|\
+        mutatingwebhookconfiguration|mutatingwebhookconfigurations|\
+        validatingwebhookconfiguration|validatingwebhookconfigurations|\
+        apiservice|apiservices|certificatesigningrequest|certificatesigningrequests|csr|\
+        podsecuritypolicy|podsecuritypolicies|psp|volumeattachment|volumeattachments|\
+        ingressclass|ingressclasses|runtimeclass|runtimeclasses|\
+        csidriver|csidrivers|csinode|csinodes|componentstatus|componentstatuses|\
+        flowschema|flowschemas|prioritylevelconfiguration|prioritylevelconfigurations) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Print one verdict: NOT_K8S | NO_SCOPE | READ_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
 k8s_guard_evaluate() {
@@ -37,9 +62,11 @@ k8s_guard_evaluate() {
             --context=*) ctx_arg="${a#--context=}";;
             -n|--namespace) ns_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
             -n=*|--namespace=*) ns_arg="${a#*=}";;
+            -n?*) ns_arg="${a#-n}";;        # attached short form: -n<ns>
             -A|--all-namespaces) all_ns=1 ;;
             -f|--filename) ffiles+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
             -f=*|--filename=*) ffiles+=("${a#*=}");;
+            -f?*) ffiles+=("${a#-f}");;      # attached short form: -f<file>
             -*) : ;;
             *) if [[ -z "$verb" ]]; then verb="$a"; else [[ -z "$verb2" ]] && verb2="$a"; fi ;;
         esac
@@ -73,26 +100,42 @@ k8s_guard_evaluate() {
     if _k8s_is_read_verb "$verb"; then printf 'READ_IN_SCOPE'; return 0; fi
     if [[ $all_ns -eq 1 ]]; then printf 'BLOCK:--all-namespaces write is not scope-bounded'; return 0; fi
 
+    # Cluster-scoped writes can't be bounded to the namespace scope: a node-level
+    # verb (cordon/drain/…) names a node directly, and a cluster-scoped resource
+    # type ignores -n entirely (e.g. `delete namespace prod -n alice-sandbox`
+    # deletes prod regardless). Fail closed before any namespace logic.
+    case "$verb" in
+        cordon|uncordon|drain) printf 'BLOCK:kubectl %s operates on a node (cluster-scoped); not namespace-scope-bounded' "$verb"; return 0 ;;
+    esac
+    if [[ ${#ffiles[@]} -eq 0 && -n "$verb2" ]] && _k8s_is_cluster_scoped "$verb2"; then
+        printf 'BLOCK:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "${verb2%%/*}"; return 0
+    fi
+
     # -f manifest resolution (writes only). Any unresolved input is a BLOCK.
     if [[ ${#ffiles[@]} -gt 0 ]]; then
-        local f doc_ns
+        local f doc_kind doc_ns
         for f in "${ffiles[@]}"; do
             case "$f" in
                 -|http://*|https://*) printf 'BLOCK:-f %s cannot be parsed for namespace (stdin/remote)' "$f"; return 0 ;;
             esac
             [[ -f "$f" ]] || { printf 'BLOCK:-f %s not found on disk' "$f"; return 0; }
             local docs_seen=0
-            while IFS= read -r doc_ns; do
+            while IFS=$'\t' read -r doc_kind doc_ns; do
                 docs_seen=$((docs_seen + 1))
+                # A cluster-scoped Kind ignores -n; it can't be bound to the scope.
+                if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
+                    printf 'BLOCK:-f %s contains a cluster-scoped %s, which is not namespace-scope-bounded' "$f" "$doc_kind"; return 0
+                fi
                 [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
-                # Cluster-scoped resources have no metadata.namespace; they BLOCK here when no -n is given — documented limitation.
-                [[ -z "$doc_ns" ]] && { printf 'BLOCK:-f %s has a namespaced doc with no namespace and no -n' "$f"; return 0; }
+                # A doc with no metadata.namespace and no -n cannot be bound to the
+                # guard scope (it may be cluster-scoped, or just unqualified) — fail closed.
+                [[ -z "$doc_ns" ]] && { printf 'BLOCK:-f %s has a doc with no namespace and no -n (cannot bound to the guard scope)' "$f"; return 0; }
                 local ok=0 n
                 local -a _sns  # Fix B: declare local to avoid caller-scope leak
                 IFS=',' read -ra _sns <<< "$scope_ns_csv"
                 for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
                 [[ $ok -eq 1 ]] || { printf 'BLOCK:-f %s targets namespace %s outside the guard scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
-            done < <(yq -r '.metadata.namespace // ""' "$f" 2>/dev/null)
+            done < <(yq -r '(.kind // "") + "\t" + (.metadata.namespace // "")' "$f" 2>/dev/null)
             [[ $docs_seen -eq 0 ]] && { printf 'BLOCK:-f %s parsed no documents (yq failed or empty)' "$f"; return 0; }
         done
         printf 'WRITE_IN_SCOPE'; return 0

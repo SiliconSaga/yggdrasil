@@ -45,7 +45,8 @@ setup() { setup_session_env; }
 @test "session_set rejects a malformed key (would corrupt the env-style file)" {
     run_session 'GDD_SESSION_ID=s1 ws_session_set "BAD=KEY" oops'
     [ "$status" -ne 0 ]
-    # A rejected write must not leave the injected key readable.
-    run_session 'GDD_SESSION_ID=s1 ws_session_get KEY'
+    # A rejected write must not leave any leading BAD= entry behind (querying the
+    # literal injected prefix, since ws_session_get KEY would be empty regardless).
+    run_session 'GDD_SESSION_ID=s1 ws_session_get BAD'
     [ -z "$output" ]
 }
