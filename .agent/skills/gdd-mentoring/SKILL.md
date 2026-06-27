@@ -1,17 +1,12 @@
 ---
 name: gdd-mentoring
 description: >
-  Mentoring mode — AI explains decisions and teaches practices in context.
-  Use when working in an unfamiliar area, learning new tools, or when any
-  contributor (regardless of experience) wants to understand the reasoning
-  behind what the AI is doing.
+  Mentoring — a composable overlay: the AI explains decisions and teaches practices in context. Use when working in an unfamiliar area, learning new tools, or when any contributor (regardless of experience) wants to understand the reasoning behind what the AI is doing.
 ---
 
-# GDD Mentoring Mode
+# GDD Mentoring
 
-A behavior modifier that makes the AI explain its decisions, teach practices
-in context, and offer scaffolding. Not tied to seniority — anyone can request
-it for any topic.
+A composable overlay that makes the AI explain its decisions, teach practices in context, and offer scaffolding. Not tied to seniority — anyone can request it for any topic.
 
 ## When to Use
 
@@ -34,14 +29,20 @@ it for any topic.
 
 ## Composition
 
-Mentoring composes with other modes:
+Mentoring composes with any stance:
 
 - **Mentoring + Quick:** Short session, but still explain things. Prioritize
   explanations for the most unfamiliar parts.
 - **Mentoring + Zen:** Deep work with thorough teaching. Full explanations
   at every step.
 
-## What This Mode Does NOT Do
+## Invoking gdd-k8s
+
+When the mentoring overlay is active and a k8s-practice signal fires — the user says "practice kubectl", "test cluster access", "nervous about prod", or `GDD_K8S_CONTEXT` is already set — read `.agent/skills/gdd-k8s/SKILL.md` and run its scope-capture flow. Any stance can invoke gdd-k8s on this signal; mentoring is the overlay most likely to, and the one that narrates each step.
+
+With mentoring active, narrate each step of the scope-capture flow before running it: explain what the guard is, why each namespace confirmation matters, and what the user will see when a command is blocked. The goal is internalization, not just arming the guard.
+
+## What This Overlay Does NOT Do
 
 - Condescend or assume the user knows nothing
 - Slow down work unnecessarily — explanations should be concise
@@ -50,5 +51,4 @@ Mentoring composes with other modes:
 
 ## The Goal
 
-The AI's job in Mentoring mode is to **grow the human**, not just ship the
-code. Every interaction is an opportunity to transfer understanding.
+The AI's job in Mentoring is to **grow the human**, not just ship the code. Every interaction is an opportunity to transfer understanding.

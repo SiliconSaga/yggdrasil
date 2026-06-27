@@ -17,7 +17,7 @@ The agent facilitates, but the human decides what to promote, keep, or prune.
 - The orientation skill (@gdd-orientation) surfaced a staleness warning
 - The human explicitly asks for housekeeping ("let's tidy up", "housekeeping")
 - A dedicated short session for tidying up
-- During Zen mode when deep work includes audit time
+- During the Zen stance when deep work includes audit time
 
 ## The Housekeeping Process
 
@@ -305,8 +305,7 @@ N×duplication is acceptable cost for design simplicity.
 - **Not a full retrospective** — it's lighter, more like tidying a desk
 - **Not required before other work** — the staleness nudge is advisory
 - **Not automated** — the human is always part of promote/prune decisions
-- **Not a mode** — it's an activity that can happen in any mode (though Zen
-  mode may proactively suggest it)
+- **Not a stance** — an activity that can happen under any stance (Zen may proactively suggest it)
 
 ## Relationship to Other Skills
 

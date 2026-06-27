@@ -79,7 +79,7 @@ ws list          # what components the ecosystem declares
 ws clone --all   # clone them locally (or one: ws clone <comp>)
 ```
 
-For a guided, narrated first run — identity + auth setup, cloning a component, and the full edit → PR → review → deploy loop on a tiny target — follow [Getting Started](getting-started/index.md). New here? Start a session and ask the agent to **walk you through the tutorial** in mentoring mode — it'll scaffold the `gh-pages` tutorial (`ws component init gh-pages …`) and narrate the whole GDD loop.
+For a guided, narrated first run — identity + auth setup, cloning a component, and the full edit → PR → review → deploy loop on a tiny target — follow [Getting Started](getting-started/index.md). New here? Start a session and ask the agent to **walk you through the tutorial** with mentoring on — it'll scaffold the `gh-pages` tutorial (`ws component init gh-pages …`) and narrate the whole GDD loop.
 
 ## Workspace shape
 

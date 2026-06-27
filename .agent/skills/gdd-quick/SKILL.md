@@ -1,12 +1,10 @@
 ---
 name: gdd-quick
 description: >
-  Quick mode — minimal ceremony for short sessions. Suggests appropriately-sized
-  tasks, recovers context fast, skips inferrable questions. Use when you have
-  15 minutes between responsibilities or want to make a focused small contribution.
+  Quick stance — minimal ceremony for short sessions. Suggests appropriately-sized tasks, recovers context fast, skips inferrable questions. Use when you have 15 minutes between responsibilities or want to make a focused small contribution.
 ---
 
-# GDD Quick Mode
+# GDD Quick Stance
 
 A behavior modifier for short time windows. Minimal ceremony, fast context
 recovery, appropriately-sized task suggestions.
@@ -44,7 +42,7 @@ Suggest tasks appropriate to the time window:
 - **Quick + Mentoring:** Short session, but still explain the most unfamiliar
   parts. Trim explanations to essentials.
 
-## What This Mode Does NOT Do
+## What This Stance Does NOT Do
 
 - Skip safety checks or trust verification
 - Rush through decisions that need thought

@@ -1,0 +1,61 @@
+#!/usr/bin/env bats
+load test_helper
+
+setup() { setup_session_env; }
+
+@test "session_set then session_get round-trips one key" {
+    run_session 'GDD_SESSION_ID=s1 ws_session_set GDD_STANCE flow; GDD_SESSION_ID=s1 ws_session_get GDD_STANCE'
+    [ "$status" -eq 0 ]
+    [ "$output" = "flow" ]
+}
+
+@test "session_set preserves sibling keys (no clobber)" {
+    run_session 'GDD_SESSION_ID=s1 ws_session_set GDD_STANCE flow; GDD_SESSION_ID=s1 ws_session_set GDD_ROLE developer; GDD_SESSION_ID=s1 ws_session_get GDD_STANCE'
+    [ "$status" -eq 0 ]
+    [ "$output" = "flow" ]
+}
+
+@test "session_set updates an existing key in place" {
+    run_session 'GDD_SESSION_ID=s1 ws_session_set GDD_STANCE flow; GDD_SESSION_ID=s1 ws_session_set GDD_STANCE quick; GDD_SESSION_ID=s1 ws_session_get GDD_STANCE'
+    [ "$status" -eq 0 ]
+    [ "$output" = "quick" ]
+}
+
+@test "identity and stance coexist in the same file" {
+    run_session 'GDD_SESSION_ID=s1 ws_write_session_identity "Claude Opus 4.8 <noreply@anthropic.com>"; GDD_SESSION_ID=s1 ws_session_set GDD_STANCE flow; GDD_SESSION_ID=s1 ws_resolve_co_author ""'
+    [ "$status" -eq 0 ]
+    [ "$output" = "Claude Opus 4.8 <noreply@anthropic.com>" ]
+}
+
+@test "session_set value is data, not shell" {
+    # The shell evaluates "$(echo pwn)" to "pwn" before calling ws_session_set;
+    # the function stores and returns it as-is (no further eval). The
+    # data-not-sourced contract is separately verified by session.bats
+    # "read identity file treats shell syntax as data".
+    run_session 'GDD_SESSION_ID=s1 ws_session_set GDD_STANCE "$(echo pwn)"; GDD_SESSION_ID=s1 ws_session_get GDD_STANCE'
+    [ "$status" -eq 0 ]
+    [ "$output" = 'pwn' ]
+}
+
+@test "session_set rejects a newline in the value" {
+    run_session $'GDD_SESSION_ID=s1 ws_session_set GDD_STANCE "fl\now"'
+    [ "$status" -ne 0 ]
+}
+
+@test "session_set rejects a malformed key (would corrupt the env-style file)" {
+    run_session 'GDD_SESSION_ID=s1 ws_session_set "BAD=KEY" oops'
+    [ "$status" -ne 0 ]
+    # A rejected write must not leave any leading BAD= entry behind (querying the
+    # literal injected prefix, since ws_session_get KEY would be empty regardless).
+    run_session 'GDD_SESSION_ID=s1 ws_session_get BAD'
+    [ -z "$output" ]
+}
+
+@test "session_set does not remove a lock it did not acquire (and still writes)" {
+    # Pre-create the lockdir to simulate another live writer holding it. With a
+    # short retry bound, this call times out without acquiring, must still write
+    # (atomic mv), and must NOT rmdir the foreign lock.
+    run_session 'lp="$(GDD_SESSION_ID=s1 ws_session_identity_path)"; mkdir -p "$lp.lock"; GDD_SESSION_ID=s1 WS_SESSION_LOCK_TRIES=2 ws_session_set GDD_STANCE flow; v="$(GDD_SESSION_ID=s1 ws_session_get GDD_STANCE)"; [[ -d "$lp.lock" ]] && echo "lock-kept:$v"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "lock-kept:flow" ]
+}

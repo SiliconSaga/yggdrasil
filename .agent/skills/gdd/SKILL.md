@@ -1,9 +1,7 @@
 ---
 name: gdd
 description: >
-  Guardian Driven Development orchestrator. Detects active roles and modes,
-  delegates to appropriate practice and mode skills. Use when starting
-  development work in the yggdrasil ecosystem.
+  Guardian Driven Development orchestrator. Detects active roles and stances, delegates to appropriate practice and stance skills. Use when starting development work in the yggdrasil ecosystem.
 ---
 
 # Guardian Driven Development (GDD)
@@ -19,15 +17,14 @@ Full design: [`docs/plans/2026-03-12-gdd-design.md`](../../../docs/plans/2026-03
 ## Orchestrator Role
 
 This skill is the top-level entry point. After orientation (@gdd-orientation)
-has established the session context, the orchestrator uses mode + role + task
-to select appropriate practice and mode skills.
+has established the session context, the orchestrator uses stance + role + task to select appropriate practice and stance skills.
 
 ```text
 gdd-orientation (always runs first)
     ↓
 gdd (this orchestrator)
     ↓
-delegates to mode skill + practice skill
+delegates to stance skill + practice skill
 ```
 
 ## Roles
@@ -46,28 +43,21 @@ in the Developer role.
 
 The **Scribe** role auto-loads `.agent/skills/gdd-scribe/SKILL.md`. Other roles can dip into the gdd-scribe skill on capture-intent keywords without switching role.
 
-## Modes
+## Stances
 
-Modes modify how the framework behaves, regardless of role. Modes compose —
-a learning contributor might use Mentoring + Quick on a busy day.
+Stances modify how the framework behaves, regardless of role. Mentoring is a separate composable overlay — it layers on top of any stance.
 
-**Mentoring** — explain decisions, teach practices in context, offer more
-scaffolding. Not tied to seniority; anyone can request it. See @gdd-mentoring.
+**Quick** — minimal ceremony for short time windows. Suggest appropriately-sized tasks, recover context fast, skip inferrable questions. See @gdd-quick.
 
-**Quick** — minimal ceremony for short time windows. Suggest appropriately-sized
-tasks, recover context fast, skip inferrable questions. See @gdd-quick.
+**Zen** — deep single-topic focus. Full ceremony for the topic at hand, but defer distractions, housekeeping, and tangents until the deep work reaches a natural completion point. The agent protects focus. See @gdd-zen.
 
-**Zen** — deep single-topic focus. Full ceremony for the topic at hand, but
-defer distractions, housekeeping, and tangents until the deep work reaches a
-natural completion point. The agent protects focus. See @gdd-zen.
+**Flow** — productive drift across multiple topics. Adaptive ceremony, incorporate tangents, live Thalamus collaboration. May be the natural default when no stance is set. The agent matches the human's rhythm. See @gdd-flow.
 
-**Flow** — productive drift across multiple topics. Adaptive ceremony,
-incorporate tangents, live Thalamus collaboration. May be the natural default
-when no mode is set. The agent matches the human's rhythm. See @gdd-flow.
+**Mentoring overlay** — explain decisions, teach practices in context, offer more scaffolding. Not tied to seniority; anyone can request it. Composes with any stance. See @gdd-mentoring.
 
-## Mode Behavior Matrix
+## Stance Behavior Matrix
 
-| Activity | Quick | Zen | Flow | Mentoring |
+| Activity | Quick | Zen | Flow | + Mentoring |
 |----------|-------|-----|------|-----------|
 | Orientation | Brief | Full for topic, skip unrelated | Brief, what's on your mind? | Explain what orientation does |
 | Brainstorming | Skip if scope is clear | Full for the focus topic | Adaptive per topic | Explain each step |
@@ -82,7 +72,7 @@ when no mode is set. The agent matches the human's rhythm. See @gdd-flow.
 The orchestrator selects skills based on what the user is doing:
 
 1. **Orientation** (@gdd-orientation) always runs first
-2. **Mode skill** loads to modify behavior (if a mode is active)
+2. **Stance skill** loads to modify behavior (if a stance is active)
 3. **Practice skill** loads based on the task at hand
 
 ### Available Practice Skills
@@ -107,8 +97,8 @@ The orchestrator selects skills based on what the user is doing:
 ## Design Principles
 
 1. **Incremental by default** — every artifact is useful on its own
-2. **Meet people where they are** — adapt to role and mode
+2. **Meet people where they are** — adapt to role and stance
 3. **Transparency over magic** — show what the AI is doing and why
 4. **Safety through structure** — prevent damage without preventing contribution
-5. **Teach, don't just do** — in mentoring mode, grow the human
+5. **Teach, don't just do** — in the Mentoring overlay, grow the human
 6. **Evolve through use** — the framework refines itself through audit cycles

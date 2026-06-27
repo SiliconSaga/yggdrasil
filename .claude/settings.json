@@ -53,6 +53,8 @@
       "Bash(ws component -h)",
       "Bash(ws component list)",
       "Bash(ws component init:*)",
+      "Bash(ws session:*)",
+      "Bash(bash scripts/ws session:*)",
       "Bash(ws test:*)",
       "Bash(bash scripts/ws test:*)",
       "Bash(ws lint:*)",
@@ -89,6 +91,12 @@
       "Bash(git -C * remote -v)",
       "Bash(git -C * branch --show-current)",
       "Bash(git -C * ls-tree *)",
+      "Bash(git -C * rev-parse *)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
       "Bash(git fetch *)"
     ]
   },

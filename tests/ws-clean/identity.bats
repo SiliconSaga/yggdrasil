@@ -35,12 +35,24 @@ seed_sessions() {
     [ ! -e "$ROOT_DIR/.tmp/other-scratch" ]
 }
 
-@test "ws clean --sessions sweeps ended sessions but spares the current one" {
+@test "ws clean --sessions-all sweeps ended sessions but spares the current one" {
+    export WS_CLEAN_MINE_THRESHOLD=1
+    seed_sessions
+    run env GDD_SESSION_ID=keep-me "$TIMEOUT_BIN" 10 bash "$WS_BIN" clean --force --sessions-all
+    [ "$status" -eq 0 ]
+    [ -f "$ROOT_DIR/.tmp/gdd-agent-sessions/keep-me.env" ]
+    [ ! -f "$ROOT_DIR/.tmp/gdd-agent-sessions/other.env" ]
+    [ ! -e "$ROOT_DIR/.tmp/other-scratch" ]
+}
+
+@test "ws clean --sessions spares ALL session files (no longer prunes ended sessions)" {
     export WS_CLEAN_MINE_THRESHOLD=1
     seed_sessions
     run env GDD_SESSION_ID=keep-me "$TIMEOUT_BIN" 10 bash "$WS_BIN" clean --force --sessions
     [ "$status" -eq 0 ]
+    # --sessions is now a no-op for session pruning — both current and other
+    # sessions' files must survive, just like the default.
     [ -f "$ROOT_DIR/.tmp/gdd-agent-sessions/keep-me.env" ]
-    [ ! -f "$ROOT_DIR/.tmp/gdd-agent-sessions/other.env" ]
+    [ -f "$ROOT_DIR/.tmp/gdd-agent-sessions/other.env" ]
     [ ! -e "$ROOT_DIR/.tmp/other-scratch" ]
 }

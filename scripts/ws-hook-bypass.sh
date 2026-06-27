@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # ws-hook-bypass.sh — write a session-scoped bypass marker for a
-# Tier 2 [redirect-commands] or Tier 3 [adapter-redirect-commands]
-# slug. The marker lets the matching command run for the rest of
-# the current Claude Code session.
+# Tier 2 [redirect-commands], Tier 2b [scoped-redirect-commands],
+# or Tier 3 [adapter-redirect-commands] slug. The marker lets the
+# matching command run for the rest of the current Claude Code session.
 #
-# ws:use-when requesting a session-scoped bypass of a Tier 2 or Tier 3 redirect-deny
+# ws:use-when requesting a session-scoped bypass of a Tier 2, Tier 2b, or Tier 3 redirect-deny
 #
 # Usage:
 #   ws hook-bypass <slug> [--reason "<text>"]
 #
 # <slug> must appear as column 1 of a row in .claude/hooks/hook-rules
-# under [redirect-commands] (Tier 2) or [adapter-redirect-commands]
-# (Tier 3), or be a built-in tool-deny slug (currently: powershell —
+# under [redirect-commands] (Tier 2), [adapter-redirect-commands]
+# (Tier 3), or [scoped-redirect-commands] (Tier 2b), or be a built-in
+# tool-deny slug (currently: powershell —
 # unblocks the hook's whole-tool PowerShell deny for the session).
 # The script writes .tmp/hook-bypass/<slug>.bypass with frontmatter
 # the PreToolUse hook parses (session_id, slug, created_at, reason).
@@ -35,7 +36,8 @@ usage() {
 Usage: ws hook-bypass <slug> [--reason "<text>"]
 
   <slug>           Bypass slug — must match a row in [redirect-commands]
-                   (Tier 2) or [adapter-redirect-commands] (Tier 3) in
+                   (Tier 2), [scoped-redirect-commands] (Tier 2b), or
+                   [adapter-redirect-commands] (Tier 3) in
                    .claude/hooks/hook-rules, or a built-in tool-deny slug
                    (powershell). Run with an unknown slug to see the list
                    of known slugs.
@@ -88,17 +90,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Enumerate known slugs from hook-rules. This is a deliberately minimal
-# re-implementation of the [redirect-commands] + [adapter-redirect-commands]
-# parses in the hook itself (gdd-permission-hook.sh _parse_rules_file) —
-# we only need column 1 (the slug), not the full slug|pattern|...
-# unpack. Keep the shared bits (CRLF strip, section detection, slug
-# regex) in sync if the hook-rules format changes.
+# re-implementation of the [redirect-commands] + [scoped-redirect-commands]
+# + [adapter-redirect-commands] parses in the hook itself
+# (gdd-permission-hook.sh _parse_rules_file) — we only need column 1
+# (the slug), not the full slug|pattern|... unpack. Keep the shared bits
+# (CRLF strip, section detection, slug regex) in sync if the hook-rules
+# format changes.
 #
-# Both sections share the slug shape and column-1 position, so a single
-# parse with a section-membership check covers both tiers. Tier 3
-# adapter-redirect denies instruct users to bypass via `ws hook-bypass`,
-# so the script must accept those slugs too — otherwise the deny message
-# tells users to do something the script refuses to do.
+# All three sections share the slug shape and column-1 position, so a
+# single parse with a section-membership check covers all tiers. Tier 2b
+# scoped-redirect and Tier 3 adapter-redirect denies both instruct users
+# to bypass via `ws hook-bypass`, so the script must accept those slugs
+# too — otherwise the deny message tells users to do something the script
+# refuses to do.
 # Built-in slugs not derived from hook-rules rows. `powershell` gates
 # the hook's whole-tool PowerShell deny (there's no per-command pattern
 # row for it — the branch in gdd-permission-hook.sh hardcodes the
@@ -117,6 +121,7 @@ if [[ -f "$HOOK_RULES" ]]; then
             continue
         fi
         if [[ "$in_section" == "redirect-commands" \
+              || "$in_section" == "scoped-redirect-commands" \
               || "$in_section" == "adapter-redirect-commands" ]]; then
             # Column 1 (slug) — substring up to first " | "
             if [[ "$line" == *" | "* ]]; then
@@ -149,7 +154,7 @@ if [[ "$slug_ok" != "1" ]]; then
             echo "  - $s" >&2
         done
     else
-        echo "No [redirect-commands] or [adapter-redirect-commands] entries found in $HOOK_RULES." >&2
+        echo "No [redirect-commands], [scoped-redirect-commands], or [adapter-redirect-commands] entries found in $HOOK_RULES." >&2
     fi
     exit 1
 fi

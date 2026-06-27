@@ -19,7 +19,7 @@ who can triage across all of them.
 - After pushing to a CR (check for new comments)
 - When the user asks to review CR feedback
 - When multiple reviewers have posted and findings need consolidation
-- As part of a Zen-mode deep review session
+- As part of a Zen-stance deep review session
 
 ## Known Reviewer Behaviors
 

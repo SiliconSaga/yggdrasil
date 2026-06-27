@@ -5,9 +5,9 @@
 > place.** The agent is non-deterministic; this guide is the
 > deterministic path. They do the same thing in spirit.
 >
-> **First time through? Use mentoring mode for Chapter 1.** Ask your
-> agent: *"let's use mentoring mode while I work through this
-> tutorial."* Mentoring mode explains each command and decision in
+> **First time through? Turn on mentoring for Chapter 1.** Ask your
+> agent: *"let's turn on mentoring while I work through this
+> tutorial."* Mentoring explains each command and decision in
 > detail rather than just running them — invaluable for the first
 > deploy where every `ws` subcommand is new. The orientation skill
 > should already offer this when it sees you've started a tutorial;
@@ -241,7 +241,7 @@ follow-up edit, and watch the bots leave inline review threads.
 This is where GDD's review loop really earns its keep.
 
 > By Chapter 2 the basic `ws` commands (`commit`, `push`, `cr`,
-> `review`) are familiar from Chapter 1. Mentoring mode can ease
+> `review`) are familiar from Chapter 1. Mentoring can ease
 > off — the agent doesn't need to re-narrate them in the same
 > detail. The new material is the bot side: installation, what they
 > look for, how to read and resolve review threads.

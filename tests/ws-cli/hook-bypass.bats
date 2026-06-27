@@ -128,6 +128,43 @@ EOF
     [ ! -d "$WORK/.tmp/hook-bypass" ]
 }
 
+@test "scoped-redirect slug (k8s) is accepted and writes marker" {
+    # The [scoped-redirect-commands] section uses a four-column format:
+    #   <slug> | <pattern> | <session-key> | <suggestion>
+    # ws hook-bypass must accept slugs from this section (Tier 2b)
+    # just like it does for [redirect-commands] and [adapter-redirect-commands].
+    cat > "$WORK/.claude/hooks/hook-rules" <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+
+[scoped-redirect-commands]
+k8s | kubectl* | GDD_K8S_CONTEXT | Use `ws k8s <args>` — a practice scope is active.
+EOF
+    run bash "$SCRIPT" k8s --reason "testing k8s bypass"
+    [ "$status" -eq 0 ]
+    [ -f "$WORK/.tmp/hook-bypass/k8s.bypass" ]
+    grep -q '^session_id: session-abc$' "$WORK/.tmp/hook-bypass/k8s.bypass"
+    grep -q '^slug: k8s$' "$WORK/.tmp/hook-bypass/k8s.bypass"
+    grep -q '^reason: testing k8s bypass$' "$WORK/.tmp/hook-bypass/k8s.bypass"
+}
+
+@test "unknown-slug error lists scoped-redirect-commands slugs" {
+    # When a user typos a scoped-redirect slug, the error message must
+    # show the valid scoped-redirect slugs so they can self-correct.
+    cat > "$WORK/.claude/hooks/hook-rules" <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+
+[scoped-redirect-commands]
+k8s | kubectl* | GDD_K8S_CONTEXT | Use `ws k8s <args>`.
+EOF
+    run bash "$SCRIPT" k8s-typo
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown slug"* ]]
+    [[ "$output" == *"k8s"* ]]
+    [[ "$output" == *"git-commit"* ]]
+}
+
 @test "adapter-redirect slugs are accepted (Tier 3 alongside Tier 2)" {
     # The Tier 3 [adapter-redirect-commands] deny message instructs
     # users to bypass via `ws hook-bypass <slug>`. The script must
