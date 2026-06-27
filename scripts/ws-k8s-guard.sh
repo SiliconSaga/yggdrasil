@@ -47,6 +47,20 @@ _k8s_is_cluster_scoped() {
     esac
 }
 
+# True for the namespace resource type (full/plural/short-alias). Used to let an
+# in-scope namespace's own create/delete through (see k8s_guard_evaluate) even
+# though _k8s_is_cluster_scoped also matches it for the general blanket block.
+_k8s_is_namespace_type() {
+    case "${1,,}" in namespace|namespaces|ns) return 0 ;; *) return 1 ;; esac
+}
+
+# Membership test: is $1 one of the comma-separated namespaces in $2?
+_k8s_ns_in_csv() {
+    local nm="$1" one; local -a arr; IFS=',' read -ra arr <<< "$2"
+    for one in "${arr[@]}"; do [[ "$one" == "$nm" ]] && return 0; done
+    return 1
+}
+
 # Print one verdict: NOT_K8S | NO_SCOPE | READ_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
 k8s_guard_evaluate() {
@@ -63,6 +77,7 @@ k8s_guard_evaluate() {
 
     local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 a
     local ffiles=()
+    local rest_pos=()   # positional resource names after verb + resource-type
     local args=("$@")
     local i=0
     while [[ $i -lt ${#args[@]} ]]; do
@@ -78,7 +93,7 @@ k8s_guard_evaluate() {
             -f=*|--filename=*) ffiles+=("${a#*=}");;
             -f?*) ffiles+=("${a#-f}");;      # attached short form: -f<file>
             -*) : ;;
-            *) if [[ -z "$verb" ]]; then verb="$a"; else [[ -z "$verb2" ]] && verb2="$a"; fi ;;
+            *) if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi ;;
         esac
         i=$((i+1))
     done
@@ -117,6 +132,22 @@ k8s_guard_evaluate() {
     case "$verb" in
         cordon|uncordon|drain) printf 'BLOCK:unbounded:kubectl %s operates on a node (cluster-scoped); not namespace-scope-bounded' "$verb"; return 0 ;;
     esac
+    # In-scope namespace lifecycle: create/delete of a namespace whose NAME is
+    # itself within the guard scope is allowed — it lets a practitioner create
+    # (or delete and recreate) their own scoped namespace(s). The namespace name
+    # is the scope-check target here, not -n. Requires at least one name and
+    # EVERY named namespace in scope; a nameless form (label selector / --all)
+    # has no name to bound and falls through to the cluster-scoped block below.
+    # (-f Namespace manifests stay conservative — handled in the -f block.)
+    if [[ ${#ffiles[@]} -eq 0 ]] && _k8s_is_namespace_type "$verb2" \
+        && { [[ "$verb" == "create" || "$verb" == "delete" ]]; } && [[ ${#rest_pos[@]} -gt 0 ]]; then
+        local _nm _bad=""
+        for _nm in "${rest_pos[@]}"; do
+            _k8s_ns_in_csv "$_nm" "$scope_ns_csv" || { _bad="$_nm"; break; }
+        done
+        [[ -z "$_bad" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
+        printf 'BLOCK:scope:%s namespace %s is outside the guard scope (%s)' "$verb" "$_bad" "$scope_ns_csv"; return 0
+    fi
     if [[ ${#ffiles[@]} -eq 0 && -n "$verb2" ]] && _k8s_is_cluster_scoped "$verb2"; then
         printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "${verb2%%/*}"; return 0
     fi

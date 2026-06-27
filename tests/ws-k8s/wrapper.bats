@@ -56,7 +56,8 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
 @test "cluster-scoped write rejection renders 'unbounded' remediation (no widen advice, no class tag leak)" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox
     : > "$ROOT_DIR/kubectl.log"
-    run_ws k8s delete namespace prod
+    # clusterrole is always unbounded; a namespace would now be scope-classed by name.
+    run_ws k8s delete clusterrole foo
     [ "$status" -ne 0 ]
     [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
     [[ "$output" != *"unbounded:"* ]]

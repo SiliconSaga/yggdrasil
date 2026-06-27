@@ -126,6 +126,30 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/cr.yaml" -n alice-sandbox
     [[ "$output" == BLOCK:* ]]
 }
+@test "create namespace whose name is IN scope is allowed (WRITE_IN_SCOPE)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl create namespace alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "delete namespace whose name is IN scope is allowed (delete+recreate workflow)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "delete ns alias whose name is IN scope is allowed" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete ns alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "create namespace whose name is OUT of scope is classed 'scope'" {
+    run_guard "kind-practice" "alice-sandbox" kubectl create namespace prod
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "delete namespace with mixed in/out-of-scope names BLOCKs on the out-of-scope one" {
+    run_guard "kind-practice" "alice-sandbox,bob-sandbox" kubectl delete namespace alice-sandbox prod
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "delete namespace with no name (e.g. --all) stays cluster-scoped unbounded" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace --all
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
 @test "reading a cluster-scoped resource is still allowed (reads are free)" {
     run_guard "kind-practice" "alice-sandbox" kubectl get namespace prod
     [ "$output" = "READ_IN_SCOPE" ]
@@ -150,7 +174,9 @@ setup() { make_kubectl_stub "default"; }
     [[ "$output" == BLOCK:scope:* ]]
 }
 @test "cluster-scoped resource write is classed 'unbounded'" {
-    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace prod
+    # Use a clusterrole (always unbounded). A namespace is now scope-checked by
+    # NAME — an out-of-scope namespace is classed 'scope', not 'unbounded'.
+    run_guard "kind-practice" "alice-sandbox" kubectl delete clusterrole foo
     [[ "$output" == BLOCK:unbounded:* ]]
 }
 @test "config use-context is classed 'unbounded' (not namespace-bounded)" {
