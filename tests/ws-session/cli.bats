@@ -22,7 +22,7 @@ run_ws() { run env WS_FOOTER_DISABLE=1 bash "$WS_BIN" "$@"; }
     # Append a marker so bats' trailing-newline stripping doesn't hide the
     # newline under test — the value must end with \n so the ws footer / the
     # next shell prompt doesn't butt up against it.
-    run bash -c "bash '$WS_BIN' session get GDD_STANCE; printf MARK"
+    run env WS_FOOTER_DISABLE=1 bash -c "bash '$WS_BIN' session get GDD_STANCE; printf MARK"
     [ "$output" = $'flow\nMARK' ]
 }
 

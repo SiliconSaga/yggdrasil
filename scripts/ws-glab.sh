@@ -27,6 +27,12 @@ HELP
     exit 0
 fi
 
+# Help needs no auth — let `--help`/`-h` (at any position) pass through to glab's
+# own help, matching the usage text above and avoiding a token-gate failure.
+for _a in "$@"; do
+    case "$_a" in --help|-h) exec glab "$@" ;; esac
+done
+
 if [[ -z "${GITLAB_TOKEN:-}" ]]; then
     echo "ERROR: no GitLab token in the environment (GITLAB_TOKEN)." >&2
     echo "  Add 'export GITLAB_TOKEN=<token>' to .env (and 'export GITLAB_HOST=<host>'" >&2

@@ -92,6 +92,12 @@ k8s_guard_evaluate() {
             -f|--filename) ffiles+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
             -f=*|--filename=*) ffiles+=("${a#*=}");;
             -f?*) ffiles+=("${a#-f}");;      # attached short form: -f<file>
+            # Known value-taking flags: consume the FOLLOWING token as the flag's
+            # value so it isn't mistaken for a positional (e.g. a namespace name
+            # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
+            # must not read `5s` as a second namespace). Attached (`-oyaml`) and
+            # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
+            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector) i=$((i+2)); continue ;;
             -*) : ;;
             *) if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi ;;
         esac
@@ -139,14 +145,24 @@ k8s_guard_evaluate() {
     # EVERY named namespace in scope; a nameless form (label selector / --all)
     # has no name to bound and falls through to the cluster-scoped block below.
     # (-f Namespace manifests stay conservative — handled in the -f block.)
-    if [[ ${#ffiles[@]} -eq 0 ]] && _k8s_is_namespace_type "$verb2" \
-        && { [[ "$verb" == "create" || "$verb" == "delete" ]]; } && [[ ${#rest_pos[@]} -gt 0 ]]; then
-        local _nm _bad=""
-        for _nm in "${rest_pos[@]}"; do
-            _k8s_ns_in_csv "$_nm" "$scope_ns_csv" || { _bad="$_nm"; break; }
-        done
-        [[ -z "$_bad" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
-        printf 'BLOCK:scope:%s namespace %s is outside the guard scope (%s)' "$verb" "$_bad" "$scope_ns_csv"; return 0
+    # Extract the namespace type and an optional inline name, so the slash form
+    # `delete ns/alice-sandbox` is treated like `delete ns alice-sandbox`.
+    local _ns_type="$verb2" _ns_inline=""
+    if [[ "$verb2" == */* ]]; then _ns_type="${verb2%%/*}"; _ns_inline="${verb2#*/}"; fi
+    if [[ ${#ffiles[@]} -eq 0 ]] && _k8s_is_namespace_type "$_ns_type" \
+        && { [[ "$verb" == "create" || "$verb" == "delete" ]]; }; then
+        local -a _targets=()
+        [[ -n "$_ns_inline" ]] && _targets+=("$_ns_inline")
+        [[ ${#rest_pos[@]} -gt 0 ]] && _targets+=("${rest_pos[@]}")
+        if [[ ${#_targets[@]} -gt 0 ]]; then
+            local _nm _bad=""
+            for _nm in "${_targets[@]}"; do
+                _k8s_ns_in_csv "$_nm" "$scope_ns_csv" || { _bad="$_nm"; break; }
+            done
+            [[ -z "$_bad" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
+            printf 'BLOCK:scope:%s namespace %s is outside the guard scope (%s)' "$verb" "$_bad" "$scope_ns_csv"; return 0
+        fi
+        # No name (label selector / --all) → fall through to the cluster-scoped block.
     fi
     if [[ ${#ffiles[@]} -eq 0 && -n "$verb2" ]] && _k8s_is_cluster_scoped "$verb2"; then
         printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "${verb2%%/*}"; return 0

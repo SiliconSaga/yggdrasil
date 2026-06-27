@@ -27,6 +27,13 @@ HELP
     exit 0
 fi
 
+# Help is informational and needs no auth — let `--help`/`-h` (at any position,
+# e.g. `ws gh pr --help`) pass straight through to gh's own help, matching the
+# usage text above and avoiding a pointless token-gate failure.
+for _a in "$@"; do
+    case "$_a" in --help|-h) exec gh "$@" ;; esac
+done
+
 # gh reads GH_TOKEN, then GITHUB_TOKEN. Require one rather than letting gh prompt.
 if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]]; then
     echo "ERROR: no GitHub token in the environment (GH_TOKEN / GITHUB_TOKEN)." >&2

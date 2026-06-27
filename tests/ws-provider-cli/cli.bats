@@ -13,7 +13,8 @@ setup() {
     cat > "$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "GH_ARGS: $*"
-[[ -n "${GH_TOKEN:-}" ]] && echo "GH_TOKEN_PRESENT" || echo "GH_TOKEN_ABSENT"
+# Mirror the wrapper contract: GH_TOKEN or GITHUB_TOKEN counts as authenticated.
+[[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]] && echo "GH_TOKEN_PRESENT" || echo "GH_TOKEN_ABSENT"
 EOF
     cat > "$WORK/bin/glab" <<'EOF'
 #!/usr/bin/env bash
@@ -42,6 +43,26 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [[ "$output" != *"GH_ARGS:"* ]]
     [[ "$output" == *"GH_TOKEN"* ]]
 }
+@test "ws gh works with GITHUB_TOKEN when GH_TOKEN is absent" {
+    printf 'export GITHUB_TOKEN=secret-gh-tok\n' > "$WORK/.env"
+    run_ws gh pr list --limit 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: pr list --limit 1"* ]]
+    [[ "$output" == *"GH_TOKEN_PRESENT"* ]]
+    [[ "$output" != *"secret-gh-tok"* ]]
+}
+@test "ws gh --help passes through to gh without requiring a token" {
+    printf '\n' > "$WORK/.env"
+    run_ws gh --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: --help"* ]]
+}
+@test "ws gh <cmd> --help passes through without requiring a token" {
+    printf '\n' > "$WORK/.env"
+    run_ws gh pr --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: pr --help"* ]]
+}
 @test "ws gh passes a subcommand --help through to gh (not the wrapper)" {
     printf 'export GH_TOKEN=t\n' > "$WORK/.env"
     run_ws gh pr --help
@@ -62,4 +83,10 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [ "$status" -ne 0 ]
     [[ "$output" != *"GLAB_ARGS:"* ]]
     [[ "$output" == *"GITLAB_TOKEN"* ]]
+}
+@test "ws glab --help passes through to glab without requiring a token" {
+    printf '\n' > "$WORK/.env"
+    run_ws glab --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GLAB_ARGS: --help"* ]]
 }

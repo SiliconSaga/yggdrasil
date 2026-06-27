@@ -146,6 +146,22 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox,bob-sandbox" kubectl delete namespace alice-sandbox prod
     [[ "$output" == BLOCK:scope:* ]]
 }
+@test "create namespace IN scope with a value-flag does not misread the flag value as a name" {
+    run_guard "kind-practice" "alice-sandbox" kubectl create namespace alice-sandbox -o yaml
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "delete namespace IN scope with --timeout does not misread the value as a name" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace alice-sandbox --timeout 5s
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "delete ns/<name> slash form IN scope is allowed" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete ns/alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "delete namespace/<name> slash form OUT of scope is classed 'scope'" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespace/prod
+    [[ "$output" == BLOCK:scope:* ]]
+}
 @test "delete namespace with no name (e.g. --all) stays cluster-scoped unbounded" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete namespace --all
     [[ "$output" == BLOCK:unbounded:* ]]
