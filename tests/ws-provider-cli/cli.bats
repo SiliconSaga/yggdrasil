@@ -22,7 +22,10 @@ echo "GLAB_ARGS: $*"
 EOF
     chmod +x "$WORK/bin/gh" "$WORK/bin/glab"
 }
-run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
+# Clear any provider tokens inherited from the runner's environment (the full
+# `ws test` run sources the real workspace .env, which exports GH_TOKEN) so each
+# test controls the token state entirely via the $WORK/.env it writes.
+run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
 
 @test "ws gh execs gh with args and the .env token present, without leaking it" {
     printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
