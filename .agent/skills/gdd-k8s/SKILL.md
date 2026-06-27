@@ -23,8 +23,8 @@ When the skill fires for the first time in a session (no scope set yet), walk th
 
 1. **Explain what's about to happen and why** — the guard will intercept raw `kubectl`, redirect it through `ws k8s`, and block any write that targets a namespace outside the captured scope.
 2. **Offer context discovery** — run `kubectl config get-contexts` to list available contexts and invite the user to pick one. (`ws k8s config get-contexts` works equivalently once a scope is armed.)
-3. **Confirm the target namespace(s)** — per-namespace: check each one exists on the chosen context before arming. For multiple namespaces, confirm each individually so the user understands what is and is not in scope.
-4. **Arm the scope** — run `ws k8s scope set --context <ctx> --namespace <ns[,ns]>`. The command validates the context and each namespace live against the cluster before writing the session vars.
+3. **Confirm the target namespace(s)** — for multiple namespaces, confirm each individually so the user understands what is and is not in scope. A namespace need not already exist: arming a scope on namespaces you intend to create (e.g. one per environment) is supported — `ws k8s create namespace <ns>` is in-scope and can create them.
+4. **Arm the scope** — run `ws k8s scope set --context <ctx> --namespace <ns[,ns]>`. The command requires the context to exist (you can't create a context through the guard) but only WARNS on a namespace that doesn't exist yet — surfacing a likely typo without blocking the pre-create workflow.
 5. **Confirm the guard is armed** — run `ws k8s scope show` and echo the result. Explain what the user will see when a command is allowed, prompted, or blocked.
 
 ## Guard Behavior (Teach This)

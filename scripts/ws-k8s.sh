@@ -31,10 +31,21 @@ _k8s_scope() {
             esac; done
             [[ -n "$ctx" && -n "$ns" ]] || { echo "Usage: ws k8s scope set --context <c> --namespace <n[,n]>" >&2; return 1; }
             "$KUBECTL" config get-contexts "$ctx" >/dev/null 2>&1 || { echo "ERROR: context '$ctx' not found." >&2; return 1; }
+            # The context must exist (you can't create a kube context through the
+            # guard). A namespace, though, may legitimately not exist yet: arming
+            # a scope on namespaces you intend to create (across one or more
+            # environments) is a supported workflow — in-scope 'ws k8s create
+            # namespace <ns>' can then create them. So a missing namespace WARNS
+            # (surfacing a likely typo) but does not block the arm.
             local one; local -a _ns; IFS=',' read -ra _ns <<< "$ns"
+            local _missing=()
             for one in "${_ns[@]}"; do
-                "$KUBECTL" --context "$ctx" get namespace "$one" >/dev/null 2>&1 || { echo "ERROR: namespace '$one' not found on context '$ctx'." >&2; return 1; }
+                "$KUBECTL" --context "$ctx" get namespace "$one" >/dev/null 2>&1 || _missing+=("$one")
             done
+            if [[ ${#_missing[@]} -gt 0 ]]; then
+                echo "NOTE: namespace(s) not found on context '$ctx' — arming anyway: ${_missing[*]}" >&2
+                echo "  In-scope 'ws k8s create namespace <ns>' can create them. If one is a typo, re-run scope set with the correct name." >&2
+            fi
             ws_session_set GDD_K8S_CONTEXT "$ctx"
             ws_session_set GDD_K8S_NAMESPACES "$ns"
             echo "guard scope armed: context=$ctx namespaces=$ns" ;;

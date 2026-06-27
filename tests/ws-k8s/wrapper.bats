@@ -64,9 +64,20 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" != *"widen the scope"* ]]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
-@test "scope set rejects a nonexistent namespace" {
+@test "scope set on a not-yet-existing namespace warns but arms (pre-create workflow)" {
+    # The stub reports 'prod' as not found (get namespace prod → exit 1).
     run_ws k8s scope set --context kind-practice --namespace prod
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"not found"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"prod"* ]]
+}
+@test "scope set with a mix of existing and not-yet-existing namespaces arms all, warns on the missing" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox,prod
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"prod"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"alice-sandbox,prod"* ]]
 }
 @test "scope clear removes the scope" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox
