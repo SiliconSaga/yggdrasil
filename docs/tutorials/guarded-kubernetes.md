@@ -23,18 +23,19 @@ The walkthrough is chaptered so you can stop after Chapter 2 with the guard in m
   | [k3d](https://k3d.io/) | `k3d cluster create practice` | `k3d-practice` |
   | [minikube](https://minikube.sigs.k8s.io/) | `minikube start` | `minikube` |
 
-- **The workspace prerequisites.** From the workspace root, `ws preflight` should pass — you specifically need `kubectl` on PATH plus `yq` (the guard parses `-f` manifests with it) and `jq`.
+- **`kubectl` on your PATH**, pointed at that cluster. Note `kubectl` is the one tool `ws preflight` does *not* check (it isn't a general workspace prerequisite) — this tutorial needs it specifically, so confirm `kubectl version` works before you start.
+- **The workspace prerequisites.** From the workspace root, `ws preflight` should pass — it verifies bash, git, `yq` (the guard parses `-f` manifests with it), `jq`, and a provider CLI (`gh` or `glab`).
 - **The `ws k8s` feature present.** `ws orient` should list the `gdd-k8s` skill and a `k8s` subcommand.
 
 Throughout, substitute `<ctx>` for your chosen context and `<ns>` for a throwaway namespace (e.g. `practice`). Run everything from the workspace root.
 
 ---
 
-# Chapter 1: Arm the training wheels
+## Chapter 1: Arm the training wheels
 
 Goal: a guard scope armed and understood. Nothing is blocked yet — you're setting the boundary.
 
-## 1. Pick a context and a namespace
+### 1. Pick a context and a namespace
 
 List what you can reach:
 
@@ -50,7 +51,7 @@ kubectl --context <ctx> create namespace <ns>
 
 Or skip that — arming a scope does **not** require the namespace to exist yet (Chapter 3 creates it through the guard). Either path is fine.
 
-## 2. Arm the scope
+### 2. Arm the scope
 
 ```bash
 ws k8s scope set --context <ctx> --namespace <ns>
@@ -70,11 +71,11 @@ The scope lives in your session, not your kubeconfig — `ws k8s scope clear` re
 
 ---
 
-# Chapter 2: Feel the guard
+## Chapter 2: Feel the guard
 
 Goal: build intuition for what's allowed, what's blocked, and — most importantly — how to *read the rejection messages*, which tell you the right next step.
 
-## 1. Reads are free
+### 1. Reads are free
 
 ```bash
 ws k8s get pods                     # your scoped context, injected automatically
@@ -83,7 +84,7 @@ ws k8s get pods -n kube-system      # a different namespace — still fine
 
 Both run. Reads are never namespace-bounded — the guard only cares about writes. Notice the wrapper injects `--context <ctx>` for you, so you can't accidentally read (or later write) against the wrong cluster.
 
-## 2. An in-scope write runs
+### 2. An in-scope write runs
 
 ```bash
 ws k8s run probe --image=pause --restart=Never -n <ns>
@@ -91,7 +92,7 @@ ws k8s run probe --image=pause --restart=Never -n <ns>
 
 The pod is created. A write that lands inside your scope behaves like normal kubectl.
 
-## 3. An out-of-scope write is blocked
+### 3. An out-of-scope write is blocked
 
 ```bash
 ws k8s delete pod probe -n default
@@ -99,7 +100,7 @@ ws k8s delete pod probe -n default
 
 REJECTED — and kubectl is never called. Read the message: it tells you the namespace is outside the scope and that you can **add that namespace to the scope** to allow it just there, or run plain `kubectl` outside the guard. This is the common case the guard exists for: you meant `<ns>`, you typed `default`, nothing happened.
 
-## 4. The three kinds of rejection
+### 4. The three kinds of rejection
 
 The guard tailors its advice to *why* something is blocked. Trigger each once so you recognise them:
 
@@ -119,11 +120,11 @@ All three block **before** kubectl runs, so they're safe to type while you're le
 
 ---
 
-# Chapter 3: Real practice
+## Chapter 3: Real practice
 
 Goal: the workflows you'll actually use — manifests, namespace lifecycle, widening, cleanup.
 
-## 1. Apply a manifest
+### 1. Apply a manifest
 
 Write a Pod manifest into your scoped namespace:
 
@@ -147,7 +148,7 @@ It applies — the namespace in the manifest is in scope. Each document is scope
 
 > **Windows note:** quote the path or use forward slashes. An unquoted backslash path (`ws k8s apply -f C:\dir\pod.yaml`) is mangled by the shell into `C:dirpod.yaml` *before* `ws` ever sees it — use `"C:\dir\pod.yaml"` or `C:/dir/pod.yaml`.
 
-## 2. Namespace lifecycle — create and recreate your own
+### 2. Namespace lifecycle — create and recreate your own
 
 Because `<ns>` is in your scope, you may create and delete *that* namespace through the guard:
 
@@ -158,7 +159,7 @@ ws k8s create namespace <ns>     # allowed — recreated
 
 A namespace *not* in your scope (`ws k8s delete namespace kube-public`) is still rejected. This is what makes the "arm a not-yet-existing namespace, then create it" workflow from Chapter 1 work — handy when you're setting up the same sandbox across several environments.
 
-## 3. Widen, then narrow
+### 3. Widen, then narrow
 
 Want a second namespace in scope? Re-arm with the broader list (it overwrites):
 
@@ -172,7 +173,7 @@ When you're done, clear it:
 ws k8s scope clear
 ```
 
-## 4. Clean up
+### 4. Clean up
 
 ```bash
 ws k8s delete pod practice-pod -n <ns>
@@ -186,9 +187,9 @@ If you spun up a local cluster just for this, tear it down too (`kind delete clu
 
 ---
 
-# Chapter 4+: The agent path, the human path, and going further
+## Chapter 4+: The agent path, the human path, and going further
 
-## The agent path (Tier 2b)
+### The agent path (Tier 2b)
 
 When an AI agent has a scope armed, the guard extends to *raw* `kubectl`, not just `ws k8s`:
 
@@ -199,18 +200,18 @@ When an AI agent has a scope armed, the guard extends to *raw* `kubectl`, not ju
 
 For the rare case where the agent genuinely needs raw kubectl (a one-off automation script), `ws hook-bypass k8s` lifts the raw-kubectl redirect for that session — human-approved and audited. It does **not** disable the `ws k8s` wrapper guard.
 
-## The human path (ambient guard)
+### The human path (ambient guard)
 
 Open a separate plain terminal — no agent, no session id — while an agent session's scope is armed, and `ws k8s` is *still* guarded there: it aggregates the active session's scope. A read works; an out-of-scope write is rejected even though this terminal has no session of its own. The human terminal can't reconfigure the guard (scope set/clear are session-bound); its escape from a rejection is plain `kubectl`.
 
-## What the guard does NOT do
+### What the guard does NOT do
 
 - Replace RBAC. The bypass is always one command away by design — server-side RBAC is the real authorization boundary.
 - Guard kubectl run entirely outside the workspace (a terminal not running the agent, CI, etc.).
 - Persist across sessions — the scope is per-session and clears when the session ends.
 
-## Going further
+### Going further
 
 - **Multiple namespaces / environments.** Arm a comma-separated list; pre-arm namespaces that don't exist yet and create them in-scope.
 - **Use it for real.** The same guard protects real work — arm your sandbox namespace before a session where you'll be near production, and let the training wheels catch the slip.
-- **Validate the feature end-to-end.** If you're testing the guard itself rather than learning it, the maintainer's primer (a pass/fail checklist) lives in the thalami hoard — the [`gdd-k8s` skill](../gdd/skills-reference.md) and [Features Tour § Kubernetes practice guard](../gdd/features.md) are the reference.
+- **Validate the feature end-to-end.** If you're testing the guard itself rather than learning it, the [`gdd-k8s` skill](../gdd/skills-reference.md) and [Features Tour § Kubernetes practice guard](../gdd/features.md) are the reference.
