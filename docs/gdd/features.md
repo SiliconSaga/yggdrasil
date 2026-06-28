@@ -123,7 +123,7 @@ Per-machine extras (opt-in): if a command you trust keeps getting denied, copy `
 
 ## Kubernetes practice guard — `ws k8s`
 
-"Training wheels" for kubectl: arm a scope (a context + one or more namespaces) and the workspace blocks accidental *writes* to anything outside it — before kubectl runs. Reads stay free cluster-wide; the guard is accident-prevention against destructive out-of-scope writes, **not** a security or confidentiality boundary (real authorization is server-side RBAC).
+A safety scope for kubectl — training wheels while you learn, a guardrail near production: arm a scope (a context + one or more namespaces) and the workspace blocks accidental *writes* to anything outside it — before kubectl runs. Reads stay free cluster-wide; the guard is accident-prevention against destructive out-of-scope writes, **not** a security or confidentiality boundary (real authorization is server-side RBAC).
 
 - `ws k8s scope set --context <ctx> --namespace <ns[,ns]>` arms the guard for the session; `ws k8s scope show` / `ws k8s scope clear` inspect and disarm. The context must exist; a namespace that doesn't exist yet only warns, so you can arm across environments and create the namespaces afterward.
 - `ws k8s <kubectl args>` runs guarded: in-scope reads and writes go through (writes inject `--context`); out-of-scope, cluster-scoped, or malformed-input writes are REJECTED with a **class-aware** message that names the right next step (widen the scope, lift the guard, or fix the input). You may create/delete the very namespaces your scope covers.

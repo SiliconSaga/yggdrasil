@@ -3,13 +3,13 @@ name: gdd-k8s
 description: Use when a guarded kubectl practice is requested ("practice kubectl", "test cluster access", "nervous about prod") or when GDD_K8S_CONTEXT is set for the session.
 ---
 
-# GDD K8s Training Wheels
+# GDD K8s Guard
 
 A practice workflow that arms a small scope — a kube context plus allowed namespaces — so accidental `kubectl` commands against the wrong cluster or namespace are blocked before they execute.
 
 ## What This Is (and Is Not)
 
-Training wheels: accident-prevention for nervous practitioners, not a security boundary. A determined agent or human can bypass the guard via `ws hook-bypass k8s` (session-level lift) or by running `kubectl` entirely outside the harness (e.g. in a terminal not running Claude Code). Real authorization lives server-side in RBAC. The guard's job is to catch the command that slips out of habit, not to enforce cluster access control.
+A safety scope, not a security boundary: accident-prevention for anyone who wants writes bounded to a known context + namespace — a newcomer learning the ropes, or an expert who wants a guardrail while working near production. A determined agent or human can bypass the guard via `ws hook-bypass k8s` (session-level lift) or by running `kubectl` entirely outside the harness (e.g. in a terminal not running Claude Code). Real authorization lives server-side in RBAC. The guard's job is to catch the command that slips out of habit, not to enforce cluster access control.
 
 ## When to Load
 

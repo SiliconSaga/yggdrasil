@@ -96,10 +96,11 @@ _k8s_help() {
 Usage: ws k8s scope set|show|clear        # manage the practice guard scope
        ws k8s <kubectl args...>           # guarded kubectl passthrough
 
-A practice guard ("training wheels") that bounds accidental kubectl WRITES to
-an armed context + namespace(s). Reads are free cluster-wide; out-of-scope or
-cluster-scoped writes are blocked before kubectl runs. Accident-prevention,
-not a security boundary — see the gdd-k8s skill.
+A safety scope that bounds accidental kubectl WRITES to an armed context +
+namespace(s) — training wheels while learning, a guardrail near production.
+Reads are free cluster-wide; out-of-scope or cluster-scoped writes are blocked
+before kubectl runs. Accident-prevention, not a security boundary — see the
+gdd-k8s skill.
 
 Scope management:
   ws k8s scope set --context <ctx> --namespace <ns[,ns]>   arm the guard
