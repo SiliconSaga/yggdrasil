@@ -250,6 +250,11 @@ render_block() { run bash -c "source '$GUARD_LIB'; k8s_render_block \"\$1\" \"\$
     [[ "$output" == *"Add that namespace to the scope"* ]]
     [[ "$output" != *"hook-bypass"* ]]
 }
+@test "render 'scope' block with empty context uses a <ctx> placeholder, not a blank --context" {
+    render_block "BLOCK:scope:write target namespace prod outside the guard scope (alice-sandbox)" "" k8s
+    [[ "$output" == *"--context <ctx>"* ]]
+    [[ "$output" != *"--context  --namespace"* ]]
+}
 @test "render 'unbounded' block: no bypass, no scope-set suggestion; points at plain kubectl / scope clear" {
     render_block "BLOCK:unbounded:namespace is a cluster-scoped resource" kind-practice k8s
     [[ "$output" == *"REJECTED"* ]]

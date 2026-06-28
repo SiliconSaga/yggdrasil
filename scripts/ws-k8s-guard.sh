@@ -230,6 +230,7 @@ k8s_guard_evaluate() {
 #   [slug]     accepted for call-site compatibility; not used in the message
 k8s_render_block() {
     local verdict="$1" ctx="${2:-}"
+    local hint_ctx="${ctx:-<ctx>}"   # placeholder so the scope-set hint never renders a blank --context
     local body="${verdict#BLOCK:}" class reason
     class="${body%%:*}"
     reason="${body#*:}"
@@ -245,7 +246,7 @@ k8s_render_block() {
             # The target namespace is the thing out of scope — adding it (whether
             # for a pod write or a create/delete of that namespace) authorizes the
             # op for just that namespace. Avoid the vague "widen the scope".
-            printf ' Reads are free cluster-wide. Add that namespace to the scope to authorize this for just that namespace (`ws k8s scope set --context %s --namespace <ns,...>`), or run plain `kubectl` outside the guard.' "$ctx" ;;
+            printf ' Reads are free cluster-wide. Add that namespace to the scope to authorize this for just that namespace (`ws k8s scope set --context %s --namespace <ns,...>`), or run plain `kubectl` outside the guard.' "$hint_ctx" ;;
         unbounded)
             # Genuinely not namespace-bounded (the reason already says so — do not
             # repeat it). Widening cannot help; the honest escapes are running

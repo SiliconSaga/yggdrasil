@@ -112,8 +112,11 @@ Guarded passthrough (any other args go to kubectl, with --context injected):
   ws k8s run probe --image=pause -n <ns>   in-scope write → runs
   ws k8s delete pod x -n other     out-of-scope write → REJECTED
 
-Lift the guard for a session with 'ws hook-bypass k8s'. A kubectl subcommand's
-own help still passes through, e.g. 'ws k8s get --help'.
+To drop the guard, clear the scope: 'ws k8s scope clear' (re-arm later if you
+want), or just run plain 'kubectl' outside 'ws k8s'. Note 'ws hook-bypass k8s'
+only lifts the agent's raw-kubectl redirect — it does NOT disable this wrapper's
+own guard. A kubectl subcommand's own help still passes through, e.g.
+'ws k8s get --help'.
 
 On Windows, QUOTE a native -f path or use forward slashes — an unquoted
 backslash path (ws k8s apply -f C:\dir\m.yaml) is mangled by the shell before
