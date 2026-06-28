@@ -244,16 +244,19 @@ setup() { make_kubectl_stub "default"; }
 # ─── k8s_render_block: class-appropriate remediation ────────────────
 render_block() { run bash -c "source '$GUARD_LIB'; k8s_render_block \"\$1\" \"\$2\" \"\$3\"" _ "$@"; }
 
-@test "render 'scope' block suggests widening the scope" {
+@test "render 'scope' block points at adding the namespace to the scope (not generic 'widen', no bypass)" {
     render_block "BLOCK:scope:write target namespace prod outside the guard scope (alice-sandbox)" kind-practice k8s
     [[ "$output" == *"REJECTED"* ]]
-    [[ "$output" == *"widen the scope"* ]]
+    [[ "$output" == *"Add that namespace to the scope"* ]]
+    [[ "$output" != *"hook-bypass"* ]]
 }
-@test "render 'unbounded' block does NOT suggest widening, points at bypass" {
+@test "render 'unbounded' block: no bypass, no scope-set suggestion; points at plain kubectl / scope clear" {
     render_block "BLOCK:unbounded:namespace is a cluster-scoped resource" kind-practice k8s
     [[ "$output" == *"REJECTED"* ]]
-    [[ "$output" != *"widen the scope"* ]]
-    [[ "$output" == *"hook-bypass k8s"* ]]
+    [[ "$output" != *"hook-bypass"* ]]
+    [[ "$output" != *"scope set"* ]]   # widening is not offered as a fix here
+    [[ "$output" == *"scope clear"* ]]
+    [[ "$output" == *"plain"* ]]
 }
 @test "render 'precondition' block frames an input problem, not a scope rejection" {
     render_block "BLOCK:precondition:-f /x.yaml not found on disk" kind-practice k8s

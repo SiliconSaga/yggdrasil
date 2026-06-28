@@ -35,7 +35,7 @@ Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash too
 |-----------|--------|
 | `ws k8s <read verb>` targeting in-scope context | Auto-approved silently — reads flow freely |
 | `ws k8s <write verb>` targeting in-scope namespace | Prompts normally — user sees the command and approves |
-| `ws k8s <write verb>` targeting out-of-scope namespace | Denied with explanation; shows how to widen |
+| `ws k8s <write verb>` targeting out-of-scope namespace | Denied with a class-aware explanation: a namespace-scoped write says to add that namespace to the scope; a cluster-scoped/unbounded write says widening cannot help — run outside the guard or clear it |
 | `ws k8s create`/`delete namespace <ns>` where `<ns>` is in scope | Allowed — you may create (or delete and recreate) your own scoped namespace(s). An out-of-scope namespace name is denied like any out-of-scope write |
 | Raw `kubectl` command | Redirected to `ws k8s`; user sees the denial message |
 | Temp script (bash/sh/source) whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s` |

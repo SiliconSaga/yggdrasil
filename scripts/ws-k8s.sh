@@ -114,6 +114,10 @@ Guarded passthrough (any other args go to kubectl, with --context injected):
 
 Lift the guard for a session with 'ws hook-bypass k8s'. A kubectl subcommand's
 own help still passes through, e.g. 'ws k8s get --help'.
+
+On Windows, QUOTE a native -f path or use forward slashes — an unquoted
+backslash path (ws k8s apply -f C:\dir\m.yaml) is mangled by the shell before
+ws sees it. Use 'ws k8s apply -f "C:\dir\m.yaml"' or '.../C:/dir/m.yaml'.
 HELP
 }
 

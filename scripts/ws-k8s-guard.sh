@@ -224,12 +224,12 @@ k8s_guard_evaluate() {
 # user the RIGHT next step — widening the scope only helps a namespace-scope
 # rejection; it can't unblock a cluster-scoped write or a malformed manifest.
 #
-# Usage: k8s_render_block <verdict> <context> <bypass-slug>
+# Usage: k8s_render_block <verdict> <context> [bypass-slug]
 #   <verdict>  full "BLOCK:<class>:<reason>" string from k8s_guard_evaluate
-#   <context>  the guard-scope context (for the widen hint); may be empty
-#   <slug>     hook-bypass slug (defaults to k8s)
+#   <context>  the guard-scope context (for the scope-set hint); may be empty
+#   [slug]     accepted for call-site compatibility; not used in the message
 k8s_render_block() {
-    local verdict="$1" ctx="${2:-}" slug="${3:-k8s}"
+    local verdict="$1" ctx="${2:-}"
     local body="${verdict#BLOCK:}" class reason
     class="${body%%:*}"
     reason="${body#*:}"
@@ -242,12 +242,19 @@ k8s_render_block() {
     printf 'REJECTED by the k8s scope guard: %s.' "$reason"
     case "$class" in
         scope)
-            printf ' Reads are free cluster-wide; to write here, widen the scope (`ws k8s scope set --context %s --namespace <ns>`) or lift the guard for this session (`ws hook-bypass %s`).' "$ctx" "$slug" ;;
+            # The target namespace is the thing out of scope — adding it (whether
+            # for a pod write or a create/delete of that namespace) authorizes the
+            # op for just that namespace. Avoid the vague "widen the scope".
+            printf ' Reads are free cluster-wide. Add that namespace to the scope to authorize this for just that namespace (`ws k8s scope set --context %s --namespace <ns,...>`), or run plain `kubectl` outside the guard.' "$ctx" ;;
         unbounded)
-            printf ' This is not namespace-scope-bounded, so widening the scope cannot allow it — lift the guard for this session (`ws hook-bypass %s`) and use raw kubectl, or run it from a terminal outside the guard.' "$slug" ;;
+            # Genuinely not namespace-bounded (the reason already says so — do not
+            # repeat it). Widening cannot help; the honest escapes are running
+            # outside the guard or dropping it. No hook-bypass: it does not lift
+            # the `ws k8s` wrapper guard, so suggesting it here would mislead.
+            printf ' Widening the scope cannot authorize this. Run it with plain `kubectl` outside the guard, or drop the guard with `ws k8s scope clear` (re-arm it afterward if you want).' ;;
         precondition)
-            printf ' The guard could not evaluate the input, so it failed closed — this is an input problem, not a scope rejection. Fix the path or manifest and retry.' ;;
+            printf ' The guard could not evaluate the input, so it failed closed — an input problem, not a scope rejection. Fix the path or manifest and retry.' ;;
         context)
-            printf ' Re-arm the scope on that context (`ws k8s scope set --context <ctx> --namespace <ns>`) or drop the explicit --context; or lift the guard for this session (`ws hook-bypass %s`).' "$slug" ;;
+            printf ' Re-arm the scope on that context (`ws k8s scope set --context <ctx> --namespace <ns,...>`) or run plain `kubectl` outside the guard.' ;;
     esac
 }
