@@ -121,6 +121,19 @@ Per-machine extras (opt-in): if a command you trust keeps getting denied, copy `
 
 ---
 
+## Kubernetes practice guard — `ws k8s`
+
+"Training wheels" for kubectl: arm a scope (a context + one or more namespaces) and the workspace blocks accidental *writes* to anything outside it — before kubectl runs. Reads stay free cluster-wide; the guard is accident-prevention against destructive out-of-scope writes, **not** a security or confidentiality boundary (real authorization is server-side RBAC).
+
+- `ws k8s scope set --context <ctx> --namespace <ns[,ns]>` arms the guard for the session; `ws k8s scope show` / `ws k8s scope clear` inspect and disarm. The context must exist; a namespace that doesn't exist yet only warns, so you can arm across environments and create the namespaces afterward.
+- `ws k8s <kubectl args>` runs guarded: in-scope reads and writes go through (writes inject `--context`); out-of-scope, cluster-scoped, or malformed-input writes are REJECTED with a **class-aware** message that names the right next step (widen the scope, lift the guard, or fix the input). You may create/delete the very namespaces your scope covers.
+- For AI agents, the PreToolUse hook extends the guard to *raw* `kubectl`: an in-scope read auto-allows, an out-of-scope write is denied with the same message, and a script that shells out to `kubectl` is caught too. `ws hook-bypass k8s` lifts the redirect for a session (human-approved, audited).
+- A plain human terminal with no session id is still guarded by an active session's scope (ambient aggregation), so the protection holds when you step in by hand.
+
+The `gdd-k8s` skill drives the scope-capture flow; the mentoring overlay narrates each guard decision so a nervous practitioner learns the pattern, not just the commands. See [skills-reference.md](skills-reference.md) and [agent-training.md](agent-training.md).
+
+---
+
 ## Access — identities, tokens, remote operations
 
 The parallel permission system: which **remote Git operations** the agent can perform on a repo. Mediated by token scope, collaborator status, and a deliberate **two-identity model** — the human contributor and a separate agent identity (e.g. `agent-refr`), each with its own scoped PAT.

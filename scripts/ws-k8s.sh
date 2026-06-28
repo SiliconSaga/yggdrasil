@@ -31,10 +31,21 @@ _k8s_scope() {
             esac; done
             [[ -n "$ctx" && -n "$ns" ]] || { echo "Usage: ws k8s scope set --context <c> --namespace <n[,n]>" >&2; return 1; }
             "$KUBECTL" config get-contexts "$ctx" >/dev/null 2>&1 || { echo "ERROR: context '$ctx' not found." >&2; return 1; }
+            # The context must exist (you can't create a kube context through the
+            # guard). A namespace, though, may legitimately not exist yet: arming
+            # a scope on namespaces you intend to create (across one or more
+            # environments) is a supported workflow — in-scope 'ws k8s create
+            # namespace <ns>' can then create them. So a missing namespace WARNS
+            # (surfacing a likely typo) but does not block the arm.
             local one; local -a _ns; IFS=',' read -ra _ns <<< "$ns"
+            local _missing=()
             for one in "${_ns[@]}"; do
-                "$KUBECTL" --context "$ctx" get namespace "$one" >/dev/null 2>&1 || { echo "ERROR: namespace '$one' not found on context '$ctx'." >&2; return 1; }
+                "$KUBECTL" --context "$ctx" get namespace "$one" >/dev/null 2>&1 || _missing+=("$one")
             done
+            if [[ ${#_missing[@]} -gt 0 ]]; then
+                echo "NOTE: namespace(s) not found on context '$ctx' — arming anyway: ${_missing[*]}" >&2
+                echo "  In-scope 'ws k8s create namespace <ns>' can create them. If one is a typo, re-run scope set with the correct name." >&2
+            fi
             ws_session_set GDD_K8S_CONTEXT "$ctx"
             ws_session_set GDD_K8S_NAMESPACES "$ns"
             echo "guard scope armed: context=$ctx namespaces=$ns" ;;
@@ -80,7 +91,43 @@ _k8s_ambient_scope() {
     printf '%s|%s' "$found_ctx" "$all_ns"
 }
 
+_k8s_help() {
+    cat <<'HELP'
+Usage: ws k8s scope set|show|clear        # manage the practice guard scope
+       ws k8s <kubectl args...>           # guarded kubectl passthrough
+
+A practice guard ("training wheels") that bounds accidental kubectl WRITES to
+an armed context + namespace(s). Reads are free cluster-wide; out-of-scope or
+cluster-scoped writes are blocked before kubectl runs. Accident-prevention,
+not a security boundary — see the gdd-k8s skill.
+
+Scope management:
+  ws k8s scope set --context <ctx> --namespace <ns[,ns]>   arm the guard
+  ws k8s scope show                                        print the armed scope
+  ws k8s scope clear                                       disarm
+
+Guarded passthrough (any other args go to kubectl, with --context injected):
+  ws k8s get pods                  in-scope read  → runs
+  ws k8s get pods -n kube-system   any-namespace read → runs (reads are free)
+  ws k8s run probe --image=pause -n <ns>   in-scope write → runs
+  ws k8s delete pod x -n other     out-of-scope write → REJECTED
+
+To drop the guard, clear the scope: 'ws k8s scope clear' (re-arm later if you
+want), or just run plain 'kubectl' outside 'ws k8s'. Note 'ws hook-bypass k8s'
+only lifts the agent's raw-kubectl redirect — it does NOT disable this wrapper's
+own guard. A kubectl subcommand's own help still passes through, e.g.
+'ws k8s get --help'.
+
+On Windows, QUOTE a native -f path or use forward slashes — an unquoted
+backslash path (ws k8s apply -f C:\dir\m.yaml) is mangled by the shell before
+ws sees it. Use 'ws k8s apply -f "C:\dir\m.yaml"' or '.../C:/dir/m.yaml'.
+HELP
+}
+
 main() {
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
+        _k8s_help; return 0
+    fi
     if [[ "${1:-}" == "scope" ]]; then shift; _k8s_scope "$@"; return; fi
     local ctx ns
     if [[ -n "$(ws_resolve_session_id)" ]]; then
@@ -97,8 +144,7 @@ main() {
     fi
     local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" kubectl "$@")"
     case "$verdict" in
-        BLOCK:*) echo "ws k8s: REJECTED by the guard — ${verdict#BLOCK:}." >&2
-                 echo "  Widen with 'ws k8s scope set --context $ctx --namespace <ns>', or lift with 'ws hook-bypass k8s'." >&2; return 1 ;;
+        BLOCK:*) k8s_render_block "$verdict" "$ctx" "k8s" >&2; printf '\n' >&2; return 1 ;;
         NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
         READ_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
         *) echo "ws k8s: unrecognized guard verdict '$verdict'" >&2; return 1 ;;

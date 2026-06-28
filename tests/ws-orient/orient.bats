@@ -56,6 +56,14 @@ setup() {
     done
 }
 
+@test "ws orient: subcommand survey includes digit-named handlers (k8s)" {
+    # Regression: the dispatch-parse regex once matched ws-[a-z-]+.sh, which
+    # excludes digits — so ws-k8s.sh was silently dropped from the survey.
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"running kubectl while a k8s guard scope is set"* ]]
+}
+
 @test "ws orient: subcommand survey resolves bare ws:use-when markers from script handlers" {
     # The dynamic inventory is the whole point of the survey: a
     # `# ws:use-when <text>` marker in scripts/ws-orient.sh must

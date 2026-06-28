@@ -12,7 +12,7 @@ usage() {
 
 sub="${1:-}"; [[ $# -gt 0 ]] && shift || true
 case "$sub" in
-    get) [[ $# -ge 1 ]] || { usage; exit 1; }; ws_session_get "$1" ;;
+    get) [[ $# -ge 1 ]] || { usage; exit 1; }; printf '%s\n' "$(ws_session_get "$1")" ;;
     set) [[ $# -ge 2 ]] || { usage; exit 1; }; ws_session_set "$1" "$2" && echo "session: set $1" ;;
     show)
         path="$(ws_session_identity_path)"

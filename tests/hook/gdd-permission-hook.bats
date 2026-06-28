@@ -1261,6 +1261,28 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+# ws orient / ws audit-permissions are MUST-run session-start commands (the
+# orientation contract). Both are read-only and were missing from the shipped
+# allowlist, so every fresh session prompted on them. Regression guards.
+@test "allow: ws orient is allowlisted" {
+    seed_real_project_config
+    run_hook "ws orient"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "allow: bash scripts/ws orient is allowlisted" {
+    seed_real_project_config
+    run_hook "bash scripts/ws orient"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "allow: ws audit-permissions is allowlisted" {
+    seed_real_project_config
+    run_hook "ws audit-permissions"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 # SECURITY: a general env-prefix strip must NOT exist — an arbitrary env
 # assignment on an allowlisted command must not silently auto-approve.
 @test "security: LD_PRELOAD prefix on an allowlisted command does NOT auto-allow" {
@@ -1417,6 +1439,29 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
 }
+@test "scoped-redirect: raw in-scope kubectl READ auto-approves (agent path)" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl get pods -n kube-system' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: raw in-scope kubectl WRITE still redirects to ws k8s (context injection)" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl delete pod foo -n alice-sandbox' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws k8s"* ]]
+}
+@test "scoped-redirect: raw out-of-scope kubectl write denies with the guard message" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'kubectl delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+}
 @test "scoped-redirect: in-scope ws k8s read auto-approves" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
@@ -1430,6 +1475,16 @@ EOF
     run_hook_with_session 'ws k8s delete pod foo -n prod' "sk8s"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: cluster-scoped ws k8s write deny renders class-appropriate remediation" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s delete namespace prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+    # The raw verdict class tag must not leak into the user-facing message.
+    [[ "$output" != *"unbounded:"* ]]
 }
 @test "scoped-redirect: temp script containing kubectl is denied under scope" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"

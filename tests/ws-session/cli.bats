@@ -17,6 +17,15 @@ run_ws() { run env WS_FOOTER_DISABLE=1 bash "$WS_BIN" "$@"; }
     [ "$output" = "flow" ]
 }
 
+@test "ws session get prints the value with a trailing newline" {
+    run_ws session set GDD_STANCE flow
+    # Append a marker so bats' trailing-newline stripping doesn't hide the
+    # newline under test — the value must end with \n so the ws footer / the
+    # next shell prompt doesn't butt up against it.
+    run env WS_FOOTER_DISABLE=1 bash -c "bash '$WS_BIN' session get GDD_STANCE; printf MARK"
+    [ "$output" = $'flow\nMARK' ]
+}
+
 @test "ws session show lists all keys" {
     run_ws session set GDD_STANCE flow
     run_ws session set GDD_ROLE developer

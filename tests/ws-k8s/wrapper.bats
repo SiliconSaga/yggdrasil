@@ -26,6 +26,14 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" == *"kind-practice"* ]]
     [[ "$output" == *"alice-sandbox"* ]]
 }
+@test "ws k8s --help shows the guard/scope wrapper help, not a kubectl passthrough" {
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"scope"* ]]
+    [[ "$output" == *"guard"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
 @test "no scope set: passthrough to kubectl" {
     run_ws k8s get pods
     [ "$status" -eq 0 ]
@@ -45,9 +53,31 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
-@test "scope set rejects a nonexistent namespace" {
-    run_ws k8s scope set --context kind-practice --namespace prod
+@test "cluster-scoped write rejection renders 'unbounded' remediation (no widen advice, no class tag leak)" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    # clusterrole is always unbounded; a namespace would now be scope-classed by name.
+    run_ws k8s delete clusterrole foo
     [ "$status" -ne 0 ]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+    [[ "$output" != *"unbounded:"* ]]
+    [[ "$output" != *"widen the scope"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "scope set on a not-yet-existing namespace warns but arms (pre-create workflow)" {
+    # The stub reports 'prod' as not found (get namespace prod → exit 1).
+    run_ws k8s scope set --context kind-practice --namespace prod
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"not found"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"prod"* ]]
+}
+@test "scope set with a mix of existing and not-yet-existing namespaces arms all, warns on the missing" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox,prod
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"prod"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"alice-sandbox,prod"* ]]
 }
 @test "scope clear removes the scope" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox

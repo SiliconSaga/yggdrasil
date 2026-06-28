@@ -137,7 +137,7 @@ _orient_parse_dispatch() {
         pending != "" {
             line = $0
             sub(/^[[:space:]]+/, "", line)
-            if (match(line, /bash "\$SCRIPT_DIR\/ws-[a-z-]+\.sh"/)) {
+            if (match(line, /bash "\$SCRIPT_DIR\/ws-[a-z0-9-]+\.sh"/)) {
                 m = substr(line, RSTART, RLENGTH)
                 sub(/^bash "\$SCRIPT_DIR\//, "", m)
                 sub(/".*$/, "", m)
