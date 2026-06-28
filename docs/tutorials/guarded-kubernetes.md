@@ -4,7 +4,7 @@
 >
 > **First time through? Turn on mentoring.** Ask your agent: *"let's turn on mentoring while I work through the guarded Kubernetes tutorial."* The mentoring overlay narrates each guard decision — *why* a command was allowed, prompted, or blocked — which is exactly what you want while the verdicts are still new. The `gdd-k8s` skill drives the flow; mentoring adds the teaching.
 
-The `ws k8s` guard is **training wheels for kubectl**: you arm a small scope — one kube context plus one or more namespaces — and the workspace blocks accidental *writes* to anything outside it, before kubectl runs. Reads stay free cluster-wide. It is **accident-prevention, not a security boundary**: a determined human or agent can always step around it (plain `kubectl`, or `ws hook-bypass k8s`), and real authorization lives in your cluster's RBAC. The guard's job is to catch the destructive command that slips out of habit — a `delete` against prod when you meant your sandbox — not to enforce access control.
+The `ws k8s` guard is a **safety scope for kubectl** — training wheels while you're learning, a guardrail the rest of the time. You arm a small scope (one kube context plus one or more namespaces) and the workspace blocks accidental *writes* to anything outside it, before kubectl runs. Reads stay free cluster-wide. It's as useful to an expert who wants a boundary while working near production as to someone on their first cluster session. It is **accident-prevention, not a security boundary**: a determined human or agent can always step around it (plain `kubectl`, or `ws hook-bypass k8s`), and real authorization lives in your cluster's RBAC. The guard's job is to catch the destructive command that slips out of habit — a `delete` against prod when you meant your sandbox — not to enforce access control.
 
 The walkthrough is chaptered so you can stop after Chapter 2 with the guard in muscle memory, and come back for the agent/human paths and real workflows later.
 
@@ -31,7 +31,7 @@ Throughout, substitute `<ctx>` for your chosen context and `<ns>` for a throwawa
 
 ---
 
-## Chapter 1: Arm the training wheels
+## Chapter 1: Arm a guard scope
 
 Goal: a guard scope armed and understood. Nothing is blocked yet — you're setting the boundary.
 
@@ -213,5 +213,5 @@ Open a separate plain terminal — no agent, no session id — while an agent se
 ### Going further
 
 - **Multiple namespaces / environments.** Arm a comma-separated list; pre-arm namespaces that don't exist yet and create them in-scope.
-- **Use it for real.** The same guard protects real work — arm your sandbox namespace before a session where you'll be near production, and let the training wheels catch the slip.
+- **Use it for real.** The same guard protects real work — arm your sandbox namespace before a session where you'll be near production, and let it catch the slip.
 - **Validate the feature end-to-end.** If you're testing the guard itself rather than learning it, the [`gdd-k8s` skill](../gdd/skills-reference.md) and [Features Tour § Kubernetes practice guard](../gdd/features.md) are the reference.

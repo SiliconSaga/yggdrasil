@@ -6,12 +6,13 @@ These differ from the [Getting Started](../getting-started/index.md) walkthrough
 
 ## Available tutorials
 
-| Tutorial | What you practice | Prerequisite |
-|---|---|---|
-| [Guarded Kubernetes](guarded-kubernetes.md) | Practising `kubectl` safely behind the `ws k8s` training-wheels guard — armed scopes, the allow/block verdicts, and the agent + human paths. | A Kubernetes cluster context you can write to (a throwaway local cluster is fine). |
+| Tutorial | Shape | What you practice | Prerequisite |
+|---|---|---|---|
+| [Guarded Kubernetes](guarded-kubernetes.md) | docs page | `kubectl` safely behind the `ws k8s` guard — armed scopes, the allow/block verdicts, and the agent + human paths. | A Kubernetes cluster context you can write to (a throwaway local cluster is fine). |
+| [GitHub Pages site](https://github.com/SiliconSaga/yggdrasil/blob/main/templates/components/gh-pages/README.md) | scaffold | The full GDD loop on a tiny live target — scaffold, deploy, edit, open a PR, watch the bots review, merge. | A GitHub account (a public repo gives free Pages). |
 
 ## A note on shapes
 
-Most tutorials in this section are **docs pages** like the ones above — read-and-run walkthroughs of a feature.
+Most tutorials here are **docs pages** like Guarded Kubernetes — read-and-run walkthroughs of a feature.
 
-One tutorial is a **scaffold** instead: the `gh-pages` component template. Running `ws component init gh-pages <name>` drops a tutorial *instance* into `components/<name>/` whose own `README.md` is a chaptered walkthrough — from scaffold to a live GitHub Pages site through the full edit → PR → bot-review → merge loop, in about 15 minutes. It lives with the template rather than here because the thing you learn on is a real repo you create. See [Getting Started → Recommended first scaffold](../getting-started/index.md#recommended-first-scaffold).
+The **GitHub Pages** one is a **scaffold** instead: run `ws component init gh-pages <name>` and the walkthrough is the generated `components/<name>/README.md` (the table links to the template version). It lives with its template rather than as a docs page because the thing you learn on is a real repo you create and deploy. See [Getting Started → Recommended first scaffold](../getting-started/index.md#recommended-first-scaffold) for where it fits in onboarding.
