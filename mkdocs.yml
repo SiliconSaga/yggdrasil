@@ -80,3 +80,7 @@ nav:
       - "Thalamus: Parallel": gdd/samples/thalamus-parallel.md
   - Getting Started:
     - getting-started/index.md
+  - Tutorials:
+    - tutorials/index.md
+    - Guarded Kubernetes: tutorials/guarded-kubernetes.md
+    - GitHub Pages Site: https://github.com/SiliconSaga/yggdrasil/blob/main/templates/components/gh-pages/README.md
