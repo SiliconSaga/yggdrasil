@@ -80,3 +80,6 @@ nav:
       - "Thalamus: Parallel": gdd/samples/thalamus-parallel.md
   - Getting Started:
     - getting-started/index.md
+  - Tutorials:
+    - tutorials/index.md
+    - Guarded Kubernetes: tutorials/guarded-kubernetes.md

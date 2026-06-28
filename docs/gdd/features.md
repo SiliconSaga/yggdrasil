@@ -130,7 +130,7 @@ Per-machine extras (opt-in): if a command you trust keeps getting denied, copy `
 - For AI agents, the PreToolUse hook extends the guard to *raw* `kubectl`: an in-scope read auto-allows, an out-of-scope write is denied with the same message, and a script that shells out to `kubectl` is caught too. `ws hook-bypass k8s` lifts the redirect for a session (human-approved, audited).
 - A plain human terminal with no session id is still guarded by an active session's scope (ambient aggregation), so the protection holds when you step in by hand.
 
-The `gdd-k8s` skill drives the scope-capture flow; the mentoring overlay narrates each guard decision so a nervous practitioner learns the pattern, not just the commands. See [skills-reference.md](skills-reference.md) and [agent-training.md](agent-training.md).
+The `gdd-k8s` skill drives the scope-capture flow; the mentoring overlay narrates each guard decision so a nervous practitioner learns the pattern, not just the commands. Hands-on: the [Guarded Kubernetes tutorial](../tutorials/guarded-kubernetes.md) (needs a cluster). Reference: [skills-reference.md](skills-reference.md) and [agent-training.md](agent-training.md).
 
 ---
 
