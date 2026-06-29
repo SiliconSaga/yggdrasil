@@ -50,7 +50,7 @@ ws review * threads * --resolve*
 git-commit   | git commit*    | Use `ws commit <comp> <bodyfile>` — handles Co-Authored-By trailer + bodyfile-driven staging. See `ws help commit`. If `ws commit` doesn't fit (rare), run `ws hook-bypass git-commit` to request a session-scoped bypass.
 git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-remote selection from identity.forkRemote and sets upstream on first push. `ws hook-bypass git-push` for a session-scoped bypass.
 gh-pr-create | gh pr create*  | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions, picks the right token + remote. `ws hook-bypass gh-pr-create` for a session-scoped bypass.
-git-mv       | git* mv*       | Don't `git mv` — it pre-stages the rename and breaks `ws commit`'s bodyfile staging. Instead `mv <src> <dst>` (plain), then list BOTH the old and new paths under `add:` in your `ws commit` bodyfile; git still records a clean rename. `ws hook-bypass git-mv` for a session-scoped bypass.
+git-mv       | git mv*        | Don't `git mv` — it pre-stages the rename and breaks `ws commit`'s bodyfile staging. Instead `mv <src> <dst>` (plain), then list BOTH the old and new paths under `add:` in your `ws commit` bodyfile; git still records a clean rename. `ws hook-bypass git-mv` for a session-scoped bypass.
 
 [adapter-redirect-commands]
 # Tier 3 — raw test/lint/build runners with a ws equivalent. The hook

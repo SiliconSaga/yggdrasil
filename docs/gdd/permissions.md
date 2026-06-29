@@ -191,7 +191,7 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `Bash(ws commit:*)` | `ws commit --co-author-file sess--sub yggdrasil .commits/x.md` | Allowed without prompt | The flag tail matches the start-anchored `ws commit:*` prefix; no env prefix, no angle brackets |
 | (any allow) | `LD_PRELOAD=/tmp/evil.so ws status` | Prompted | An env-assignment prefix stays in the match string and fails every allow glob |
 | `Bash(git commit *)` redirect-deny | `git commit -m y` | Denied (redirected to `ws commit`) | A bare denied command still hits its redirect-deny |
-| `git* mv*` redirect-deny | `git -C x mv a b` | Denied (redirect to plain `mv` + bodyfile) | The `git*…*` shape catches the `git -C <dir> mv` hoard form, not just bare `git mv` |
+| `git mv*` redirect-deny | `git mv a b` | Denied (redirect to plain `mv` + bodyfile) | Start-anchored bare-form match (like `git commit*`); a `git -C <dir> mv` form isn't caught — same accepted gap as the other git redirects, and avoids over-matching `mv` in unrelated git args |
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
 
