@@ -52,6 +52,18 @@ Read verbs auto-approved by the guard: `get`, `describe`, `logs`, `top`, `explai
 - **Remove the scope entirely** — `ws k8s scope clear`. The guard deactivates for the session; raw `kubectl` is no longer intercepted.
 - **Lift the redirect for the session** — `ws hook-bypass k8s`. This writes a session-scoped bypass marker so the raw-kubectl redirect does not fire, but scope-set vars remain in place. Useful for running a one-off automation script that calls `kubectl` directly.
 
+## Surfacing Output to the User
+
+**The user cannot see tool output in Claude Code.** When a Bash tool call completes, the harness shows the user only the command name and a pass/fail indicator — not the actual stdout or stderr delivered to the agent. A user clicking on a rejected command sees `Bash(ws k8s delete pod probe -n default)` and a red dot, nothing more.
+
+This has direct consequences for this skill:
+
+- **Always quote guard rejection messages verbatim** when a command is blocked. Do not paraphrase or summarize — the guard's messages are written to be read, and the user cannot read them without the agent repeating them.
+- **Echo `ws k8s scope show` output** after arming the scope, rather than just saying "the scope is armed." The user cannot see the confirmation line the command produced.
+- **Quote the output of any diagnostic command** (`kubectl config get-contexts`, `kubectl get namespace`, etc.) when the result is relevant to a decision the user is being asked to make.
+
+The general rule: if the output of a tool call is the point — a rejection reason, a confirmation, a list the user must choose from — repeat it in plain text before moving on. Silence after a blocked command, when the user has no way to see why it was blocked, is a significant UX failure.
+
 ## Hook Availability
 
 The raw-kubectl intercept (Tier 2b) is implemented as a **Claude Code PreToolUse hook** registered in `.claude/settings.json`. Without an equivalent hook in another harness (Codex, Cursor, etc.), raw `kubectl` commands are not intercepted — the `ws k8s` wrapper still enforces scope when called directly, but the safety net against accidental bare `kubectl` use only fires inside Claude Code. When running in a different harness, treat `ws k8s` as the required form; do not assume raw `kubectl` will be caught.
