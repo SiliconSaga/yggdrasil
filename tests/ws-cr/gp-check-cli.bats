@@ -23,22 +23,32 @@ setup() {
 
 # Configurable glab stub.
 #
-#   ok               — exits 0, prints "Logged in to <GITLAB_HOST>" (default)
-#   fail-bare-pass-h — bare auth status exits 1 (simulates stale second host);
-#                      -h <host> exits 0 — the pipefail regression fixture
-#   fail             — exits 1, no "Logged in" output (not authenticated)
+#   ok                    — exits 0, prints multi-line auth info (default)
+#   fail-bare-pass-hostname — bare auth status exits 1 (simulates stale second
+#                           host); --hostname <host> exits 0 — pipefail fixture
+#   fail                  — exits 1, no "Logged in" output (not authenticated)
 glab() {
     printf 'glab: %s\n' "$*" >> "$GLAB_LOG"
-    local with_h=0
-    for a; do [[ "$a" == "-h" ]] && { with_h=1; break; }; done
+    local with_hostname=0
+    local i=0
+    for a; do
+        if [[ "$a" == "--hostname" ]]; then
+            with_hostname=1; break
+        fi
+    done
     case "${GLAB_BEHAVIOR:-ok}" in
         ok)
             printf '✓ Logged in to %s as testuser\n' "${GITLAB_HOST:-}"
+            printf '  Token: ***\n'
             return 0
             ;;
-        fail-bare-pass-h)
+        fail-bare-pass-hostname)
+            # Simulate: target host is authenticated but a stale second host
+            # (e.g. gitlab.com) makes bare 'glab auth status' exit 1.
+            # --hostname scopes to just our host and exits 0.
             printf '✓ Logged in to %s as testuser\n' "${GITLAB_HOST:-}"
-            [[ "$with_h" -eq 1 ]] && return 0 || return 1
+            printf '  Token: ***\n'
+            [[ "$with_hostname" -eq 1 ]] && return 0 || return 1
             ;;
         fail)
             printf 'x Not logged in to %s: 401 Unauthorized\n' "${GITLAB_HOST:-}"
@@ -64,19 +74,19 @@ glab() {
     [ "$status" -eq 0 ]
 }
 
-@test "gp_check_cli: -h scoping passes when bare glab auth status exits non-zero (pipefail regression)" {
+@test "gp_check_cli: --hostname scoping passes when bare glab auth status exits non-zero (pipefail regression)" {
     # Regression: bare 'glab auth status' exits 1 when any configured host
     # (e.g. a stale gitlab.com entry) fails, even if our target host is fine.
     # Under set -o pipefail, that non-zero propagates through the pipe even when
     # grep finds the "Logged in to <host>" string. The fix uses 'glab auth status
-    # -h "$host"' to scope the check to just our host so stale hosts don't
-    # pollute the exit code.
-    export GLAB_BEHAVIOR="fail-bare-pass-h"
+    # --hostname "$host"' to scope the check to just our host so stale hosts
+    # don't pollute the exit code.
+    export GLAB_BEHAVIOR="fail-bare-pass-hostname"
 
     run gp_check_cli
 
     [ "$status" -eq 0 ]
-    [[ "$(cat "$GLAB_LOG")" == *"auth status -h gitlab.example.com"* ]]
+    [[ "$(cat "$GLAB_LOG")" == *"auth status --hostname gitlab.example.com"* ]]
 }
 
 @test "gp_check_cli: unauthenticated host returns 1 with error" {
