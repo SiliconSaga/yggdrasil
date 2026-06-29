@@ -2,6 +2,8 @@
 
 This directory contains a hook script that fires during Claude Code sessions in this workspace. The main hook event fires automatically — no action needed once the workspace is cloned and Claude Code is started in it. It is registered in [`../settings.json`](../settings.json) under `hooks.PreToolUse` and is meant to make agent behavior more predictable and to teach safer command patterns by giving immediate corrective feedback.
 
+**Codex uses a separate bridge, not this monolith.** The first focused Codex hook at [`.codex/hooks/gdd-k8s-hook.sh`](../../.codex/hooks/gdd-k8s-hook.sh) handles only the guarded-Kubernetes mentoring path and reuses `scripts/ws-k8s-guard.sh`; safe calls defer to normal Codex sandbox and approval routing. The [Codex project configuration](../../.codex/README.md) covers trust and troubleshooting. The [cross-harness design](../../docs/plans/2026-06-29-codex-k8s-hook-design.md) maps each remaining Claude hook piece to a Codex hook, rules or permission configuration, or a future platform-neutral policy engine.
+
 **New here?** [`docs/gdd/agent-training.md`](../../docs/gdd/agent-training.md) is the user-friendly companion that covers why you'll see deny output early in a session, why the discipline doesn't double API cost, and how to handle the "this legit command got denied" case. This README is the technical spec — what each tier checks, the audit log format, registration, and troubleshooting.
 
 ## PreToolUse hook 

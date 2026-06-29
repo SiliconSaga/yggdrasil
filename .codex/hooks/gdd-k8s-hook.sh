@@ -68,15 +68,6 @@ ctx="$(ws_session_get GDD_K8S_CONTEXT "$session_path")"
 namespaces="$(ws_session_get GDD_K8S_NAMESPACES "$session_path")"
 [[ -n "$ctx" ]] || exit 0
 
-marker="$GDD_PROJECT_ROOT/.tmp/hook-bypass/k8s.bypass"
-if [[ -f "$marker" ]]; then
-    marker_session_id="$(sed -n 's/^session_id: *//p' "$marker" | head -n 1)"
-    if [[ "$marker_session_id" == "$session_id" ]]; then
-        audit "BYPASS-SCOPE [k8s] [PreToolUse]: $(audit_safe "$cmd")"
-        exit 0
-    fi
-fi
-
 normalize_for_match() {
     local value="$1"
     case "$value" in
@@ -93,6 +84,31 @@ match_cmd="$(normalize_for_match "$cmd")"
 case "$match_cmd" in
     ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) exit 0 ;;
 esac
+
+k8s_candidate=0
+case "$match_cmd" in
+    kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *) k8s_candidate=1 ;;
+    bash\ *|sh\ *|source\ *|./*)
+        candidate_path="${match_cmd#* }"
+        candidate_path="${candidate_path%% *}"
+        if [[ "$candidate_path" != /* ]]; then
+            candidate_path="$cwd/$candidate_path"
+        fi
+        if [[ -f "$candidate_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$candidate_path" 2>/dev/null; then
+            k8s_candidate=1
+        fi
+        ;;
+esac
+[[ "$k8s_candidate" == "1" ]] || exit 0
+
+marker="$GDD_PROJECT_ROOT/.tmp/hook-bypass/k8s.bypass"
+if [[ -f "$marker" ]]; then
+    marker_session_id="$(sed -n 's/^session_id: *//p' "$marker" | head -n 1)"
+    if [[ "$marker_session_id" == "$session_id" ]]; then
+        audit "BYPASS-SCOPE [k8s] [PreToolUse]: $(audit_safe "$cmd")"
+        exit 0
+    fi
+fi
 
 evaluate_command() {
     local command="$1"

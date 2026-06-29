@@ -150,6 +150,17 @@ assert_denied() {
     grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.codex/hook-audit.log"
 }
 
+@test "matching k8s bypass marker does not audit an unrelated command" {
+    seed_scope codex-test kind-practice alice-sandbox
+    write_bypass_marker codex-test
+    run_codex_hook 'ws status'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    if [[ -f "$HOME/.codex/hook-audit.log" ]]; then
+        ! grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.codex/hook-audit.log"
+    fi
+}
+
 @test "stale k8s bypass marker does not lift the guard" {
     seed_scope codex-test kind-practice alice-sandbox
     write_bypass_marker another-session
