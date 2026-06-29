@@ -18,7 +18,7 @@ Add one focused Codex compatibility slice: a project-local Codex `PreToolUse` ho
 
 ## Current Codex capabilities
 
-Current Codex supports trusted project-local hooks from `.codex/hooks.json` or `.codex/config.toml`, including `PreToolUse` and `PermissionRequest`. Hooks receive tool-call context and can allow, deny, or defer an invocation. Project hooks are reviewed by hash and remain inactive until the user trusts them through `/hooks`.
+Current Codex supports trusted project-local hooks from `.codex/hooks.json` or `.codex/config.toml`, including `PreToolUse` and `PermissionRequest`. Hooks receive tool-call context and can deny or defer an invocation; this bridge deliberately does not auto-allow commands. Project hooks are reviewed by hash and remain inactive until the user trusts them through `/hooks`.
 
 Codex also supports project-local Starlark `.rules`, but rules govern requests to execute outside the sandbox. They are useful for static argument-prefix decisions and unsuitable as the primary Kubernetes guard because they cannot read the active GDD session scope or classify a kubectl operation using `scripts/ws-k8s-guard.sh`.
 
@@ -38,7 +38,7 @@ Codex may begin a session below the repository root, so registration must not as
 2. Pass through when the event is not `PreToolUse`, the tool is not `Bash`, required local files are unavailable, no Kubernetes scope is active for the session, or the command is unrelated to Kubernetes.
 3. Load the active scope from the exact `.tmp/gdd-agent-sessions/<session-id>.env` file rather than aggregating scopes from other sessions.
 4. Source `scripts/ws-k8s-guard.sh` and use `k8s_guard_evaluate` and `k8s_render_block` for command classification and corrective text.
-5. Emit Codex-native allow or deny output and write a compact audit entry under the Codex home.
+5. Emit Codex-native deny output for blocked calls or no decision for deferred calls, and write a compact audit entry under the Codex home.
 
 The bridge does not parse Kubernetes verbs itself. Policy classification stays in `scripts/ws-k8s-guard.sh`.
 
@@ -48,10 +48,10 @@ When a scope is active, the bridge applies these decisions:
 
 | Invocation | Guard result | Decision |
 |---|---|---|
-| Raw `kubectl` read | `READ_IN_SCOPE` | Allow; reads remain unrestricted by namespace, matching the existing guard contract. |
+| Raw `kubectl` read | `READ_IN_SCOPE` | Defer to normal Codex sandbox and approval routing; reads remain unrestricted by namespace, matching the existing guard contract. |
 | Raw `kubectl` in-scope write | `WRITE_IN_SCOPE` | Deny with guidance to use `ws k8s`; the wrapper injects the armed context. |
 | Raw `kubectl` blocked write | `BLOCK:*` | Deny with the existing class-aware guard message. |
-| `ws k8s` read or write | `READ_IN_SCOPE` or `WRITE_IN_SCOPE` | Allow; the wrapper performs the guarded execution. |
+| `ws k8s` read or write | `READ_IN_SCOPE` or `WRITE_IN_SCOPE` | Defer to normal Codex sandbox and approval routing; the wrapper performs the guarded execution. |
 | `ws k8s` blocked write | `BLOCK:*` | Deny before execution with the existing guard message. |
 | `ws k8s scope set/show/clear` | Not evaluated as a kubectl operation | Pass through so the user can manage the scope. |
 | Shell script whose file contains raw `kubectl` | N/A | Deny with guidance to route the Kubernetes steps through `ws k8s`. |
@@ -65,17 +65,17 @@ Malformed input, missing `jq`, a missing repository guard script, or an absent s
 
 ### Audit behavior
 
-The hook records only its own allow, deny, bypass, and infrastructure-warning decisions. It does not attempt to become a general Codex tool audit log. Audit text must flatten embedded newlines so one tool call remains one log entry.
+The hook records only its own deny, bypass, and infrastructure-warning decisions. It does not attempt to become a general Codex tool audit log or duplicate deferred calls already visible to Codex. Audit text must flatten embedded newlines so one tool call remains one log entry.
 
 ## Verification
 
 Add focused Bats tests with synthetic Codex hook payloads covering:
 
 - unrelated commands and inactive scopes passing through;
-- raw reads allowing under an active scope;
+- raw reads deferring under an active scope;
 - raw in-scope writes redirecting to `ws k8s`;
 - out-of-scope and cluster-scoped writes using the shared class-aware message;
-- guarded `ws k8s` reads and writes allowing;
+- guarded `ws k8s` reads and writes deferring;
 - scope management passing through;
 - direct script invocation containing `kubectl` denying;
 - matching and stale bypass markers;
