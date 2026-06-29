@@ -50,7 +50,7 @@ See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook
 
 ### Redirect tier and bypass
 
-Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`) that have a `ws` wrapper equivalent. The deny carries a corrective message pointing at the right `ws` subcommand.
+Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`, `git mv`) that have a friendlier equivalent. The deny carries a corrective message pointing at the right `ws` subcommand — or, for `git mv`, at the plain-`mv`-then-list-both-paths-in-the-bodyfile pattern, since `git mv` pre-stages the rename and breaks `ws commit`'s bodyfile-driven staging.
 
 This is a *training* layer, not a safety floor — the `ws` wrappers add attribution, remote selection, and bodyfile flows that AGENTS.md documents but training-data reflex drifts away from. A legitimate edge case (the `ws` subcommand doesn't yet support what's needed) escapes via `ws hook-bypass <slug>`, which writes a marker file keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`). The marker is honored for the rest of the session.
 
@@ -191,6 +191,7 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `Bash(ws commit:*)` | `ws commit --co-author-file sess--sub yggdrasil .commits/x.md` | Allowed without prompt | The flag tail matches the start-anchored `ws commit:*` prefix; no env prefix, no angle brackets |
 | (any allow) | `LD_PRELOAD=/tmp/evil.so ws status` | Prompted | An env-assignment prefix stays in the match string and fails every allow glob |
 | `Bash(git commit *)` redirect-deny | `git commit -m y` | Denied (redirected to `ws commit`) | A bare denied command still hits its redirect-deny |
+| `git* mv*` redirect-deny | `git -C x mv a b` | Denied (redirect to plain `mv` + bodyfile) | The `git*…*` shape catches the `git -C <dir> mv` hoard form, not just bare `git mv` |
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
 
