@@ -184,14 +184,19 @@ ws k8s scope clear
 ```bash
 ws k8s delete pod practice-pod -n <ns>
 ws k8s delete pod probe -n <ns>
-ws k8s scope clear
-rm pod.yaml
 ```
 
-If you created a namespace specifically for this tutorial (Chapter 1 or the optional step above), delete it:
+If you created a namespace specifically for this tutorial (Chapter 1 or the optional step above), delete it before clearing the scope — the guard only allows the delete while `<ns>` is still in scope:
 
 ```bash
 ws k8s delete namespace <ns>
+```
+
+Then clear the scope and remove the manifest:
+
+```bash
+ws k8s scope clear
+rm pod.yaml
 ```
 
 If you spun up a local cluster just for this, tear it down too (`kind delete cluster`, `k3d cluster delete practice`, `minikube delete`, or disable Docker Desktop's Kubernetes).

@@ -165,11 +165,11 @@ HELP
             return 0
         fi
     done
-    local comp="${1:-yggdrasil}"
+    local comp="yggdrasil"
+    local comp_set=0
     local branch=""
     local force=""
     local push_remote_override=""
-    shift 2>/dev/null || true
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --force) force="--force" ;;
@@ -189,7 +189,16 @@ HELP
                 fi
                 ;;
             -*) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
-            *) branch="$1" ;;
+            *)
+                if [[ $comp_set -eq 0 ]]; then
+                    comp="$1"
+                    comp_set=1
+                elif [[ -z "$branch" ]]; then
+                    branch="$1"
+                else
+                    echo "ERROR: Too many positional arguments" >&2; exit 1
+                fi
+                ;;
         esac
         shift
     done
