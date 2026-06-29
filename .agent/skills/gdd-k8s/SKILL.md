@@ -37,7 +37,9 @@ Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash too
 | `ws k8s <write verb>` targeting in-scope namespace | Prompts normally — user sees the command and approves |
 | `ws k8s <write verb>` targeting out-of-scope namespace | Denied with a class-aware explanation: a namespace-scoped write says to add that namespace to the scope; a cluster-scoped/unbounded write says widening cannot help — run outside the guard or clear it |
 | `ws k8s create`/`delete namespace <ns>` where `<ns>` is in scope | Allowed — you may create (or delete and recreate) your own scoped namespace(s). An out-of-scope namespace name is denied like any out-of-scope write |
-| Raw `kubectl` command | Redirected to `ws k8s`; user sees the denial message |
+| Raw `kubectl` read verb | Auto-approved silently — reads are free even via raw kubectl when a scope is armed. The hook does not redirect harmless reads. |
+| Raw `kubectl` write (in-scope namespace) | Denied with a message instructing use of `ws k8s` — the wrapper injects `--context`, preventing writes from hitting the wrong cluster by force of habit |
+| Raw `kubectl` write (out-of-scope namespace or unbounded) | Denied with the same class-aware message the `ws k8s` wrapper emits |
 | Temp script (bash/sh/source) whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s` |
 | `kubectl --context <other-ctx>` where other-ctx ≠ practice context | Blocked — explicit cross-context write is out of scope |
 | `--all-namespaces` on a write | Blocked — unbounded writes are never scope-bounded |
@@ -49,6 +51,10 @@ Read verbs auto-approved by the guard: `get`, `describe`, `logs`, `top`, `explai
 - **Widen the scope** — re-run `ws k8s scope set --context <ctx> --namespace <ns1,ns2>` with a broader namespace list. The previous scope is overwritten.
 - **Remove the scope entirely** — `ws k8s scope clear`. The guard deactivates for the session; raw `kubectl` is no longer intercepted.
 - **Lift the redirect for the session** — `ws hook-bypass k8s`. This writes a session-scoped bypass marker so the raw-kubectl redirect does not fire, but scope-set vars remain in place. Useful for running a one-off automation script that calls `kubectl` directly.
+
+## Hook Availability
+
+The raw-kubectl intercept (Tier 2b) is implemented as a **Claude Code PreToolUse hook** registered in `.claude/settings.json`. Without an equivalent hook in another harness (Codex, Cursor, etc.), raw `kubectl` commands are not intercepted — the `ws k8s` wrapper still enforces scope when called directly, but the safety net against accidental bare `kubectl` use only fires inside Claude Code. When running in a different harness, treat `ws k8s` as the required form; do not assume raw `kubectl` will be caught.
 
 ## Composability
 
