@@ -19,15 +19,13 @@ gp_check_cli() {
     fi
 
     # GITLAB_TOKEN set in env is sufficient — glab uses it directly.
-    # Avoid bare `glab auth status` which exits non-zero if any configured
-    # host (e.g. gitlab.com) lacks credentials, even if ours works.
     if [[ -n "${GITLAB_TOKEN:-}" ]]; then
         return 0
     fi
     # No token in env — fall back to checking per-host if host is known
     local host="${GITLAB_HOST:-}"
     if [[ -n "$host" ]]; then
-        if ! glab auth status 2>&1 | grep -q "Logged in to $host"; then
+        if ! glab auth status -h "$host" 2>&1 | grep -q "Logged in to $host"; then
             echo "ERROR: glab is not authenticated for $host." >&2
             echo "  Run 'ws gitlab-auth' to set up credentials." >&2
             return 1
