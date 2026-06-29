@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-29
 
-**Status:** Awaiting written-spec review
+**Status:** Approved for implementation
 
 ## Goal
 
@@ -30,9 +30,9 @@ Add `.codex/hooks.json` with one `PreToolUse` matcher for `Bash`. Its command re
 
 Codex may begin a session below the repository root, so registration must not assume the session working directory is the root. The hook command follows Codex's documented repository-root resolution pattern.
 
-### Adapter responsibilities
+### Bridge responsibilities
 
-`.codex/hooks/gdd-k8s-hook.sh` is a thin Codex adapter. It will:
+`.codex/hooks/gdd-k8s-hook.sh` is a thin Codex bridge. It will:
 
 1. Read the Codex hook JSON payload from stdin and extract the hook event, tool name, command, working directory, and session ID.
 2. Pass through when the event is not `PreToolUse`, the tool is not `Bash`, required local files are unavailable, no Kubernetes scope is active for the session, or the command is unrelated to Kubernetes.
@@ -40,11 +40,11 @@ Codex may begin a session below the repository root, so registration must not as
 4. Source `scripts/ws-k8s-guard.sh` and use `k8s_guard_evaluate` and `k8s_render_block` for command classification and corrective text.
 5. Emit Codex-native allow or deny output and write a compact audit entry under the Codex home.
 
-The adapter does not parse Kubernetes verbs itself. Policy classification stays in `scripts/ws-k8s-guard.sh`.
+The bridge does not parse Kubernetes verbs itself. Policy classification stays in `scripts/ws-k8s-guard.sh`.
 
 ### Decisions
 
-When a scope is active, the adapter applies these decisions:
+When a scope is active, the bridge applies these decisions:
 
 | Invocation | Guard result | Decision |
 |---|---|---|
@@ -57,7 +57,7 @@ When a scope is active, the adapter applies these decisions:
 | Shell script whose file contains raw `kubectl` | N/A | Deny with guidance to route the Kubernetes steps through `ws k8s`. |
 | Any Kubernetes command with a valid session-scoped `k8s` bypass marker | N/A | Pass through and audit the bypass. The wrapper's own guard remains active. |
 
-The adapter intentionally does not scan arbitrary shell strings recursively beyond the existing direct-script case. Shell-composition enforcement belongs to a later generic policy slice.
+The bridge intentionally does not scan arbitrary shell strings recursively beyond the existing direct-script case. Shell-composition enforcement belongs to a later generic policy slice.
 
 ### Failure behavior
 
@@ -86,11 +86,11 @@ Run the focused Codex hook tests, the existing shared guard tests, and `ws test 
 
 ## Claude-hook conversion map
 
-The long-term design should separate policy data and evaluators from harness adapters. A shared engine should consume a normalized event such as `{session_id, event, tool, command, cwd, project_root}` and return one of four platform-neutral outcomes: `allow`, `approval-request`, `human-required`, or `forbidden`, plus a reason and audit metadata. Each harness adapter maps only outcomes that its event can faithfully express. In particular, `human-required` must never degrade into an auto-reviewable agent prompt.
+The long-term design should separate policy data and evaluators from harness bridges. A shared engine should consume a normalized event such as `{session_id, event, tool, command, cwd, project_root}` and return one of four platform-neutral outcomes: `allow`, `approval-request`, `human-required`, or `forbidden`, plus a reason and audit metadata. Each harness bridge maps only outcomes that its event can faithfully express. In particular, `human-required` must never degrade into an auto-reviewable agent prompt. In GDD documentation, `adapter` remains reserved for the component action wiring that maps `ws test`, `ws lint`, and `ws build` to target-specific commands.
 
 | Claude hook piece | Codex-compatible shape | Shared-engine fit | Capability risk or caveat |
 |---|---|---|---|
-| Input payload parsing and project-root discovery | Small Codex adapter normalizes the Codex payload and trusted project root. | Adapter boundary, not policy. | Field names and lifecycle scope are harness contracts. |
+| Input payload parsing and project-root discovery | Small Codex bridge normalizes the Codex payload and trusted project root. | Bridge boundary, not policy. | Field names and lifecycle scope are harness contracts. |
 | Tier 1 shell-composition denial | Codex `PreToolUse` hook over Bash commands; Codex `.rules` shell splitting is complementary but does not cover every advanced shell form. | High: tokenize once, return `forbidden` with corrective guidance. | Harnesses expose different shell tools and may pre-parse compound commands differently. PowerShell needs a separate grammar. |
 | Whole-tool PowerShell denial and narrow kuttl exception | Codex hook matcher for a PowerShell tool if that tool exists; otherwise command-level matching inside Bash. | Medium: tool policy and exception data are shareable. | Some harnesses have no distinct PowerShell tool, so capability discovery must precede registration. |
 | Tier 2 raw-command redirects (`git commit`, `git push`, provider CR creation, `git mv`) | Codex `PreToolUse` hook for deterministic corrective denial. `.rules` can reinforce commands that already require outside-sandbox execution but cannot cover workspace-local commands by itself. | High: redirect rows, suggestions, and bypass slugs are platform-neutral data. | A Codex `allow` or `prompt` rule is not equivalent to a training redirect. |
@@ -100,14 +100,14 @@ The long-term design should separate policy data and evaluators from harness ada
 | Claude `settings.json` allowlist | Replace with Codex sandbox/permission profiles and narrowly reviewed `.rules`; do not translate entries mechanically. | Low: the intent can be classified, but syntax and trust effects are platform-specific. | Claude allow may bypass a prompt, while Codex allow authorizes outside-sandbox execution. Mechanical conversion could broaden authority. |
 | Per-machine `[allow-extras]` | Codex user-level `.rules` or user-level hooks, not a committed project conversion. | Medium for recommendations and audit metadata; low for storage format. | User-level policy must remain user-owned and cannot weaken managed requirements. |
 | Scratch-directory Edit/Write auto-allow | Codex filesystem permission profile for workspace scratch paths where appropriate; hook only if event-specific review remains necessary. | Medium: scratch path data is shareable. | Filesystem write permission and permission-request approval are different grants. Keep sensitive subpaths denied explicitly. |
-| Session-scoped bypass markers | Make `ws hook-bypass` use the agent-neutral session resolver and let each adapter compare its payload session ID. | High: marker format, slug validation, expiry model, and audit event are neutral. | Environment variable names differ; some harnesses may not expose a stable session ID to subprocesses. |
-| Audit logging | Shared structured audit helper with adapter and event fields; render text for human grep as a view. | High. | Log locations, privacy expectations, and managed retention differ by harness. |
+| Session-scoped bypass markers | Make `ws hook-bypass` use the agent-neutral session resolver and let each bridge compare its payload session ID. | High: marker format, slug validation, expiry model, and audit event are neutral. | Environment variable names differ; some harnesses may not expose a stable session ID to subprocesses. |
+| Audit logging | Shared structured audit helper with bridge and event fields; render text for human grep as a view. | High. | Log locations, privacy expectations, and managed retention differ by harness. |
 | Hook opt-out | Harness-native feature disable plus a shared `WS_HOOK_DISABLE=1` emergency passthrough. | Medium. | Managed configuration may prohibit local disablement; documentation must distinguish local and managed policy. |
 | Optional `PermissionRequest` Edit/Write handling | Codex `PermissionRequest` supports Bash and edit tools; register only for a separately designed ergonomic slice. | Medium: scratch decision policy is neutral. | Multiple Codex hooks run concurrently, so one hook cannot prevent another handler from starting. |
 
 ## Policy-engine direction
 
-A later platform-neutral engine should be extracted incrementally, not by moving the current monolith wholesale. Each conversion should first isolate one policy evaluator behind a stable shell interface, give it harness-independent tests, and leave only payload and decision serialization in the adapter. The Kubernetes guard is the first example: the evaluator already exists, so this CR adds only the Codex adapter.
+A later platform-neutral engine should be extracted incrementally, not by moving the current monolith wholesale. Each conversion should first isolate one policy evaluator behind a stable shell interface, give it harness-independent tests, and leave only payload and decision serialization in the bridge. The Kubernetes guard is the first example: the evaluator already exists, so this CR adds only the Codex bridge.
 
 Suggested extraction order:
 
