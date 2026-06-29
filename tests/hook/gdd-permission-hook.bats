@@ -853,6 +853,47 @@ EOF
     [[ "$output" != *"Use ws commit"* ]]
 }
 
+@test "redirect: git mv denies with plain-mv + bodyfile guidance" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-mv | git mv* | Use plain mv then list both paths in the ws commit bodyfile
+EOF
+)"
+    run_hook "git mv old.md new.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"list both paths"* ]]
+}
+
+@test "redirect: git-mv glob does not over-match 'mv' in other git args" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-mv | git mv* | Use plain mv then list both paths in the ws commit bodyfile
+EOF
+)"
+    # A non-mv subcommand whose args merely contain " mv " must NOT be denied
+    # as git-mv (the bare `git mv*` pattern is start-anchored, not a catch-all).
+    run_hook 'git tag -a v1 -m "drop the old mv helper"'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"list both paths"* ]]
+}
+
+@test "redirect: 'mv' in a commit message routes to git-commit, not git-mv" {
+    write_project_hook_rules "$(cat <<'EOF'
+[redirect-commands]
+git-commit | git commit* | Use ws commit
+git-mv | git mv* | Use plain mv then list both paths
+EOF
+)"
+    run_hook 'git commit -m "remove old mv helper"'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use ws commit"* ]]
+    [[ "$output" != *"list both paths"* ]]
+}
+
 # ─── Tier 3 — adapter-aware test/lint redirects ─────────────────────
 
 # When `[adapter-redirect-commands]` matches (pytest, ruff, etc.) and
