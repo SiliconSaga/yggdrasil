@@ -69,6 +69,8 @@ ws k8s scope show
 
 The scope lives in your session, not your kubeconfig — `ws k8s scope clear` removes it, and it's gone when the session ends. It changes nothing on the cluster.
 
+> **Scope changes must go through your agent.** `ws k8s scope set` requires the agent session ID and will not work in a standalone terminal — the error message will tell you to ask your agent to run it instead.
+
 **That's the setup.** From here on, every `ws k8s …` command is checked against this scope.
 
 ---
@@ -165,7 +167,7 @@ A namespace *not* in your scope (`ws k8s delete namespace kube-public`) is still
 
 ### 3. Widen, then narrow
 
-Want a second namespace in scope? Re-arm with the broader list (it overwrites):
+Want a second namespace in scope? Re-arm with the broader list (it overwrites). Run this through your agent — `ws k8s scope set` will not work in a standalone terminal:
 
 ```bash
 ws k8s scope set --context <ctx> --namespace <ns>,another-ns
@@ -211,7 +213,7 @@ For the rare case where the agent genuinely needs raw kubectl (a one-off automat
 
 ### The human path (ambient guard)
 
-Open a separate plain terminal — no agent, no session id — while an agent session's scope is armed, and `ws k8s` is *still* guarded there: it aggregates the active session's scope. A read works; an out-of-scope write is rejected even though this terminal has no session of its own. The human terminal can't reconfigure the guard (scope set/clear are session-bound); its escape from a rejection is plain `kubectl`.
+Open a separate plain terminal — no agent, no session id — while an agent session's scope is armed, and `ws k8s` is *still* guarded there: it aggregates the active session's scope. A read works; an out-of-scope write is rejected even though this terminal has no session of its own. The human terminal cannot reconfigure the guard — `ws k8s scope set` and `scope clear` require the agent session ID and will not work outside the harness. To change the scope, ask your agent to run the command. The human terminal's escape from a rejection is plain `kubectl`.
 
 ### What the guard does NOT do
 

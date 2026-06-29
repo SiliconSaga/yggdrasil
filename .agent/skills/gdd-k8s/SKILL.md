@@ -23,7 +23,7 @@ When the skill fires for the first time in a session (no scope set yet), walk th
 
 1. **Explain what's about to happen and why** — the guard will intercept raw `kubectl`, redirect it through `ws k8s`, and block any write that targets a namespace outside the captured scope.
 2. **Offer context discovery** — run `kubectl config get-contexts` to list available contexts and invite the user to pick one. (`ws k8s config get-contexts` works equivalently once a scope is armed.)
-3. **Confirm the target namespace(s)** — for multiple namespaces, confirm each individually so the user understands what is and is not in scope. A namespace need not already exist: arming a scope on namespaces you intend to create (e.g. one per environment) is supported — `ws k8s create namespace <ns>` is in-scope and can create them.
+3. **Confirm the target namespace(s)** — for multiple namespaces, confirm each individually so the user understands what is and is not in scope. A namespace need not already exist: arming a scope on namespaces you intend to create (e.g. one per environment) is supported — `ws k8s create namespace <ns>` is in-scope and can create them. Also ask the user to name a second namespace they expect writes to be rejected from — using a real namespace they know makes the rejection demonstrations concrete rather than arbitrary (e.g. `default` carries no meaning to most users). This secondary namespace can later serve as the target for the scope-widening exercise.
 4. **Arm the scope** — run `ws k8s scope set --context <ctx> --namespace <ns[,ns]>`. The command requires the context to exist (you can't create a context through the guard) but only WARNS on a namespace that doesn't exist yet — surfacing a likely typo without blocking the pre-create workflow.
 5. **Confirm the guard is armed** — run `ws k8s scope show` and echo the result. Explain what the user will see when a command is allowed, prompted, or blocked.
 
@@ -54,15 +54,15 @@ Read verbs auto-approved by the guard: `get`, `describe`, `logs`, `top`, `explai
 
 ## Surfacing Output to the User
 
-**The user cannot see tool output in Claude Code.** When a Bash tool call completes, the harness shows the user only the command name and a pass/fail indicator — not the actual stdout or stderr delivered to the agent. A user clicking on a rejected command sees `Bash(ws k8s delete pod probe -n default)` and a red dot, nothing more.
+Tool output visibility varies by harness, version, and user preferences. In some configurations the user sees full stdout/stderr inline; in others they see only the command name and a pass/fail indicator. When uncertain, **check with the user early** — for example, after the first guard rejection, ask whether they can see the rejection message or only the result dot. Their answer should calibrate how much the agent needs to repeat for the rest of the session.
 
-This has direct consequences for this skill:
+When the agent cannot confirm the user is seeing output:
 
-- **Always quote guard rejection messages verbatim** when a command is blocked. Do not paraphrase or summarize — the guard's messages are written to be read, and the user cannot read them without the agent repeating them.
-- **Echo `ws k8s scope show` output** after arming the scope, rather than just saying "the scope is armed." The user cannot see the confirmation line the command produced.
-- **Quote the output of any diagnostic command** (`kubectl config get-contexts`, `kubectl get namespace`, etc.) when the result is relevant to a decision the user is being asked to make.
+- **Quote guard rejection messages verbatim** when a command is blocked. The guard's messages are written to be informative; a paraphrase loses the specific remedies they name.
+- **Echo `ws k8s scope show` output** after arming, rather than just asserting "the scope is armed."
+- **Surface any command output the user needs in order to make a decision** — context lists, namespace lookups, etc.
 
-The general rule: if the output of a tool call is the point — a rejection reason, a confirmation, a list the user must choose from — repeat it in plain text before moving on. Silence after a blocked command, when the user has no way to see why it was blocked, is a significant UX failure.
+The general rule: if the output of a tool call is the point — a rejection reason, a confirmation, a list — and the agent is not certain the user is seeing it, repeat it in plain text before moving on.
 
 ## Hook Availability
 
