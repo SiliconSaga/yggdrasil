@@ -149,40 +149,60 @@ ws_push() {
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws push [component] [branch|tag] [--force]
+Usage: ws push [component] [--remote <remote>] [branch|tag] [--force]
 
-  component  Component to push (default: yggdrasil)
-  branch|tag Component branch or local tag to push (default: current branch)
-  --force    Force push a branch (use with care; refused for tags)
+  component        Component to push (default: yggdrasil)
+  --remote <name>  Push to this git remote instead of identity.forkRemote
+  branch|tag       Component branch or local tag to push (default: current branch)
+  --force          Force push a branch (use with care; refused for tags)
 
 Pushes to the component's per-developer fork remote (resolved via
 identity.forkRemote in ecosystem config). For repos you own directly,
-pushes to the configured remote.
+pushes to the configured remote. Use --remote to target a specific remote
+(e.g. `ws push yggdrasil --remote siliconsaga` to push to GitHub when
+identity.forkRemote points at a GitLab fork).
 HELP
             return 0
         fi
     done
-    if [[ $# -gt 3 ]]; then
-        echo "Usage: ws push [component] [branch|tag] [--force]" >&2
-        exit 1
-    fi
     local comp="${1:-yggdrasil}"
     local branch=""
     local force=""
+    local push_remote_override=""
     shift 2>/dev/null || true
-    for arg in "$@"; do
-        case "$arg" in
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
             --force) force="--force" ;;
-            -*) echo "ERROR: Unknown option '$arg'" >&2; exit 1 ;;
-            *) branch="$arg" ;;
+            --remote)
+                if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+                    echo "ERROR: --remote requires a git remote name" >&2
+                    exit 1
+                fi
+                push_remote_override="$2"
+                shift
+                ;;
+            --remote=*)
+                push_remote_override="${1#--remote=}"
+                if [[ -z "$push_remote_override" ]]; then
+                    echo "ERROR: --remote requires a git remote name" >&2
+                    exit 1
+                fi
+                ;;
+            -*) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
+            *) branch="$1" ;;
         esac
+        shift
     done
     ws_resolve_target "$comp"
-    # Pass forkRemote as push remote hint (only if set and not already overridden)
-    local fork_remote
-    fork_remote=$(ws_resolve_fork_remote)
-    if [[ -n "$fork_remote" && -z "${GIT_PUSH_REMOTE:-}" ]]; then
-        export GIT_PUSH_REMOTE="$fork_remote"
+    # --remote flag takes precedence; otherwise fall back to identity.forkRemote
+    if [[ -n "$push_remote_override" ]]; then
+        export GIT_PUSH_REMOTE="$push_remote_override"
+    else
+        local fork_remote
+        fork_remote=$(ws_resolve_fork_remote)
+        if [[ -n "$fork_remote" && -z "${GIT_PUSH_REMOTE:-}" ]]; then
+            export GIT_PUSH_REMOTE="$fork_remote"
+        fi
     fi
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-push.sh" ${force:+"$force"} ${branch:+"$branch"}
 }
