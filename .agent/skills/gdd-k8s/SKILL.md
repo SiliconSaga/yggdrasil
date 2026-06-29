@@ -23,7 +23,7 @@ When the skill fires for the first time in a session (no scope set yet), walk th
 
 1. **Explain what's about to happen and why** — the guard will intercept raw `kubectl`, redirect it through `ws k8s`, and block any write that targets a namespace outside the captured scope.
 2. **Offer context discovery** — run `kubectl config get-contexts` to list available contexts and invite the user to pick one. (`ws k8s config get-contexts` works equivalently once a scope is armed.)
-3. **Confirm the target namespace(s)** — for multiple namespaces, confirm each individually so the user understands what is and is not in scope. A namespace need not already exist: arming a scope on namespaces you intend to create (e.g. one per environment) is supported — `ws k8s create namespace <ns>` is in-scope and can create them.
+3. **Confirm the target namespace(s)** — for multiple namespaces, confirm each individually so the user understands what is and is not in scope. A namespace need not already exist: arming a scope on namespaces you intend to create (e.g. one per environment) is supported — `ws k8s create namespace <ns>` is in-scope and can create them. Also ask the user to name a second namespace they expect writes to be rejected from — using a real namespace they know makes the rejection demonstrations concrete rather than arbitrary (e.g. `default` carries no meaning to most users). This secondary namespace can later serve as the target for the scope-widening exercise.
 4. **Arm the scope** — run `ws k8s scope set --context <ctx> --namespace <ns[,ns]>`. The command requires the context to exist (you can't create a context through the guard) but only WARNS on a namespace that doesn't exist yet — surfacing a likely typo without blocking the pre-create workflow.
 5. **Confirm the guard is armed** — run `ws k8s scope show` and echo the result. Explain what the user will see when a command is allowed, prompted, or blocked.
 
@@ -37,7 +37,9 @@ Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash too
 | `ws k8s <write verb>` targeting in-scope namespace | Prompts normally — user sees the command and approves |
 | `ws k8s <write verb>` targeting out-of-scope namespace | Denied with a class-aware explanation: a namespace-scoped write says to add that namespace to the scope; a cluster-scoped/unbounded write says widening cannot help — run outside the guard or clear it |
 | `ws k8s create`/`delete namespace <ns>` where `<ns>` is in scope | Allowed — you may create (or delete and recreate) your own scoped namespace(s). An out-of-scope namespace name is denied like any out-of-scope write |
-| Raw `kubectl` command | Redirected to `ws k8s`; user sees the denial message |
+| Raw `kubectl` read verb | Auto-approved silently — reads are free even via raw kubectl when a scope is armed. The hook does not redirect harmless reads. |
+| Raw `kubectl` write (in-scope namespace) | Denied with a message instructing use of `ws k8s` — the wrapper injects `--context`, preventing writes from hitting the wrong cluster by force of habit |
+| Raw `kubectl` write (out-of-scope namespace or unbounded) | Denied with the same class-aware message the `ws k8s` wrapper emits |
 | Temp script (bash/sh/source) whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s` |
 | `kubectl --context <other-ctx>` where other-ctx ≠ practice context | Blocked — explicit cross-context write is out of scope |
 | `--all-namespaces` on a write | Blocked — unbounded writes are never scope-bounded |
@@ -49,6 +51,22 @@ Read verbs auto-approved by the guard: `get`, `describe`, `logs`, `top`, `explai
 - **Widen the scope** — re-run `ws k8s scope set --context <ctx> --namespace <ns1,ns2>` with a broader namespace list. The previous scope is overwritten.
 - **Remove the scope entirely** — `ws k8s scope clear`. The guard deactivates for the session; raw `kubectl` is no longer intercepted.
 - **Lift the redirect for the session** — `ws hook-bypass k8s`. This writes a session-scoped bypass marker so the raw-kubectl redirect does not fire, but scope-set vars remain in place. Useful for running a one-off automation script that calls `kubectl` directly.
+
+## Surfacing Output to the User
+
+Tool output visibility varies by harness, version, and user preferences. In some configurations the user sees full stdout/stderr inline; in others they see only the command name and a pass/fail indicator. When uncertain, **check with the user early** — for example, after the first guard rejection, ask whether they can see the rejection message or only the result dot. Their answer should calibrate how much the agent needs to repeat for the rest of the session.
+
+When the agent cannot confirm the user is seeing output:
+
+- **Quote guard rejection messages verbatim** when a command is blocked. The guard's messages are written to be informative; a paraphrase loses the specific remedies they name.
+- **Echo `ws k8s scope show` output** after arming, rather than just asserting "the scope is armed."
+- **Surface any command output the user needs in order to make a decision** — context lists, namespace lookups, etc.
+
+The general rule: if the output of a tool call is the point — a rejection reason, a confirmation, a list — and the agent is not certain the user is seeing it, repeat it in plain text before moving on.
+
+## Hook Availability
+
+The raw-kubectl intercept (Tier 2b) is implemented as a **Claude Code PreToolUse hook** registered in `.claude/settings.json`. Without an equivalent hook in another harness (Codex, Cursor, etc.), raw `kubectl` commands are not intercepted — the `ws k8s` wrapper still enforces scope when called directly, but the safety net against accidental bare `kubectl` use only fires inside Claude Code. When running in a different harness, treat `ws k8s` as the required form; do not assume raw `kubectl` will be caught.
 
 ## Composability
 

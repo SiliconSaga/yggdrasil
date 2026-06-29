@@ -56,6 +56,7 @@ ws_session_set() {
     local key="${1:-}" value="${2:-}" path; path="$(ws_session_identity_path)"
     if [[ -z "$path" ]]; then
         echo "ERROR: No session id (GDD_SESSION_ID / CLAUDE_CODE_SESSION_ID / CODEX_THREAD_ID) — cannot write session config." >&2
+        echo "  Running in a plain terminal? Ask your agent to run this command instead — scope changes require the agent session." >&2
         return 1
     fi
     [[ -n "$key" ]] || { echo "ERROR: ws_session_set requires a KEY." >&2; return 1; }

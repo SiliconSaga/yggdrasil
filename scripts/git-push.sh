@@ -94,15 +94,15 @@ elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
     fi
   done
   if [[ -z "$REMOTE_NAME" ]]; then
-    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from identity.forkRemote)." >&2
+    echo "ERROR: No remote matching '$GIT_PUSH_REMOTE' (from --remote flag or identity.forkRemote)." >&2
     echo "  Available remotes: ${REMOTES[*]}" >&2
-    echo "  Set identity.forkRemote in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
+    echo "  Pass --remote <name> to ws push, or set identity.forkRemote in ecosystem.local.yaml." >&2
     exit 1
   fi
 else
   echo "ERROR: Multiple remotes found — cannot determine which to push to." >&2
   echo "  Available remotes: ${REMOTES[*]}" >&2
-  echo "  Set identity.forkRemote in ecosystem.local.yaml or GIT_PUSH_REMOTE." >&2
+  echo "  Pass --remote <name> to ws push, or set identity.forkRemote in ecosystem.local.yaml." >&2
   exit 1
 fi
 

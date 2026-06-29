@@ -12,9 +12,9 @@ The walkthrough is chaptered so you can stop after Chapter 2 with the guard in m
 
 ## Prerequisites
 
-- **A Kubernetes cluster context you can write to**, and a namespace you can freely create and destroy. This is the one hard requirement — the guard guards *real* kubectl against a *real* cluster.
+- **A Kubernetes cluster context you can write to**, and a namespace within it that you have write access to. Creating or destroying namespaces is not required for Chapters 1–2; that is covered as optional material in Chapter 3. This is the one hard requirement — the guard operates against a real cluster.
 
-  Don't have a cluster? Spin up a throwaway local one (any of these gives you a context you can wreck safely):
+  Don't have a cluster? Spin up a local one (any of these gives you a disposable context):
 
   | Tool | Start it | Context name |
   |---|---|---|
@@ -27,7 +27,7 @@ The walkthrough is chaptered so you can stop after Chapter 2 with the guard in m
 - **The workspace prerequisites.** From the workspace root, `ws preflight` should pass — it verifies bash, git, `yq` (the guard parses `-f` manifests with it), `jq`, and a provider CLI (`gh` or `glab`).
 - **The `ws k8s` feature present.** `ws orient` should list the `gdd-k8s` skill and a `k8s` subcommand.
 
-Throughout, substitute `<ctx>` for your chosen context and `<ns>` for a throwaway namespace (e.g. `practice`). Run everything from the workspace root.
+Throughout, substitute `<ctx>` for your chosen context and `<ns>` for the namespace you will use (e.g. `practice`). Run everything from the workspace root.
 
 ---
 
@@ -43,13 +43,15 @@ List what you can reach:
 kubectl config get-contexts
 ```
 
-Pick one you're comfortable making a mess in (`<ctx>`). You need a namespace too. You can create it first:
+Pick a context you have write access to (`<ctx>`). You need a namespace too — use one that already exists and that you can write to freely (`<ns>`).
+
+If you are working in a disposable environment and prefer to start with a fresh namespace, you can create one:
 
 ```bash
 kubectl --context <ctx> create namespace <ns>
 ```
 
-Or skip that — arming a scope does **not** require the namespace to exist yet (Chapter 3 creates it through the guard). Either path is fine.
+This is not required — the guard arms equally well against an existing namespace. Namespace creation and deletion are covered as optional steps in Chapter 3.
 
 ### 2. Arm the scope
 
@@ -66,6 +68,8 @@ ws k8s scope show
 ```
 
 The scope lives in your session, not your kubeconfig — `ws k8s scope clear` removes it, and it's gone when the session ends. It changes nothing on the cluster.
+
+> **Scope changes require a session ID.** `ws k8s scope set` writes to a session-scoped file and will fail without one. In a standalone terminal this means asking your agent to run the command — the error message will say so. Advanced users can export `GDD_SESSION_ID` directly to run scope commands outside the harness.
 
 **That's the setup.** From here on, every `ws k8s …` command is checked against this scope.
 
@@ -122,7 +126,7 @@ All three block **before** kubectl runs, so they're safe to type while you're le
 
 ## Chapter 3: Real practice
 
-Goal: the workflows you'll actually use — manifests, namespace lifecycle, widening, cleanup.
+Goal: the workflows you'll actually use — manifests, widening, cleanup. Namespace lifecycle (create and delete) is covered as an optional step for disposable environments.
 
 ### 1. Apply a manifest
 
@@ -148,20 +152,22 @@ It applies — the namespace in the manifest is in scope. Each document is scope
 
 > **Windows note:** quote the path or use forward slashes. An unquoted backslash path (`ws k8s apply -f C:\dir\pod.yaml`) is mangled by the shell into `C:dirpod.yaml` *before* `ws` ever sees it — use `"C:\dir\pod.yaml"` or `C:/dir/pod.yaml`.
 
-### 2. Namespace lifecycle — create and recreate your own
+### 2. Namespace lifecycle — create and recreate your own *(optional — disposable environments only)*
 
-Because `<ns>` is in your scope, you may create and delete *that* namespace through the guard:
+Skip this step if you are working in a shared or production-adjacent cluster. It requires a namespace you can freely delete and recreate without affecting other workloads.
+
+Because `<ns>` is in your scope, the guard permits creating and deleting *that* namespace:
 
 ```bash
 ws k8s delete namespace <ns>     # allowed — it's in scope
 ws k8s create namespace <ns>     # allowed — recreated
 ```
 
-A namespace *not* in your scope (`ws k8s delete namespace kube-public`) is still rejected. This is what makes the "arm a not-yet-existing namespace, then create it" workflow from Chapter 1 work — handy when you're setting up the same sandbox across several environments.
+A namespace *not* in your scope (`ws k8s delete namespace kube-public`) is still rejected. This is what makes the "arm a not-yet-existing namespace, then create it" workflow from Chapter 1 useful — handy when provisioning the same sandbox across several environments.
 
 ### 3. Widen, then narrow
 
-Want a second namespace in scope? Re-arm with the broader list (it overwrites):
+Want a second namespace in scope? Re-arm with the broader list (it overwrites). Run this through your agent — `ws k8s scope set` will not work in a standalone terminal:
 
 ```bash
 ws k8s scope set --context <ctx> --namespace <ns>,another-ns
@@ -178,7 +184,17 @@ ws k8s scope clear
 ```bash
 ws k8s delete pod practice-pod -n <ns>
 ws k8s delete pod probe -n <ns>
-ws k8s delete namespace <ns>          # in-scope; or raw: kubectl --context <ctx> delete namespace <ns>
+```
+
+If you created a namespace specifically for this tutorial (Chapter 1 or the optional step above), delete it before clearing the scope — the guard only allows the delete while `<ns>` is still in scope:
+
+```bash
+ws k8s delete namespace <ns>
+```
+
+Then clear the scope and remove the manifest:
+
+```bash
 ws k8s scope clear
 rm pod.yaml
 ```
@@ -202,7 +218,7 @@ For the rare case where the agent genuinely needs raw kubectl (a one-off automat
 
 ### The human path (ambient guard)
 
-Open a separate plain terminal — no agent, no session id — while an agent session's scope is armed, and `ws k8s` is *still* guarded there: it aggregates the active session's scope. A read works; an out-of-scope write is rejected even though this terminal has no session of its own. The human terminal can't reconfigure the guard (scope set/clear are session-bound); its escape from a rejection is plain `kubectl`.
+Open a separate plain terminal — no agent, no session id — while an agent session's scope is armed, and `ws k8s` is *still* guarded there: it aggregates the active session's scope. A read works; an out-of-scope write is rejected even though this terminal has no session of its own. The human terminal cannot reconfigure the guard — `ws k8s scope set` and `scope clear` require a session ID, which a plain terminal does not have. To change the scope, ask your agent to run the command (or export `GDD_SESSION_ID` manually for advanced use). The human terminal's escape from a rejection is plain `kubectl`.
 
 ### What the guard does NOT do
 
