@@ -6,9 +6,17 @@ setup() { make_kubectl_stub "default"; }
     run_guard "kind-practice" "alice-sandbox" ls -la
     [ "$output" = "NOT_K8S" ]
 }
-@test "no scope set is NO_SCOPE" {
+@test "read is classified even when no scope is armed" {
     run_guard "" "" kubectl get pods
-    [ "$output" = "NO_SCOPE" ]
+    [ "$output" = "READ_NO_SCOPE" ]
+}
+@test "write is classified even when no scope is armed" {
+    run_guard "" "" kubectl apply -k overlays/plain
+    [ "$output" = "WRITE_NO_SCOPE" ]
+}
+@test "standalone kustomize render is a read" {
+    run_guard "" "" kubectl kustomize overlays/plain
+    [ "$output" = "READ_NO_SCOPE" ]
 }
 @test "read anywhere on matching context is READ_IN_SCOPE" {
     run_guard "kind-practice" "alice-sandbox" kubectl get pods -n kube-system
@@ -53,6 +61,63 @@ setup() { make_kubectl_stub "default"; }
     printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: prod\n' > "$BATS_TEST_TMPDIR/m.yaml"
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
     [[ "$output" == BLOCK:* ]]
+}
+@test "apply -k inspects rendered resources and allows an in-scope namespace" {
+    mkdir -p "$BATS_TEST_TMPDIR/overlay"
+    cat > "$BATS_TEST_TMPDIR/rendered.yaml" <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: in-scope
+  namespace: alice-sandbox
+EOF
+    cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/overlay"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "apply --kustomize blocks a rendered out-of-scope namespace" {
+    mkdir -p "$BATS_TEST_TMPDIR/overlay"
+    cat > "$BATS_TEST_TMPDIR/rendered.yaml" <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: out-of-scope
+  namespace: prod
+EOF
+    cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
+    run_guard "kind-practice" "alice-sandbox" kubectl --context kind-practice apply --kustomize "$BATS_TEST_TMPDIR/overlay" -n alice-sandbox
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "apply -k blocks a rendered cluster-scoped resource" {
+    mkdir -p "$BATS_TEST_TMPDIR/overlay"
+    cat > "$BATS_TEST_TMPDIR/rendered.yaml" <<'EOF'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: unsafe
+EOF
+    cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/overlay" -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
+@test "apply -k fails closed when the local kustomization path is missing" {
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/missing-overlay"
+    [[ "$output" == BLOCK:precondition:* ]]
 }
 @test "apply -f a remote URL BLOCKs (cannot resolve)" {
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f https://example.com/x.yaml

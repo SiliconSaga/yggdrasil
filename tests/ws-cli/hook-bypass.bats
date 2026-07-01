@@ -3,8 +3,8 @@
 # Tests for `ws hook-bypass <slug> [--reason "<text>"]`.
 #
 # The subcommand validates <slug> against [redirect-commands] entries
-# in .claude/hooks/hook-rules, resolves the Claude Code session id
-# (CLAUDE_CODE_SESSION_ID, falling back to CLAUDE_SESSION_ID), and
+# in .claude/hooks/hook-rules, resolves the canonical GDD agent session id
+# (GDD_SESSION_ID, CLAUDE_CODE_SESSION_ID, or CODEX_THREAD_ID), and
 # writes .tmp/hook-bypass/<slug>.bypass with frontmatter.
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -21,12 +21,10 @@ git-push     | git push*      | Use ws push
 gh-pr-create | gh pr create*  | Use ws cr
 EOF
     export PROJECT_ROOT="$WORK"
-    # Pin a deterministic session id. The REAL environment exports
-    # CLAUDE_CODE_SESSION_ID (the live session UUID); override it with a
-    # fixed test value and clear the CLAUDE_SESSION_ID fallback so the
-    # script's resolution is predictable regardless of ambient env.
+    # Pin a deterministic session id and clear higher/lower-precedence
+    # alternatives so resolution is predictable regardless of ambient env.
     export CLAUDE_CODE_SESSION_ID="session-abc"
-    unset CLAUDE_SESSION_ID
+    unset GDD_SESSION_ID CODEX_THREAD_ID CLAUDE_SESSION_ID
 }
 
 @test "valid slug + session id writes marker" {
@@ -44,12 +42,30 @@ EOF
     grep -q '^reason: amend last commit$' "$WORK/.tmp/hook-bypass/git-commit.bypass"
 }
 
-@test "CLAUDE_SESSION_ID fallback is honored when CLAUDE_CODE_SESSION_ID is unset" {
+@test "CODEX_THREAD_ID is honored when Claude session id is unset" {
     unset CLAUDE_CODE_SESSION_ID
-    export CLAUDE_SESSION_ID="fallback-xyz"
+    export CODEX_THREAD_ID="codex-xyz"
     run bash "$SCRIPT" git-commit
     [ "$status" -eq 0 ]
-    grep -q '^session_id: fallback-xyz$' "$WORK/.tmp/hook-bypass/git-commit.bypass"
+    grep -q '^session_id: codex-xyz$' "$WORK/.tmp/hook-bypass/git-commit.bypass"
+}
+
+@test "GDD_SESSION_ID wins over harness-native session ids" {
+    export GDD_SESSION_ID="explicit-gdd"
+    export CLAUDE_CODE_SESSION_ID="claude-native"
+    export CODEX_THREAD_ID="codex-native"
+    run bash "$SCRIPT" git-commit
+    [ "$status" -eq 0 ]
+    grep -q '^session_id: explicit-gdd$' "$WORK/.tmp/hook-bypass/git-commit.bypass"
+}
+
+@test "legacy CLAUDE_SESSION_ID alone is not treated as an active session" {
+    unset GDD_SESSION_ID CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID
+    export CLAUDE_SESSION_ID="legacy-only"
+    run bash "$SCRIPT" git-commit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CODEX_THREAD_ID"* ]]
+    [ ! -f "$WORK/.tmp/hook-bypass/git-commit.bypass" ]
 }
 
 @test "unknown slug exits 1 with helpful message" {
@@ -63,10 +79,12 @@ EOF
 }
 
 @test "missing session id exits 1" {
-    unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID
+    unset GDD_SESSION_ID CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID CLAUDE_SESSION_ID
     run bash "$SCRIPT" git-commit
     [ "$status" -eq 1 ]
+    [[ "$output" == *"GDD_SESSION_ID"* ]]
     [[ "$output" == *"CLAUDE_CODE_SESSION_ID"* ]]
+    [[ "$output" == *"CODEX_THREAD_ID"* ]]
     [ ! -f "$WORK/.tmp/hook-bypass/git-commit.bypass" ]
 }
 

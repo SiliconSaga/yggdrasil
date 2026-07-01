@@ -893,6 +893,64 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     fi
 done
 
+# Session-file access is shared by the unconditional Kubernetes write floor
+# and the scope-specific redirect policy below.
+_sr_envfile=""
+if [[ -n "$_t2_session_id" ]]; then
+    _sr_safe="${_t2_session_id//[^A-Za-z0-9._-]/_}"
+    _sr_envfile="$_t2_project_root/.tmp/gdd-agent-sessions/${_sr_safe}.env"
+fi
+_sr_get() {
+    local key="$1"; [[ -n "$_sr_envfile" && -f "$_sr_envfile" ]] || return 0
+    local l; while IFS= read -r l || [[ -n "$l" ]]; do l="${l%$'\r'}"
+        case "$l" in "$key="*) printf '%s' "${l#"$key="}"; return 0 ;; esac
+    done < "$_sr_envfile"
+}
+
+# ─── Kubernetes write safety floor (scope-independent) ──────────────
+# A scope strengthens policy with context/namespace bounds, but write
+# classification must not disappear merely because no scope is armed. This
+# tier precedes settings allowlists so a blanket kubectl allow cannot suppress
+# the human confirmation.
+_k8s_floor_enabled=0
+for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
+    [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
+done
+if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
+    _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
+    if [[ -z "$_k8s_floor_ctx" ]]; then
+        case "$match_cmd" in
+            ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) : ;;
+            kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *)
+                _k8s_floor_marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass"
+                _k8s_floor_msid=""
+                [[ -f "$_k8s_floor_marker" ]] && _k8s_floor_msid="$(grep '^session_id:' "$_k8s_floor_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
+                if [[ -n "$_t2_session_id" && "$_k8s_floor_msid" == "$_t2_session_id" ]]; then
+                    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+                    allow "unscoped Kubernetes write bypass"
+                fi
+                # shellcheck disable=SC2086
+                _k8s_floor_verdict="$(k8s_guard_evaluate "" "" $match_cmd 2>/dev/null || true)"
+                [[ "$_k8s_floor_verdict" == "WRITE_NO_SCOPE" ]] && ask "No Kubernetes guard scope is active. Approve this Kubernetes write once, arm a scope with 'ws k8s scope set', or use the audited session bypass for deliberate automation."
+                ;;
+            bash\ *|sh\ *|source\ *|./*)
+                _k8s_floor_file="${match_cmd#* }"; _k8s_floor_file="${_k8s_floor_file%% *}"
+                [[ "$_k8s_floor_file" == /* ]] || _k8s_floor_file="$cwd/$_k8s_floor_file"
+                if [[ -f "$_k8s_floor_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_k8s_floor_file" 2>/dev/null; then
+                    _k8s_floor_marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass"
+                    _k8s_floor_msid=""
+                    [[ -f "$_k8s_floor_marker" ]] && _k8s_floor_msid="$(grep '^session_id:' "$_k8s_floor_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
+                    if [[ -n "$_t2_session_id" && "$_k8s_floor_msid" == "$_t2_session_id" ]]; then
+                        echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
+                        allow "unscoped Kubernetes script bypass"
+                    fi
+                    ask "No Kubernetes guard scope is active and this script contains kubectl. Approve it once, arm a scope, or use the audited session bypass for deliberate automation."
+                fi
+                ;;
+        esac
+    fi
+fi
+
 # ─── Tier 2b — scoped redirects (session-key-gated) ─────────────────
 #
 # Walk scoped_redirect_commands (parsed from [scoped-redirect-commands]
@@ -907,17 +965,6 @@ done
 # Bypass marker (written by `ws hook-bypass <slug>`) turns the deny
 # into a continue (falls through to later tiers). Mirrors Tier 2.
 
-_sr_envfile=""
-if [[ -n "$_t2_session_id" ]]; then
-    _sr_safe="${_t2_session_id//[^A-Za-z0-9._-]/_}"
-    _sr_envfile="$_t2_project_root/.tmp/gdd-agent-sessions/${_sr_safe}.env"
-fi
-_sr_get() {  # read one KEY from the session env file as data
-    local key="$1"; [[ -n "$_sr_envfile" && -f "$_sr_envfile" ]] || return 0
-    local l; while IFS= read -r l || [[ -n "$l" ]]; do l="${l%$'\r'}"
-        case "$l" in "$key="*) printf '%s' "${l#"$key="}"; return 0 ;; esac
-    done < "$_sr_envfile"
-}
 for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
     _sr_slug="${_entry%%|*}"; _sr_rest="${_entry#*|}"
     _sr_pattern="${_sr_rest%%|*}"; _sr_rest="${_sr_rest#*|}"

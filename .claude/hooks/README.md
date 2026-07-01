@@ -8,14 +8,15 @@ This directory contains a hook script that fires during Claude Code sessions in 
 
 ## PreToolUse hook 
 
-Fires before every Bash tool call. Five decision tiers, then a passthrough:
+Fires before every Bash tool call. Five general decision tiers plus a Kubernetes write safety floor, then a passthrough:
 
 1. **Deny shell composition** (`&&`, `||`, `;`, pipes, command substitution, redirects) with a corrective message that tells the agent how to retry. Trains the agent to use separate tool calls and native `ws` flags (`--limit`, `--compact`, `--output`) instead of shell composition.
 2. **Deny raw `git commit` / `git push` / `gh pr create`** (and any other entry in the `[redirect-commands]` section of `hook-rules`) with a corrective message pointing at the right `ws` subcommand. A session-scoped bypass marker — written by `ws hook-bypass <slug>` after a human-approved ask prompt — overrides the deny for that slug. See [Redirect tier and bypass](#redirect-tier-and-bypass) below.
-3. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` and arbitrary-execution escape hatches like `ws exec` before they can auto-run silently.
-4. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
-5. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
-6. **Pass** everything else goes to default behavior based on other config.
+3. **Classify Kubernetes writes before scope and allowlist handling.** With no scope, a read passes onward and a write emits `ask`; a blanket local `Bash(kubectl:*)` allow therefore cannot suppress confirmation. With a scope, the existing redirect tier adds context and namespace enforcement. A matching audited `k8s` bypass marker lifts both the unscoped write floor and raw-command redirect for that session, while an armed `ws k8s` wrapper remains scope-bounded.
+4. **Ask** (force a permission prompt) for anything matching a glob in the `[ask-commands]` section of `hook-rules` (committed baseline) or `hook-rules.local` (per-machine). The hook emits `permissionDecision: "ask"`, which surfaces a human-facing prompt regardless of the session permission mode — including `acceptEdits` and `bypassPermissions`. The command is NOT blocked; once the human approves it runs normally. This tier exists specifically to intercept destructive commands like `rm -rf` and arbitrary-execution escape hatches like `ws exec` before they can auto-run silently.
+5. **Allow** anything matching `permissions.allow` patterns in `.claude/settings.json` — the hook normalizes both the command and the pattern so bare `ws status` and verbose `bash scripts/ws status` both match a single pattern in either style.
+6. **Allow** anything matching a glob in the `[allow-extras]` section of `hook-rules.local`. Per-machine personal extras for tools you trust on your laptop without committing them to the project config.
+7. **Pass** everything else goes to default behavior based on other config.
 
 Logs allow/deny/ask decisions to `~/.claude/hook-audit.log` with timestamps so you can review what the hook is doing. Passthroughs are not logged.
 

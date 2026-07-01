@@ -130,6 +130,7 @@ Bash(bash *)|high|Allows running any bash script or inline bash invocation. Effe
 Bash(sh *)|high|Same as bash * but for sh.
 Bash(rm -rf *)|high|Recursive force-delete with any target. Wildcards a destructive verb.
 Bash(rm *)|high|rm with arbitrary args (with -rf or without).
+Bash(kubectl:*)|high|Blanket kubectl auto-approval covers writes to every context and overrides narrower read-only allowances.
 Bash(curl *)|medium|Unscoped network egress. Sometimes legitimate (fetching public APIs); consider scoping to a domain.
 Bash(wget *)|medium|Same as curl — unscoped fetch.
 Bash(kubectl *)|medium|Cluster mutation. Broad but sometimes legitimate during platform work; consider scoping to read-only verbs (get, describe, logs).

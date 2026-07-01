@@ -2,7 +2,7 @@
 # ws-hook-bypass.sh — write a session-scoped bypass marker for a
 # Tier 2 [redirect-commands], Tier 2b [scoped-redirect-commands],
 # or Tier 3 [adapter-redirect-commands] slug. The marker lets the
-# matching command run for the rest of the current Claude Code session.
+# matching command run for the rest of the current agent session.
 #
 # ws:use-when requesting a session-scoped bypass of a Tier 2, Tier 2b, or Tier 3 redirect-deny
 #
@@ -28,6 +28,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # PROJECT_ROOT can be set by callers (tests) or falls back to one
 # level up from this script's directory (scripts/) — the yggdrasil root.
 : "${PROJECT_ROOT:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
+ROOT_DIR="$PROJECT_ROOT"
+# shellcheck source=ws-session.sh
+source "$SCRIPT_DIR/ws-session.sh"
 
 HOOK_RULES="$PROJECT_ROOT/.claude/hooks/hook-rules"
 
@@ -44,8 +47,8 @@ Usage: ws hook-bypass <slug> [--reason "<text>"]
   --reason "<txt>" Optional. Captured in the marker file and echoed into
                    each BYPASS-ALLOW audit-log entry for retro grep.
 
-Writes .tmp/hook-bypass/<slug>.bypass with the current Claude Code session id
-(CLAUDE_CODE_SESSION_ID, or CLAUDE_SESSION_ID as a fallback).
+Writes .tmp/hook-bypass/<slug>.bypass with the current GDD agent session id
+(GDD_SESSION_ID, CLAUDE_CODE_SESSION_ID, or CODEX_THREAD_ID).
 The PreToolUse hook honors this marker for matching commands in this
 session only. ws clean (or any .tmp/ purge) sweeps stale markers.
 
@@ -159,16 +162,14 @@ if [[ "$slug_ok" != "1" ]]; then
     exit 1
 fi
 
-# Resolve the session id the marker keys off. Claude Code exposes it as
-# CLAUDE_CODE_SESSION_ID (verified on 2.1.x); CLAUDE_SESSION_ID is accepted
-# as a fallback for other/older builds. The value must equal the hook's
-# stdin-payload `.session_id` for the bypass to match — empirically the
-# same UUID across both channels.
-session_id="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+# Resolve the session id through the same canonical helper used by session
+# config, attribution, and the guarded Kubernetes wrapper. The value must equal
+# the hook payload's `.session_id` for the bypass marker to match.
+session_id="$(ws_resolve_session_id)"
 if [[ -z "$session_id" ]]; then
-    echo "ERROR: no Claude Code session id in the environment." >&2
-    echo "  Expected \$CLAUDE_CODE_SESSION_ID (or \$CLAUDE_SESSION_ID) to be set." >&2
-    echo "  This command only makes sense inside an active Claude Code session;" >&2
+    echo "ERROR: no GDD agent session id in the environment." >&2
+    echo "  Expected \$GDD_SESSION_ID, \$CLAUDE_CODE_SESSION_ID, or \$CODEX_THREAD_ID." >&2
+    echo "  This command only makes sense inside an active agent session;" >&2
     echo "  the marker keys off the session id, so without it the hook can never" >&2
     echo "  match the marker against a session." >&2
     exit 1

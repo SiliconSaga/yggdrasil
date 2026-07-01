@@ -32,6 +32,10 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [ "$status" -eq 0 ]
     [[ "$output" == *"scope"* ]]
     [[ "$output" == *"guard"* ]]
+    [[ "$output" == *"sustained cluster-wide"* ]]
+    [[ "$output" == *"unscoped write safety floor"* ]]
+    [[ "$output" == *"unattended raw-"* ]]
+    [[ "$output" == *"explicit confirmation"* ]]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
 @test "no scope set: passthrough to kubectl" {

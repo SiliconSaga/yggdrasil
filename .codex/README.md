@@ -4,13 +4,14 @@ Yggdrasil uses this directory for Codex-specific project configuration. Workspac
 
 ## Kubernetes scope-guard bridge
 
-[`hooks.json`](hooks.json) registers one focused `PreToolUse` bridge for Bash calls. When the current GDD session has a Kubernetes scope armed, [`hooks/gdd-k8s-hook.sh`](hooks/gdd-k8s-hook.sh) catches raw `kubectl`, guarded `ws k8s`, and directly invoked scripts containing `kubectl`.
+[`hooks.json`](hooks.json) registers one focused `PreToolUse` bridge for Bash calls. [`hooks/gdd-k8s-hook.sh`](hooks/gdd-k8s-hook.sh) classifies raw `kubectl`, guarded `ws k8s`, and directly invoked scripts containing `kubectl` whether or not the current GDD session has a Kubernetes scope armed.
 
 The bridge is deny-or-defer:
 
-- Unsafe, out-of-scope, or misrouted Kubernetes writes are denied with guidance from the shared `scripts/ws-k8s-guard.sh` policy.
+- Unscoped Kubernetes writes are denied with guidance to arm a scope or obtain explicit user confirmation before creating the audited session bypass. Codex's focused bridge does not claim Claude's force-ask semantics.
+- Unsafe, out-of-scope, or misrouted scoped writes are denied with guidance from the shared `scripts/ws-k8s-guard.sh` policy. Local Kustomize directories are rendered so every resulting resource can be checked.
 - Safe reads, guarded `ws k8s` calls, scope management, and unrelated commands return no hook decision. Codex still applies its normal sandbox, network, rules, and approval flow.
-- `ws hook-bypass k8s` lifts raw-command interception for the current session after its normal human gate. It does not disable the guard inside `ws k8s`.
+- `ws hook-bypass k8s` lifts the unscoped write floor and raw-command interception for the current session after explicit user confirmation. It does not disable an already-armed guard inside `ws k8s`.
 
 The bridge does not import Claude's generic command allowlist, shell-composition checks, destructive-command prompts, or component adapter redirects. The proposed conversion path for those independent features is documented in [`../docs/plans/2026-06-29-codex-k8s-hook-design.md`](../docs/plans/2026-06-29-codex-k8s-hook-design.md).
 

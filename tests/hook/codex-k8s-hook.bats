@@ -63,10 +63,49 @@ assert_denied() {
     [ -z "$output" ]
 }
 
-@test "raw kubectl defers when no scope is active" {
+@test "raw kubectl write is denied when no scope is active" {
     run_codex_hook 'kubectl delete pod foo -n prod' no-scope
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"No Kubernetes guard scope is active"* ]]
+}
+
+@test "guarded ws k8s write is denied when no scope is active" {
+    run_codex_hook 'ws k8s apply -k overlays/plain' no-scope
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"scope set"* ]]
+}
+
+@test "raw kubectl read defers when no scope is active" {
+    run_codex_hook 'kubectl get pods -n prod' no-scope
     [ "$status" -eq 0 ]
     [ -z "$output" ]
+}
+
+@test "direct script containing kubectl is denied when no scope is active" {
+    printf '#!/usr/bin/env bash\nkubectl apply -k overlays/plain\n' > "$WORK/danger.sh"
+    run_codex_hook "bash $WORK/danger.sh" no-scope
+    assert_denied
+    local reason
+    reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")"
+    [[ "${reason,,}" == *"no kubernetes guard scope is active"* ]]
+    [[ "$reason" == *"calls raw kubectl"* ]]
+}
+
+@test "matching k8s bypass marker permits an unscoped write and audits it" {
+    write_bypass_marker no-scope
+    run_codex_hook 'kubectl apply -k overlays/plain' no-scope
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.codex/hook-audit.log"
+}
+
+@test "matching k8s bypass marker permits an unscoped kubectl script" {
+    printf '#!/usr/bin/env bash\nkubectl apply -k overlays/plain\n' > "$WORK/danger.sh"
+    write_bypass_marker no-scope
+    run_codex_hook "bash $WORK/danger.sh" no-scope
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.codex/hook-audit.log"
 }
 
 @test "raw kubectl read defers under an active scope" {

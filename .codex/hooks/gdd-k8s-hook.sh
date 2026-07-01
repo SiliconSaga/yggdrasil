@@ -66,7 +66,6 @@ source "$guard_helper"
 session_path="$(ws_session_identity_path_for "$session_id")"
 ctx="$(ws_session_get GDD_K8S_CONTEXT "$session_path")"
 namespaces="$(ws_session_get GDD_K8S_NAMESPACES "$session_path")"
-[[ -n "$ctx" ]] || exit 0
 
 normalize_for_match() {
     local value="$1"
@@ -121,7 +120,9 @@ if [[ "$match_cmd" == ws\ k8s\ * || "$match_cmd" == k8s\ * ]]; then
     verdict="$(evaluate_command "$match_cmd" 2>/dev/null || true)"
     case "$verdict" in
         BLOCK:*) deny "$(k8s_render_block "$verdict" "$ctx" k8s)" ;;
-        READ_IN_SCOPE|WRITE_IN_SCOPE|NO_SCOPE|NOT_K8S) exit 0 ;;
+        WRITE_NO_SCOPE)
+            deny "No Kubernetes guard scope is active. Arm one with 'ws k8s scope set --context <ctx> --namespace <ns,...>', or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session." ;;
+        READ_NO_SCOPE|READ_IN_SCOPE|WRITE_IN_SCOPE|NOT_K8S) exit 0 ;;
         *) deny "Kubernetes guard evaluation failed; the guarded command was not run." ;;
     esac
 fi
@@ -129,7 +130,9 @@ fi
 if [[ "$match_cmd" == kubectl || "$match_cmd" == kubectl\ * ]]; then
     verdict="$(evaluate_command "$match_cmd" 2>/dev/null || true)"
     case "$verdict" in
-        READ_IN_SCOPE|NO_SCOPE) exit 0 ;;
+        READ_NO_SCOPE|READ_IN_SCOPE) exit 0 ;;
+        WRITE_NO_SCOPE)
+            deny "No Kubernetes guard scope is active. Arm one with 'ws k8s scope set --context <ctx> --namespace <ns,...>', or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session." ;;
         WRITE_IN_SCOPE)
             deny "Use 'ws k8s <args>' so the armed context '$ctx' is injected before this Kubernetes write." ;;
         BLOCK:*) deny "$(k8s_render_block "$verdict" "$ctx" k8s)" ;;
@@ -145,7 +148,10 @@ case "$match_cmd" in
             script_path="$cwd/$script_path"
         fi
         if [[ -f "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
-            deny "Script $script_path calls raw kubectl within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
+            if [[ -n "$ctx" ]]; then
+                deny "Script $script_path calls raw kubectl within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
+            fi
+            deny "Script $script_path calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
         fi
         ;;
 esac

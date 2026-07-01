@@ -101,6 +101,8 @@ namespace(s) — training wheels while learning, a guardrail near production.
 Reads are free cluster-wide; out-of-scope or cluster-scoped writes are blocked
 before kubectl runs. Accident-prevention, not a security boundary — see the
 gdd-k8s skill.
+Agent hooks also classify writes before a scope is armed: Claude force-prompts,
+while Codex denies until a scope or explicitly confirmed session bypass exists.
 
 Scope management:
   ws k8s scope set --context <ctx> --namespace <ns[,ns]>   arm the guard
@@ -113,11 +115,15 @@ Guarded passthrough (any other args go to kubectl, with --context injected):
   ws k8s run probe --image=pause -n <ns>   in-scope write → runs
   ws k8s delete pod x -n other     out-of-scope write → REJECTED
 
-To drop the guard, clear the scope: 'ws k8s scope clear' (re-arm later if you
-want), or just run plain 'kubectl' outside 'ws k8s'. Note 'ws hook-bypass k8s'
-only lifts the agent's raw-kubectl redirect — it does NOT disable this wrapper's
-own guard. A kubectl subcommand's own help still passes through, e.g.
-'ws k8s get --help'.
+Choose the boundary deliberately:
+  - Keep the scope for namespace-scoped or production-adjacent work.
+  - With explicit confirmation, clear it for sustained cluster-wide interactive
+    work on a disposable cluster. The unscoped write safety floor remains.
+  - With explicit confirmation, use 'ws hook-bypass k8s' for unattended raw-
+    kubectl automation or deliberately unscoped Codex writes. An armed wrapper
+    scope still applies. The bypass lasts for the session, not one command.
+
+A kubectl subcommand's own help still passes through, e.g. 'ws k8s get --help'.
 
 On Windows, QUOTE a native -f path or use forward slashes — an unquoted
 backslash path (ws k8s apply -f C:\dir\m.yaml) is mangled by the shell before
@@ -146,7 +152,7 @@ main() {
     local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" kubectl "$@")"
     case "$verdict" in
         BLOCK:*) k8s_render_block "$verdict" "$ctx" "k8s" >&2; printf '\n' >&2; return 1 ;;
-        NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
+        READ_NO_SCOPE|WRITE_NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
         READ_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
         *) echo "ws k8s: unrecognized guard verdict '$verdict'" >&2; return 1 ;;
     esac
