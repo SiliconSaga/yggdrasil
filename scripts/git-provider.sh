@@ -75,6 +75,32 @@ gp_detect() {
     return 1
 }
 
+# Build a deep-link URL to create a personal access token with the scopes
+# ws push / cr / review need pre-selected, so the user lands on a page with
+# the right boxes already checked instead of guessing. The scope + name/
+# description query params are honored by github.com and GitHub Enterprise,
+# and by gitlab.com and self-hosted GitLab. On an unrecognized provider it
+# falls back to the host root so the link still goes somewhere useful.
+# Usage: gp_pat_create_url PROVIDER HOST [DESCRIPTION]
+gp_pat_create_url() {
+    local provider="$1" host="$2" desc="${3:-GDD}"
+    # Minimal URL-encoding for the description/name — spaces to %20.
+    local enc="${desc// /%20}"
+    case "$provider" in
+        github)
+            # Classic PAT: `repo` covers push + PR creation via the API.
+            printf 'https://%s/settings/tokens/new?scopes=repo&description=%s' "$host" "$enc"
+            ;;
+        gitlab)
+            # `api` (MR creation) + `write_repository` (git push over HTTPS).
+            printf 'https://%s/-/user_settings/personal_access_tokens?name=%s&scopes=api,write_repository' "$host" "$enc"
+            ;;
+        *)
+            printf 'https://%s' "$host"
+            ;;
+    esac
+}
+
 # Load a provider implementation by name.
 # Usage: gp_load PROVIDER
 gp_load() {

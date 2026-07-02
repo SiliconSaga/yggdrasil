@@ -708,7 +708,11 @@ HELP
             if [[ -n "$token_val" ]]; then
                 token_status="✓ $best_var is set"
             else
-                token_status="✗ $best_var is NOT SET — add 'export $best_var=<token>' to .env"
+                local pat_url
+                pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD ${comp}")
+                token_status="✗ $best_var is NOT SET"
+                token_status+=$'\n'"      → Create one (scopes pre-selected, opens in browser): $pat_url"
+                token_status+=$'\n'"      → Then add 'export $best_var=<token>' to .env  (copy .env.example)"
             fi
         else
             # No gitTokens entry. For known providers, fall back to the
@@ -734,7 +738,12 @@ HELP
                     # `glab auth login` stores credentials separately. But
                     # agent / non-interactive flows (ws push, ws cr, ws review)
                     # need the env var, so we still flag it.
-                    token_status="✗ $default_var is NOT SET — required for agent/non-interactive ops (ws push, ws cr, ws review). Add 'export $default_var=<token>' to .env. Interactive 'gh auth login' / 'glab auth login' may still work for direct CLI use."
+                    local pat_url
+                    pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD ${comp}")
+                    token_status="✗ $default_var is NOT SET — required for agent/non-interactive ops (ws push, ws cr, ws review)."
+                    token_status+=$'\n'"      → Create one (scopes pre-selected, opens in browser): $pat_url"
+                    token_status+=$'\n'"      → Then add 'export $default_var=<token>' to .env  (copy .env.example)"
+                    token_status+=$'\n'"      Interactive 'gh auth login' / 'glab auth login' may still work for direct CLI use, but agent flows need the .env var."
                 fi
             else
                 token_status="✗ no gitTokens entry matches normalized path: $normalized"
@@ -985,6 +994,20 @@ _ws_footer() {
     else
         printf '↪ switching tasks? `ws orient` lists available tools.\n' >&2
     fi
+    # Command-specific next-step nudge. After a push the review phase is
+    # next: steer toward `ws review` over raw gh/glab (or the ws gh / ws
+    # glab escape hatches), which is easy to reach for now that tokens are
+    # injected but loses thread-resolution / since-filtering / attribution.
+    case "$COMMAND" in
+        push)
+            local _rev='↪ review phase: use `ws review <comp> [cr#]` to read/triage CR feedback — prefer it over raw gh/glab or `ws gh`/`ws glab` unless truly needed.'
+            if [[ -t 2 ]]; then
+                printf '\e[2m%s\e[0m\n' "$_rev" >&2
+            else
+                printf '%s\n' "$_rev" >&2
+            fi
+            ;;
+    esac
 }
 
 case "$COMMAND" in
