@@ -11,9 +11,8 @@ All workspace credentials live in `.env` at the yggdrasil root (gitignored). The
 | Variable | Purpose | Required when |
 |---|---|---|
 | `GH_TOKEN` | GitHub PAT (`gh` reads it directly) | Using GitHub remotes |
-| `GH_USER` | GitHub username — derived from the token via `gh api /user` if unset, but explicitly set when running as a separate machine-user account (a bot account with collaborator-only access on specific repos). Pairs with `GH_TOKEN` to assert the operating identity. | Optional in single-user setups; recommended for machine-user / scoped-access setups |
 | `GITLAB_TOKEN` | Default GitLab PAT (`glab` fallback) | Using GitLab remotes |
-| `GITLAB_USER` | GitLab username — referenced in setup docs and example `.env`; not currently consumed by `ws` scripts. Reserved for future parity with `GH_USER`'s machine-user pattern. | Optional |
+| `GITLAB_USER` | GitLab username — referenced in setup docs and example `.env`. | Optional |
 | `GITLAB_HOST` | Self-hosted GitLab hostname | Self-hosted GitLab only |
 | `GITLAB_<scope>_<owner>_<role>` | Per-fork / per-group GitLab tokens | Multi-token GitLab setups (see GitLab section) |
 
@@ -66,13 +65,24 @@ The three `read:*` scopes are the recommended baseline alongside `repo`. They do
 
 > **Why classic and not fine-grained?** Fine-grained PATs have known limitations with cross-org pull requests and workflow file access. Classic PATs are simpler and more reliable for GDD workspaces that span multiple orgs or forks.
 
+#### Classic PAT vs fine-grained vs a machine account
+
+The base setup above (a classic PAT on your own account) is the right default for a single user willing to manage one token. The trade-offs, if you outgrow it:
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Classic PAT** (default) | One token; works across every org/fork you can access; no per-repo wiring | Account-wide — it can reach everything your account can; you renew it by hand at expiry |
+| **Fine-grained PAT** | Least privilege — scope to specific repos + specific permissions | More maintenance: shorter max lifetimes, per-repo/per-org selection to keep current, org-owner approval for org-owned repos; still hits the cross-org/workflow limits above |
+| **Separate machine (bot) account** | Access managed through normal team/collaborator membership instead of token juggling; not tied to your personal identity; durable | One more account to create and hold a seat for |
+
+A machine account is often the nicest long-term answer for shared or automated work: you add the bot as a collaborator (or to a team) on the specific repos, and access is maintained via team management rather than by rotating a personal token. Reach for fine-grained tokens or a machine account when least-privilege or shared ownership actually matters; until then, a classic PAT keeps setup a single step.
+
 ### Store the token
 
 Create `.env` in the yggdrasil root (gitignored):
 
 ```bash
 export GH_TOKEN=ghp_xxxxxxxxxxxx
-export GH_USER=your-github-username
 ```
 
 ### Load and verify
