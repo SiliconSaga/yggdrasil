@@ -11,10 +11,12 @@ setup() {
     source "$REPO_ROOT/scripts/git-provider.sh"
 }
 
-@test "github link pre-selects the repo scope and URL-encodes the description" {
-    run gp_pat_create_url github github.com "GDD yggdrasil"
+@test "github link pre-selects the repo scope and URL-encodes the multi-word description" {
+    # The description is a purpose label, not a repo name — a classic repo-scope
+    # PAT is account-wide, so naming it after one repo would mislead.
+    run gp_pat_create_url github github.com "GDD agent write token"
     [ "$status" -eq 0 ]
-    [ "$output" = "https://github.com/settings/tokens/new?scopes=repo&description=GDD%20yggdrasil" ]
+    [ "$output" = "https://github.com/settings/tokens/new?scopes=repo&description=GDD%20agent%20write%20token" ]
 }
 
 @test "github enterprise host is honored (not hardcoded to github.com)" {

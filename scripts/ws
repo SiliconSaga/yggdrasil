@@ -709,7 +709,7 @@ HELP
                 token_status="✓ $best_var is set"
             else
                 local pat_url
-                pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD ${comp}")
+                pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD agent write token")
                 token_status="✗ $best_var is NOT SET"
                 token_status+=$'\n'"      → Create one (scopes pre-selected, opens in browser): $pat_url"
                 token_status+=$'\n'"      → Then add 'export $best_var=<token>' to .env  (copy .env.example)"
@@ -739,7 +739,7 @@ HELP
                     # agent / non-interactive flows (ws push, ws cr, ws review)
                     # need the env var, so we still flag it.
                     local pat_url
-                    pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD ${comp}")
+                    pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD agent write token")
                     token_status="✗ $default_var is NOT SET — required for agent/non-interactive ops (ws push, ws cr, ws review)."
                     token_status+=$'\n'"      → Create one (scopes pre-selected, opens in browser): $pat_url"
                     token_status+=$'\n'"      → Then add 'export $default_var=<token>' to .env  (copy .env.example)"
