@@ -15,7 +15,7 @@ The bridge is deny-or-defer:
 - Safe reads, guarded `ws k8s` calls, scope management, and unrelated commands return no hook decision. Codex still applies its normal sandbox, network, rules, and approval flow.
 - `ws hook-bypass k8s` lifts the unscoped write floor and raw-command interception for the current session after explicit user confirmation. It does not disable an already-armed guard inside `ws k8s`.
 
-The bridge does not import Claude's generic command allowlist, shell-composition checks, destructive-command prompts, or component adapter redirects. The proposed conversion path for those independent features is documented in [`../docs/plans/2026-06-29-codex-k8s-hook-design.md`](../docs/plans/2026-06-29-codex-k8s-hook-design.md).
+The bridge does not import Claude's generic command allowlist, shell-composition checks, destructive-command prompts, or component adapter redirects. Those independent features remain Claude-specific until each has a suitable Codex lifecycle surface or belongs in a future platform-neutral policy engine.
 
 ## Trust the hook
 
