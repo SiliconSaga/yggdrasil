@@ -12,6 +12,106 @@ _k8s_normalize_path() {
     printf '%s' "${1//\\//}"
 }
 
+# Normalize common transparent command wrappers before hook matching. This is
+# deliberately a small shell-token subset, not a general shell parser: GDD is
+# catching common mistakes, while complex composition belongs in reviewed
+# scripts. Values containing shell-significant whitespace remain outside this
+# helper's guarantee.
+k8s_guard_normalize_command() {
+    local command="$1" token base
+    local -a words=()
+    read -r -a words <<< "$command"
+    [[ ${#words[@]} -gt 0 ]] || return 0
+
+    local i=0
+    while [[ $i -lt ${#words[@]} ]]; do
+        token="${words[$i]}"
+        case "$token" in
+            [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
+            env|*/env)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[$i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -u|--unset) i=$((i + 2)) ;;
+                        --unset=*|-i|--ignore-environment|-[^-]*) i=$((i + 1)) ;;
+                        [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
+                        *) break ;;
+                    esac
+                done ;;
+            command|*/command)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    case "${words[$i]}" in --|-p) i=$((i + 1)) ;; *) break ;; esac
+                done ;;
+            *) break ;;
+        esac
+    done
+    [[ $i -lt ${#words[@]} ]] || return 0
+
+    base="${words[$i]##*/}"
+    [[ "$base" == "kubectl" ]] && words[$i]="kubectl"
+    printf '%s' "${words[*]:$i}"
+}
+
+# Resolve the script executed by a common shell-launch form. The returned path
+# is absolute and anchored to the tool payload cwd, not the hook process cwd.
+# Inline `bash -c`/`sh -c` commands are intentionally handled separately.
+k8s_guard_script_path() {
+    local cwd="$1" command="$2" normalized runner token path=""
+    normalized="$(k8s_guard_normalize_command "$command")"
+    local -a words=()
+    read -r -a words <<< "$normalized"
+    [[ ${#words[@]} -gt 0 ]] || return 1
+
+    runner="${words[0]##*/}"
+    local i=1
+    case "$runner" in
+        bash|sh)
+            while [[ $i -lt ${#words[@]} ]]; do
+                token="${words[$i]}"
+                if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
+                    return 1
+                fi
+                case "$token" in
+                    --) i=$((i + 1)); [[ $i -lt ${#words[@]} ]] && path="${words[$i]}"; break ;;
+                    -o|--rcfile|--init-file) i=$((i + 2)) ;;
+                    -*) i=$((i + 1)) ;;
+                    *) path="$token"; break ;;
+                esac
+            done ;;
+        source|.)
+            [[ ${#words[@]} -gt 1 ]] && path="${words[1]}" ;;
+        *)
+            case "${words[0]}" in /*|./*|../*) path="${words[0]}" ;; esac ;;
+    esac
+    [[ -n "$path" ]] || return 1
+    [[ "$path" == /* ]] || path="$cwd/$path"
+    [[ -f "$path" ]] || return 1
+    printf '%s' "$path"
+}
+
+# True when a shell's inline-command option carries a literal kubectl call.
+k8s_guard_inline_shell_contains_kubectl() {
+    local command="$1" normalized runner token
+    normalized="$(k8s_guard_normalize_command "$command")"
+    local -a words=()
+    read -r -a words <<< "$normalized"
+    [[ ${#words[@]} -gt 1 ]] || return 1
+    runner="${words[0]##*/}"
+    [[ "$runner" == "bash" || "$runner" == "sh" ]] || return 1
+    local i
+    for ((i = 1; i < ${#words[@]}; i++)); do
+        token="${words[$i]}"
+        if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
+            grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$normalized"
+            return $?
+        fi
+    done
+    return 1
+}
+
 # Plain read verbs. `auth` and `config` are deliberately NOT here: they are
 # mixed read/write families (`config use-context`, `auth reconcile`, … mutate
 # state) and are classified by sub-command in k8s_guard_evaluate, fail-closed.

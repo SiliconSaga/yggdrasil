@@ -6,6 +6,8 @@ Yggdrasil uses this directory for Codex-specific project configuration. Workspac
 
 [`hooks.json`](hooks.json) registers one focused `PreToolUse` bridge for Bash calls. [`hooks/gdd-k8s-hook.sh`](hooks/gdd-k8s-hook.sh) classifies raw `kubectl`, guarded `ws k8s`, and directly invoked scripts containing `kubectl` whether or not the current GDD session has a Kubernetes scope armed.
 
+Before classification, the bridge normalizes common transparent launch forms: leading environment assignments, `env`, `command`, absolute kubectl paths, shell options before a direct script, relative script paths anchored to the tool cwd, and literal kubectl inside `bash -c` or `sh -c`. It does not claim visibility into arbitrary nested execution through task runners, client libraries, Helm, or dynamically constructed command names.
+
 The bridge is deny-or-defer:
 
 - Unscoped Kubernetes writes are denied with guidance to arm a scope or obtain explicit user confirmation before creating the audited session bypass. Codex's focused bridge does not claim Claude's force-ask semantics.

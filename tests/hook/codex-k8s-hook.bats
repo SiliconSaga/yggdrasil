@@ -2,7 +2,7 @@
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-    CODEX_HOOK_BIN="$REPO_ROOT/.codex/hooks/gdd-k8s-hook.sh"
+    CODEX_HOOK_BIN="${GDD_CODEX_K8S_HOOK_BIN:-$REPO_ROOT/.codex/hooks/gdd-k8s-hook.sh}"
     WORK="$BATS_TEST_TMPDIR/work"
     mkdir -p "$WORK/scripts"
     mkdir -p "$WORK/.tmp/gdd-agent-sessions"
@@ -89,6 +89,32 @@ assert_denied() {
     reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")"
     [[ "${reason,,}" == *"no kubernetes guard scope is active"* ]]
     [[ "$reason" == *"calls raw kubectl"* ]]
+}
+
+@test "env-wrapped kubectl run is denied when no scope is active" {
+    run_codex_hook 'env KUBECONFIG=/tmp/test kubectl run script-test --image=pause -n gdd-practice' no-scope
+    assert_denied
+}
+
+@test "absolute kubectl path is denied when no scope is active" {
+    run_codex_hook '/usr/bin/kubectl run script-test --image=pause -n gdd-practice' no-scope
+    assert_denied
+}
+
+@test "leading assignment before kubectl run is denied when no scope is active" {
+    run_codex_hook 'KUBECONFIG=/tmp/test kubectl run script-test --image=pause -n gdd-practice' no-scope
+    assert_denied
+}
+
+@test "bash options do not hide an unscoped kubectl-run script" {
+    printf '#!/usr/bin/env bash\nkubectl run script-test --image=pause --restart=Never -n gdd-practice\n' > "$WORK/chapter4-script-test.sh"
+    run_codex_hook 'bash -x ./chapter4-script-test.sh' no-scope
+    assert_denied
+}
+
+@test "bash -c containing kubectl is denied when no scope is active" {
+    run_codex_hook "bash -c 'kubectl run script-test --image=pause -n gdd-practice'" no-scope
+    assert_denied
 }
 
 @test "matching k8s bypass marker permits an unscoped write and audits it" {

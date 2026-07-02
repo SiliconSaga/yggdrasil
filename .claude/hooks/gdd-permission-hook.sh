@@ -917,9 +917,13 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
 done
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
+    _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
+    _k8s_script_file="$(k8s_guard_script_path "$cwd" "$match_cmd" 2>/dev/null || true)"
+    _k8s_inline_shell=0
+    k8s_guard_inline_shell_contains_kubectl "$match_cmd" && _k8s_inline_shell=1
     _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
     if [[ -z "$_k8s_floor_ctx" ]]; then
-        case "$match_cmd" in
+        case "$_k8s_match_cmd" in
             ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) : ;;
             kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *)
                 _k8s_floor_marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass"
@@ -930,13 +934,11 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                     allow "unscoped Kubernetes write bypass"
                 fi
                 # shellcheck disable=SC2086
-                _k8s_floor_verdict="$(k8s_guard_evaluate "" "" $match_cmd 2>/dev/null || true)"
+                _k8s_floor_verdict="$(k8s_guard_evaluate "" "" $_k8s_match_cmd 2>/dev/null || true)"
                 [[ "$_k8s_floor_verdict" == "WRITE_NO_SCOPE" ]] && ask "No Kubernetes guard scope is active. Approve this Kubernetes write once, arm a scope with 'ws k8s scope set', or use the audited session bypass for deliberate automation."
                 ;;
-            bash\ *|sh\ *|source\ *|./*)
-                _k8s_floor_file="${match_cmd#* }"; _k8s_floor_file="${_k8s_floor_file%% *}"
-                [[ "$_k8s_floor_file" == /* ]] || _k8s_floor_file="$cwd/$_k8s_floor_file"
-                if [[ -f "$_k8s_floor_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_k8s_floor_file" 2>/dev/null; then
+            *)
+                if { [[ -n "$_k8s_script_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_k8s_script_file" 2>/dev/null; } || [[ "$_k8s_inline_shell" == "1" ]]; then
                     _k8s_floor_marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass"
                     _k8s_floor_msid=""
                     [[ -f "$_k8s_floor_marker" ]] && _k8s_floor_msid="$(grep '^session_id:' "$_k8s_floor_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
@@ -944,7 +946,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                         echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
                         allow "unscoped Kubernetes script bypass"
                     fi
-                    ask "No Kubernetes guard scope is active and this script contains kubectl. Approve it once, arm a scope, or use the audited session bypass for deliberate automation."
+                    ask "No Kubernetes guard scope is active and this shell invocation contains kubectl. Approve it once, arm a scope, or use the audited session bypass for deliberate automation."
                 fi
                 ;;
         esac
@@ -983,9 +985,9 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     fi
     _sr_ctx="$(_sr_get GDD_K8S_CONTEXT)"; _sr_ns="$(_sr_get GDD_K8S_NAMESPACES)"
     # (a) ws k8s commands → route by guard verdict.
-    if [[ "$match_cmd" == ws\ k8s\ * || "$match_cmd" == k8s\ * ]]; then
+    if [[ "$_k8s_match_cmd" == ws\ k8s\ * || "$_k8s_match_cmd" == k8s\ * ]]; then
         # shellcheck disable=SC2086
-        _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $match_cmd 2>/dev/null || true)"
+        _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null || true)"
         case "$_sr_verdict" in
             READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_verdict" "$_sr_ctx" "$_sr_slug")" ;;
@@ -1000,9 +1002,9 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # falls through to the (b) redirect so it runs via `ws k8s`, which injects
     # --context — a raw write hitting the current-but-wrong context is exactly
     # the accident the guard exists to prevent.
-    if [[ "$match_cmd" == kubectl\ * || "$match_cmd" == kubectl ]]; then
+    if [[ "$_k8s_match_cmd" == kubectl\ * || "$_k8s_match_cmd" == kubectl ]]; then
         # shellcheck disable=SC2086
-        _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $match_cmd 2>/dev/null || true)"
+        _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null || true)"
         case "$_sr_kverdict" in
             READ_IN_SCOPE) allow "raw kubectl in-scope read (guard)" ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_kverdict" "$_sr_ctx" "$_sr_slug")" ;;
@@ -1011,18 +1013,16 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     fi
     # (b) raw tool matching the pattern → redirect.
     # shellcheck disable=SC2053
-    if [[ "$match_cmd" == $_sr_pattern ]]; then
+    if [[ "$_k8s_match_cmd" == $_sr_pattern ]]; then
         deny "$_sr_suggestion"
     fi
     # (c) temp-script scan: a script-exec whose file contains a raw match.
-    case "$match_cmd" in
-        bash\ *|sh\ *|source\ *|./*)
-            _sr_file="${match_cmd#* }"; _sr_file="${_sr_file%% *}"
-            if [[ -f "$_sr_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_sr_file" 2>/dev/null; then
-                deny "Script $_sr_file calls raw kubectl within a guarded scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
-            fi
-            ;;
-    esac
+    if [[ -n "$_k8s_script_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_k8s_script_file" 2>/dev/null; then
+        deny "Script $_k8s_script_file calls raw kubectl within a guarded scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+    fi
+    if [[ "$_k8s_inline_shell" == "1" ]]; then
+        deny "Inline shell command calls raw kubectl within a guarded scope — use 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+    fi
 done
 
 # ─── Tier 3: Adapter-aware redirect — raw test/lint runners ─────────

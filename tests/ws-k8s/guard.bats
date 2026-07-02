@@ -14,6 +14,14 @@ setup() { make_kubectl_stub "default"; }
     run_guard "" "" kubectl apply -k overlays/plain
     [ "$output" = "WRITE_NO_SCOPE" ]
 }
+@test "kubectl run is classified as a write without relying on manifest flags" {
+    run_guard "" "" kubectl run script-test --image=pause --restart=Never -n gdd-practice
+    [ "$output" = "WRITE_NO_SCOPE" ]
+}
+@test "kubectl run is scope-checked like every other write" {
+    run_guard "kind-practice" "gdd-practice" kubectl run script-test --image=pause --restart=Never -n other
+    [[ "$output" == BLOCK:scope:* ]]
+}
 @test "standalone kustomize render is a read" {
     run_guard "" "" kubectl kustomize overlays/plain
     [ "$output" = "READ_NO_SCOPE" ]

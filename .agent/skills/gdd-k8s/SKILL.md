@@ -42,12 +42,14 @@ Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash too
 | Raw `kubectl` read verb | Reads are free even via raw kubectl when a scope is armed. Claude's broad hook auto-approves the read; the focused Codex bridge defers to normal Codex routing. |
 | Raw `kubectl` write (in-scope namespace) | Denied with a message instructing use of `ws k8s` — the wrapper injects `--context`, preventing writes from hitting the wrong cluster by force of habit |
 | Raw `kubectl` write (out-of-scope namespace or unbounded) | Denied with the same class-aware message the `ws k8s` wrapper emits |
-| Temp script (bash/sh/source) whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s` |
+| Direct shell script whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s`; relative paths resolve from the tool cwd and common shell options such as `bash -x` are skipped when locating the script |
 | `kubectl --context <other-ctx>` where other-ctx ≠ practice context | Blocked — explicit cross-context write is out of scope |
 | `--all-namespaces` on a write | Blocked — unbounded writes are never scope-bounded |
 | `apply -k` / `--kustomize` while scoped | The guard renders an existing local Kustomize directory and checks every resource. Missing, unrenderable, cross-namespace, or cluster-scoped output fails closed. |
 
 Read verbs accepted by the guard: `get`, `describe`, `logs`, `top`, `explain`, `events`, `api-resources`, `api-versions`, `version`, `diff`, `wait`, and standalone `kustomize`; plus `auth can-i`, `auth whoami`, `config view`, `config get-contexts`, `config current-context`, `config get-clusters`, and `config get-users`. Other `auth` and `config` operations are writes because those command families include mutations. Unknown verbs are writes by default.
+
+The hooks normalize common transparent launch forms before classification: leading environment assignments, `env`, `command`, absolute paths ending in `kubectl`, shell options before a script path, and literal kubectl inside `bash -c`/`sh -c`. They do not claim to observe arbitrary nested execution through task runners, client libraries, Helm, or a script that constructs the kubectl executable name without the literal token; server-side RBAC remains the boundary for those cases.
 
 ### Staying Guarded, Clearing, and Bypassing
 

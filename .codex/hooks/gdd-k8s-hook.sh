@@ -79,25 +79,23 @@ normalize_for_match() {
 }
 
 match_cmd="$(normalize_for_match "$cmd")"
+k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
+script_path="$(k8s_guard_script_path "$cwd" "$match_cmd" 2>/dev/null || true)"
+inline_shell=0
+k8s_guard_inline_shell_contains_kubectl "$match_cmd" && inline_shell=1
 
-case "$match_cmd" in
+case "$k8s_match_cmd" in
     ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) exit 0 ;;
 esac
 
 k8s_candidate=0
-case "$match_cmd" in
+case "$k8s_match_cmd" in
     kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *) k8s_candidate=1 ;;
-    bash\ *|sh\ *|source\ *|./*)
-        candidate_path="${match_cmd#* }"
-        candidate_path="${candidate_path%% *}"
-        if [[ "$candidate_path" != /* ]]; then
-            candidate_path="$cwd/$candidate_path"
-        fi
-        if [[ -f "$candidate_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$candidate_path" 2>/dev/null; then
-            k8s_candidate=1
-        fi
-        ;;
 esac
+if [[ -n "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
+    k8s_candidate=1
+fi
+[[ "$inline_shell" == "1" ]] && k8s_candidate=1
 [[ "$k8s_candidate" == "1" ]] || exit 0
 
 marker="$GDD_PROJECT_ROOT/.tmp/hook-bypass/k8s.bypass"
@@ -116,8 +114,8 @@ evaluate_command() {
     k8s_guard_evaluate "$ctx" "$namespaces" "${args[@]}"
 }
 
-if [[ "$match_cmd" == ws\ k8s\ * || "$match_cmd" == k8s\ * ]]; then
-    verdict="$(evaluate_command "$match_cmd" 2>/dev/null || true)"
+if [[ "$k8s_match_cmd" == ws\ k8s\ * || "$k8s_match_cmd" == k8s\ * ]]; then
+    verdict="$(evaluate_command "$k8s_match_cmd" 2>/dev/null || true)"
     case "$verdict" in
         BLOCK:*) deny "$(k8s_render_block "$verdict" "$ctx" k8s)" ;;
         WRITE_NO_SCOPE)
@@ -127,8 +125,8 @@ if [[ "$match_cmd" == ws\ k8s\ * || "$match_cmd" == k8s\ * ]]; then
     esac
 fi
 
-if [[ "$match_cmd" == kubectl || "$match_cmd" == kubectl\ * ]]; then
-    verdict="$(evaluate_command "$match_cmd" 2>/dev/null || true)"
+if [[ "$k8s_match_cmd" == kubectl || "$k8s_match_cmd" == kubectl\ * ]]; then
+    verdict="$(evaluate_command "$k8s_match_cmd" 2>/dev/null || true)"
     case "$verdict" in
         READ_NO_SCOPE|READ_IN_SCOPE) exit 0 ;;
         WRITE_NO_SCOPE)
@@ -140,20 +138,17 @@ if [[ "$match_cmd" == kubectl || "$match_cmd" == kubectl\ * ]]; then
     esac
 fi
 
-case "$match_cmd" in
-    bash\ *|sh\ *|source\ *|./*)
-        script_path="${match_cmd#* }"
-        script_path="${script_path%% *}"
-        if [[ "$script_path" != /* ]]; then
-            script_path="$cwd/$script_path"
-        fi
-        if [[ -f "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
-            if [[ -n "$ctx" ]]; then
-                deny "Script $script_path calls raw kubectl within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
-            fi
-            deny "Script $script_path calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
-        fi
-        ;;
-esac
+if [[ -n "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
+    if [[ -n "$ctx" ]]; then
+        deny "Script $script_path calls raw kubectl within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
+    fi
+    deny "Script $script_path calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
+fi
+if [[ "$inline_shell" == "1" ]]; then
+    if [[ -n "$ctx" ]]; then
+        deny "Inline shell command calls raw kubectl within a guarded scope — use 'ws k8s', or use 'ws hook-bypass k8s'."
+    fi
+    deny "Inline shell command calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
+fi
 
 exit 0
