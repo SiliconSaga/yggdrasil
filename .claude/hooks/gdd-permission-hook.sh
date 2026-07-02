@@ -913,13 +913,15 @@ _sr_get() {
 # tier precedes settings allowlists so a blanket kubectl allow cannot suppress
 # the human confirmation.
 _k8s_floor_enabled=0
+_k8s_match_cmd="$match_cmd"
+_k8s_script_file=""
+_k8s_inline_shell=0
 for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
     [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
 done
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$match_cmd" 2>/dev/null || true)"
-    _k8s_inline_shell=0
     k8s_guard_inline_shell_contains_kubectl "$match_cmd" && _k8s_inline_shell=1
     _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
     if [[ -z "$_k8s_floor_ctx" ]]; then

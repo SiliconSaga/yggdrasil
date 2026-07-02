@@ -1466,6 +1466,16 @@ GDD_K8S_NAMESPACES=$3
 EOF
 }
 
+@test "scoped-redirect: active non-k8s entry does not abort when k8s floor is disabled" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\ncustom | customctl* | CUSTOM_SCOPE | Use custom wrapper\n')"
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'CUSTOM_SCOPE=armed\n' > "$WORK/.tmp/gdd-agent-sessions/scoped-custom.env"
+    run_hook_with_session 'customctl mutate' "scoped-custom"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use custom wrapper"* ]]
+}
+
 @test "scoped-redirect: raw kubectl redirects to ws k8s when scope active" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
