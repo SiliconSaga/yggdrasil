@@ -20,10 +20,13 @@
 #
 # Usage:
 #   git_auth_env_for_url "$url"      # sets GIT_AUTH_ENV / LABEL / PROVIDER
-#   env "${GIT_AUTH_ENV[@]}" git clone "$url" "$target"
+#   env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$url" "$target"
 #
 # On SSH remotes, tokenless HTTPS, or unknown hosts, GIT_AUTH_ENV is left
-# empty and git uses its normal behavior.
+# empty and git uses its normal behavior. Always expand it with the guarded
+# ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} form, never a bare
+# "${GIT_AUTH_ENV[@]}": on bash < 4.4 (macOS ships 3.2) a bare expansion of
+# an EMPTY array trips `set -u` with "unbound variable".
 
 # Load guard — safe to source repeatedly (ws-realm.sh sources this, and
 # several scripts source ws-realm.sh).
@@ -106,7 +109,7 @@ git_auth_basic_header() {
 
 # Populate GIT_AUTH_ENV (array), GIT_AUTH_LABEL, GIT_AUTH_PROVIDER for a URL.
 # Leaves GIT_AUTH_ENV empty when no token applies (SSH, tokenless, unknown host),
-# in which case the caller's `env "${GIT_AUTH_ENV[@]}" git …` is a plain git call.
+# in which case the caller's `env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git …` is a plain git call.
 git_auth_env_for_url() {
   local remote_url="$1"
   local host provider="" default_token_var="" token="" user="" token_label="" header=""

@@ -891,7 +891,7 @@ EOF
     if [[ -n "$test_url" ]]; then
         GIT_AUTH_ENV=()
         git_auth_env_for_url "$test_url"
-        if env "${GIT_AUTH_ENV[@]}" git ls-remote "$test_url" HEAD &>/dev/null; then
+        if env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git ls-remote "$test_url" HEAD &>/dev/null; then
             if [[ -n "${GIT_AUTH_LABEL:-}" ]]; then
                 echo "   ✓ git access verified using $GIT_AUTH_LABEL ($test_url)"
             else

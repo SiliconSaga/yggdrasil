@@ -79,7 +79,7 @@ pull_repo() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     [[ -n "$remote_url" ]] && git_auth_env_for_url "$remote_url"
-    if ! env "${GIT_AUTH_ENV[@]}" git -C "$target" pull --rebase 2>&1 | sed 's/^/  /'; then
+    if ! env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git -C "$target" pull --rebase 2>&1 | sed 's/^/  /'; then
         echo "  CONFLICT: aborting rebase — resolve manually in $target"
         git -C "$target" rebase --abort 2>/dev/null
         HAD_FAILURES=1

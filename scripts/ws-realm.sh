@@ -312,9 +312,14 @@ ws_realm_init() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$template_url"
-    env "${GIT_AUTH_ENV[@]}" git clone "$template_url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$template_url" "$target"
     echo ""
-    echo "Template realm ready. Run 'ws clone --all' to clone tutorial components."
+    echo "Template realm ready — you're on the shared 'realm-template' starter."
+    echo ""
+    echo "New to GDD? Fastest first loop:  ws component init gh-pages my-page   (edit -> PR -> live site)"
+    echo "Make it your own:                fork this repo on GitHub, rename it realm-<your-community>,"
+    echo "                                 then adopt your fork:  ws realm <your-fork-url>"
+    echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
 ws_realm_use() {
@@ -405,7 +410,7 @@ ws_realm_clone_url() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"
-    env "${GIT_AUTH_ENV[@]}" git clone "$url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$url" "$target"
     echo ""
     echo "Community realm ready. Run 'ws clone --all' to clone components."
 }
