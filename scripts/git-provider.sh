@@ -132,22 +132,34 @@ gp_token_is_placeholder() {
 # Usage: gp_token_api_login PROVIDER HOST TOKEN
 gp_token_api_login() {
     local provider="$1" host="$2" tok="$3"
+    # Portable, optional timeout so a slow or unreachable network can't hang the
+    # probe. Absent on stock macOS (no coreutils) — then we run without it.
+    local -a to=()
+    if command -v timeout >/dev/null 2>&1; then to=(timeout 10)
+    elif command -v gtimeout >/dev/null 2>&1; then to=(gtimeout 10)
+    fi
+    local out rc
     case "$provider" in
         github)
             command -v gh >/dev/null 2>&1 || return 2
-            env GH_TOKEN="$tok" GH_HOST="$host" gh api user --jq .login 2>/dev/null || return 1
+            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>/dev/null)
+            rc=$?
             ;;
         gitlab)
             command -v glab >/dev/null 2>&1 || return 2
             command -v jq >/dev/null 2>&1 || return 2
-            local out
-            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" glab api user 2>/dev/null) || return 1
-            out=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null)
-            [[ -n "$out" ]] || return 1
-            printf '%s' "$out"
+            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>/dev/null)
+            rc=$?
+            [[ $rc -eq 0 ]] && out=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null)
             ;;
-        *) return 2 ;;
+        *)
+            return 2
+            ;;
     esac
+    # 124 = `timeout` killed the probe → unreachable/transport, not a rejection.
+    [[ $rc -eq 124 ]] && return 3
+    [[ $rc -ne 0 || -z "$out" ]] && return 1
+    printf '%s' "$out"
 }
 
 # Load a provider implementation by name.

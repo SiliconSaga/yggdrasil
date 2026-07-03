@@ -44,3 +44,13 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     [ "$status" -eq 0 ]
     [ "$output" = "bar" ]
 }
+
+@test "guarded auth-env expansion preserves elements that contain spaces" {
+    # Refutes the "unquoted → word-splits" claim: the inner quotes in
+    # ${e[@]+"${e[@]}"} keep each element intact, spaces and all. The real
+    # GIT_AUTH_ENV carries a GIT_CONFIG_VALUE_* = 'Authorization: Basic …' with
+    # spaces; if this word-split, env would try to run 'Basic' as a command.
+    run bash -c 'set -u; declare -a e=("V=a b c"); env ${e[@]+"${e[@]}"} printenv V'
+    [ "$status" -eq 0 ]
+    [ "$output" = "a b c" ]
+}

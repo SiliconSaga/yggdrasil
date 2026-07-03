@@ -23,7 +23,9 @@ setup() {
 }
 
 @test "placeholder check rejects a real-looking token" {
-    run gp_token_is_placeholder "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    # Obviously-fake value that still has the ghp_+length shape but won't trip
+    # secret scanners (it's all zeros).
+    run gp_token_is_placeholder "ghp_0000000000000000000000000000000000" # gitleaks:allow
     [ "$status" -ne 0 ]
 }
 
