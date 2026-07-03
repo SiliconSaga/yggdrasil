@@ -103,8 +103,10 @@ gp_pat_create_url() {
     enc=$(_gp_urlencode "$desc")
     case "$provider" in
         github)
-            # Classic PAT: `repo` covers push + PR creation via the API.
-            printf 'https://%s/settings/tokens/new?scopes=repo&description=%s' "$host" "$enc"
+            # Classic PAT. `repo` covers push + PR creation; the read:* scopes are
+            # the recommended baseline (docs/git-provider-setup.md) that keep
+            # `gh pr edit`-shaped ops from failing with a read:org scope error.
+            printf 'https://%s/settings/tokens/new?scopes=repo,read:org,read:discussion,read:project&description=%s' "$host" "$enc"
             ;;
         gitlab)
             # `api` (MR creation) + `write_repository` (git push over HTTPS).

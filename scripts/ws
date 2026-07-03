@@ -799,6 +799,22 @@ HELP
         echo "    $remote ($provider): $token_status"
     done < <(git -C "$comp_dir" remote)
 
+    # Identity sanity — flag unedited ecosystem.local.yaml placeholders before
+    # they leak into CR / issue bodies (@HUMAN_ACCOUNT) or fork flows.
+    local human_account fork_remote
+    human_account=$(yq '.identity.human_account // ""' "$eco" 2>/dev/null)
+    fork_remote=$(yq '.identity.forkRemote // ""' "$eco" 2>/dev/null)
+    echo "  Identity:"
+    if [[ -z "$human_account" || "$human_account" == "your-github-username" ]]; then
+        echo "    ⚠ identity.human_account is ${human_account:-unset} — set it in ecosystem.local.yaml"
+        echo "      (it fills @HUMAN_ACCOUNT in CR / issue bodies via ws cr / ws issue)"
+    else
+        echo "    ✓ human_account: $human_account"
+    fi
+    if [[ "$fork_remote" == "your-fork-remote-name" ]]; then
+        echo "    ⚠ identity.forkRemote is still the placeholder (only needed for ws clone-fork / fork CR flows)"
+    fi
+
     echo ""
 }
 
