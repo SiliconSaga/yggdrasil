@@ -116,6 +116,40 @@ gp_pat_create_url() {
     esac
 }
 
+# True (rc 0) if VALUE is one of the literal sample token values shipped in
+# .env.example, so `ws diagnose` can flag "you left the placeholder" instead of
+# reporting it as a real token. Exact match only — no heuristics.
+gp_token_is_placeholder() {
+    case "$1" in
+        ghp_xxxxxxxxxxxx|glpat-xxxxxxxxxxxx) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Best-effort token validity probe. Echoes the account login on success (rc 0);
+# rc 1 = the provider rejected the token; rc 2 = couldn't check (CLI/jq missing
+# or provider unsupported). Never prints the token itself.
+# Usage: gp_token_api_login PROVIDER HOST TOKEN
+gp_token_api_login() {
+    local provider="$1" host="$2" tok="$3"
+    case "$provider" in
+        github)
+            command -v gh >/dev/null 2>&1 || return 2
+            env GH_TOKEN="$tok" GH_HOST="$host" gh api user --jq .login 2>/dev/null || return 1
+            ;;
+        gitlab)
+            command -v glab >/dev/null 2>&1 || return 2
+            command -v jq >/dev/null 2>&1 || return 2
+            local out
+            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" glab api user 2>/dev/null) || return 1
+            out=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null)
+            [[ -n "$out" ]] || return 1
+            printf '%s' "$out"
+            ;;
+        *) return 2 ;;
+    esac
+}
+
 # Load a provider implementation by name.
 # Usage: gp_load PROVIDER
 gp_load() {

@@ -611,31 +611,70 @@ _ws_pat_setup_lines() {
     printf "      → Then add 'export %s=<token>' to .env  (copy .env.example)" "$var_name"
 }
 
+# Health line for a token var that IS set: placeholder → warn + guide; else,
+# unless api checks are off, verify the token against the provider API; else
+# just report it as set. Args: var_name value provider host no_api.
+_ws_token_status() {
+    local var_name="$1" value="$2" provider="$3" host="$4" no_api="$5"
+    if gp_token_is_placeholder "$value"; then
+        printf '⚠ %s is set to the .env.example placeholder — replace it with a real token\n%s' \
+            "$var_name" "$(_ws_pat_setup_lines "$provider" "$host" "$var_name")"
+        return
+    fi
+    # Skip the live probe when asked (--no-api-check) or under bats, to keep the
+    # test suite offline and deterministic (same guard style as _ws_footer).
+    if [[ -n "$no_api" || -n "${BATS_TEST_NAME:-}" ]]; then
+        printf '✓ %s is set (not verified — omit --no-api-check to test the token)' "$var_name"
+        return
+    fi
+    local login rc
+    login=$(gp_token_api_login "$provider" "$host" "$value")
+    rc=$?
+    case "$rc" in
+        0) printf '✓ %s is valid (authenticated as %s)' "$var_name" "$login" ;;
+        1) printf '✗ %s is set but REJECTED by %s — bad credentials (expired, wrong value, or missing scope)\n%s' \
+               "$var_name" "$provider" "$(_ws_pat_setup_lines "$provider" "$host" "$var_name")" ;;
+        *) printf '✓ %s is set (could not verify — %s CLI unavailable)' "$var_name" "$provider" ;;
+    esac
+}
+
 ws_diagnose() {
     # ws:use-when investigating push/cr failures — remote + token coverage
-    local _arg
+    local _arg comp="" no_api=""
     for _arg in "$@"; do
-        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
-            cat <<'HELP'
-Usage: ws diagnose <component|realm|hoard|yggdrasil>
+        case "$_arg" in
+            --help|-h)
+                cat <<'HELP'
+Usage: ws diagnose [--no-api-check] <component|realm|hoard|yggdrasil>
 
-  target  Any resolvable workspace target — a declared ecosystem
-          component, a realm dir, a hoard dir, or yggdrasil itself
+  target          Any resolvable workspace target — a declared ecosystem
+                  component, a realm dir, a hoard dir, or yggdrasil itself
+  --no-api-check  Skip the live token-validity probe (offline checks only).
+                  Use when the network/provider is down, or when debugging
+                  something unrelated to auth.
 
-Shows ecosystem config (components only), clone status, remotes,
-provider, and token coverage. Run this when 'ws push' or 'ws cr'
-fails with auth or remote errors.
+Shows ecosystem config (components only), clone status, remotes, provider,
+and token coverage. By default a set token is verified against the provider
+API; a placeholder or rejected token is flagged. Run this when 'ws push' or
+'ws cr' fails with auth or remote errors.
 HELP
-            return 0
-        fi
+                return 0
+                ;;
+            --no-api-check) no_api=1 ;;
+            -*)
+                echo "ws diagnose: unknown option '$_arg'" >&2
+                echo "  Usage: ws diagnose [--no-api-check] <component|realm|hoard|yggdrasil>" >&2
+                exit 1
+                ;;
+            *) [[ -z "$comp" ]] && comp="$_arg" ;;
+        esac
     done
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: ws diagnose <component|realm|hoard|yggdrasil>" >&2
+    if [[ -z "$comp" ]]; then
+        echo "Usage: ws diagnose [--no-api-check] <component|realm|hoard|yggdrasil>" >&2
         echo "  Shows ecosystem config, clone status, remotes, provider, and token coverage." >&2
         echo "  Run this when 'ws push' or 'ws cr' fails with auth or remote errors." >&2
         exit 1
     fi
-    local comp="$1"
     local eco
     eco=$(ws_resolve_ecosystem)
 
@@ -717,7 +756,7 @@ HELP
         if [[ -n "$best_var" && "$best_var" != "null" ]]; then
             local token_val="${!best_var:-}"
             if [[ -n "$token_val" ]]; then
-                token_status="✓ $best_var is set"
+                token_status=$(_ws_token_status "$best_var" "$token_val" "$provider" "${normalized%%/*}" "$no_api")
             else
                 token_status="✗ $best_var is NOT SET"
                 token_status+=$'\n'"$(_ws_pat_setup_lines "$provider" "${normalized%%/*}" "$best_var")"
@@ -739,7 +778,7 @@ HELP
             if [[ -n "$default_var" ]]; then
                 local default_val="${!default_var:-}"
                 if [[ -n "$default_val" ]]; then
-                    token_status="✓ $default_var is set (default for $provider; no gitTokens entry needed)"
+                    token_status=$(_ws_token_status "$default_var" "$default_val" "$provider" "${normalized%%/*}" "$no_api")
                 else
                     # Note: $default_var being unset doesn't necessarily mean
                     # `gh`/`glab` will fail — interactive `gh auth login` /
