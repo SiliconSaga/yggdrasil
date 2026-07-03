@@ -13,7 +13,7 @@ The Thalamus is a shared, gitignored markdown file — a thinking space co-autho
 | Layer | Audience | Persistence | Purpose |
 |-------|----------|-------------|---------|
 | Committed instructions | All agents + all humans | Permanent, versioned | Policy and process |
-| Claude memory | One AI tool installation | Durable but private | AI-internal recall |
+| Agent memory (e.g. Claude Code's memory) | One AI tool installation | Durable but private | AI-internal recall |
 | **Thalamus** | **One human + one agent** | **Semi-persistent, gitignored** | **Shared thinking** |
 | Session context | One conversation | Ephemeral | Immediate work |
 
@@ -49,7 +49,7 @@ This enables session continuity — the AI knows when you last worked and whethe
 
 ## Cross-machine sync — the thalami hoard
 
-A single gitignored `Thalamus.md` works for one machine. Once you use yggdrasil on more than one — a desktop, a laptop, an old Mac — the preferences, observations, and in-flight work threads you want to carry across them need a home that isn't tied to a single checkout. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See the [Hoards section of `AGENTS.md`](../../AGENTS.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
+A single gitignored `Thalamus.md` works for one machine. Once you use yggdrasil on more than one — a desktop, a laptop, an old Mac — the preferences, observations, and in-flight work threads you want to carry across them need a home that isn't tied to a single checkout. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See [Hoards](hoards.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
 
 When a hoard is active, the orientation skill resolves the active per-machine file (via `ws hoard thalamus-path`) and writes there instead of the workspace-root `Thalamus.md`. A root `Thalamus.md` can still exist as a non-synced scratch file alongside the hoard.
 

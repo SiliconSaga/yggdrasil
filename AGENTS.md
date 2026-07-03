@@ -102,7 +102,7 @@ The orientation skill is the right starting point; these pointers are here so a 
 
 - [`docs/gdd/index.md`](docs/gdd/index.md) — Guardian Driven Development overview.
 - [`docs/ecosystem-architecture.md`](docs/ecosystem-architecture.md) — three-tier model, workspace structure, config merge.
-- [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md) — full `ws` CLI reference + how to add new subcommands.
+- [`docs/ws-cli-guide.md`](docs/ws-cli-guide.md) — contributor guide for adding `ws` subcommands + the permission-tier classification (the CLI reference itself is `ws help` / `ws <cmd> --help`).
 - [`docs/workspace-setup.md`](docs/workspace-setup.md) — prerequisites, PATH setup, workspace shape (components/realms/hoards), agent permissions.
 - [`docs/git-provider-setup.md`](docs/git-provider-setup.md) — auth, token scopes, `.env` setup.
 - [`docs/code-style.md`](docs/code-style.md) — commenting + documentation conventions.

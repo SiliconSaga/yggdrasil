@@ -2,7 +2,7 @@
 
 A **hoard** is a personal git repo that lives inside the workspace at `hoards/<type>-<user>/`, alongside the components and realms. The yggdrasil workspace is the only "shared" part of the tree — components and realms come from elsewhere; hoards come from *you*. They're a catch-all for content that isn't a component (a project) and isn't a realm (community config), but still wants to live next to your work and ride the same `ws` CLI for sync.
 
-The canonical hoard type is **thalami** — the per-developer container for the [Thalamus](thalamus.md). Other hoard types are likely to emerge as the framework gets used (knowledgebase vaults, scratch spaces, personal experiments); the architecture is intentionally generic so they slot in without redesign.
+The canonical hoard type is **thalami** — the per-developer container for the [Thalamus](thalamus.md). The other shipped type is the [**obsidian-vault**](obsidian-vault.md) — a PARA-laid-out Obsidian vault for personal knowledge management, paired with the scribe role. The architecture is intentionally generic, so further types (scratch spaces, personal experiments) slot in without redesign.
 
 ---
 
@@ -115,11 +115,15 @@ The `gdd-hoard-upgrade` skill drives the loop: it runs `--plan`, proposes the de
 
 ---
 
-## Future hoard types
+## Hoard types
 
-Hoards are intentionally generic; thalami is just the first type shipped. Plausible future types:
+Two types ship today:
 
-- **Vault-style knowledgebase** (Obsidian-flavored or similar). `obsidian-vault` is the canonical example: PARA folders, base templates, plugin install + config seeded automatically on init. Users land their knowledge graph as a hoard and get the `ws push/pull` ergonomics + cadence-config for keeping it synced.
+- **thalami** — the per-machine Thalamus container this page mostly describes. The default for `ws hoard init`.
+- **obsidian-vault** — a PARA-laid-out Obsidian vault with a curated plugin set, seeded on init. Users land their knowledge graph as a hoard and get the `ws push/pull` ergonomics + cadence config for keeping it synced. Full reference: [obsidian-vault.md](obsidian-vault.md).
+
+Plausible future types:
+
 - **Scratch / experiment** spaces — short-lived hoards for spike work that shouldn't pollute components but you want the workspace's CLI ergonomics for.
 - **Cross-tool transcripts** — agent session transcripts, voice memos, anything that's "yours" but not a project.
 
@@ -133,5 +137,5 @@ Each new type ships as a `templates/hoards/<type>/` directory with its own scaff
 - [Thalamus](thalamus.md) — the thinking-space concept the thalami type is built around.
 - [Trust and Safety](trust-and-safety.md) — hoards' trust level (your own content, equivalent to your other instructions).
 - [Roles and Stances](roles-and-stances.md) — the role and stance concepts that sessions are configured with.
-- [`gdd-orientation` skill](../../.agent/skills/gdd-orientation/SKILL.md) — how Step 0a uses `ws hoard cadence`.
+- [`gdd-orientation` skill](../../.agent/skills/gdd-orientation/SKILL.md) — how the startup sequence resolves the thalamus and reacts to `ws hoard cadence`.
 - [`gdd-housekeeping` skill](../../.agent/skills/gdd-housekeeping/SKILL.md) — multi-thalami review process.

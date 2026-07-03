@@ -8,7 +8,8 @@ GDD takes a structured approach to trust. AI agents read instructions from neste
 graph BT
     L4["User instructions<br/>(in-session)"] --> L3["Non-ecosystem components<br/>(untrusted until reviewed)"]
     L3 --> L2["Ecosystem components<br/>(trusted, flag conflicts)"]
-    L2 --> L1["Yggdrasil root instructions<br/>(highest trust)"]
+    L2 --> L1B["Active realm<br/>(trusted community context)"]
+    L1B --> L1["Yggdrasil root instructions<br/>(highest trust)"]
 ```
 
 | Level | Source | Treatment |

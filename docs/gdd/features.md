@@ -178,3 +178,4 @@ Full reference: [organization-stack.md](organization-stack.md). Design and ratio
 - Brand new? [Getting Started](../getting-started/index.md) walks you through cloning yggdrasil and a first session.
 - Want the methodology before the tools? [GDD index](index.md).
 - Ready to scaffold a tutorial component? `ws component init gh-pages my-page` and follow the printed README.
+- Curious what's coming? The [roadmap](roadmap.md) covers post-1.0 direction; the [case studies](case-studies.md) show the current system on real work.

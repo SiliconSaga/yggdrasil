@@ -1,6 +1,6 @@
 # Adapters
 
-An **adapter file** declares per-component commands the workspace can list and (where wired) invoke. Today, `ws test` reads `commands.test` to choose the test runner — adapter > auto-detection. Other commands (`build`, `run`, `lint`, anything you care to declare) are surfaced by `ws actions <component>` for human and agent reference; they're documentation today, not bound to dedicated `ws` subcommands. Adapter files live in the active realm at `realms/<active>/adapters/<component>.yaml` — realm-side configuration, kept out of the component repo so a community can wire up commands without forking upstream.
+An **adapter file** declares per-component commands the workspace can list and (where wired) invoke. `ws test`, `ws lint`, and `ws build` read `commands.test` / `commands.lint` / `commands.build` to choose what to run — adapter > auto-detection. Other declared commands (`run`, `serve`, anything you care to expose) are surfaced by `ws actions <component>` for human and agent reference without a dedicated `ws` subcommand. Adapter files live in the active realm at `realms/<active>/adapters/<component>.yaml` — realm-side configuration, kept out of the component repo so a community can wire up commands without forking upstream.
 
 Components without an adapter file fall back to auto-detection (Gradle, Make, Go, Python, npm) for `ws test`. Adapters are optional; add one when you want to override the test runner, document project-specific commands, or pin a different default for your community.
 

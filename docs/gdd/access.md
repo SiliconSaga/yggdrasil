@@ -210,7 +210,7 @@ It reports:
 - Whether `gh auth status` (or equivalent) succeeds.
 - Whether the agent identity has access to the remote (read at minimum; push requires further verification by attempting one).
 
-If `ws diagnose` shows ✗ for token coverage, the operation will fail with an opaque auth error at runtime; fix the missing token or scope first. The orientation skill runs `ws diagnose` proactively on components likely to be pushed during the session — see [`gdd-orientation` Step 6b](../../.agent/skills/gdd-orientation/SKILL.md).
+If `ws diagnose` shows ✗ for token coverage, the operation will fail with an opaque auth error at runtime; fix the missing token or scope first. Running `ws diagnose <comp>` before the first push to a new component is the cheap way to catch a missing token before it becomes a 403 mid-CR.
 
 ---
 
