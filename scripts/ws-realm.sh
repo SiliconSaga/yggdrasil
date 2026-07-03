@@ -280,6 +280,20 @@ ws_realm_help() {
 }
 
 ws_realm_init() {
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'HELP'
+Usage: ws realm init
+
+Clone the shared template realm (realm-template) into realms/ for the
+tutorial flow, creating ecosystem.local.yaml from the example if it is
+absent. Takes no arguments.
+
+After it runs you can either try the quick tutorial
+('ws component init gh-pages <name>') or make the realm your own — fork it
+on GitHub, rename to realm-<your-community>, then 'ws realm <your-fork-url>'.
+HELP
+        return 0
+    fi
     # Copy ecosystem.local.yaml.example if no local config exists.
     # Must happen BEFORE ws_resolve_ecosystem — the example file contains
     # defaults.templateRealm which the merge needs to find.
@@ -538,7 +552,7 @@ case "$SUBCMD" in
         ws_realm_help
         ;;
     init)
-        ws_realm_init
+        ws_realm_init "$@"
         ;;
     use)
         ws_realm_use "$@"
