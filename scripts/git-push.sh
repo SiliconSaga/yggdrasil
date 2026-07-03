@@ -31,7 +31,7 @@ source "$SCRIPT_DIR/ws-realm.sh"
 # the rest of this script is unchanged.
 git_push_auth_env_for_remote() {
   git_auth_env_for_url "$1"
-  GIT_PUSH_AUTH_ENV=("${GIT_AUTH_ENV[@]}")
+  GIT_PUSH_AUTH_ENV=(${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"})
   GIT_PUSH_AUTH_LABEL="$GIT_AUTH_LABEL"
   GIT_PUSH_AUTH_PROVIDER="$GIT_AUTH_PROVIDER"
 }
@@ -126,7 +126,7 @@ if [[ "$TARGET_KIND" == "tag" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env "${GIT_PUSH_AUTH_ENV[@]}" git push "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
+  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
   exit 0
 fi
 
@@ -163,11 +163,11 @@ if [[ -n "$FORCE" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env "${GIT_PUSH_AUTH_ENV[@]}" git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH"
+  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH"
 else
   echo "Pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env "${GIT_PUSH_AUTH_ENV[@]}" git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH"
+  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH"
 fi

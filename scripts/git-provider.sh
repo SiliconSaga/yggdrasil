@@ -75,6 +75,95 @@ gp_detect() {
     return 1
 }
 
+# Percent-encode a string for a URL query value: everything outside the RFC
+# 3986 unreserved set (A-Z a-z 0-9 - _ . ~) becomes %XX. Keeps deep-link
+# descriptions/names safe even with &, ?, #, +, =, %, or spaces in them.
+_gp_urlencode() {
+    local s="$1" out="" i c
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        case "$c" in
+            [A-Za-z0-9._~-]) out+="$c" ;;
+            *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+        esac
+    done
+    printf '%s' "$out"
+}
+
+# Build a deep-link URL to create a personal access token with the scopes
+# ws push / cr / review need pre-selected, so the user lands on a page with
+# the right boxes already checked instead of guessing. The scope + name/
+# description query params are honored by github.com and GitHub Enterprise,
+# and by gitlab.com and self-hosted GitLab. On an unrecognized provider it
+# falls back to the host root so the link still goes somewhere useful.
+# Usage: gp_pat_create_url PROVIDER HOST [DESCRIPTION]
+gp_pat_create_url() {
+    local provider="$1" host="$2" desc="${3:-GDD}"
+    local enc
+    enc=$(_gp_urlencode "$desc")
+    case "$provider" in
+        github)
+            # Classic PAT. `repo` covers push + PR creation; the read:* scopes are
+            # the recommended baseline (docs/git-provider-setup.md) that keep
+            # `gh pr edit`-shaped ops from failing with a read:org scope error.
+            printf 'https://%s/settings/tokens/new?scopes=repo,read:org,read:discussion,read:project&description=%s' "$host" "$enc"
+            ;;
+        gitlab)
+            # `api` (MR creation) + `write_repository` (git push over HTTPS).
+            printf 'https://%s/-/user_settings/personal_access_tokens?name=%s&scopes=api,write_repository' "$host" "$enc"
+            ;;
+        *)
+            printf 'https://%s' "$host"
+            ;;
+    esac
+}
+
+# True (rc 0) if VALUE is one of the literal sample token values shipped in
+# .env.example, so `ws diagnose` can flag "you left the placeholder" instead of
+# reporting it as a real token. Exact match only — no heuristics.
+gp_token_is_placeholder() {
+    case "$1" in
+        ghp_xxxxxxxxxxxx|glpat-xxxxxxxxxxxx) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Best-effort token validity probe. Echoes the account login on success (rc 0);
+# rc 1 = the provider rejected the token; rc 2 = couldn't check (CLI/jq missing
+# or provider unsupported). Never prints the token itself.
+# Usage: gp_token_api_login PROVIDER HOST TOKEN
+gp_token_api_login() {
+    local provider="$1" host="$2" tok="$3"
+    # Portable, optional timeout so a slow or unreachable network can't hang the
+    # probe. Absent on stock macOS (no coreutils) — then we run without it.
+    local -a to=()
+    if command -v timeout >/dev/null 2>&1; then to=(timeout 10)
+    elif command -v gtimeout >/dev/null 2>&1; then to=(gtimeout 10)
+    fi
+    local out rc
+    case "$provider" in
+        github)
+            command -v gh >/dev/null 2>&1 || return 2
+            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>/dev/null)
+            rc=$?
+            ;;
+        gitlab)
+            command -v glab >/dev/null 2>&1 || return 2
+            command -v jq >/dev/null 2>&1 || return 2
+            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>/dev/null)
+            rc=$?
+            [[ $rc -eq 0 ]] && out=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null)
+            ;;
+        *)
+            return 2
+            ;;
+    esac
+    # 124 = `timeout` killed the probe → unreachable/transport, not a rejection.
+    [[ $rc -eq 124 ]] && return 3
+    [[ $rc -ne 0 || -z "$out" ]] && return 1
+    printf '%s' "$out"
+}
+
 # Load a provider implementation by name.
 # Usage: gp_load PROVIDER
 gp_load() {

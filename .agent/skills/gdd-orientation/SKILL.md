@@ -222,7 +222,7 @@ Already `GDD_ROLE=scribe` → skip; the scribe skill runs its own binding sub-fl
 
 Brief the human based on stance, role, active concerns, and post-orient signals:
 
-- **Newcomer (post-orient signals strong):** walk through what orient surfaced. Name the wired verbs, name the active realm if any, ask what they're trying to learn or build.
+- **Newcomer (post-orient signals strong):** walk through what orient surfaced. Name the wired verbs, name the active realm if any, ask what they're trying to learn or build. If the active realm is the shared `realm-template` starter, prompt them to make it their own — fork it on GitHub and rename to `realm-<their-community>`, then adopt the fork with `ws realm <fork-url>` — rather than living long-term inside `realm-template`. Point first-timers at the light `ws component init gh-pages` loop before the heavier example-project clones (`ws clone --all`).
 - **Mid-session pickup:** *"Picking up in Developer/Zen stance. Last session noted X. Open concerns: Y. What's the session about?"*
 
 ### Active arcs (when a thalami hoard is active)

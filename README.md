@@ -6,6 +6,8 @@
 
 **Yggdrasil** is the meta-workspace where [Guardian Driven Development (GDD)](docs/gdd/index.md) lives. It isn't just a wrapper around the ecosystem's repos — it's the home of the methodology itself: the `ws` workspace CLI, the GDD skills, the shared-thinking Thalamus, the components/realms/hoards model, and the documentation, commit, and branch conventions that bind everything together. Components, realms, and hoards are what Yggdrasil *orchestrates*; GDD is what Yggdrasil *is*.
 
+**How you actually work here:** you direct an AI coding agent to get real work done in the ecosystem's components, and GDD is the methodology that keeps that work safe, attributable, and legible. The `ws` CLI and the git / commit / branch conventions are mostly **guardrails the agent operates within** — attribution, auth, safe git and review flows — rather than commands you run by hand. Day to day you mostly steer and review; the agent drives `ws`. New to the idea? Start with [Guardian Driven Development](docs/gdd/index.md).
+
 ## Start here
 
 - **New here (human)?** The human-facing docs live in [`docs/gdd/`](docs/gdd/index.md): start with the [features tour](docs/gdd/features.md) — what's in the box — and the [GDD index](docs/gdd/index.md) for the methodology behind it.
@@ -18,7 +20,7 @@
 - **`scripts/ws`** — the unified CLI: clone, status, commit, push, cr, review, test, plus realm / hoard / component management.
 - **`.agent/skills/`** — agent-facing workspace skills (GDD orchestration, orientation, housekeeping, the documentation conventions, and more). These are operational guidance the agent reads directly, not human reading material — humans get the higher-level concepts from `docs/`. Some practice flows also lean on the optional [Obra Superpowers](https://github.com/obra/superpowers) plugin.
 - **`docs/`** — ecosystem architecture, the GDD methodology, and design / plan docs. Component docs follow the **Component Documentation Convention** — a four-Shape graduation ladder, described human-side in [the organization stack](docs/gdd/organization-stack.md); the operational rules for agents writing docs live in the `gdd-doc-writing` skill.
-- **Components / realms / hoards** — cloned under `components/`, `realms/`, `hoards/` (all gitignored, independent Git repos). A VS Code workspace file is generated on demand via `ws vscode`; it is not committed.
+- **Components / realms / hoards** — the things Yggdrasil orchestrates, cloned under `components/`, `realms/`, `hoards/` (all gitignored, independent Git repos). **Components** are the code repos you work on. A **realm** is a shared community-config layer: it declares which components exist and wires each one's test / lint / build commands (adapters), so a whole team gets the same setup by adopting one realm instead of configuring every repo by hand. **Hoards** are non-code collections (notes, vaults). A VS Code workspace file is generated on demand via `ws vscode`; it is not committed.
 
 ## AI usage
 

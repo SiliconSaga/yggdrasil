@@ -140,7 +140,7 @@ clone_component() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$repo_url"
-    env "${GIT_AUTH_ENV[@]}" git clone --origin "$remote" "$repo_url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$remote" "$repo_url" "$target"
 }
 
 clone_url() {
@@ -179,7 +179,7 @@ clone_url() {
         local -a GIT_AUTH_ENV=()
         local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
         git_auth_env_for_url "$url"
-        env "${GIT_AUTH_ENV[@]}" git clone --origin "$remote" "$url" "$target"
+        env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$remote" "$url" "$target"
     fi
 
     if [[ "$add_eco" == "true" ]]; then

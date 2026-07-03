@@ -58,20 +58,16 @@ else
   exit 1
 fi
 
-if [[ -n "${GH_USER:-}" ]]; then
-  echo "  $PASS GH_USER set in environment: $GH_USER"
+gh_login=$(gh api /user --jq .login 2>/dev/null || echo "")
+if [[ -n "$gh_login" ]]; then
+  echo "  $PASS authenticated as: $gh_login"
 else
-  GH_USER=$(gh api /user --jq .login 2>/dev/null || echo "")
-  if [[ -n "$GH_USER" ]]; then
-    echo "  $PASS authenticated as: $GH_USER"
-  else
-    echo "  $FAIL could not retrieve GitHub username"
-    echo "       Set GH_USER in .env, or add Account (read) permission to a fine-grained PAT."
-    ERRORS=$((ERRORS + 1))
-    echo ""
-    echo "Cannot continue without a confirmed identity. Fix auth first."
-    exit 1
-  fi
+  echo "  $FAIL could not retrieve GitHub username"
+  echo "       Add 'Account (read)' permission to the token (fine-grained PATs need it)."
+  ERRORS=$((ERRORS + 1))
+  echo ""
+  echo "Cannot continue without a confirmed identity. Fix auth first."
+  exit 1
 fi
 
 # ── 2. git URL rewrite and credential helper ─────────────────────────────────
