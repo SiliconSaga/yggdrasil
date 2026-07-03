@@ -130,7 +130,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
 
 ## What Happens Next
 
-As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root).
+As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root). Once you work from more than one machine, a *thalami hoard* gives it a git-synced, per-machine home — see [Hoards](../gdd/hoards.md) when you get there.
 
 After a few sessions, try **housekeeping** — review what's accumulated, promote useful observations to issues or skill updates, prune what's resolved. This is how GDD improves itself through use.
 

@@ -84,4 +84,4 @@ The auto-detect fallback covers the common case for `ws test` — a Gradle compo
 
 - [Realms](realms.md) — where adapter files live and why they're realm-side configuration.
 - [Ecosystem Architecture](../ecosystem-architecture.md) — how realms fit into the three-layer config merge.
-- [`ws help actions`](../ws-cli-guide.md) — CLI behavior and arguments.
+- `ws actions --help` — CLI behavior and arguments (the help system is the command reference).

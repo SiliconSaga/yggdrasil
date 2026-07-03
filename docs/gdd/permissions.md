@@ -50,13 +50,7 @@ See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook
 
 ### Redirect tier and bypass
 
-Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`, `git mv`) that have a friendlier equivalent. The deny carries a corrective message pointing at the right `ws` subcommand — or, for `git mv`, at the plain-`mv`-then-list-both-paths-in-the-bodyfile pattern, since `git mv` pre-stages the rename and breaks `ws commit`'s bodyfile-driven staging.
-
-This is a *training* layer, not a safety floor — the `ws` wrappers add attribution, remote selection, and bodyfile flows that AGENTS.md documents but training-data reflex drifts away from. A legitimate edge case (the `ws` subcommand doesn't yet support what's needed) escapes via `ws hook-bypass <slug>`, which writes a marker file keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`). The marker is honored for the rest of the session.
-
-The `ws hook-bypass <slug>` subcommand itself is on the ask-list — every invocation force-prompts the human. The security boundary is the ask-tier; no env-var or cryptographic gate is added.
-
-See `.claude/hooks/README.md` § Redirect tier and bypass for the operator-facing details.
+Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`, `git mv`) with a corrective message pointing at the friendlier equivalent — a training layer, not a safety floor. The session-scoped escape hatch is `ws hook-bypass <slug>`, itself ask-gated so every bypass force-prompts the human. Mechanics and the full redirect list: [`.claude/hooks/README.md`](../../.claude/hooks/README.md) § Redirect tier and bypass; the human-facing walkthrough is [Agent Training](agent-training.md#what-happens-when-you-reach-for-git-commit--git-push--gh-pr-create).
 
 ### `ws commit` flags auto-approve
 

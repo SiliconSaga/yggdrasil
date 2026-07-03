@@ -55,7 +55,7 @@ Cursor users: MaaS servers must be added to `~/.cursor/mcp.json` manually; the w
 
 ## See also
 
-- [`ws help mcp-setup`](ws-cli-guide.md) — CLI flags and behavior
+- `ws mcp-setup --help` — CLI flags and behavior (the help system is the command reference)
 - [Ecosystem Architecture](ecosystem-architecture.md) — the three-layer config merge `ws mcp-setup` reads from
 - [Realms](gdd/realms.md) — where the `mcp.servers` declaration lives
 - [`gdd-mcp` skill](gdd/skills-reference.md#workspace-operations) — agent conventions around calling MCP tools and surfacing setup nudges
