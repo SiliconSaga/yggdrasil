@@ -33,3 +33,10 @@ setup() {
     run gp_pat_create_url bitbucket example.org "GDD"
     [ "$output" = "https://example.org" ]
 }
+
+@test "reserved characters in the description are percent-encoded, not left raw" {
+    # A general deep-link builder must encode &, ?, #, +, space, etc. so they
+    # can't be misread as query-string syntax.
+    run gp_pat_create_url github github.com "a&b?c#d e+f"
+    [ "$output" = "https://github.com/settings/tokens/new?scopes=repo&description=a%26b%3Fc%23d%20e%2Bf" ]
+}

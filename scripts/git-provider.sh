@@ -75,6 +75,21 @@ gp_detect() {
     return 1
 }
 
+# Percent-encode a string for a URL query value: everything outside the RFC
+# 3986 unreserved set (A-Z a-z 0-9 - _ . ~) becomes %XX. Keeps deep-link
+# descriptions/names safe even with &, ?, #, +, =, %, or spaces in them.
+_gp_urlencode() {
+    local s="$1" out="" i c
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        case "$c" in
+            [A-Za-z0-9._~-]) out+="$c" ;;
+            *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+        esac
+    done
+    printf '%s' "$out"
+}
+
 # Build a deep-link URL to create a personal access token with the scopes
 # ws push / cr / review need pre-selected, so the user lands on a page with
 # the right boxes already checked instead of guessing. The scope + name/
@@ -84,8 +99,8 @@ gp_detect() {
 # Usage: gp_pat_create_url PROVIDER HOST [DESCRIPTION]
 gp_pat_create_url() {
     local provider="$1" host="$2" desc="${3:-GDD}"
-    # Minimal URL-encoding for the description/name — spaces to %20.
-    local enc="${desc// /%20}"
+    local enc
+    enc=$(_gp_urlencode "$desc")
     case "$provider" in
         github)
             # Classic PAT: `repo` covers push + PR creation via the API.

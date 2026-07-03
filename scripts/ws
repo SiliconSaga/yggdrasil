@@ -600,6 +600,17 @@ HELP
     bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
 }
 
+# Shared "create + store a token" guidance for a missing token var. Used by
+# both branches of ws_diagnose's token-coverage report so the two copies can't
+# drift. Emits two indented "→" lines (no trailing newline; caller joins).
+_ws_pat_setup_lines() {
+    local provider="$1" host="$2" var_name="$3"
+    local pat_url
+    pat_url=$(gp_pat_create_url "$provider" "$host" "GDD agent write token")
+    printf '      → Create one (scopes pre-selected, opens in browser): %s\n' "$pat_url"
+    printf "      → Then add 'export %s=<token>' to .env  (copy .env.example)" "$var_name"
+}
+
 ws_diagnose() {
     # ws:use-when investigating push/cr failures — remote + token coverage
     local _arg
@@ -708,11 +719,8 @@ HELP
             if [[ -n "$token_val" ]]; then
                 token_status="✓ $best_var is set"
             else
-                local pat_url
-                pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD agent write token")
                 token_status="✗ $best_var is NOT SET"
-                token_status+=$'\n'"      → Create one (scopes pre-selected, opens in browser): $pat_url"
-                token_status+=$'\n'"      → Then add 'export $best_var=<token>' to .env  (copy .env.example)"
+                token_status+=$'\n'"$(_ws_pat_setup_lines "$provider" "${normalized%%/*}" "$best_var")"
             fi
         else
             # No gitTokens entry. For known providers, fall back to the
@@ -738,11 +746,8 @@ HELP
                     # `glab auth login` stores credentials separately. But
                     # agent / non-interactive flows (ws push, ws cr, ws review)
                     # need the env var, so we still flag it.
-                    local pat_url
-                    pat_url=$(gp_pat_create_url "$provider" "${normalized%%/*}" "GDD agent write token")
                     token_status="✗ $default_var is NOT SET — required for agent/non-interactive ops (ws push, ws cr, ws review)."
-                    token_status+=$'\n'"      → Create one (scopes pre-selected, opens in browser): $pat_url"
-                    token_status+=$'\n'"      → Then add 'export $default_var=<token>' to .env  (copy .env.example)"
+                    token_status+=$'\n'"$(_ws_pat_setup_lines "$provider" "${normalized%%/*}" "$default_var")"
                     token_status+=$'\n'"      Interactive 'gh auth login' / 'glab auth login' may still work for direct CLI use, but agent flows need the .env var."
                 fi
             else
