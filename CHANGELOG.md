@@ -11,14 +11,21 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 ### Added
 
 - **The `ws` CLI** — unified workspace verbs (`commit`, `push`, `cr`, `issue`, `review`, `test`, `lint`, `log`, `clone`, `clone-fork`, `pull`, `status`, `exec`, `clean`, `diagnose`, `preflight`, `orient`, and friends) with bodyfile-driven commit/CR/issue flows, Co-Authored-By attribution, fork-aware remote selection, and multi-kind target resolution (components, realms, hoards, the workspace itself) via `ws_resolve_target` (#40, #44, #62, #92, #94).
+- **Session-scoped identity and configuration** — commit attribution resolves per session (`ws whoami --set` at orientation, `--co-author-file` for sub-agents, `--human` for humans, hard error over silent mis-attribution), and stance/role/mentoring are established per session via `ws session` instead of Thalamus frontmatter (#100, #103, #107, #111).
+- **The `ws k8s` guard** — a kubectl safety scope: arm a context + namespaces and out-of-scope writes are rejected before kubectl runs, with class-aware messages (scope / unbounded / precondition); the hook extends the guard to raw agent `kubectl`, and ambient aggregation covers plain human terminals (#111, #112).
+- **Token-injected remote git auth** — `ws push` / `clone` / `clone-fork` / `pull` inject the matching `.env` token per process so HTTPS operations never fall through to OS credential managers; `ws push` pushes tags; `ws gh` / `ws glab` run one-off provider commands with the right token loaded (#100, #106, #112, #116).
 - **Realms and hoards** — community config layer (`realms/`, three-layer ecosystem merge, per-component adapters) and personal containers (`hoards/`, thalami + Obsidian-vault flavors, `ws hoard init/list/scan/cadence/upgrade`) with provenance-tracked, plan/apply/rollback template upgrades (#43, #59, #63, #74–#76).
-- **The PreToolUse permission hook** — tiered Bash governance: shell-composition deny, raw-command redirect-to-`ws` with session-scoped human-gated bypass, adapter-aware test/lint redirect, destructive-command ask-tier, settings-allow and per-machine allow-extras; PowerShell matcher coverage (#47, #61, #64, #71, #91, #95).
+- **The PreToolUse permission hook** — tiered Bash governance: shell-composition deny, raw-command redirect-to-`ws` with session-scoped human-gated bypass, adapter-aware test/lint redirect, guarded-kubectl tier, destructive-command ask-tier, settings-allow and per-machine allow-extras; PowerShell matcher coverage (#47, #61, #64, #71, #91, #95, #111, #114).
 - **`ws audit-permissions`** — startup allowlist breadth audit with watchlist severities, ws-wrapper normalization scoped to in-repo paths, and per-machine `[audit-acknowledged]` allowances (#94, #96).
 - **Orientation and discovery** — `ws orient` (subcommand survey, active realm, adapter wiring, skill index), the gdd-orientation startup skill, post-dispatch discoverability footer, and the `ws:use-when` marker convention (#84, #88–#91).
 - **Skills catalog** — workspace skills under `.agent/skills/` (orientation, permissions, scribe, housekeeping, review-triage, mentoring, BDD, zen/quick/flow modes, and more) with the skill→script extraction principle codified (#48, #85).
 - **Thalamus system** — per-machine shared thinking files in a thalami hoard, arcs with cross-host stitching, ArcDashboard with filter/sort controls, commit-cadence nudges (#49, #60, #76).
 - **Component templates and tutorial** — `ws component init` flavors including the flagship gh-pages scaffold-to-live tutorial and getting-started docs (#45, plus the gh-pages tutorial lineage).
-- **Docs site** — `docs/gdd/` methodology pages (features tour, trust and safety, permissions, agent training, organization stack, samples) and the ecosystem/CLI/setup reference docs (#53, #55–#57, #66, #70, #86, #93).
+- **Tutorials section + Guarded Kubernetes walkthrough** — chaptered hands-on tutorials under `docs/tutorials/`, opening with the `ws k8s` guard (#113, #115, #119).
+- **Docs site** — `docs/gdd/` methodology pages (features tour, trust and safety, permissions, agent training, organization stack, samples, vendor component role) and the ecosystem/CLI/setup reference docs (#53, #55–#57, #66, #70, #86, #93, #99).
+- **Versioning machinery** — SemVer policy for the workspace + `ws` CLI, this changelog, and the change-note tooling decision record (#97).
+- **Onboarding hardening** — scope-preselected PAT creation links in `ws diagnose` token misses, `ws realm init` fork-and-rename guidance for newcomers, `.env` token-setup docs (#119).
+- Optional shellcheck linting for the workspace's own scripts (#98).
 
 ### Changed
 
@@ -26,11 +33,22 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `ws review` side-effect forms (`reply`, `threads … --resolve*`) moved behind the hook's ask-tier — outward-facing review actions now always prompt, while read-only triage stays frictionless (#96).
 - Resolver renamed `ws_validate_component` → `ws_resolve_target` with a kind-neutral miss-message; `ws diagnose` accepts realm/hoard targets (#94).
 - Help handling unified: `--help`/`-h` works at every level for every target-taking subcommand (#94).
+- `ws exec` is ask-gated — every invocation requires human approval, with the trust model documented (#110).
+- `git mv` redirects to the plain-`mv` + bodyfile pattern, which keeps `ws commit`'s declared staging intact (#114).
+- `docs/dev-setup.md` renamed to `docs/workspace-setup.md` with an onboarding front-door polish pass (#109).
+- Hard-wrapped prose de-wrapped workspace-wide per the single-line-paragraph convention (#104).
+
+### Removed
+
+- The unused `ws resolve` ArgoCD manifest generator — deploy trees belong to stacks/realms, not the GDD framework (#105).
 
 ### Fixed
 
 - `ws audit-permissions` no longer floods a clean config with false positives (~120 → 0); the genuinely-broad `Bash(ws:*)` catch-all is now detected (#94).
 - Audit normalization rejects foreign and traversal paths masquerading as in-repo wrappers (#96).
+- GitLab MR creation pins the source project explicitly instead of relying on `glab` inference (#102).
+- Provider auth checks are per-host, so an unrelated stale host in `glab`'s config no longer blocks every GitLab operation (#116).
+- Empty auth-env arrays no longer crash `ws` under macOS's bash 3.2 with `set -u` (#119).
 
 ## Pre-1.0 archaeology
 
