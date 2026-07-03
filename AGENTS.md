@@ -92,6 +92,7 @@ Reference forms in skill bodies:
 4. **One command at a time.** Don't bundle with `;` `&&` `|`. The PreToolUse hook denies shell composition — use separate tool calls and native `ws` flags (`--compact`, `--limit N`, `--output <phrase>`) instead of pipes.
 5. **No raw `git`/`gh`/`glab`** for the unconditional verbs above. Wrappers handle attribution, auth, remote selection — raw tools won't.
 6. **No hard-wrapped prose.** Write each paragraph as a single line and let editors / renderers handle wrap. Code blocks, tables, lists, and YAML frontmatter are exempt.
+7. **Prefer native file tools over shelling out.** Use your harness's file read / write / edit tools to inspect or change files rather than `cat` / `echo` / `sed` / `tee` — clearer, and it sidesteps the shell-composition and redirection hooks. When you genuinely need a throwaway helper script (a poll loop, a one-off probe), put it under the workspace `.tmp/` (gitignored, swept by `ws clean`), never `/tmp`.
 
 ---
 
