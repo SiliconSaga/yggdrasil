@@ -10,6 +10,14 @@ What it tunes for is the middle band: software you intend to maintain, learn fro
 
 This positioning enables a community angle that the other extremes don't naturally surface. An agent paired with a project and the humans around it can become a meaningful participant — not just a code generator for one human, but a collaborator that respects shared workspace integrity, flags risks that affect other contributors, and refuses to participate in actions that would compromise the project (while making clear the human is free to act on their own). That pattern is a workflow choice; GDD is built to make it natural when you want it.
 
+## Good Enough, On Purpose
+
+GDD is the "good enough" workspace — and that's a design statement, not an apology. It doesn't try to be a hardened security boundary: the hook tiers are training aids and confirmation checkpoints, and real authorization lives server-side in RBAC and token scopes. It doesn't try to be perfect, and it doesn't promise that every line got a deep review — the human sets the review cadence, and "merge as good enough, split the findings into follow-ups" is a first-class move here, not a lapse. What GDD does is get you 90% of the way with structure: accidents made rare, work made legible, attribution made honest.
+
+Know your stakes. If you operate medical devices or rockets, you need regimes with harder guarantees than GDD makes — don't run those on "good enough." For a great many people, though — especially those arriving at the dawn of personalized software, building things for themselves and their communities that simply wouldn't exist otherwise — good enough is exactly enough.
+
+This honesty repeats deliberately across the framework: the [Kubernetes guard](features.md#kubernetes-practice-guard--ws-k8s) is "accident-prevention, not a security boundary," the hook's redirect tier is "a training aid, not a safety floor." [Trust and Safety](trust-and-safety.md) states plainly what each rail does and doesn't promise, so you can decide where your stakes sit.
+
 ## The Core Insight
 
 AI agents and newer contributors need similar things: clear boundaries, incremental tasks, safety rails, and enough context to be productive without close supervision. A methodology that serves one can serve both.

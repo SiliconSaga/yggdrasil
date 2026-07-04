@@ -2,6 +2,8 @@
 
 GDD takes a structured approach to trust. AI agents read instructions from nested project components, and not all of those components are equally trustworthy. The framework provides explicit rules for how to handle this.
 
+A note on what the rails in this document promise: each one is honest about its own strength. Some are hard confirmation gates (the ask-tier), most are accident-prevention and training layers, and none replace server-side authorization. That's GDD's [good-enough posture](index.md#good-enough-on-purpose) — make the destructive slip rare and the work legible, rather than pretend to be a hardened boundary against a determined adversary. Calibrate your stakes accordingly.
+
 ## The Trust Hierarchy
 
 ```mermaid
