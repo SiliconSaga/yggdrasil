@@ -4,6 +4,8 @@ Historical GDD in action — raw (if condensed) session transcripts and Thalamus
 
 **For GDD applied to real, recent work, see the [case studies](../case-studies.md)** — those are the better "what does this actually feel like" reading.
 
+Another good example is summarized in [this GDD PR comment](https://github.com/SiliconSaga/yggdrasil/pull/38#issuecomment-4313480965).
+
 Honestly though: transcripts do not do the process justice when condensed, and cannot convey the sense of flow experienced. And who would have time to read an entire session log from Claude spanning hours of work? Maybe if you fed it to a different agent and told it what sort of magic you'd be interested in hearing about :-)
 
 Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started/index.md)** — clone the workspace, turn on mentoring, and see what happens.

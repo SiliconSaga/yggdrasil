@@ -6,7 +6,7 @@ For the historical origin material — verbatim transcripts of GDD's first-ever 
 
 ---
 
-## Ken's campaign site — a non-technical owner runs his own site
+## Local political site for a non-technical owner
 
 A local town-council candidate's campaign site was built by a third party as a compiled single-page app: the news articles had no working links, the contact and volunteer forms posted to a backend only the original developer controlled, and the owner couldn't change a word of it himself.
 
@@ -22,7 +22,7 @@ Three parallel GDD workspaces, worked in alternation across two days: a communit
 
 ## A greenfield platform component, end to end
 
-A new Backstage-based developer portal component went from idea to merged across a handful of sessions on two machines: brainstorm → design and plan docs (reviewed as their own CRs) → BDD scenarios written before the code → a scaffolded app hardened test-first → live end-to-end validation against a homelab cluster → several rounds of CodeRabbit and Copilot review → squash-merged, with the component registered into the community realm. The cross-host arc (same slug in each machine's thalamus) is what let a desktop session resume exactly where a laptop session left off.
+A new Backstage-based developer portal component went from idea to merged across a handful of sessions on two machines: brainstorm → design and plan docs (reviewed as their own CRs) → BDD scenarios written before the code → a scaffolded app hardened test-first → live end-to-end validation against a homelab cluster → several rounds of CodeRabbit and Copilot review → merged with the component registered into the community realm. The cross-host arc (same slug in each machine's thalamus) helped visibility on which two systems were involved.
 
 **What it shows:** the full GDD loop on something substantial — plans as reviewable artifacts, tests before implementation, bots plus human judgment on review, and multi-machine continuity through the thalami hoard.
 

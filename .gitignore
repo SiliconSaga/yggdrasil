@@ -2,6 +2,9 @@
 .env
 .DS_Store
 
+# Git Bash crash artifacts (Windows) — dropped in the cwd when bash segfaults
+*.stackdump
+
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
 # Only .gitkeep is tracked so the directory structure is preserved.
 /components/*

@@ -7,6 +7,7 @@ Where GDD goes after 1.0. The release line is **Claude-first with a published ro
 The biggest post-1.0 track. The portable layers are already agent-neutral — `AGENTS.md`, the `ws` CLI, `ws orient`, and skills as plain markdown work in any harness — while the Claude-specific pieces (the PreToolUse hook, `.claude/settings.json`) need per-agent counterparts.
 
 - **Codex** — actively in progress in a parallel workspace: session-scoped commit attribution already works cross-agent, and the compatibility bundle (startup/skill discovery, permission semantics, auth/review/MCP, setup validation) is underway.
+  - **First cross-agent hook** — a "Kubernetes guard" to help prevent accidental changes was implemented both within `ws` and as harness hooks for _both_ Claude and Codex, with the required subtle differences.
 - **Gemini and Antigravity** — next on deck once the two enabling primitives land, at which point adding an agent becomes mechanical rather than bespoke:
   - **Skill cross-registration** — skills stay canonical in `.agent/skills/`; a `ws` step registers them into each installed agent's native discovery path (Claude, Codex, Cursor, Antigravity), with stale-link cleanup on realm switches.
   - **Hook policy split** — the hook's *policy* (redirects, destructive-ask patterns, corrective messages) becomes platform-neutral data, with thin per-agent enforcement adapters. Each agent gets the same training loop through its own hook mechanism.
@@ -22,7 +23,7 @@ The [Guarded Kubernetes tutorial](../tutorials/guarded-kubernetes.md) and the gh
 
 ## Team collaboration — Team Thalami
 
-The flagship 1.x feature. Today's Thalamus is deliberately one human + one agent; teams need their own shared note home. The design instinct: the **realm** is the natural team tier — it already carries shared config, identity, and skills — so a team Thalamus likely lives in or beside the realm rather than as a synced mirror of anyone's personal file. The distinction to get right is *publishing for visibility* (easy — a read-only view of personal notes) versus *moving to team collaboration* (the real feature). This extends the [organization stack](organization-stack.md)'s ceremonies to multi-person seams and gets its own design cycle before any code.
+A solid 1.x community-oriented feature. Today's Thalamus is deliberately one human + one agent; teams need their own shared note home. The design instinct: the **realm** is the natural team tier — it already carries shared config, identity, and skills — so a team Thalamus likely lives in or beside the realm rather than as a synced mirror of anyone's personal file. The distinction to get right is *publishing for visibility* (easy — a read-only view of personal notes) versus *moving to team collaboration* (the real feature). This extends the [organization stack](organization-stack.md)'s ceremonies to multi-person seams and gets its own design cycle before any code.
 
 ## Flagship writeups
 
@@ -41,6 +42,6 @@ Designed-but-deferred `ws` growth, each picked up when real usage demands it:
 - **Shared lint config** — ship `.markdownlint.yaml` / `.shellcheckrc` / `.editorconfig` so local tools and review bots read the same rules.
 - **Remote-homes routing** — generalize the fork/internal/external homes model across `ws push` / `ws cr` / `ws diagnose`, plus the "automate detection, craft the URL, human does only the click only they can" pattern for human-authority gates.
 
-## Not on the roadmap
+## Not (yet) on the roadmap
 
 Multi-realm inheritance chains (corp → dept → team), a realm/hoard template marketplace, and deeper scaffolding-platform integrations are acknowledged futures with reservations in the code, but they wait for someone with the concrete need.
