@@ -10,9 +10,8 @@ GDD defines three independent axes that shape how a session works: **roles** (wh
 | **Designer** | Defining behavior (scenarios, specs) |
 | **Reviewer** | Quality and safety |
 | **Scribe** | Note-taking and vault work — PARA layout, frontmatter, daily notes, capture-process-organize loop |
-| **AI Agent** | Any of the above, bounded by permissions |
 
-Roles aren't skill levels. A first-time contributor and a 20-year veteran can both be in the Developer role — they'll just have different stances active.
+Roles aren't skill levels. A first-time contributor and a 20-year veteran can both be in the Developer role — they'll just have different stances active. The role describes the session's kind of work for both the human and the agent; the agent operates within it bounded by the [permission](permissions.md) and [access](access.md) systems.
 
 Today only the **Scribe** role has a dedicated skill file; the other roles are the assumed default and rely on stance and practice skills rather than a single role file.
 

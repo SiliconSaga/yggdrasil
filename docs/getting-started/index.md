@@ -6,7 +6,7 @@ If you'd rather see what's in the box first before diving in, the [GDD Features 
 
 Note that this currently assumes a variety of prerequisites:
 
-- You're using Claude Code as your AI agent (more validated agents coming soon)
+- You're using Claude Code as your AI agent (Codex and more are on the [roadmap](../gdd/roadmap.md))
 - You're using GitHub or GitLab for version control (Gitea/Forgejo planned)
 - You're using a Unix-like shell (Linux, macOS, WSL, Git Bash)
 - **Recommended**: [Obra Superpowers](https://github.com/obra/superpowers) installed in your agent. GDD's implementation plans and several practices (brainstorming, TDD, executing plans, subagent-driven development, code review) reference `superpowers:*` skills. Everything still works without it, but you'll see references to skills the agent can't load. The orientation skill checks for Superpowers at session start and nudges you to install if missing.
@@ -89,38 +89,21 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
 
    Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal. Run `ws help` to verify.
 
-5. **Clone a component to work on:**
-
-   Note that these components are fairly centric to nerdy homelab or indie game dev projects.
+5. **Scaffold your first component** — the GitHub Pages tutorial is the recommended first target. It needs nothing beyond the setup above (no community configuration, no existing project):
 
    ```bash
-   ws list              # see what's available
-   ws clone terasology  # or any component that interests you
+   ws component init gh-pages my-page
    ```
 
-   Not sure what to clone? Some suggestions:
+   Then follow the printed instructions and `components/my-page/README.md`. The tutorial walks you through creating the GitHub repo, enabling Pages, making a first edit on a topic branch, opening a PR, watching CodeRabbit and Copilot review, and seeing it deploy live — the whole GDD loop on something small enough to feel in 15 minutes.
 
-   - **vordu** — BDD roadmap visualization. Has a React UI and a Python API.
-   - **terasology** — a voxel game (Java). Make a quick content change and see it in-game.
-   - **destinationsol** — a space shooter (Java). Same idea — tweak something visible and run it.
-
-   Or bring your own project — clone any repo into `components/` and the `ws` CLI will pick it up:
+   Or bring your own project — any git repo can become a component:
 
    ```bash
-   cd components
-   git clone https://github.com/your-org/your-project.git
-   cd ..
+   ws clone --url https://github.com/your-org/your-project.git --add-eco
    ```
 
-### Recommended first scaffold
-
-If you're new to GDD and want to feel the full workflow on a tiny live target, scaffold the GitHub Pages tutorial:
-
-```bash
-ws component init gh-pages my-page
-```
-
-Then follow the printed instructions and `components/my-page/README.md`. The tutorial walks you through creating the GitHub repo, enabling Pages, making a first edit on a topic branch, opening a PR, watching CodeRabbit and Copilot review, and seeing it deploy live — the whole GDD loop on something small enough to feel in 15 minutes.
+   (Existing communities publish their component catalogs through *realms* — covered in [Explore a community's components](#explore-a-communitys-components) below. You don't need one to start.)
 
 ## Your First Session
 
@@ -137,7 +120,8 @@ Then follow the printed instructions and `components/my-page/README.md`. The tut
    In the mentoring overlay, the AI explains its decisions, teaches practices in context, and walks you through the tools. It's like pair programming with someone who knows the codebase.
 
 9. **Pick something small to do.** Some ideas:
-   - Explore a component: "What does tafl do? Walk me through the code."
+   - Continue the tutorial: "Walk me through the my-page README — I want to get it live."
+   - Explore a component: "Walk me through the code of [a component you cloned]."
    - Write a BDD scenario: "Help me write a test scenario for [feature]."
    - Fix something: Check the [open issues](https://github.com/SiliconSaga/yggdrasil/issues) for anything labeled `good first issue`.
    - Just explore: "What's in this workspace? Show me around."
@@ -146,7 +130,7 @@ Then follow the printed instructions and `components/my-page/README.md`. The tut
 
 ## What Happens Next
 
-As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root).
+As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root). Once you work from more than one machine, a *thalami hoard* gives it a git-synced, per-machine home — see [Hoards](../gdd/hoards.md) when you get there.
 
 After a few sessions, try **housekeeping** — review what's accumulated, promote useful observations to issues or skill updates, prune what's resolved. This is how GDD improves itself through use.
 
@@ -155,7 +139,25 @@ When you're comfortable, try other stances:
 - **Quick** for 15-minute sessions between other responsibilities
 - **Zen** for deep work sessions where you want full ceremony
 
-See the [GDD overview](../gdd/index.md) for the full methodology, or browse the [session transcripts](../gdd/samples/index.md) for examples of real sessions (though honestly, the transcripts can't capture the feel of it — the best way is to try it yourself).
+See the [GDD overview](../gdd/index.md) for the full methodology, or the [case studies](../gdd/case-studies.md) for what GDD looks like on real work.
+
+## Explore a community's components
+
+The upstream yggdrasil workspace deliberately declares no components — component catalogs come from **realms** (community configuration repos). Adopting one populates `ws list` with that community's projects:
+
+```bash
+ws realm https://github.com/SiliconSaga/realm-siliconsaga.git   # the author's community
+ws list              # now shows the realm's components
+ws clone terasology  # or any component that interests you
+```
+
+The SiliconSaga catalog leans toward homelab Kubernetes and indie game dev. A few approachable entries:
+
+- **vordu** — BDD roadmap visualization. Has a React UI and a Python API.
+- **terasology** — a voxel game (Java). Make a quick content change and see it in-game.
+- **destinationsol** — a space shooter (Java). Same idea — tweak something visible and run it.
+
+A realm is a higher-trust adoption than cloning a single repo — it carries agent instructions and adapter commands that flow into your sessions (see [Trust and Safety](../gdd/trust-and-safety.md)). Adopt realms from communities you're actually joining; for casual exploration, cloning individual repos with `ws clone --url` is the lighter touch.
 
 ## Bringing GDD to Your Own Community
 

@@ -96,4 +96,4 @@ The [GDD Features Tour](gdd/features.md) covers all three in context.
 Claude Code permissions live in `.claude/settings.json` (committed, team-wide) and `.claude/settings.local.json` (gitignored, personal). Rather than duplicate the rules here, see:
 
 - [`.claude/hooks/README.md`](../.claude/hooks/README.md) — the PreToolUse hook tiers (deny / redirect / ask / allow) and bypass mechanics.
-- [`ws-cli-guide.md`](ws-cli-guide.md) — the permission-pattern reference for tuning your local allowlist.
+- [`docs/gdd/permissions.md`](gdd/permissions.md) — the permission-pattern reference for tuning your allowlist, including the two-layer defense model.

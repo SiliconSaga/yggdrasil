@@ -10,7 +10,7 @@
 
 ## Start here
 
-- **New here (human)?** The human-facing docs live in [`docs/gdd/`](docs/gdd/index.md): start with the [features tour](docs/gdd/features.md) — what's in the box — and the [GDD index](docs/gdd/index.md) for the methodology behind it.
+- **New here (human)?** [Getting Started](docs/getting-started/index.md) walks you from clone to a first live PR in about 15 minutes. For the ideas first: the [GDD index](docs/gdd/index.md) carries the methodology and the [features tour](docs/gdd/features.md) covers what's in the box.
 - **Driving a session?** [`AGENTS.md`](AGENTS.md) is the operational guide — session startup, the `ws` CLI, skills, git workflow, auth. It's written *for agents* (terse and optimized for them, not prose for humans), but it's the reference when you need workspace mechanics.
 - **The `ws` CLI** is the shared interface for both humans and agents. Run `bash scripts/ws help` (or `ws help` once `scripts/` is on your PATH).
 

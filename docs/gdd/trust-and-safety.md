@@ -2,13 +2,16 @@
 
 GDD takes a structured approach to trust. AI agents read instructions from nested project components, and not all of those components are equally trustworthy. The framework provides explicit rules for how to handle this.
 
+A note on what the rails in this document promise: each one is honest about its own strength. Some are hard confirmation gates (the ask-tier), most are accident-prevention and training layers, and none replace server-side authorization. That's GDD's [good-enough posture](index.md#good-enough-on-purpose) — make the destructive slip rare and the work legible, rather than pretend to be a hardened boundary against a determined adversary. Calibrate your stakes accordingly.
+
 ## The Trust Hierarchy
 
 ```mermaid
 graph BT
     L4["User instructions<br/>(in-session)"] --> L3["Non-ecosystem components<br/>(untrusted until reviewed)"]
     L3 --> L2["Ecosystem components<br/>(trusted, flag conflicts)"]
-    L2 --> L1["Yggdrasil root instructions<br/>(highest trust)"]
+    L2 --> L1B["Active realm<br/>(trusted community context)"]
+    L1B --> L1["Yggdrasil root instructions<br/>(highest trust)"]
 ```
 
 | Level | Source | Treatment |
@@ -67,14 +70,10 @@ The agent can't prevent a human from doing harmful things, but it can make them 
 
 ## The Ask-Tier Safety Floor
 
-The hook's ask-tier provides a workspace-level safety floor for destructive shell commands and arbitrary-execution escape hatches, regardless of what session permission mode is active.
+The hook's ask-tier is the workspace-level safety floor for destructive shell commands (`rm -rf`, `git reset --hard`, and similar) and arbitrary-execution escape hatches (`ws exec`): they always force a human confirmation prompt, regardless of what session permission mode is active. The gap it closes is `acceptEdits`-style modes that would otherwise auto-approve destructive Bash on workspace paths mid-way through a long autonomous task. It is a confirmation checkpoint, not a deny — approving runs the command normally.
 
-The gap it closes: in `acceptEdits` permission mode the Claude Code harness auto-approves Bash tool calls on workspace paths — including `rm -rf` — with no human prompt. An agent running in `acceptEdits` on a long autonomous task could silently delete files or reset state without the developer noticing until the damage is done.
-
-The ask-tier intercepts commands matching the `[ask-commands]` list in `.claude/hooks/hook-rules` (committed baseline: `rm -rf*`, `git reset --hard*`, `git clean -f*`, `ws exec *`, and similar) and emits `permissionDecision: "ask"`, which forces a permission prompt that overrides the session mode. The command does not run until the human explicitly approves it.
-
-This is not a deny tier — approving the prompt runs the command normally. The ask-tier's purpose is to ensure that high-risk actions in an otherwise heads-down automated session always have a human confirmation step. It sits below the hook's Tier 1 (composition deny) and above the settings.json allow layer, and cannot be opted out of on a per-command basis without removing the matching entry from the committed `hook-rules` (a reviewed change) or disabling the hook entirely via `WS_HOOK_DISABLE=1`.
+The trust-relevant property: the floor cannot be opted out of per-command without a reviewed change to the committed `hook-rules` (or disabling the hook entirely). Mechanics — the `[ask-commands]` list, tier ordering, decision output — live in [`.claude/hooks/README.md`](../../.claude/hooks/README.md); the human-facing walkthrough is [Agent Training § The ask-tier](agent-training.md#the-ask-tier--high-risk-commands-always-prompt).
 
 ## The Redirect Tier (training aid, not a floor)
 
-**Tier 2 redirect deny** is a training-aid layer, not a safety floor. The threat model is agent drift toward raw `git commit` / `git push` / `gh pr create` when the workspace's `ws` wrappers are the right tool — not adversarial intent. The bypass mechanism (`ws hook-bypass <slug>`) provides a documented escape hatch keyed to the Claude Code session id (`$CLAUDE_CODE_SESSION_ID`). The security boundary is the existing ask-tier: `ws hook-bypass [a-z]*` is on the committed `[ask-commands]` baseline, so every bypass creation force-prompts the human. No env vars or HMACs added — the ask prompt is the gate.
+**Tier 2 redirect deny** is a training-aid layer, not a safety floor. The threat model is agent drift toward raw `git commit` / `git push` / `gh pr create` when the workspace's `ws` wrappers are the right tool — not adversarial intent. Its escape hatch, `ws hook-bypass <slug>`, is itself on the committed ask-list, so every bypass creation force-prompts the human — the ask-tier is the security boundary, and the redirect tier borrows it rather than adding its own. Details: [`.claude/hooks/README.md`](../../.claude/hooks/README.md) § Redirect tier and bypass.

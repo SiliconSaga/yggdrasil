@@ -15,9 +15,8 @@ Stances set the ceremony level for a session. Most sessions sit in exactly one s
 | **gdd-zen** | Deep focus on a single topic with full ceremony. Defers distractions until natural completion points. |
 | **gdd-flow** | Productive drift across several topics with responsive collaboration. Often the natural default. |
 | **gdd-quick** | Minimal-ceremony short sessions (≈15 minutes). Suggests appropriately small tasks. |
-| **gdd-mentoring** | Agent explains decisions and teaches practices in context. For unfamiliar areas or learning new tools. |
 
-See [Roles and Stances](roles-and-stances.md) for the full mental model.
+**gdd-mentoring** is the composable overlay, not a stance — it layers onto any stance and has the agent explain decisions and teach practices in context. See [Roles and Stances](roles-and-stances.md) for the full mental model.
 
 ---
 
@@ -68,6 +67,7 @@ Skills tied to specific workspace operations.
 | **gdd-github-issues** | Filing a deferred task or capturing work a fresh agent should be able to complete in a single repo. |
 | **gdd-permissions** | Adding/editing permission patterns, considering "don't ask again" offers, reviewing `.claude/settings.json` changes. |
 | **gdd-mcp** | Setup offers, auth, tool-calling conventions for [MCP servers](../mcp-setup.md). |
+| **gdd-hoard-upgrade** | Re-baselining a hoard against its template — drives the `ws hoard upgrade` plan/approve/apply loop. |
 | **gdd-workflow-audit** | At session wrap-up, after noticing 3+ instances of a manual workaround. |
 
 ---

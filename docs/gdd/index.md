@@ -2,6 +2,22 @@
 
 Guardian Driven Development is a methodology for human-AI collaboration in software projects. It wraps existing development practices — BDD, TDD, code review — in a layer of structured guidance that adapts to who's working, what role they're filling, and how much time they have.
 
+## Calibrated Autonomy — the thesis
+
+GDD sits deliberately in the middle of the AI-collaboration spectrum. On one end, AI as fancy auto-complete — useful, but the human still writes every meaningful decision. On the other end, vibe coding or autonomous swarms where the human launches work and comes back to an agent-provided summary plus passing tests, trusting the result without reviewing line-by-line. Both ends work for their use cases — plenty of people are happy with one or the other, and home / internal / lower-stakes software often doesn't need anything heavier than that. GDD doesn't try to replace either extreme.
+
+What it tunes for is the middle band: software you intend to maintain, learn from while building, and grow with — your code, your agent, and (when you have one) your community evolving together. The human stays involved at a regular cadence — not every commit (the agent often increments through several before a review pause), but every PR title and merge decision is a deliberate human call; pushes to topic branches are often comfortable to auto-approve once the workflow's familiar. The [PreToolUse hook](agent-training.md), the `ws orient` discovery surface, and the wrapper-first reflex contract together support this rhythm — the structural reason a human and an agent can stay in sync without ceremony getting in the way.
+
+This positioning enables a community angle that the other extremes don't naturally surface. An agent paired with a project and the humans around it can become a meaningful participant — not just a code generator for one human, but a collaborator that respects shared workspace integrity, flags risks that affect other contributors, and refuses to participate in actions that would compromise the project (while making clear the human is free to act on their own). That pattern is a workflow choice; GDD is built to make it natural when you want it.
+
+## Good Enough, On Purpose
+
+GDD is the "good enough" workspace — and that's a design statement, not an apology. It doesn't try to be a hardened security boundary: the hook tiers are training aids and confirmation checkpoints, and real authorization lives server-side in RBAC and token scopes. It doesn't try to be perfect, and it doesn't promise that every line got a deep review — the human sets the review cadence, and "merge as good enough, split the findings into follow-ups" is a first-class move here, not a lapse. What GDD does is get you 90% of the way with structure: accidents made rare, work made legible, attribution made honest.
+
+Know your stakes. If you operate medical devices or rockets, you need regimes with harder guarantees than GDD makes — don't run those on "good enough." For a great many people, though — especially those arriving at the dawn of personalized software, building things for themselves and their communities that simply wouldn't exist otherwise — good enough is exactly enough.
+
+This honesty repeats deliberately across the framework: the [Kubernetes guard](features.md#kubernetes-practice-guard--ws-k8s) is "accident-prevention, not a security boundary," the hook's redirect tier is "a training aid, not a safety floor." [Trust and Safety](trust-and-safety.md) states plainly what each rail does and doesn't promise, so you can decide where your stakes sit.
+
 ## The Core Insight
 
 AI agents and newer contributors need similar things: clear boundaries, incremental tasks, safety rails, and enough context to be productive without close supervision. A methodology that serves one can serve both.
@@ -11,14 +27,6 @@ GDD grew out of open-source community work, where contributors range from experi
 It also encourages what researchers call the "cyborg" approach to AI collaboration ([Bhargava, 2026](https://www.businessinsider.com/ai-impact-on-thinking-cognitive-skills-researcher-2026-3); [Mollick, 2023](https://www.oneusefulthing.org/p/centaurs-and-cyborgs-on-the-jagged)) — rather than outsourcing thinking to AI or using it as an echo chamber, you develop an iterative back-and-forth where both human and agent build on each other's contributions. The [Thalamus](thalamus.md) serves as shared working memory for this collaboration. This has been the author's experience while developing the framework.
 
 The name "Guardian" reflects this protective intent. The AI isn't just a code generator — it's a patient collaborator that explains its reasoning, flags risks, and helps people grow. In a world where it's tempting to use AI purely as a throughput amplifier, GDD asks: what if we also used it to make the experience of building software more human?
-
-## Calibrated Autonomy
-
-GDD sits deliberately in the middle of the AI-collaboration spectrum. On one end, AI as fancy auto-complete — useful, but the human still writes every meaningful decision. On the other end, vibe coding or autonomous swarms where the human launches work and comes back to an agent-provided summary plus passing tests, trusting the result without reviewing line-by-line. Both ends work for their use cases — plenty of people are happy with one or the other, and home / internal / lower-stakes software often doesn't need anything heavier than that. GDD doesn't try to replace either extreme.
-
-What it tunes for is the middle band: software you intend to maintain, learn from while building, and grow with — your code, your agent, and (when you have one) your community evolving together. The human stays involved at a regular cadence — not every commit (the agent often increments through several before a review pause), but every PR title and merge decision is a deliberate human call; pushes to topic branches are often comfortable to auto-approve once the workflow's familiar. The [PreToolUse hook](agent-training.md), the `ws orient` discovery surface, and the wrapper-first reflex contract together support this rhythm — the structural reason a human and an agent can stay in sync without ceremony getting in the way.
-
-This positioning enables a community angle that the other extremes don't naturally surface. An agent paired with a project and the humans around it can become a meaningful participant — not just a code generator for one human, but a collaborator that respects shared workspace integrity, flags risks that affect other contributors, and refuses to participate in actions that would compromise the project (while making clear the human is free to act on their own). That pattern is a workflow choice; GDD is built to make it natural when you want it.
 
 ## Key Concepts
 
@@ -43,6 +51,8 @@ The name reflects several protective roles:
 The last entry relates to the original more amusing "Dad-Driven-Development" name from the author's struggles finding meaningful development time while raising young children.
 
 ## Getting Started
+
+The [Getting Started walkthrough](../getting-started/index.md) covers setup step by step. The shape of it:
 
 1. **Clone the repo** — `git clone` the yggdrasil workspace
 2. **Start a session** — the orientation skill guides you through setup
@@ -78,9 +88,14 @@ The last entry relates to the original more amusing "Dad-Driven-Development" nam
 - [Versioning & Releases](versioning.md) — what is versioned (workspace + `ws` CLI together), the changelog workflow, and the change-note tooling decisions
 - [Organization Stack](organization-stack.md) — four-tier capture model (Vault → Thalami → Docs → GitHub), the scribe and GDD ceremonies, and the Intake bridge
 
-**Design archive:**
+**Where it's going and where it's been:**
 
-- [Samples](samples/index.md) — session transcripts, Thalamus snapshots, GDD in action
-- [GDD Design Doc](../plans/2026-03-12-gdd-design.md) — full methodology design
-- [Thalamus Design](../plans/2026-03-22-secondbrain-design.md) — detailed spec
-- [Implementation Plan](../plans/2026-03-22-gdd-implementation-plan.md) — what's built and what's next
+- [Roadmap](roadmap.md) — what's next after 1.0: more agents (Codex in progress; Gemini/Antigravity on deck), more tutorials, team collaboration
+- [Case Studies](case-studies.md) — GDD on real work: a non-technical owner's campaign site, parallel-workspace development, and more
+- [Samples](samples/index.md) — early session transcripts and Thalamus snapshots, preserved from GDD's first sessions
+
+**Design archive** (historical — the original design documents, kept as the record of how GDD took shape; the docs above describe the current system):
+
+- [GDD Design Doc](../plans/2026-03-12-gdd-design.md) — the original methodology design
+- [Thalamus Design](../plans/2026-03-22-secondbrain-design.md) — the original spec (the concept began as "SecondBrain")
+- [Implementation Plan](../plans/2026-03-22-gdd-implementation-plan.md) — the first build-out plan
