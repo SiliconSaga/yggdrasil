@@ -1511,6 +1511,14 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
+@test "k8s safety floor: slash-relative script containing kubectl force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\nkubectl run script-test --image=pause -n gdd-practice\n' > "$WORK/scripts/direct-danger.sh"
+    run_hook_with_session 'scripts/direct-danger.sh' "no-scope-sess" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
 @test "k8s safety floor: env-wrapped kubectl run force-asks" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     run_hook_with_session 'env KUBECONFIG=/tmp/test kubectl run script-test --image=pause -n gdd-practice' "no-scope-sess"

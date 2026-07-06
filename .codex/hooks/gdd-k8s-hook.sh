@@ -80,7 +80,7 @@ normalize_for_match() {
 
 match_cmd="$(normalize_for_match "$cmd")"
 k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
-script_path="$(k8s_guard_script_path "$cwd" "$match_cmd" 2>/dev/null || true)"
+script_path="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
 inline_shell=0
 k8s_guard_inline_shell_contains_kubectl "$match_cmd" && inline_shell=1
 
@@ -88,13 +88,15 @@ case "$k8s_match_cmd" in
     ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) exit 0 ;;
 esac
 
+script_has_kubectl=0
+if [[ -n "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
+    script_has_kubectl=1
+fi
 k8s_candidate=0
 case "$k8s_match_cmd" in
     kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *) k8s_candidate=1 ;;
 esac
-if [[ -n "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
-    k8s_candidate=1
-fi
+[[ "$script_has_kubectl" == "1" ]] && k8s_candidate=1
 [[ "$inline_shell" == "1" ]] && k8s_candidate=1
 [[ "$k8s_candidate" == "1" ]] || exit 0
 
@@ -138,7 +140,7 @@ if [[ "$k8s_match_cmd" == kubectl || "$k8s_match_cmd" == kubectl\ * ]]; then
     esac
 fi
 
-if [[ -n "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
+if [[ "$script_has_kubectl" == "1" ]]; then
     if [[ -n "$ctx" ]]; then
         deny "Script $script_path calls raw kubectl within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
     fi

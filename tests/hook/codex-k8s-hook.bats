@@ -91,6 +91,13 @@ assert_denied() {
     [[ "$reason" == *"calls raw kubectl"* ]]
 }
 
+@test "slash-relative script containing kubectl is denied when no scope is active" {
+    printf '#!/usr/bin/env bash\nkubectl run script-test --image=pause -n gdd-practice\n' > "$WORK/scripts/direct-danger.sh"
+    run_codex_hook 'scripts/direct-danger.sh' no-scope
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"calls raw kubectl"* ]]
+}
+
 @test "env-wrapped kubectl run is denied when no scope is active" {
     run_codex_hook 'env KUBECONFIG=/tmp/test kubectl run script-test --image=pause -n gdd-practice' no-scope
     assert_denied

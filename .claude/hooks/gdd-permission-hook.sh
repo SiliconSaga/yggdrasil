@@ -907,6 +907,13 @@ _sr_get() {
     done < "$_sr_envfile"
 }
 
+_k8s_bypass_active() {
+    local marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass" marker_sid=""
+    [[ -n "$_t2_session_id" && -f "$marker" ]] || return 1
+    marker_sid="$(grep '^session_id:' "$marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
+    [[ "$marker_sid" == "$_t2_session_id" ]]
+}
+
 # ─── Kubernetes write safety floor (scope-independent) ──────────────
 # A scope strengthens policy with context/namespace bounds, but write
 # classification must not disappear merely because no scope is armed. This
@@ -921,17 +928,14 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
 done
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
-    _k8s_script_file="$(k8s_guard_script_path "$cwd" "$match_cmd" 2>/dev/null || true)"
+    _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
     k8s_guard_inline_shell_contains_kubectl "$match_cmd" && _k8s_inline_shell=1
     _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
     if [[ -z "$_k8s_floor_ctx" ]]; then
         case "$_k8s_match_cmd" in
             ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) : ;;
             kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *)
-                _k8s_floor_marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass"
-                _k8s_floor_msid=""
-                [[ -f "$_k8s_floor_marker" ]] && _k8s_floor_msid="$(grep '^session_id:' "$_k8s_floor_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
-                if [[ -n "$_t2_session_id" && "$_k8s_floor_msid" == "$_t2_session_id" ]]; then
+                if _k8s_bypass_active; then
                     echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
                     allow "unscoped Kubernetes write bypass"
                 fi
@@ -941,10 +945,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                 ;;
             *)
                 if { [[ -n "$_k8s_script_file" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$_k8s_script_file" 2>/dev/null; } || [[ "$_k8s_inline_shell" == "1" ]]; then
-                    _k8s_floor_marker="$_t2_project_root/.tmp/hook-bypass/k8s.bypass"
-                    _k8s_floor_msid=""
-                    [[ -f "$_k8s_floor_marker" ]] && _k8s_floor_msid="$(grep '^session_id:' "$_k8s_floor_marker" 2>/dev/null | sed 's/^session_id: *//' || true)"
-                    if [[ -n "$_t2_session_id" && "$_k8s_floor_msid" == "$_t2_session_id" ]]; then
+                    if _k8s_bypass_active; then
                         echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
                         allow "unscoped Kubernetes script bypass"
                     fi

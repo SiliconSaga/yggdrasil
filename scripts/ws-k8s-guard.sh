@@ -43,15 +43,15 @@ k8s_guard_normalize_command() {
             command|*/command)
                 i=$((i + 1))
                 while [[ $i -lt ${#words[@]} ]]; do
-                    case "${words[$i]}" in --|-p) i=$((i + 1)) ;; *) break ;; esac
+                    case "${words[i]}" in --|-p) i=$((i + 1)) ;; *) break ;; esac
                 done ;;
             *) break ;;
         esac
     done
     [[ $i -lt ${#words[@]} ]] || return 0
 
-    base="${words[$i]##*/}"
-    [[ "$base" == "kubectl" ]] && words[$i]="kubectl"
+    base="${words[i]##*/}"
+    [[ "$base" == "kubectl" ]] && words[i]="kubectl"
     printf '%s' "${words[*]:$i}"
 }
 
@@ -84,7 +84,7 @@ k8s_guard_script_path() {
         source|.)
             [[ ${#words[@]} -gt 1 ]] && path="${words[1]}" ;;
         *)
-            case "${words[0]}" in /*|./*|../*) path="${words[0]}" ;; esac ;;
+            case "${words[0]}" in */*) path="${words[0]}" ;; esac ;;
     esac
     [[ -n "$path" ]] || return 1
     [[ "$path" == /* ]] || path="$cwd/$path"
@@ -159,6 +159,45 @@ _k8s_ns_in_csv() {
     local nm="$1" one; local -a arr; IFS=',' read -ra arr <<< "$2"
     for one in "${arr[@]}"; do [[ "$one" == "$nm" ]] && return 0; done
     return 1
+}
+
+# Validate the rendered objects behind a manifest or Kustomize input. The
+# caller supplies either a file path as $5 or a YAML stream on stdin. On
+# failure, print the complete BLOCK verdict and return non-zero; success is
+# silent so both -f and -k paths share exactly the same scope checks.
+_k8s_validate_rendered_docs() {
+    local flag="$1" label="$2" ns_arg="$3" scope_ns_csv="$4" input_path="${5:-}"
+    local parsed="" doc_kind doc_ns docs_seen=0 action empty_reason
+    case "$flag" in
+        -f) action="contains"; empty_reason="parsed no documents (yq failed or empty)" ;;
+        -k) action="renders"; empty_reason="rendered no documents" ;;
+        *) printf 'BLOCK:precondition:%s %s uses an unsupported validation source' "$flag" "$label"; return 1 ;;
+    esac
+    if [[ -n "$input_path" ]]; then
+        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' "$input_path" 2>/dev/null || true)"
+    else
+        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' 2>/dev/null || true)"
+    fi
+    [[ -n "$parsed" ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
+    while IFS=$'\t' read -r doc_kind doc_ns; do
+        docs_seen=$((docs_seen + 1))
+        if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
+            printf 'BLOCK:unbounded:%s %s %s a cluster-scoped %s, which is not namespace-scope-bounded' "$flag" "$label" "$action" "$doc_kind"; return 1
+        fi
+        [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
+        if [[ -z "$doc_ns" ]]; then
+            if [[ "$flag" == "-f" ]]; then
+                printf 'BLOCK:precondition:-f %s has a doc with no namespace and no -n (cannot bound to the guard scope)' "$label"
+            else
+                printf 'BLOCK:precondition:-k %s renders a doc with no namespace and no -n (cannot bound to the guard scope)' "$label"
+            fi
+            return 1
+        fi
+        _k8s_ns_in_csv "$doc_ns" "$scope_ns_csv" || {
+            printf 'BLOCK:scope:%s %s targets namespace %s outside the guard scope (%s)' "$flag" "$label" "$doc_ns" "$scope_ns_csv"; return 1;
+        }
+    done <<< "$parsed"
+    [[ $docs_seen -gt 0 ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
 }
 
 # Print one verdict: NOT_K8S | READ_NO_SCOPE | WRITE_NO_SCOPE |
@@ -278,7 +317,7 @@ k8s_guard_evaluate() {
 
     # -f manifest resolution (writes only). Any unresolved input is a BLOCK.
     if [[ ${#ffiles[@]} -gt 0 ]]; then
-        local f f_path doc_kind doc_ns
+        local f f_path validation
         for f in "${ffiles[@]}"; do
             case "$f" in
                 -|http://*|https://*) printf 'BLOCK:precondition:-f %s cannot be parsed for namespace (stdin/remote source)' "$f"; return 0 ;;
@@ -287,27 +326,7 @@ k8s_guard_evaluate() {
             f_path="$f"
             [[ -f "$f_path" ]] || f_path="$(_k8s_normalize_path "$f")"
             [[ -f "$f_path" ]] || { printf 'BLOCK:precondition:-f %s not found on disk' "$f"; return 0; }
-            local docs_seen=0
-            while IFS=$'\t' read -r doc_kind doc_ns; do
-                docs_seen=$((docs_seen + 1))
-                # A cluster-scoped Kind ignores -n; it can't be bound to the scope.
-                if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
-                    printf 'BLOCK:unbounded:-f %s contains a cluster-scoped %s, which is not namespace-scope-bounded' "$f" "$doc_kind"; return 0
-                fi
-                [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
-                # A doc with no metadata.namespace and no -n cannot be bound to the
-                # guard scope (it may be cluster-scoped, or just unqualified) — fail closed.
-                [[ -z "$doc_ns" ]] && { printf 'BLOCK:precondition:-f %s has a doc with no namespace and no -n (cannot bound to the guard scope)' "$f"; return 0; }
-                local ok=0 n
-                local -a _sns  # Fix B: declare local to avoid caller-scope leak
-                IFS=',' read -ra _sns <<< "$scope_ns_csv"
-                for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
-                [[ $ok -eq 1 ]] || { printf 'BLOCK:scope:-f %s targets namespace %s outside the guard scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
-            # Expand a `kind: List` wrapper into its items so each embedded
-            # resource gets its own kind/namespace scope check (a List can carry
-            # items in several namespaces); non-List docs pass through unchanged.
-            done < <(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' "$f_path" 2>/dev/null)
-            [[ $docs_seen -eq 0 ]] && { printf 'BLOCK:precondition:-f %s parsed no documents (yq failed or empty)' "$f"; return 0; }
+            validation="$(_k8s_validate_rendered_docs -f "$f" "$ns_arg" "$scope_ns_csv" "$f_path")" || { printf '%s' "$validation"; return 0; }
         done
         printf 'WRITE_IN_SCOPE'; return 0
     fi
@@ -316,7 +335,7 @@ k8s_guard_evaluate() {
     # Render only an existing local directory; remote inputs and render failures
     # fail closed rather than turning a namespace guess into approval.
     if [[ ${#kdirs[@]} -gt 0 ]]; then
-        local k k_path rendered doc_kind doc_ns
+        local k k_path rendered validation
         for k in "${kdirs[@]}"; do
             k_path="$k"
             [[ -d "$k_path" ]] || k_path="$(_k8s_normalize_path "$k")"
@@ -324,19 +343,7 @@ k8s_guard_evaluate() {
             rendered="$("${KUBECTL:-kubectl}" kustomize "$k_path" 2>/dev/null)" || {
                 printf 'BLOCK:precondition:-k %s could not be rendered safely' "$k"; return 0;
             }
-            local docs_seen=0
-            while IFS=$'\t' read -r doc_kind doc_ns; do
-                docs_seen=$((docs_seen + 1))
-                if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
-                    printf 'BLOCK:unbounded:-k %s renders a cluster-scoped %s, which is not namespace-scope-bounded' "$k" "$doc_kind"; return 0
-                fi
-                [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
-                [[ -z "$doc_ns" ]] && { printf 'BLOCK:precondition:-k %s renders a doc with no namespace and no -n (cannot bound to the guard scope)' "$k"; return 0; }
-                _k8s_ns_in_csv "$doc_ns" "$scope_ns_csv" || {
-                    printf 'BLOCK:scope:-k %s targets namespace %s outside the guard scope (%s)' "$k" "$doc_ns" "$scope_ns_csv"; return 0;
-                }
-            done < <(printf '%s\n' "$rendered" | yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' 2>/dev/null)
-            [[ $docs_seen -gt 0 ]] || { printf 'BLOCK:precondition:-k %s rendered no documents' "$k"; return 0; }
+            validation="$(_k8s_validate_rendered_docs -k "$k" "$ns_arg" "$scope_ns_csv" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
         done
         printf 'WRITE_IN_SCOPE'; return 0
     fi

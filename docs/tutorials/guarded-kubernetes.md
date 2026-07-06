@@ -217,7 +217,7 @@ When an AI agent has a scope armed, a harness hook can extend the guard to *raw*
 | Raw Kubernetes read | The hook auto-allows the read when a scope is armed. | The bridge returns no decision, so normal Codex sandbox, network, rules, and approval routing still applies. |
 | Kubernetes write with no scope | The write safety floor force-prompts before project or local command allowlists, including a blanket `kubectl:*` allow. | The focused bridge denies because Codex does not expose the same force-ask decision; arm a scope or explicitly confirm a session bypass. |
 | Raw Kubernetes write | An in-scope write is denied with guidance to use `ws k8s`; an out-of-scope or unbounded write receives the shared guard rejection. | Same guard decisions; the focused bridge does not inherit Claude's broader allowlist or prompt semantics. |
-| Directly invoked script containing `kubectl` | Denied while the scope is active. | Denied while the scope is active. |
+| Directly invoked script containing `kubectl` | Denied whether or not a scope is active. | Denied whether or not a scope is active. |
 | Guarded `ws k8s` call | The wrapper enforces scope; the broad hook may auto-allow reads or leave writes to normal prompting. | The wrapper enforces scope; safe calls defer to normal Codex routing. |
 | Bypass and audit | `ws hook-bypass k8s`; decisions are recorded in `~/.claude/hook-audit.log`. | `ws hook-bypass k8s`; bridge denies and bypasses are recorded in `~/.codex/hook-audit.log`. |
 
