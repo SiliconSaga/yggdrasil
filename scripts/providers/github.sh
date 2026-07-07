@@ -140,8 +140,13 @@ gp_review_head_branch() {
 # Usage: gp_review_push_timestamp SLUG BRANCH INDEX
 gp_review_push_timestamp() {
     local slug="$1" branch="$2" index="${3:-0}"
-    gh api "repos/$slug/events" \
-        --jq "[.[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\")] | .[$index].created_at" 2>/dev/null
+    # Paginate the (best-effort, ~300-event / 90-day) events feed at 100/page so
+    # the branch's Nth PushEvent isn't crowded out of the default first 30 by
+    # unrelated repo activity. --jq runs per page and gh concatenates, yielding a
+    # newest-first stream of matching timestamps; sed picks the (index)th (0-based).
+    gh api --paginate "repos/$slug/events?per_page=100" \
+        --jq ".[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\") | .created_at" 2>/dev/null \
+        | sed -n "$((index + 1))p"
 }
 
 # List unresolved review threads.
