@@ -41,6 +41,8 @@ ws mcp-status             # show currently configured servers
 
 `ws mcp-setup` reads the merged ecosystem config (upstream + realm + local), builds `.mcp.json` at the workspace root, and prints the resulting server map. The write is atomic — the file is staged to a sibling temp file and `mv`d into place, so an interrupted run never leaves a truncated `.mcp.json`.
 
+Because the command changes which tool servers an agent can contact, the bare mutating form requires human approval and prints every resolved server URL before writing. `ws mcp-setup --dry-run` remains automatic and is the preferred way to inspect the complete generated JSON before approving the write; `ws mcp-status` remains a read-only automatic check.
+
 `ws mcp-status` reads the existing `.mcp.json` and lists each server's name and URL. Useful to confirm a regeneration produced what you expected, or to check what an existing checkout is currently wired up for.
 
 ---
