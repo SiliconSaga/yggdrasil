@@ -119,6 +119,8 @@ The hook is roughly free in API-token cost — splitting a `cmd | head 20` into 
 
 Per-machine extras (opt-in): if a command you trust keeps getting denied, copy `.claude/hooks/hook-rules.local.example` to `hook-rules.local` (in the same directory) and add bash glob patterns under the `[allow-extras]` section. The live file is gitignored — patterns stay per-machine and don't leak into project policy.
 
+Codex uses smaller feature bridges rather than importing the Claude hook wholesale. Its redirect bridge consumes the same `[redirect-commands]` guidance for raw commit, push, PR-creation, and rename commands; its Kubernetes bridge applies the shared guard policy. Both deny or defer, leaving unrelated and bypassed calls to normal Codex routing. These hooks improve workflow consistency but are not a security boundary.
+
 ---
 
 ## Kubernetes practice guard — `ws k8s`

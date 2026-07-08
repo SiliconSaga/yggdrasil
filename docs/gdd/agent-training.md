@@ -28,7 +28,7 @@ Suppressed for `orient` itself, `--help` variants, and under bats (so test outpu
 
 ### The hook as a Claude-only backstop
 
-The broad PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) is Claude-specific — it is not a portable agent contract. Codex has one deliberately narrower bridge for the guarded-Kubernetes mentoring path; it does not inherit Claude's allowlist, shell-composition, or generic ask semantics. For Gemini CLI, Cursor, and other agents, and for every behavior not yet bridged to Codex, the load-bearing layers remain the portable ones: `AGENTS.md`'s reflex contract (read at session start), `ws orient`'s discovery menu, and the per-command footer (all `ws`-wrapped, all portable). Treat harness hooks as training and enforcement helpers rather than the workspace's safety floor.
+The broad PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) is Claude-specific — it is not a portable agent contract. Codex has deliberately narrower bridges for guarded Kubernetes and the shared raw-command redirects; it does not inherit Claude's allowlist, shell-composition, adapter, or generic ask semantics. For Gemini CLI, Cursor, and other agents, and for every behavior not yet bridged to Codex, the load-bearing layers remain the portable ones: `AGENTS.md`'s reflex contract (read at session start), `ws orient`'s discovery menu, and the per-command footer (all `ws`-wrapped, all portable). Treat harness hooks as training and enforcement helpers rather than the workspace's safety floor.
 
 ---
 

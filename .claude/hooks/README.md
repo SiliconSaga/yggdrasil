@@ -2,7 +2,7 @@
 
 This directory contains a hook script that fires during Claude Code sessions in this workspace. The main hook event fires automatically — no action needed once the workspace is cloned and Claude Code is started in it. It is registered in [`../settings.json`](../settings.json) under `hooks.PreToolUse` and is meant to make agent behavior more predictable and to teach safer command patterns by giving immediate corrective feedback.
 
-**Codex uses a separate bridge, not this monolith.** The first focused Codex hook at [`.codex/hooks/gdd-k8s-hook.sh`](../../.codex/hooks/gdd-k8s-hook.sh) handles only the guarded-Kubernetes mentoring path and reuses `scripts/ws-k8s-guard.sh`; safe calls defer to normal Codex sandbox and approval routing. The [Codex project configuration](../../.codex/README.md) covers trust and troubleshooting. The remaining Claude hook pieces stay Claude-specific until each has a suitable lifecycle surface or belongs in a future platform-neutral policy engine.
+**Codex uses focused bridges, not this monolith.** Its Kubernetes bridge reuses the shared guard, and its redirect bridge consumes only `[redirect-commands]` from `hook-rules`. The remaining allow, ask, composition, adapter, scratch, PowerShell, and PermissionRequest behavior stays Claude-specific until another focused bridge or an evidence-backed shared evaluator is warranted. The [Codex project configuration](../../.codex/README.md) covers trust and troubleshooting.
 
 **New here?** [`docs/gdd/agent-training.md`](../../docs/gdd/agent-training.md) is the user-friendly companion that covers why you'll see deny output early in a session, why the discipline doesn't double API cost, and how to handle the "this legit command got denied" case. This README is the technical spec — what each tier checks, the audit log format, registration, and troubleshooting.
 
@@ -28,7 +28,7 @@ Two files drive the hook's allow/ask/deny decisions beyond the committed `settin
 
 | File | Tracked in git? | Purpose |
 |---|---|---|
-| `.claude/hooks/hook-rules` | **Yes** | Committed baseline — transparent project policy for `[scratch-dirs]` and `[ask-commands]` |
+| `.claude/hooks/hook-rules` | **Yes** | Committed baseline — transparent project policy, including shared `[redirect-commands]` rules |
 | `.claude/hooks/hook-rules.local` | **No** (gitignored) | Per-machine overrides — copy from `hook-rules.local.example` |
 
 The format is flat sectioned text: `[section]` headers, one entry per line, `#` comments, blank lines ignored.
@@ -38,6 +38,8 @@ The format is flat sectioned text: `[section]` headers, one entry per line, `#` 
 **`[scratch-dirs]`** — workspace-relative paths under which Edit/Write tool calls auto-allow. Keeps in lockstep with the "Workspace-local scratch" section of [`.gitignore`](../../.gitignore). Entries in `hook-rules.local` add to the baseline; they never replace it.
 
 **`[ask-commands]`** — glob patterns for destructive or arbitrary-execution Bash commands that should always produce a permission prompt, regardless of session mode. A match in either file triggers Tier 3 (ask) not a deny — the human approves and the command runs. `hook-rules.local` entries are additive-only: you can make more commands prompt, but you cannot remove a pattern committed in `hook-rules`. This is intentional — per-machine config can tighten the safety floor, never loosen it.
+
+**`[redirect-commands]`** — platform-neutral workflow redirects shared by the Claude hook and the focused Codex redirect bridge. Keep Bash-glob semantics and suggestion text usable in both harnesses. A valid session bypass explicitly allows in Claude and defers to normal sandbox/approval routing in Codex.
 
 **`[adapter-redirect-commands]`** — Tier 3 patterns for raw test/lint/build runners. The hook resolves the component from `$cwd` and the active realm's adapter file; wired adapters get a deny-with-bypass, missing adapters get a one-line stderr nudge and fall through. See `[adapter-redirect-commands]` in `hook-rules` for the format.
 
@@ -73,7 +75,7 @@ A deny here is a *training* signal, not a safety floor (that's Tier 4 ask). The 
 
 The recurring-bypass pattern — same slug bypassed every session — is a signal that the corresponding `ws` subcommand needs to grow that capability. Periodic `grep BYPASS-ALLOW ~/.claude/hook-audit.log` surfaces it.
 
-**Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z][a-z0-9-]*$` (start with a letter so the `ws hook-bypass [a-z]*` ask-pattern always catches a slug invocation). The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
+**Adding a new redirect.** Append a row to the `[redirect-commands]` section of `.claude/hooks/hook-rules`: `<slug> | <pattern> | <suggestion>`. The slug must match `^[a-z][a-z0-9-]*$` (start with a letter so the `ws hook-bypass [a-z]*` ask-pattern always catches a slug invocation). The pattern is a bash glob. The suggestion is free text (column 3, may contain pipes — parsing splits on the first two ` | ` only). This section is shared by Claude and Codex, so keep its pattern and guidance platform-neutral. The new slug is automatically bypassable via `ws hook-bypass <new-slug>`; no script change needed.
 
 ### PowerShell: blocked by default
 
