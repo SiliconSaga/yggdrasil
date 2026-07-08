@@ -12,12 +12,112 @@ _k8s_normalize_path() {
     printf '%s' "${1//\\//}"
 }
 
+# Normalize common transparent command wrappers before hook matching. This is
+# deliberately a small shell-token subset, not a general shell parser: GDD is
+# catching common mistakes, while complex composition belongs in reviewed
+# scripts. Values containing shell-significant whitespace remain outside this
+# helper's guarantee.
+k8s_guard_normalize_command() {
+    local command="$1" token base
+    local -a words=()
+    read -r -a words <<< "$command"
+    [[ ${#words[@]} -gt 0 ]] || return 0
+
+    local i=0
+    while [[ $i -lt ${#words[@]} ]]; do
+        token="${words[$i]}"
+        case "$token" in
+            [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
+            env|*/env)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[$i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -u|--unset) i=$((i + 2)) ;;
+                        --unset=*|-i|--ignore-environment|-[^-]*) i=$((i + 1)) ;;
+                        [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
+                        *) break ;;
+                    esac
+                done ;;
+            command|*/command)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    case "${words[i]}" in --|-p) i=$((i + 1)) ;; *) break ;; esac
+                done ;;
+            *) break ;;
+        esac
+    done
+    [[ $i -lt ${#words[@]} ]] || return 0
+
+    base="${words[i]##*/}"
+    [[ "$base" == "kubectl" ]] && words[i]="kubectl"
+    printf '%s' "${words[*]:$i}"
+}
+
+# Resolve the script executed by a common shell-launch form. The returned path
+# is absolute and anchored to the tool payload cwd, not the hook process cwd.
+# Inline `bash -c`/`sh -c` commands are intentionally handled separately.
+k8s_guard_script_path() {
+    local cwd="$1" command="$2" normalized runner token path=""
+    normalized="$(k8s_guard_normalize_command "$command")"
+    local -a words=()
+    read -r -a words <<< "$normalized"
+    [[ ${#words[@]} -gt 0 ]] || return 1
+
+    runner="${words[0]##*/}"
+    local i=1
+    case "$runner" in
+        bash|sh)
+            while [[ $i -lt ${#words[@]} ]]; do
+                token="${words[$i]}"
+                if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
+                    return 1
+                fi
+                case "$token" in
+                    --) i=$((i + 1)); [[ $i -lt ${#words[@]} ]] && path="${words[$i]}"; break ;;
+                    -o|--rcfile|--init-file) i=$((i + 2)) ;;
+                    -*) i=$((i + 1)) ;;
+                    *) path="$token"; break ;;
+                esac
+            done ;;
+        source|.)
+            [[ ${#words[@]} -gt 1 ]] && path="${words[1]}" ;;
+        *)
+            case "${words[0]}" in */*) path="${words[0]}" ;; esac ;;
+    esac
+    [[ -n "$path" ]] || return 1
+    [[ "$path" == /* ]] || path="$cwd/$path"
+    [[ -f "$path" ]] || return 1
+    printf '%s' "$path"
+}
+
+# True when a shell's inline-command option carries a literal kubectl call.
+k8s_guard_inline_shell_contains_kubectl() {
+    local command="$1" normalized runner token
+    normalized="$(k8s_guard_normalize_command "$command")"
+    local -a words=()
+    read -r -a words <<< "$normalized"
+    [[ ${#words[@]} -gt 1 ]] || return 1
+    runner="${words[0]##*/}"
+    [[ "$runner" == "bash" || "$runner" == "sh" ]] || return 1
+    local i
+    for ((i = 1; i < ${#words[@]}; i++)); do
+        token="${words[$i]}"
+        if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
+            grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$normalized"
+            return $?
+        fi
+    done
+    return 1
+}
+
 # Plain read verbs. `auth` and `config` are deliberately NOT here: they are
 # mixed read/write families (`config use-context`, `auth reconcile`, … mutate
 # state) and are classified by sub-command in k8s_guard_evaluate, fail-closed.
 _k8s_is_read_verb() {
     case "$1" in
-        get|describe|logs|top|explain|events|api-resources|api-versions|version|diff|wait) return 0 ;;
+        get|describe|logs|top|explain|events|api-resources|api-versions|version|diff|wait|kustomize) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -61,7 +161,47 @@ _k8s_ns_in_csv() {
     return 1
 }
 
-# Print one verdict: NOT_K8S | NO_SCOPE | READ_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
+# Validate the rendered objects behind a manifest or Kustomize input. The
+# caller supplies either a file path as $5 or a YAML stream on stdin. On
+# failure, print the complete BLOCK verdict and return non-zero; success is
+# silent so both -f and -k paths share exactly the same scope checks.
+_k8s_validate_rendered_docs() {
+    local flag="$1" label="$2" ns_arg="$3" scope_ns_csv="$4" input_path="${5:-}"
+    local parsed="" doc_kind doc_ns docs_seen=0 action empty_reason
+    case "$flag" in
+        -f) action="contains"; empty_reason="parsed no documents (yq failed or empty)" ;;
+        -k) action="renders"; empty_reason="rendered no documents" ;;
+        *) printf 'BLOCK:precondition:%s %s uses an unsupported validation source' "$flag" "$label"; return 1 ;;
+    esac
+    if [[ -n "$input_path" ]]; then
+        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' "$input_path" 2>/dev/null || true)"
+    else
+        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' 2>/dev/null || true)"
+    fi
+    [[ -n "$parsed" ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
+    while IFS=$'\t' read -r doc_kind doc_ns; do
+        docs_seen=$((docs_seen + 1))
+        if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
+            printf 'BLOCK:unbounded:%s %s %s a cluster-scoped %s, which is not namespace-scope-bounded' "$flag" "$label" "$action" "$doc_kind"; return 1
+        fi
+        [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
+        if [[ -z "$doc_ns" ]]; then
+            if [[ "$flag" == "-f" ]]; then
+                printf 'BLOCK:precondition:-f %s has a doc with no namespace and no -n (cannot bound to the guard scope)' "$label"
+            else
+                printf 'BLOCK:precondition:-k %s renders a doc with no namespace and no -n (cannot bound to the guard scope)' "$label"
+            fi
+            return 1
+        fi
+        _k8s_ns_in_csv "$doc_ns" "$scope_ns_csv" || {
+            printf 'BLOCK:scope:%s %s targets namespace %s outside the guard scope (%s)' "$flag" "$label" "$doc_ns" "$scope_ns_csv"; return 1;
+        }
+    done <<< "$parsed"
+    [[ $docs_seen -gt 0 ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
+}
+
+# Print one verdict: NOT_K8S | READ_NO_SCOPE | WRITE_NO_SCOPE |
+# READ_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
 k8s_guard_evaluate() {
     local scope_ctx="$1" scope_ns_csv="$2"; shift 2
@@ -73,10 +213,9 @@ k8s_guard_evaluate() {
     else
         printf 'NOT_K8S'; return 0
     fi
-    [[ -z "$scope_ctx" ]] && { printf 'NO_SCOPE'; return 0; }
-
     local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 a
     local ffiles=()
+    local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
     local args=("$@")
     local i=0
@@ -92,6 +231,9 @@ k8s_guard_evaluate() {
             -f|--filename) ffiles+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
             -f=*|--filename=*) ffiles+=("${a#*=}");;
             -f?*) ffiles+=("${a#-f}");;      # attached short form: -f<file>
+            -k|--kustomize) kdirs+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
+            -k=*|--kustomize=*) kdirs+=("${a#*=}");;
+            -k?*) kdirs+=("${a#-k}");;       # attached short form: -k<dir>
             # Known value-taking flags: consume the FOLLOWING token as the flag's
             # value so it isn't mistaken for a positional (e.g. a namespace name
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
@@ -109,9 +251,11 @@ k8s_guard_evaluate() {
     # permission flow instead of blocking it as an unrecognized write verb.
     if [[ "$verb" == "scope" ]]; then printf 'NOT_K8S'; return 0; fi
 
-    if [[ -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
+    if [[ -n "$scope_ctx" && -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:context:explicit --context %s != the guard-scope context %s' "$ctx_arg" "$scope_ctx"; return 0
     fi
+    local read_verdict="READ_IN_SCOPE"
+    [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
     # auth / config are mixed read+write families: only an explicit read-only
     # sub-command is auto-allowed; everything else fails closed to a BLOCK so a
     # mutating call (auth reconcile, config use-context/delete-context, …) can
@@ -119,16 +263,19 @@ k8s_guard_evaluate() {
     case "$verb" in
         auth)
             case "$verb2" in
-                can-i|whoami) printf 'READ_IN_SCOPE'; return 0 ;;
-                *) printf 'BLOCK:unbounded:kubectl auth %s is not a scoped read (only `auth can-i` / `auth whoami` are auto-allowed)' "${verb2:-(none)}"; return 0 ;;
+                can-i|whoami) printf '%s' "$read_verdict"; return 0 ;;
+                *) [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
+                   printf 'BLOCK:unbounded:kubectl auth %s is not a scoped read (only `auth can-i` / `auth whoami` are auto-allowed)' "${verb2:-(none)}"; return 0 ;;
             esac ;;
         config)
             case "$verb2" in
-                view|get-contexts|current-context|get-clusters|get-users) printf 'READ_IN_SCOPE'; return 0 ;;
-                *) printf 'BLOCK:unbounded:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
+                view|get-contexts|current-context|get-clusters|get-users) printf '%s' "$read_verdict"; return 0 ;;
+                *) [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
+                   printf 'BLOCK:unbounded:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
             esac ;;
     esac
-    if _k8s_is_read_verb "$verb"; then printf 'READ_IN_SCOPE'; return 0; fi
+    if _k8s_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
+    [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
     if [[ $all_ns -eq 1 ]]; then printf 'BLOCK:unbounded:--all-namespaces write is not scope-bounded'; return 0; fi
 
     # Cluster-scoped writes can't be bounded to the namespace scope: a node-level
@@ -170,7 +317,7 @@ k8s_guard_evaluate() {
 
     # -f manifest resolution (writes only). Any unresolved input is a BLOCK.
     if [[ ${#ffiles[@]} -gt 0 ]]; then
-        local f f_path doc_kind doc_ns
+        local f f_path validation
         for f in "${ffiles[@]}"; do
             case "$f" in
                 -|http://*|https://*) printf 'BLOCK:precondition:-f %s cannot be parsed for namespace (stdin/remote source)' "$f"; return 0 ;;
@@ -179,27 +326,24 @@ k8s_guard_evaluate() {
             f_path="$f"
             [[ -f "$f_path" ]] || f_path="$(_k8s_normalize_path "$f")"
             [[ -f "$f_path" ]] || { printf 'BLOCK:precondition:-f %s not found on disk' "$f"; return 0; }
-            local docs_seen=0
-            while IFS=$'\t' read -r doc_kind doc_ns; do
-                docs_seen=$((docs_seen + 1))
-                # A cluster-scoped Kind ignores -n; it can't be bound to the scope.
-                if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
-                    printf 'BLOCK:unbounded:-f %s contains a cluster-scoped %s, which is not namespace-scope-bounded' "$f" "$doc_kind"; return 0
-                fi
-                [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
-                # A doc with no metadata.namespace and no -n cannot be bound to the
-                # guard scope (it may be cluster-scoped, or just unqualified) — fail closed.
-                [[ -z "$doc_ns" ]] && { printf 'BLOCK:precondition:-f %s has a doc with no namespace and no -n (cannot bound to the guard scope)' "$f"; return 0; }
-                local ok=0 n
-                local -a _sns  # Fix B: declare local to avoid caller-scope leak
-                IFS=',' read -ra _sns <<< "$scope_ns_csv"
-                for n in "${_sns[@]}"; do [[ "$n" == "$doc_ns" ]] && ok=1; done
-                [[ $ok -eq 1 ]] || { printf 'BLOCK:scope:-f %s targets namespace %s outside the guard scope (%s)' "$f" "$doc_ns" "$scope_ns_csv"; return 0; }
-            # Expand a `kind: List` wrapper into its items so each embedded
-            # resource gets its own kind/namespace scope check (a List can carry
-            # items in several namespaces); non-List docs pass through unchanged.
-            done < <(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' "$f_path" 2>/dev/null)
-            [[ $docs_seen -eq 0 ]] && { printf 'BLOCK:precondition:-f %s parsed no documents (yq failed or empty)' "$f"; return 0; }
+            validation="$(_k8s_validate_rendered_docs -f "$f" "$ns_arg" "$scope_ns_csv" "$f_path")" || { printf '%s' "$validation"; return 0; }
+        done
+        printf 'WRITE_IN_SCOPE'; return 0
+    fi
+
+    # Kustomize inputs need the same per-resource inspection as -f manifests.
+    # Render only an existing local directory; remote inputs and render failures
+    # fail closed rather than turning a namespace guess into approval.
+    if [[ ${#kdirs[@]} -gt 0 ]]; then
+        local k k_path rendered validation
+        for k in "${kdirs[@]}"; do
+            k_path="$k"
+            [[ -d "$k_path" ]] || k_path="$(_k8s_normalize_path "$k")"
+            [[ -d "$k_path" ]] || { printf 'BLOCK:precondition:-k %s is not a readable local directory' "$k"; return 0; }
+            rendered="$("${KUBECTL:-kubectl}" kustomize "$k_path" 2>/dev/null)" || {
+                printf 'BLOCK:precondition:-k %s could not be rendered safely' "$k"; return 0;
+            }
+            validation="$(_k8s_validate_rendered_docs -k "$k" "$ns_arg" "$scope_ns_csv" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
         done
         printf 'WRITE_IN_SCOPE'; return 0
     fi

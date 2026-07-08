@@ -5,11 +5,11 @@ description: Use when a guarded kubectl practice is requested ("practice kubectl
 
 # GDD K8s Guard
 
-A practice workflow that arms a small scope — a kube context plus allowed namespaces — so accidental `kubectl` commands against the wrong cluster or namespace are blocked before they execute.
+A Kubernetes write safety floor plus an optional small scope — a kube context and allowed namespaces — so writes require deliberate handling even before a scope is armed, and scoped work is blocked from the wrong cluster or namespace.
 
 ## What This Is (and Is Not)
 
-A safety scope, not a security boundary: accident-prevention for anyone who wants writes bounded to a known context + namespace — a newcomer learning the ropes, or an expert who wants a guardrail while working near production. A determined agent or human can bypass the guard via `ws hook-bypass k8s` (session-level lift) or by running `kubectl` entirely outside the harness (e.g. in a terminal not running Claude Code). Real authorization lives server-side in RBAC. The guard's job is to catch the command that slips out of habit, not to enforce cluster access control.
+A safety scope, not a security boundary: accident-prevention for anyone who wants writes bounded to a known context + namespace — a newcomer learning the ropes, or an expert who wants a guardrail while working near production. A human can run `kubectl` outside an agent harness, and an agent session can use the audited `ws hook-bypass k8s` escape hatch. Real authorization lives server-side in RBAC. The guard's job is to catch the command that slips out of habit, not to enforce cluster access control.
 
 ## When to Load
 
@@ -33,24 +33,33 @@ Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash too
 
 | Situation | Result |
 |-----------|--------|
-| `ws k8s <read verb>` targeting in-scope context | Auto-approved silently — reads flow freely |
-| `ws k8s <write verb>` targeting in-scope namespace | Prompts normally — user sees the command and approves |
-| `ws k8s <write verb>` targeting out-of-scope namespace | Denied with a class-aware explanation: a namespace-scoped write says to add that namespace to the scope; a cluster-scoped/unbounded write says widening cannot help — run outside the guard or clear it |
+| Kubernetes read with no scope armed | Defers to normal harness routing. |
+| Kubernetes write with no scope armed | Claude force-prompts before any command allowlist. Codex denies with guidance to arm a scope or explicitly confirm a session bypass because its focused bridge cannot force an equivalent prompt. |
+| `ws k8s <read verb>` targeting in-scope context | The wrapper allows it. Claude's broad hook auto-approves it; the focused Codex bridge defers to normal Codex sandbox and approval routing. |
+| `ws k8s <write verb>` targeting in-scope namespace | The wrapper allows it and the harness applies its normal execution/approval routing. |
+| `ws k8s <write verb>` targeting an out-of-scope namespace or unbounded resource | Denied with a class-aware explanation: a namespace-scoped write says to add that namespace to the scope; a cluster-scoped or otherwise unbounded write says widening cannot help — leave the guarded workflow, or after explicit confirmation use the audited session bypass and run the deliberate raw command |
 | `ws k8s create`/`delete namespace <ns>` where `<ns>` is in scope | Allowed — you may create (or delete and recreate) your own scoped namespace(s). An out-of-scope namespace name is denied like any out-of-scope write |
-| Raw `kubectl` read verb | Auto-approved silently — reads are free even via raw kubectl when a scope is armed. The hook does not redirect harmless reads. |
+| Raw `kubectl` read verb | Reads are free even via raw kubectl when a scope is armed. Claude's broad hook auto-approves the read; the focused Codex bridge defers to normal Codex routing. |
 | Raw `kubectl` write (in-scope namespace) | Denied with a message instructing use of `ws k8s` — the wrapper injects `--context`, preventing writes from hitting the wrong cluster by force of habit |
 | Raw `kubectl` write (out-of-scope namespace or unbounded) | Denied with the same class-aware message the `ws k8s` wrapper emits |
-| Temp script (bash/sh/source) whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s` |
+| Direct shell script whose file contains raw `kubectl` | Denied with a message pointing to `ws k8s` or `ws hook-bypass k8s`; relative paths resolve from the tool cwd and common shell options such as `bash -x` are skipped when locating the script |
 | `kubectl --context <other-ctx>` where other-ctx ≠ practice context | Blocked — explicit cross-context write is out of scope |
 | `--all-namespaces` on a write | Blocked — unbounded writes are never scope-bounded |
+| `apply -k` / `--kustomize` while scoped | The guard renders an existing local Kustomize directory and checks every resource. Missing, unrenderable, cross-namespace, or cluster-scoped output fails closed. |
 
-Read verbs auto-approved by the guard: `get`, `describe`, `logs`, `top`, `explain`, `events`, `api-resources`, `api-versions`, `version`, `diff`, `wait`, `auth`, `config` (except `config set-context`/`use-context`/`set`, which are writes).
+Read verbs accepted by the guard: `get`, `describe`, `logs`, `top`, `explain`, `events`, `api-resources`, `api-versions`, `version`, `diff`, `wait`, and standalone `kustomize`; plus `auth can-i`, `auth whoami`, `config view`, `config get-contexts`, `config current-context`, `config get-clusters`, and `config get-users`. Other `auth` and `config` operations are writes because those command families include mutations. Unknown verbs are writes by default.
 
-### Widening, Removing, and Bypassing the Scope
+The hooks normalize common transparent launch forms before classification: leading environment assignments, `env`, `command`, absolute paths ending in `kubectl`, shell options before a script path, and literal kubectl inside `bash -c`/`sh -c`. They do not claim to observe arbitrary nested execution through task runners, client libraries, Helm, or a script that constructs the kubectl executable name without the literal token; server-side RBAC remains the boundary for those cases.
 
-- **Widen the scope** — re-run `ws k8s scope set --context <ctx> --namespace <ns1,ns2>` with a broader namespace list. The previous scope is overwritten.
-- **Remove the scope entirely** — `ws k8s scope clear`. The guard deactivates for the session; raw `kubectl` is no longer intercepted.
-- **Lift the redirect for the session** — `ws hook-bypass k8s`. This writes a session-scoped bypass marker so the raw-kubectl redirect does not fire, but scope-set vars remain in place. Useful for running a one-off automation script that calls `kubectl` directly.
+### Staying Guarded, Clearing, and Bypassing
+
+| Intent | Recommendation | Effect |
+|---|---|---|
+| Namespace-scoped work, especially near shared or production-shaped clusters | Keep the scope; widen it only by re-running `ws k8s scope set --context <ctx> --namespace <ns1,ns2>` when another namespace is deliberately needed. | `ws k8s` remains bounded and raw writes remain intercepted. |
+| Sustained cluster-wide or highly experimental interactive work on an intentionally disposable local cluster | After explicit user confirmation, run `ws k8s scope clear`; re-arm later if the user wants namespace bounds back. | Context/namespace enforcement stops, but the unscoped write safety floor remains: Claude asks on writes and Codex denies them until bypassed. |
+| A specific script or unattended tool must invoke raw `kubectl`, or unscoped Codex work is deliberately authorized | After explicit user confirmation, run `ws hook-bypass k8s`. | The write floor and raw-command interception are lifted for the rest of the agent session; an already-armed `ws k8s` wrapper remains scope-bounded. This is not a one-command exception. |
+
+Never clear the scope or create a bypass marker merely because the guard rejects an operation. Explain why it was rejected, compare the choices above, and obtain explicit user confirmation before reducing protection. Clearing is sufficient for interactive cluster-wide work in Claude because writes still prompt; unattended automation or unscoped Codex writes additionally need the session bypass.
 
 ## Surfacing Output to the User
 
@@ -66,7 +75,7 @@ The general rule: if the output of a tool call is the point — a rejection reas
 
 ## Hook Availability
 
-The raw-kubectl intercept (Tier 2b) is implemented as a **Claude Code PreToolUse hook** registered in `.claude/settings.json`. Without an equivalent hook in another harness (Codex, Cursor, etc.), raw `kubectl` commands are not intercepted — the `ws k8s` wrapper still enforces scope when called directly, but the safety net against accidental bare `kubectl` use only fires inside Claude Code. When running in a different harness, treat `ws k8s` as the required form; do not assume raw `kubectl` will be caught.
+Claude Code registers the broad PreToolUse hook through `.claude/settings.json`. Codex registers the focused Kubernetes bridge through `.codex/hooks.json`; the user must review and trust its current hash through `/hooks`. Both intercept raw Kubernetes writes and directly invoked scripts containing `kubectl`, but safe-call routing differs as described above. In any other harness, treat `ws k8s` as the required form until that harness's pre-tool capabilities are verified; do not assume raw `kubectl` will be caught.
 
 ## Composability
 
@@ -77,6 +86,6 @@ In non-mentoring sessions the skill still arms the guard, but skips the narratio
 ## What This Skill Does NOT Do
 
 - Replace server-side RBAC — bypass is always one command away, and that is by design
-- Guard `kubectl` invoked outside the Claude Code harness (terminal, CI, scripts launched outside Claude)
+- Guard `kubectl` invoked outside a supported agent harness (terminal, CI, or scripts launched independently)
 - Prevent cluster-scoped resource writes from succeeding if the user explicitly bypasses — it blocks by default but does not own the cluster
-- Persist the scope across sessions — `GDD_K8S_CONTEXT` and `GDD_K8S_NAMESPACES` live in the session file and are cleared when the session ends
+- Persist the scope intentionally as shared configuration — it belongs to one session file, but ended-session files can linger locally until `ws clean --sessions-all` removes them

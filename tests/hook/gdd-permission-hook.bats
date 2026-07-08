@@ -1466,6 +1466,16 @@ GDD_K8S_NAMESPACES=$3
 EOF
 }
 
+@test "scoped-redirect: active non-k8s entry does not abort when k8s floor is disabled" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\ncustom | customctl* | CUSTOM_SCOPE | Use custom wrapper\n')"
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'CUSTOM_SCOPE=armed\n' > "$WORK/.tmp/gdd-agent-sessions/scoped-custom.env"
+    run_hook_with_session 'customctl mutate' "scoped-custom"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"Use custom wrapper"* ]]
+}
+
 @test "scoped-redirect: raw kubectl redirects to ws k8s when scope active" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
@@ -1479,6 +1489,76 @@ EOF
     run_hook_with_session 'kubectl get pods' "no-scope-sess"
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "k8s safety floor: unscoped raw write force-asks before a blanket allow" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    write_project_settings 'Bash(kubectl:*)'
+    run_hook_with_session 'kubectl --context shared apply -k overlays/plain' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"No Kubernetes guard scope is active"* ]]
+}
+@test "k8s safety floor: unscoped ws k8s write force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session 'ws k8s delete pod foo -n prod' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: unscoped script containing kubectl force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    printf '#!/bin/bash\nkubectl apply -k overlays/plain\n' > "$WORK/danger.sh"
+    run_hook_with_session "bash $WORK/danger.sh" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: slash-relative script containing kubectl force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\nkubectl run script-test --image=pause -n gdd-practice\n' > "$WORK/scripts/direct-danger.sh"
+    run_hook_with_session 'scripts/direct-danger.sh' "no-scope-sess" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: env-wrapped kubectl run force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session 'env KUBECONFIG=/tmp/test kubectl run script-test --image=pause -n gdd-practice' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: absolute kubectl path force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session '/usr/bin/kubectl run script-test --image=pause -n gdd-practice' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: command wrapper around kubectl run force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session 'command /usr/bin/kubectl run script-test --image=pause -n gdd-practice' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: bash -c containing kubectl force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session "bash -c 'kubectl run script-test --image=pause -n gdd-practice'" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: matching bypass permits an unscoped write" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    write_bypass_marker "k8s" "no-scope-sess" "disposable cluster automation"
+    run_hook_with_session 'kubectl apply -k overlays/plain' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.claude/hook-audit.log"
+}
+@test "k8s safety floor: matching bypass permits an unscoped kubectl script" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    printf '#!/bin/bash\nkubectl apply -k overlays/plain\n' > "$WORK/danger.sh"
+    write_bypass_marker "k8s" "no-scope-sess" "disposable cluster automation"
+    run_hook_with_session "bash $WORK/danger.sh" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    grep -q 'BYPASS-SCOPE \[k8s\]' "$HOME/.claude/hook-audit.log"
 }
 @test "scoped-redirect: raw in-scope kubectl READ auto-approves (agent path)" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
@@ -1532,6 +1612,23 @@ EOF
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
     printf '#!/bin/bash\nkubectl delete ns prod\n' > "$WORK/danger.sh"
     run_hook_with_session "bash $WORK/danger.sh" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: relative executable kubectl-run script resolves from payload cwd" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "gdd-practice"
+    printf '#!/bin/bash\nkubectl run script-test --image=pause --restart=Never -n gdd-practice\n' > "$WORK/chapter4-script-test.sh"
+    chmod +x "$WORK/chapter4-script-test.sh"
+    run_hook_with_session './chapter4-script-test.sh' "sk8s" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: bash options do not hide kubectl-run script path" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "gdd-practice"
+    printf '#!/bin/bash\nkubectl run script-test --image=pause --restart=Never -n gdd-practice\n' > "$WORK/chapter4-script-test.sh"
+    run_hook_with_session 'bash -x ./chapter4-script-test.sh' "sk8s" "$WORK"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
 }

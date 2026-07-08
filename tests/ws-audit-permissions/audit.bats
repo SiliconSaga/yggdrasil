@@ -138,6 +138,14 @@ Bash(curl https://example.com/api)"
     [[ "$output" == *"severity: medium"* ]]
 }
 
+@test "detect: canonical Bash(kubectl:*) blanket allow is high" {
+    write_settings project-local "Bash(kubectl:*)"
+    run_audit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Bash(kubectl:*)"* ]]
+    [[ "$output" == *"high"* ]]
+}
+
 # ─── Scope labeling ─────────────────────────────────────────────────
 
 @test "scope label: user-scope finding is labeled user" {

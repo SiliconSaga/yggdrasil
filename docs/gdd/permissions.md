@@ -40,13 +40,19 @@ The hook produces three possible decisions for a Bash command:
 
 - **deny** — shell composition or other forbidden patterns. The command is blocked and the agent receives a corrective message.
 - **ask** — the command matches the `[ask-commands]` glob list in `hook-rules` (or `hook-rules.local`). The hook emits `permissionDecision: "ask"`, forcing a human-facing permission prompt regardless of the session permission mode. This overrides `acceptEdits` and `bypassPermissions` — the prompt always surfaces. The command is NOT blocked; once the human approves, it runs normally. Destructive commands like `rm -rf` and `git reset --hard` live here, as do arbitrary-execution escape hatches like `ws exec`.
-- **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 4) or an `[allow-extras]` glob in `hook-rules.local` (Tier 5). It proceeds without a prompt.
+- **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 5) or an `[allow-extras]` glob in `hook-rules.local` (Tier 6). It proceeds without a prompt.
 
 A secondary effect of the hook is that it can sometimes re-map GDD's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
 
 See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `hook-rules.local` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
 
 `hook-rules` patterns are Bash globs matched against the hook's normalized command string, not Claude Code `Bash(...)` matcher entries. For example, the committed ask-list entry `ws exec *` matches `ws exec yggdrasil git status` and `ws exec yggdrasil printf %s a b c d e f g h` alike, because the `*` spans the remaining command tail. The hook also normalizes `bash scripts/ws exec ...` to `ws exec ...` before this match, so one bare pattern covers both invocation styles. This is distinct from the spaced `*` forms in `.claude/settings.json`, which are Claude matcher syntax and are documented under [Pattern shapes](#pattern-shapes).
+
+### Kubernetes write safety floor
+
+Kubernetes operation classification is independent of whether a `GDD_K8S_CONTEXT` scope exists. An unscoped read passes to normal routing; an unscoped write emits Claude's `ask` decision before `settings.json` and `hook-rules.local` allowances are consulted. Consequently, even an accidental blanket `Bash(kubectl:*)` entry cannot silently approve a write. When a scope is armed, the stronger context-and-namespace redirect policy applies. Local `-k` and `--kustomize` directories are rendered and every resulting resource is checked; an unreadable or unsuccessful render fails closed.
+
+The Codex bridge maps the same platform-neutral classification differently because its focused `PreToolUse` policy supports deny-or-defer rather than Claude's force-ask decision: unscoped writes are denied with guidance to arm a scope or explicitly authorize the audited session bypass. This remains an accident-prevention layer rather than an authorization boundary; server-side RBAC is authoritative.
 
 ### Redirect tier and bypass
 
