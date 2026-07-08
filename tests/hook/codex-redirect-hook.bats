@@ -70,3 +70,82 @@ CASES
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+@test "suggestion text may contain additional pipes" {
+    cat > "$WORK/.claude/hooks/hook-rules" <<'RULES'
+[redirect-commands]
+custom | custom raw* | Use `ws custom` | keep this suffix.
+RULES
+    run_hook 'custom raw input'
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" = 'Use `ws custom` | keep this suffix.' ]
+}
+
+@test "malformed redirect rows are audited and later valid rows still work" {
+    cat > "$WORK/.claude/hooks/hook-rules" <<'RULES'
+[redirect-commands]
+missing separators
+bad_slug | bad* | invalid slug
+valid | valid raw* | Use `ws valid`.
+RULES
+    run_hook 'valid raw input'
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<< "$output")" = "deny" ]
+    grep -q 'malformed \[redirect-commands\]' "$HOME/.codex/hook-audit.log"
+}
+
+@test "missing baseline rules defer and audit the infrastructure gap" {
+    rm "$WORK/.claude/hooks/hook-rules"
+    run_hook 'git push'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    grep -q 'redirect rules unavailable' "$HOME/.codex/hook-audit.log"
+}
+
+@test "command and pattern normalization match wrapper-path forms" {
+    cat > "$WORK/.claude/hooks/hook-rules" <<'RULES'
+[redirect-commands]
+custom | scripts/custom raw* | Use `ws custom`.
+RULES
+    run_hook 'bash scripts/custom raw input'
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" = 'Use `ws custom`.' ]
+}
+
+@test "hook-rules.local adds a redirect" {
+    cat > "$WORK/.claude/hooks/hook-rules.local" <<'RULES'
+[redirect-commands]
+local-tool | local-tool raw* | Use `ws local-tool`.
+RULES
+    run_hook 'local-tool raw input'
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" = 'Use `ws local-tool`.' ]
+}
+
+@test "matching-session bypass defers without emitting allow" {
+    cat > "$WORK/.tmp/hook-bypass/git-push.bypass" <<'MARKER'
+session_id: codex-redirect-test
+reason: provider debugging
+MARKER
+    run_hook 'git push'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    grep -q 'BYPASS-REDIRECT \[git-push\]' "$HOME/.codex/hook-audit.log"
+}
+
+@test "mismatched-session bypass still denies" {
+    cat > "$WORK/.tmp/hook-bypass/git-push.bypass" <<'MARKER'
+session_id: another-session
+reason: wrong owner
+MARKER
+    run_hook 'git push'
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<< "$output")" = "deny" ]
+}
+
+@test "malformed bypass marker still denies" {
+    printf '%s\n' 'reason: missing session' > "$WORK/.tmp/hook-bypass/git-push.bypass"
+    run_hook 'git push'
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<< "$output")" = "deny" ]
+}

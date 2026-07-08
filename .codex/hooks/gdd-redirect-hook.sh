@@ -55,29 +55,68 @@ normalize_for_match() {
     esac
 }
 
-[[ -f "$rules_file" ]] || exit 0
 redirect_commands=()
-section=""
-while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" || "$line" == \#* ]] && continue
-    case "$line" in
-        "["*"]") section="${line#\[}"; section="${section%\]}"; continue ;;
-    esac
-    [[ "$section" == "redirect-commands" ]] || continue
-    [[ "$line" == *" | "* ]] || continue
-    slug="${line%% | *}"
-    rest="${line#* | }"
-    [[ "$rest" == *" | "* ]] || continue
-    pattern="${rest%% | *}"
-    suggestion="${rest#* | }"
-    slug="${slug%"${slug##*[![:space:]]}"}"
-    pattern="${pattern%"${pattern##*[![:space:]]}"}"
-    [[ "$slug" =~ ^[a-z][a-z0-9-]*$ && -n "$pattern" && -n "$suggestion" ]] || continue
-    redirect_commands+=("$slug|$pattern|$suggestion")
-done < "$rules_file"
+
+parse_redirect_rules() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+    local section="" line slug pattern suggestion rest
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" || "$line" == \#* ]] && continue
+        case "$line" in
+            "["*"]") section="${line#\[}"; section="${section%\]}"; continue ;;
+        esac
+        [[ "$section" == "redirect-commands" ]] || continue
+        if [[ "$line" != *" | "* ]]; then
+            audit "WARNING (hook-rules: malformed [redirect-commands] entry, missing separator): $file"
+            continue
+        fi
+        slug="${line%% | *}"
+        rest="${line#* | }"
+        if [[ "$rest" != *" | "* ]]; then
+            audit "WARNING (hook-rules: malformed [redirect-commands] entry, only two columns): $file"
+            continue
+        fi
+        pattern="${rest%% | *}"
+        suggestion="${rest#* | }"
+        slug="${slug%"${slug##*[![:space:]]}"}"
+        pattern="${pattern%"${pattern##*[![:space:]]}"}"
+        if [[ ! "$slug" =~ ^[a-z][a-z0-9-]*$ || -z "$pattern" || -z "$suggestion" ]]; then
+            audit "WARNING (hook-rules: malformed [redirect-commands] entry, invalid fields): $file"
+            continue
+        fi
+        redirect_commands+=("$slug|$pattern|$suggestion")
+    done < "$file"
+}
+
+if [[ ! -f "$rules_file" ]]; then
+    audit "PASSTHROUGH [PreToolUse] (redirect rules unavailable): $(audit_safe "$cmd")"
+    exit 0
+fi
+parse_redirect_rules "$rules_file"
+parse_redirect_rules "${GDD_REDIRECT_RULES_LOCAL_FILE:-$GDD_PROJECT_ROOT/.claude/hooks/hook-rules.local}"
+
+session_id="$("$JQ" -r '.session_id // ""' <<< "$input")"
+
+marker_field() {
+    local file="$1" key="$2" line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        case "$line" in
+            "$key="*) printf '%s' "${line#"$key="}"; return 0 ;;
+            "$key:"*)
+                line="${line#"$key:"}"
+                line="${line#"${line%%[![:space:]]*}"}"
+                printf '%s' "$line"
+                return 0
+                ;;
+        esac
+    done < "$file"
+    return 0
+}
 
 match_cmd="$(normalize_for_match "$cmd")"
 for entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
@@ -88,6 +127,15 @@ for entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     match_pattern="$(normalize_for_match "$pattern")"
     # shellcheck disable=SC2053
     if [[ "$match_cmd" == $match_pattern ]]; then
+        marker="$GDD_PROJECT_ROOT/.tmp/hook-bypass/$slug.bypass"
+        if [[ -n "$session_id" && -f "$marker" ]]; then
+            marker_session_id="$(marker_field "$marker" session_id)"
+            marker_reason="$(marker_field "$marker" reason)"
+            if [[ "$marker_session_id" == "$session_id" ]]; then
+                audit "BYPASS-REDIRECT [$slug] reason=\"$(audit_safe "$marker_reason")\" [PreToolUse]: $(audit_safe "$cmd")"
+                exit 0
+            fi
+        fi
         deny "$slug" "$suggestion"
     fi
 done
