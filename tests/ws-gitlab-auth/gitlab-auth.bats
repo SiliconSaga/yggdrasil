@@ -17,8 +17,8 @@ setup() {
     export ECOSYSTEM="$WORK/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml"
     export GITLAB_HOST="gitlab.example.com"
-    export SOURCE_TOKEN="source-token"
-    export FORK_NAMESPACE_TOKEN="fork-namespace-token"
+    export GITLAB_SOURCE_TOKEN="source-token"
+    export GITLAB_FORK_NAMESPACE_TOKEN="fork-namespace-token"
     export GIT_LOG GLAB_LOG
 
     cat > "$ECOSYSTEM" <<'YAML'
@@ -32,8 +32,8 @@ defaults:
   gitProviders:
     gitlab.example.com: gitlab
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/my-team/alice: FORK_NAMESPACE_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/my-team/alice: GITLAB_FORK_NAMESPACE_TOKEN
 components:
   widget:
     repo: https://gitlab.example.com/source/team/widget.git
@@ -88,7 +88,7 @@ SH
     [ "$status" -eq 0 ]
     [[ "$(cat "$GLAB_LOG")" == *"--token fork-namespace-token"* ]]
     [[ "$(cat "$GIT_LOG")" == *"password=fork-namespace-token"* ]]
-    [[ "$output" == *"Registering write token (FORK_NAMESPACE_TOKEN)"* ]]
+    [[ "$output" == *"Registering write token (GITLAB_FORK_NAMESPACE_TOKEN)"* ]]
 }
 
 @test "gitlab-auth stores path-scoped source and fork credentials and verifies with source token" {
@@ -101,7 +101,7 @@ SH
     [[ "$(cat "$GIT_LOG")" == *"path=source/team/widget.git"* ]]
     [[ "$(cat "$GIT_LOG")" == *"password=source-token"* ]]
     [[ "$output" == *"Stored path-scoped credentials"* ]]
-    [[ "$output" == *"verified using SOURCE_TOKEN"* ]]
+    [[ "$output" == *"verified using GITLAB_SOURCE_TOKEN"* ]]
 }
 
 @test "gitlab-auth requires explicit fork-home namespace for write token selection" {
@@ -113,8 +113,8 @@ defaults:
   gitProviders:
     gitlab.example.com: gitlab
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/source/team/fork: FORK_NAMESPACE_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/source/team/fork: GITLAB_FORK_NAMESPACE_TOKEN
 components:
   widget:
     repo: https://gitlab.example.com/source/team/widget.git
