@@ -227,7 +227,7 @@ review_comments() {
             since_ts=$(gp_review_push_timestamp "$REPO_SLUG" "$branch" "$push_index")
             if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
                 echo "ERROR: Cannot determine push time for '$branch'." >&2
-                echo "  Push event lookup may not be supported for this provider." >&2
+                echo "  The provider did not return enough push history for '$since'." >&2
                 echo "  Use an explicit timestamp instead." >&2
                 exit 1
             fi
