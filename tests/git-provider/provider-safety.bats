@@ -33,7 +33,41 @@ YAML
 
     run gp_set_token_for_url "https://gitlab.example.com/team/project.git" "$eco"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"invalid env var name"* ]]
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not an allowed provider-token variable"* ]]
     [ "${GITLAB_TOKEN:-}" = "" ]
+}
+
+@test "gp_set_token_for_url rejects unrelated environment variables" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitTokens:
+    gitlab.example.com/team/project: AWS_SECRET_ACCESS_KEY
+YAML
+
+    export AWS_SECRET_ACCESS_KEY="not-a-git-token"
+    unset GITLAB_TOKEN
+
+    run gp_set_token_for_url "https://gitlab.example.com/team/project.git" "$eco"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not an allowed provider-token variable"* ]]
+    [ "${GITLAB_TOKEN:-}" = "" ]
+}
+
+@test "gp_set_token_for_url accepts scoped GitLab token variables" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitTokens:
+    gitlab.example.com/team/project: GITLAB_TEAM_REPORTER
+YAML
+
+    export GITLAB_TEAM_REPORTER="glpat-example"
+    unset GITLAB_TOKEN
+
+    gp_set_token_for_url "https://gitlab.example.com/team/project.git" "$eco"
+
+    [ "$GITLAB_TOKEN" = "glpat-example" ]
 }

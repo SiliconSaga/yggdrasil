@@ -263,10 +263,12 @@ FORK_NAMESPACE="$(dirname "$FORK_PATH")"  # destination namespace for project cr
 UPSTREAM_TOKEN_VAR=$(ws_resolve_token_var "$UPSTREAM_HOST/$UPSTREAM_PATH")
 FORK_TOKEN_VAR=$(ws_resolve_token_var "$UPSTREAM_HOST/$FORK_PATH")
 
-# Helper: source .env from workspace root if a needed var isn't loaded.
+# Helper: load .env from workspace root if a needed var isn't loaded.
 # (ws dispatcher already sources .env, but ws-clone-fork.sh may be invoked
 # directly. Belt-and-suspenders.)
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env" 2>/dev/null || true
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+ws_load_env "$ROOT_DIR/.env"
 
 require_token() {
     local var="$1"

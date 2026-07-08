@@ -19,8 +19,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Auto-source .env so tokens/config are available to linters that need them.
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
+# Load .env as literal assignments for linters that need provider tokens.
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+ws_load_env "$ROOT_DIR/.env"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"

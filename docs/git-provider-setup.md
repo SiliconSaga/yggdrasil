@@ -235,6 +235,8 @@ defaults:
     gitlab.example.com/rpraestholm: GITLAB_RPRAESTHOLM_PAT
 ```
 
+`gitTokens` values are environment-variable names, not arbitrary environment lookups. Use `GITLAB_*` names for GitLab tokens; `GH_TOKEN` and `GITHUB_TOKEN` are also accepted for GitHub. Other names are rejected before shell indirection so a realm or local mapping cannot redirect credential reads to unrelated variables such as cloud credentials.
+
 For self-hosted instances, token URLs follow the pattern:
 `https://<your-host>/<group>/<project>/-/settings/access_tokens`.
 
@@ -255,6 +257,8 @@ export GITLAB_USER=your-gitlab-username
 # Self-hosted instances only:
 export GITLAB_HOST=git.mycompany.com
 ```
+
+`ws` parses `.env` as literal `KEY=value` or `export KEY=value` assignments. It does not execute command substitutions, pipelines, or other shell syntax from the file. Single- and double-quoted values are accepted as literal text.
 
 ### Load and verify
 

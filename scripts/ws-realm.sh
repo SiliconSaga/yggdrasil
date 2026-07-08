@@ -30,6 +30,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${HOARDS_DIR:="$ROOT_DIR/hoards"}"
 : "${COMPONENTS_DIR:="$ROOT_DIR/components"}"
 
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+
 # Shared HTTPS token-injection helpers (git_auth_env_for_url). Sourcing here
 # means every script that sources ws-realm.sh — clone, hoard, pull, realm,
 # push — can inject .env tokens into raw git operations instead of falling
@@ -249,7 +252,11 @@ ws_resolve_token_var() {
         fi
     done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
     [[ -z "$best_key" ]] && return 0
-    KEY="$best_key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco" 2>/dev/null
+    local token_var
+    token_var=$(KEY="$best_key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco" 2>/dev/null)
+    [[ -z "$token_var" || "$token_var" == "null" ]] && return 0
+    ws_require_provider_token_var "$token_var" || return 1
+    printf '%s\n' "$token_var"
 }
 
 # ---------------------------------------------------------------------------

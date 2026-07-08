@@ -15,9 +15,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Auto-source .env so tokens (GitHub/GitLab) are available. Commit identity
-# is NOT read from .env — it resolves per session (see ws-session.sh).
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
+# Load .env as literal assignments. Commit identity is NOT read from .env —
+# it resolves per session (see ws-session.sh).
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+ws_load_env "$ROOT_DIR/.env"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
