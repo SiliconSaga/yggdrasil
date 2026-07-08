@@ -127,3 +127,14 @@ YAML
     [[ ! -s "$GLAB_LOG" ]]
     [[ ! -s "$GIT_LOG" ]]
 }
+
+@test "gitlab-auth status reports an invalid token alias and continues" {
+    yq -i '.defaults.gitTokens."gitlab.example.com/a-invalid" = "AWS_SECRET_ACCESS_KEY"' "$ECOSYSTEM"
+
+    run bash "$WS_BIN" gitlab-auth --status
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"AWS_SECRET_ACCESS_KEY (invalid token var name)"* ]]
+    [[ "$output" == *"GITLAB_SOURCE_TOKEN (set)"* ]]
+    [[ "$output" == *"GITLAB_FORK_NAMESPACE_TOKEN (set)"* ]]
+}

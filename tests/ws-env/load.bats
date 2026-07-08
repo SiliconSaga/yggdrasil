@@ -16,6 +16,7 @@ GITLAB_HOST=gitlab.example.com
 DOUBLE_QUOTED="value with spaces"
 SINGLE_QUOTED='another value'
 WITH_EQUALS=left=right
+EMPTY=
 INERT_COMMAND='\$(touch $marker)'
 EOF
 
@@ -27,8 +28,22 @@ EOF
     [ "$DOUBLE_QUOTED" = "value with spaces" ]
     [ "$SINGLE_QUOTED" = "another value" ]
     [ "$WITH_EQUALS" = "left=right" ]
+    [ "$EMPTY" = "" ]
     [ "$INERT_COMMAND" = "\$(touch $marker)" ]
     [ ! -e "$marker" ]
+}
+
+@test "ws_load_env rejects command-environment variables" {
+    local env_file="$BATS_TEST_TMPDIR/.env"
+    cat > "$env_file" <<'EOF'
+PATH=/tmp/untrusted-bin
+EOF
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"refusing to set reserved variable 'PATH'"* ]]
 }
 
 @test "ws_load_env rejects malformed shell content without executing it" {

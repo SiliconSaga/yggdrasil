@@ -844,9 +844,12 @@ ws_gitlab_auth() {
             local var
             var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
             [[ -z "$var" || "$var" == "null" ]] && continue
-            ws_require_provider_token_var "$var" || return 1
-            local val="${!var:-}"
             found=1
+            if ! ws_require_provider_token_var "$var"; then
+                echo "  ✗ $var (invalid token var name) — covers $key" >&2
+                continue
+            fi
+            local val="${!var:-}"
             if [[ -n "$val" ]]; then
                 echo "  ✓ $var (set) — covers $key"
             else

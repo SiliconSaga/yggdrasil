@@ -19,6 +19,12 @@ ws_load_env() {
 
         key="${BASH_REMATCH[2]}"
         raw_value="${BASH_REMATCH[3]}"
+        case "$key" in
+            PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|BASH_ENV|ENV|IFS|PS4|PROMPT_COMMAND|SHELLOPTS|BASHOPTS)
+                echo "ERROR: refusing to set reserved variable '$key' from .env line $line_number in $env_file." >&2
+                return 1
+                ;;
+        esac
         while [[ "$raw_value" == [[:space:]]* ]]; do raw_value="${raw_value#?}"; done
         while [[ "$raw_value" == *[[:space:]] ]]; do raw_value="${raw_value%?}"; done
 

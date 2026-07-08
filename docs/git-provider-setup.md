@@ -258,7 +258,7 @@ export GITLAB_USER=your-gitlab-username
 export GITLAB_HOST=git.mycompany.com
 ```
 
-`ws` parses `.env` as literal `KEY=value` or `export KEY=value` assignments. It does not execute command substitutions, pipelines, or other shell syntax from the file. Single- and double-quoted values are accepted as literal text.
+`ws` parses `.env` as literal `KEY=value` or `export KEY=value` assignments. It does not execute command substitutions, pipelines, or other shell syntax from the file. Single- and double-quoted values are accepted as literal text. Variables that alter command lookup or shell/runtime startup, such as `PATH`, `BASH_ENV`, and dynamic-loader variables, are rejected; configure those in your shell profile instead.
 
 ### Load and verify
 
