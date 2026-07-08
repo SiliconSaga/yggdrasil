@@ -45,10 +45,10 @@ YAML
 }
 
 @test "ws realm use avoids direct yq string interpolation" {
-    run rg --fixed-strings 'yq -i ".realm = \"$name\""' "$REPO_ROOT/scripts/ws-realm.sh"
+    run grep -Fq 'yq -i ".realm = \"$name\""' "$REPO_ROOT/scripts/ws-realm.sh"
     [ "$status" -ne 0 ]
 
-    run rg --fixed-strings "strenv(REALM_NAME)" "$REPO_ROOT/scripts/ws-realm.sh"
+    run grep -Fq "strenv(REALM_NAME)" "$REPO_ROOT/scripts/ws-realm.sh"
     [ "$status" -eq 0 ]
 }
 

@@ -70,7 +70,7 @@ EOF
         scripts/ws-lint.sh \
         scripts/ws-commit.sh \
         scripts/ws-clone-fork.sh; do
-        run rg --fixed-strings 'source "$ROOT_DIR/.env"' "$REPO_ROOT/$file"
+        run grep -Fq 'source "$ROOT_DIR/.env"' "$REPO_ROOT/$file"
         [ "$status" -ne 0 ]
     done
 }
