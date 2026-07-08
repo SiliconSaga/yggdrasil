@@ -155,9 +155,15 @@ _k8s_is_namespace_type() {
 }
 
 # Membership test: is $1 one of the comma-separated namespaces in $2?
+# A `*` element is the context-only (all-namespaces) sentinel: it matches ANY
+# namespace, so a context-only scope treats every namespace as in scope for
+# writes. See _k8s_scope, `ws k8s scope set` with no --namespace.
 _k8s_ns_in_csv() {
     local nm="$1" one; local -a arr; IFS=',' read -ra arr <<< "$2"
-    for one in "${arr[@]}"; do [[ "$one" == "$nm" ]] && return 0; done
+    for one in "${arr[@]}"; do
+        [[ "$one" == "*" ]] && return 0
+        [[ "$one" == "$nm" ]] && return 0
+    done
     return 1
 }
 
@@ -353,12 +359,9 @@ k8s_guard_evaluate() {
         target_ns="$("${KUBECTL:-kubectl}" config view --minify --context "$scope_ctx" -o 'jsonpath={..namespace}' 2>/dev/null)"
         [[ -z "$target_ns" ]] && target_ns="default"
     fi
-    local ns
-    local -a _scope_ns  # Fix B: declare local to avoid caller-scope leak
-    IFS=',' read -ra _scope_ns <<< "$scope_ns_csv"
-    for ns in "${_scope_ns[@]}"; do
-        [[ "$ns" == "$target_ns" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
-    done
+    # Membership via _k8s_ns_in_csv so a context-only `*` scope accepts any
+    # target namespace (all namespaces in scope for writes).
+    _k8s_ns_in_csv "$target_ns" "$scope_ns_csv" && { printf 'WRITE_IN_SCOPE'; return 0; }
     printf 'BLOCK:scope:write target namespace %s is outside the guard scope (%s)' "$target_ns" "$scope_ns_csv"
 }
 

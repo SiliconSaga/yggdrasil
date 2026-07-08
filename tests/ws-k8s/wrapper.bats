@@ -83,6 +83,58 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     run_ws k8s scope show
     [[ "$output" == *"alice-sandbox,prod"* ]]
 }
+@test "context-only: scope set with no --namespace arms and show reports all-namespaces" {
+    run_ws k8s scope set --context kind-practice
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"context-only"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"kind-practice"* ]]
+    [[ "$output" == *"(all — context-only)"* ]]
+}
+@test "context-only: --namespace '*' also arms context-only" {
+    run_ws k8s scope set --context kind-practice --namespace '*'
+    [ "$status" -eq 0 ]
+    run_ws k8s scope show
+    [[ "$output" == *"(all — context-only)"* ]]
+}
+@test "context-only: --namespace all also arms context-only" {
+    run_ws k8s scope set --context kind-practice --namespace all
+    [ "$status" -eq 0 ]
+    run_ws k8s scope show
+    [[ "$output" == *"(all — context-only)"* ]]
+}
+@test "context-only: write to an arbitrary namespace is ALLOWED and forces --context" {
+    run_ws k8s scope set --context kind-practice
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s delete pod foo -n gitea
+    [ "$status" -eq 0 ]
+    grep -q -- '--context kind-practice' "$ROOT_DIR/kubectl.log"
+    run_ws k8s run probe --image=pause -n crossplane
+    [ "$status" -eq 0 ]
+}
+@test "context-only: reads are still free cluster-wide" {
+    run_ws k8s scope set --context kind-practice
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s get pods -n kube-system
+    [ "$status" -eq 0 ]
+    grep -q -- '--context kind-practice' "$ROOT_DIR/kubectl.log"
+}
+@test "context-only: an explicit different --context is still REJECTED" {
+    run_ws k8s scope set --context kind-practice
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s delete pod foo --context other-cluster -n gitea
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"REJECTED"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "context-only: a cluster-scoped write is still REJECTED (context-pin protections intact)" {
+    run_ws k8s scope set --context kind-practice
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s delete clusterrole foo
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"REJECTED"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
 @test "scope clear removes the scope" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox
     run_ws k8s scope clear

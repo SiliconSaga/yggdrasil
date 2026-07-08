@@ -71,6 +71,17 @@ The scope lives in a per-session file, not your kubeconfig. `ws k8s scope clear`
 
 > **Scope changes require a session ID.** `ws k8s scope set` writes to a session-scoped file and will fail without one. In a standalone terminal this means asking your agent to run the command — the error message will say so. Advanced users can export `GDD_SESSION_ID` directly to run scope commands outside the harness.
 
+#### Context-only scope (pin the cluster, free up the namespaces)
+
+On a throwaway local cluster where you're doing deep infra testing across a dozen namespaces that come and go, per-namespace scoping is constant friction. There, the safety that matters is pinning the **context** (don't accidentally hit prod), not enumerating namespaces. Arm a **context-only** scope by omitting `--namespace` (or passing `--namespace '*'` / `--namespace all`):
+
+```bash
+ws k8s scope set --context <ctx>            # context-only; all namespaces in scope for writes
+ws k8s scope set --context <ctx> --namespace '*'   # equivalent (quote the * so the shell can't expand it)
+```
+
+`ws k8s scope show` reports `namespaces: (all — context-only)`. Writes to *any* namespace are allowed — there's no per-namespace rejection. The context-pin protections are unchanged: a command with an explicit different `--context` is still rejected, and context-mutating (`kubectl config use-context …`), cluster-scoped (nodes, CRDs, `clusterrole`, …), and `--all-namespaces` writes are still blocked exactly as in a namespaced scope. To go back to per-namespace scoping, just re-arm with an explicit `--namespace <ns[,ns]>` list (it overwrites).
+
 **That's the setup.** From here on, every `ws k8s …` command is checked against this scope.
 
 ---
