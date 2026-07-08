@@ -168,6 +168,11 @@ gp_token_api_login() {
 # Usage: gp_load PROVIDER
 gp_load() {
     local provider="$1"
+    if [[ ! "$provider" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo "ERROR: Invalid provider name '$provider'." >&2
+        echo "  Provider names must contain only letters, digits, dashes, and underscores." >&2
+        return 1
+    fi
     if [[ "$_GP_LOADED_PROVIDER" == "$provider" ]]; then
         return 0
     fi
@@ -232,6 +237,10 @@ gp_set_token_for_url() {
     done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
 
     if [[ -n "$best_var" && "$best_var" != "null" ]]; then
+        if [[ ! "$best_var" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            echo "WARNING: gitTokens maps '$normalized' to invalid env var name '$best_var'; ignoring." >&2
+            return 0
+        fi
         local token_value="${!best_var:-}"
         if [[ -n "$token_value" ]]; then
             export GITLAB_TOKEN="$token_value"

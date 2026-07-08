@@ -357,7 +357,7 @@ ws_realm_use() {
     fi
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
-        yq -i ".realm = \"$name\"" "$local_file"
+        REALM_NAME="$name" yq -i '.realm = strenv(REALM_NAME)' "$local_file"
     else
         echo "realm: \"$name\"" > "$local_file"
     fi

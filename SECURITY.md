@@ -44,7 +44,9 @@ The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. D
 
 6. **Permission-policy drift between docs, hooks, and local overrides:** `.claude/settings.json`, `.claude/hooks/hook-rules`, and gitignored local overrides decide which Bash commands auto-run, ask, deny, or pass through to the harness. Broad local allow patterns such as a catch-all `ws` or interpreter pattern can weaken the intended workflow. `ws audit-permissions` exists to flag over-broad allow entries, and committed ask-list entries run before local allow extras. Claude Code was the first agent meant for use with GDD but others could be used as well and may have fewer active safeguards in place as a result.
 
-7. **Supply-chain exposure in auxiliary tooling:** Docs builds, vendored test tools, hoard templates, Obsidian vault plugins, and future hoard upgrades may fetch or execute external code. Current mitigations are conservative template workflows, human review, direct dependency pins for the docs workflow, and explicit trust assumptions. Stronger checksum or lockfile enforcement is future hardening, not the current baseline.
+7. **Intentional hook bypass for local operators:** `WS_HOOK_DISABLE=1` disables the committed PreToolUse hook checks for a session. This is an explicit local-operator escape hatch for recovery, debugging, or temporarily working outside GDD's guardrails; using it gives up the hook's deny, redirect, and force-ask behavior until the variable is cleared.
+
+8. **Supply-chain exposure in auxiliary tooling:** Docs builds, vendored test tools, hoard templates, Obsidian vault plugins, and future hoard upgrades may fetch or execute external code. Current mitigations are conservative template workflows, human review, direct dependency pins for the docs workflow, and explicit trust assumptions. Stronger checksum or lockfile enforcement is future hardening, not the current baseline.
 
 ## Critical Security Assumptions
 
