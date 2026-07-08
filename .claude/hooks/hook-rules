@@ -33,6 +33,9 @@ find*-exec*
 find*-execdir*
 ws exec *
 ws hook-bypass [a-z]*
+# Writing agent tool endpoints changes the workspace trust surface. Preview and
+# status forms remain allowlisted; the bare mutating form requires a human.
+ws mcp-setup
 # ws review reads are allowlisted via Bash(ws review:*); the outward-
 # facing forms stay human-gated here (ask runs before the allow tier):
 # reply posts a comment to the PR, --resolve / --resolve-all mutate

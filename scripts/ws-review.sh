@@ -100,6 +100,22 @@ review_probe_one_line() {
     printf '%s' "$msg"
 }
 
+review_jq_string_literal() {
+    jq -Rn -r --arg v "$1" '$v | @json'
+}
+
+review_reviewer_filter() {
+    local reviewer="$1"
+    if [[ -z "$reviewer" ]]; then
+        printf '.'
+        return
+    fi
+
+    local reviewer_literal
+    reviewer_literal="$(review_jq_string_literal "$reviewer")"
+    printf 'select(((.user.login // .author.username // "") | ascii_downcase) == (%s | ascii_downcase))' "$reviewer_literal"
+}
+
 review_comments() {
     if [[ $# -lt 1 ]]; then
         echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
@@ -211,7 +227,7 @@ review_comments() {
             since_ts=$(gp_review_push_timestamp "$REPO_SLUG" "$branch" "$push_index")
             if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
                 echo "ERROR: Cannot determine push time for '$branch'." >&2
-                echo "  Push event lookup may not be supported for this provider." >&2
+                echo "  The provider did not return enough push history for '$since'." >&2
                 echo "  Use an explicit timestamp instead." >&2
                 exit 1
             fi
@@ -404,15 +420,15 @@ review_comments() {
     }
 
     # Build jq filters
-    local reviewer_filter="."
-    if [[ -n "$reviewer" ]]; then
-        reviewer_filter="select(.user.login // .author.username | test(\"$reviewer\"; \"i\"))"
-    fi
+    local reviewer_filter
+    reviewer_filter="$(review_reviewer_filter "$reviewer")"
     local comment_filter="$reviewer_filter"
     local review_filter="$reviewer_filter"
     if [[ -n "$since_ts" ]]; then
-        comment_filter="$comment_filter | select((.created_at // .updated_at) > \"$since_ts\")"
-        review_filter="$review_filter | select((.submitted_at // .created_at) > \"$since_ts\")"
+        local since_literal
+        since_literal="$(review_jq_string_literal "$since_ts")"
+        comment_filter="$comment_filter | select((.created_at // .updated_at) > $since_literal)"
+        review_filter="$review_filter | select((.submitted_at // .created_at) > $since_literal)"
     fi
 
     # If --output set, redirect stdout to a sibling temp file. We
@@ -598,10 +614,8 @@ review_notes() {
         exit 1
     fi
 
-    local comment_filter="."
-    if [[ -n "$reviewer" ]]; then
-        comment_filter="select(.user.login // .author.username | test(\"$reviewer\"; \"i\"))"
-    fi
+    local comment_filter
+    comment_filter="$(review_reviewer_filter "$reviewer")"
     if [[ -n "$since" ]]; then
         # Reuse simple relative-time parsing; skip push-event lookup (notes only)
         local since_ts=""
@@ -619,7 +633,9 @@ review_notes() {
             fi
             since_ts="$since"
         fi
-        comment_filter="$comment_filter | select((.created_at // .updated_at) > \"$since_ts\")"
+        local since_literal
+        since_literal="$(review_jq_string_literal "$since_ts")"
+        comment_filter="$comment_filter | select((.created_at // .updated_at) > $since_literal)"
     fi
 
     echo "=== Notes: CR #$pr_num ($REPO_SLUG) ==="

@@ -140,8 +140,34 @@ gp_review_head_branch() {
 # Usage: gp_review_push_timestamp SLUG BRANCH INDEX
 gp_review_push_timestamp() {
     local slug="$1" branch="$2" index="${3:-0}"
-    gh api "repos/$slug/events" \
-        --jq "[.[] | select(.type == \"PushEvent\") | select(.payload.ref == \"refs/heads/$branch\")] | .[$index].created_at" 2>/dev/null
+    local ref_json
+    ref_json=$(jq -Rn --arg ref "refs/heads/$branch" '$ref')
+    # Paginate the (best-effort, ~300-event / 90-day) events feed at 100/page so
+    # the branch's Nth PushEvent isn't crowded out of the default first 30 by
+    # unrelated repo activity. Keep each event's prior branch head so prev-push
+    # can recover conservatively when GitHub's lossy event feed omits that event.
+    local events timestamp
+    events=$(gh api --paginate "repos/$slug/events?per_page=100" \
+        --jq ".[] | select(.type == \"PushEvent\") | select(.payload.ref == $ref_json) | [.created_at, .payload.before] | @tsv" \
+        2>/dev/null) || return 1
+
+    timestamp=$(awk -F $'\t' -v row="$((index + 1))" 'NR == row { print $1; exit }' <<< "$events")
+    if [[ -n "$timestamp" ]]; then
+        echo "$timestamp"
+        return 0
+    fi
+
+    # A latest event with no preceding event still identifies the prior branch
+    # head. Its commit time predates the actual push, which is a safe lower bound
+    # for review filtering: it may include a few extra comments but omits none.
+    if [[ "$index" -eq 1 ]]; then
+        local previous_head
+        previous_head=$(awk -F $'\t' 'NR == 1 { print $2; exit }' <<< "$events")
+        if [[ "$previous_head" =~ ^[0-9a-fA-F]{40}$ && ! "$previous_head" =~ ^0+$ ]]; then
+            echo "NOTE: GitHub omitted the previous push event; using its prior head commit time." >&2
+            gh api "repos/$slug/commits/$previous_head" --jq '.commit.committer.date' 2>/dev/null
+        fi
+    fi
 }
 
 # List unresolved review threads.

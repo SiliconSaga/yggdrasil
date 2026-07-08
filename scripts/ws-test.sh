@@ -15,14 +15,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
-# Auto-source .env so tokens/config are available to test runners.
+# Load .env so tokens/config are available to test runners.
 # GOTCHA: this exports the real workspace tokens (GH_TOKEN, GITLAB_TOKEN, …)
 # into the environment of EVERY test run from here. Tests that assert behavior
 # under a *missing* token (or any specific env state) must isolate themselves —
 # e.g. `env -u GH_TOKEN …` in the bats run helper — or they'll see the ambient
 # token and pass/fail differently than when the file is run standalone. See
 # tests/ws-provider-cli/cli.bats for the pattern.
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+ws_load_env "$ROOT_DIR/.env"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"

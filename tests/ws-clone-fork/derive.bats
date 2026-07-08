@@ -17,8 +17,8 @@ SH
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
     export COMPONENTS_DIR="$BATS_TEST_TMPDIR/components"
-    export SOURCE_TOKEN="source-token"
-    export FORK_TOKEN="fork-token"
+    export GITLAB_SOURCE_TOKEN="source-token"
+    export GITLAB_FORK_TOKEN="fork-token"
 }
 
 write_ecosystem() {
@@ -38,8 +38,8 @@ identity:
       namespace: gitlab.example.com/my-team/gdd/alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/my-team/gdd/alice-fork-group/widget: FORK_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/my-team/gdd/alice-fork-group/widget: GITLAB_FORK_TOKEN
 components:
   widget:
     tier: supporting
@@ -62,8 +62,8 @@ identity:
       namespace: gitlab.example.com/my-team/gdd/alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/explicit/forks/widget: FORK_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/explicit/forks/widget: GITLAB_FORK_TOKEN
 components:
   widget:
     tier: supporting
@@ -87,7 +87,7 @@ identity:
       namespace: other-gitlab.example.com/my-team/gdd/alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
 components:
   widget:
     tier: supporting
@@ -106,8 +106,8 @@ identity:
   forkRemote: alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/source/team/alice-fork-group/widget: FORK_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/source/team/alice-fork-group/widget: GITLAB_FORK_TOKEN
 components:
   widget:
     tier: supporting
@@ -184,8 +184,8 @@ identity:
       namespace: gitlab.example.com/forks/alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/alice-fork-group/widget: SOURCE_TOKEN
-    gitlab.example.com/forks/alice-fork-group: FORK_TOKEN
+    gitlab.example.com/source/alice-fork-group/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/forks/alice-fork-group: GITLAB_FORK_TOKEN
 components:
   widget:
     tier: supporting
@@ -262,8 +262,8 @@ identity:
       namespace: gitlab.example.com/forks/alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/forks/alice-fork-group: FORK_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/forks/alice-fork-group: GITLAB_FORK_TOKEN
 components:
   widget:
     tier: supporting
@@ -313,8 +313,8 @@ identity:
       namespace: gitlab.example.com/forks/alice-fork-group
 defaults:
   gitTokens:
-    gitlab.example.com/source/team/widget: SOURCE_TOKEN
-    gitlab.example.com/forks/alice-fork-group: FORK_TOKEN
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/forks/alice-fork-group: GITLAB_FORK_TOKEN
 components:
   widget:
     tier: supporting

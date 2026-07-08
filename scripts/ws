@@ -82,9 +82,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # (`ECOSYSTEM_LOCAL=/foo ws ...`) propagate to every child script
 # without each one independently re-deriving the path.
 export ECOSYSTEM_LOCAL
-# Auto-source .env if present — makes tokens available to all sub-commands
-# without requiring `source .env` before every ws invocation.
-[[ -f "$ROOT_DIR/.env" ]] && source "$ROOT_DIR/.env"
+# Load .env assignments as literal data so tokens are available to all
+# subcommands without evaluating the file as shell code.
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+ws_load_env "$ROOT_DIR/.env"
 
 # Source shared functions (ws_resolve_target, ws_detect_realm,
 # ws_resolve_ecosystem, COMPONENT_DIR, etc.)
@@ -842,8 +844,12 @@ ws_gitlab_auth() {
             local var
             var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
             [[ -z "$var" || "$var" == "null" ]] && continue
-            local val="${!var:-}"
             found=1
+            if ! ws_require_provider_token_var "$var"; then
+                echo "  ✗ $var (invalid token var name) — covers $key" >&2
+                continue
+            fi
+            local val="${!var:-}"
             if [[ -n "$val" ]]; then
                 echo "  ✓ $var (set) — covers $key"
             else
@@ -893,6 +899,7 @@ ws_gitlab_auth() {
         echo "  Add it to defaults.gitTokens in ecosystem.local.yaml." >&2
         exit 1
     fi
+    ws_require_provider_token_var "$write_token_var" || exit 1
 
     local write_token="${!write_token_var:-}"
     if [[ -z "$write_token" ]]; then
@@ -937,6 +944,7 @@ EOF
         local token_var token_val cred_path normalized_path git_path
         token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
         [[ -z "$token_var" || "$token_var" == "null" ]] && continue
+        ws_require_provider_token_var "$token_var" || exit 1
         token_val="${!token_var:-}"
         [[ -z "$token_val" ]] && continue
         cred_path="${key#"$host/"}"
@@ -984,6 +992,7 @@ EOF
         local other_var
         other_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
         [[ -z "$other_var" || "$other_var" == "null" ]] && continue
+        ws_require_provider_token_var "$other_var" || exit 1
         local other_val="${!other_var:-}"
         if [[ -n "$other_val" ]]; then
             echo "   ✓ Additional token $other_var available for $key"

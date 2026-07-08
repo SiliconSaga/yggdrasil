@@ -69,7 +69,7 @@ case "$path" in
         echo '{"approved_by":[]}'
         ;;
     */merge_requests/1/discussions)
-        echo '[]'
+        echo '[{"notes":[{"system":false,"author":{"username":"a.b"},"body":"literal reviewer note","created_at":"2026-01-01T00:00:00Z","position":null},{"system":false,"author":{"username":"aXb"},"body":"regex wildcard note","created_at":"2026-01-01T00:00:00Z","position":null}]}]'
         ;;
     *)
         echo "unexpected glab api path: $path" >&2
@@ -125,4 +125,12 @@ run_ws_review() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Replied to thread on CR #1 (example-group/forked-project)"* ]]
     [ "$(cat "$BODY_LOG")" = "--remote=spoof" ]
+}
+
+@test "review --reviewer matches literal login instead of regex wildcard" {
+    run_ws_review app 1 --remote fork --reviewer a.b --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"literal reviewer note"* ]]
+    [[ "$output" != *"regex wildcard note"* ]]
 }

@@ -23,6 +23,9 @@
 _GP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _GP_LOADED_PROVIDER=""
 
+# shellcheck source=ws-env.sh
+source "$_GP_SCRIPT_DIR/ws-env.sh"
+
 # Detect provider from a remote URL.
 # Usage: gp_detect URL [ECOSYSTEM_FILE]
 #   URL             — git remote URL (https or ssh)
@@ -168,6 +171,11 @@ gp_token_api_login() {
 # Usage: gp_load PROVIDER
 gp_load() {
     local provider="$1"
+    if [[ ! "$provider" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo "ERROR: Invalid provider name '$provider'." >&2
+        echo "  Provider names must contain only letters, digits, dashes, and underscores." >&2
+        return 1
+    fi
     if [[ "$_GP_LOADED_PROVIDER" == "$provider" ]]; then
         return 0
     fi
@@ -232,6 +240,7 @@ gp_set_token_for_url() {
     done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
 
     if [[ -n "$best_var" && "$best_var" != "null" ]]; then
+        ws_require_provider_token_var "$best_var" || return 1
         local token_value="${!best_var:-}"
         if [[ -n "$token_value" ]]; then
             export GITLAB_TOKEN="$token_value"

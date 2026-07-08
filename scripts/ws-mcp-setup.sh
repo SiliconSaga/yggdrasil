@@ -119,6 +119,13 @@ if [[ "$DRY_RUN" == "true" ]]; then
     exit 0
 fi
 
+# Surface the trust-relevant endpoints before changing the file. The committed
+# hook forces human approval for this mutating form; --dry-run remains the
+# frictionless way to inspect the complete generated JSON first.
+echo "Resolved MCP servers:"
+yq -r '.mcp.servers | to_entries | .[] | "  " + .key + "  →  " + .value.url' "$ECO"
+echo ""
+
 # Atomic write: stage to a temp file in the same directory, then mv into
 # place. Avoids leaving a truncated .mcp.json if the script is interrupted.
 tmp_file="$(mktemp "${OUTPUT_FILE}.XXXXXX")"
@@ -126,11 +133,6 @@ echo "$mcp_json" > "$tmp_file"
 mv -f "$tmp_file" "$OUTPUT_FILE"
 
 echo "Written: $OUTPUT_FILE"
-echo ""
-echo "Servers configured for Claude Code:"
-# Single yq call avoids shell word-splitting and quote-injection that
-# could occur if a server name ever contained spaces or quote characters.
-yq -r '.mcp.servers | to_entries | .[] | "  " + .key + "  →  " + .value.url' "$ECO"
 echo ""
 echo "Next steps:"
 echo "  1. Restart Claude Code to load .mcp.json"

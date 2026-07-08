@@ -533,6 +533,36 @@ ws exec *"
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
 
+@test "ask: bare ws mcp-setup is human-gated by the shipped policy" {
+    seed_real_project_config
+    run_hook "ws mcp-setup"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "allow: ws mcp-setup dry-run stays automatic" {
+    seed_real_project_config
+    run_hook "ws mcp-setup --dry-run"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "allow: ws mcp-status stays automatic" {
+    seed_real_project_config
+    run_hook "ws mcp-status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "drift: bare mutating mcp-setup forms are absent from the allowlist" {
+    run jq -e '
+        (.permissions.allow | index("Bash(ws mcp-setup)") == null) and
+        (.permissions.allow | index("Bash(bash scripts/ws mcp-setup)") == null)
+    ' "$REPO_ROOT/.claude/settings.json"
+    [ "$status" -eq 0 ]
+}
+
 @test "ask: ws hook-bypass gets a tailored message naming the slug + reason" {
     write_project_hook_rules "[ask-commands]
 ws hook-bypass [a-z]*"
