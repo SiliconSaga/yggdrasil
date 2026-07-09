@@ -97,11 +97,19 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     run_ws k8s scope show
     [[ "$output" == *"(all — context-only)"* ]]
 }
-@test "context-only: --namespace all also arms context-only" {
+@test "context-only: a mixed namespace list containing '*' normalizes to context-only" {
+    run_ws k8s scope set --context kind-practice --namespace 'alice-sandbox,*'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"(all — context-only)"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"(all — context-only)"* ]]
+}
+@test "namespace named all remains a literal namespace scope" {
     run_ws k8s scope set --context kind-practice --namespace all
     [ "$status" -eq 0 ]
     run_ws k8s scope show
-    [[ "$output" == *"(all — context-only)"* ]]
+    [[ "$output" == *"namespaces: all"* ]]
+    [[ "$output" != *"context-only"* ]]
 }
 @test "context-only: write to an arbitrary namespace is ALLOWED and forces --context" {
     run_ws k8s scope set --context kind-practice
@@ -111,6 +119,16 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     grep -q -- '--context kind-practice' "$ROOT_DIR/kubectl.log"
     run_ws k8s run probe --image=pause -n crossplane
     [ "$status" -eq 0 ]
+}
+@test "context-only: named namespace create and delete operations are allowed" {
+    run_ws k8s scope set --context kind-practice
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s create namespace ephemeral
+    [ "$status" -eq 0 ]
+    run_ws k8s delete ns/ephemeral
+    [ "$status" -eq 0 ]
+    grep -q -- '--context kind-practice create namespace ephemeral' "$ROOT_DIR/kubectl.log"
+    grep -q -- '--context kind-practice delete ns/ephemeral' "$ROOT_DIR/kubectl.log"
 }
 @test "context-only: reads are still free cluster-wide" {
     run_ws k8s scope set --context kind-practice

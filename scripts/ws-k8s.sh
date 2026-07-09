@@ -32,15 +32,15 @@ _k8s_scope() {
                     ns="$2"; ns_given=1; shift 2 ;;
                 *) echo "ERROR: unknown arg '$1'" >&2; return 1 ;;
             esac; done
-            [[ -n "$ctx" ]] || { echo "Usage: ws k8s scope set --context <c> [--namespace <n[,n]>]  (omit --namespace, or pass '*'/all, for a context-only scope)" >&2; return 1; }
-            # Context-only scope: no --namespace given, or an explicit '*'/all
-            # wildcard. Pins the context but leaves ALL namespaces in scope for
+            [[ -n "$ctx" ]] || { echo "Usage: ws k8s scope set --context <c> [--namespace <n[,n]>]  (omit --namespace, or include '*', for a context-only scope)" >&2; return 1; }
+            # Context-only scope: no --namespace given, or a namespace CSV with
+            # a '*' element. Pins the context but leaves ALL namespaces in scope for
             # writes — for a throwaway cluster doing deep infra testing across a
             # dozen dynamically-created namespaces, where per-namespace scoping is
             # constant friction and pinning the context is the safety that matters.
             # Stored as the sentinel '*' in GDD_K8S_NAMESPACES; the guard's
             # _k8s_ns_in_csv treats '*' as matching any namespace.
-            if [[ $ns_given -eq 0 || "$ns" == "*" || "$ns" == "all" ]]; then ns="*"; fi
+            if [[ $ns_given -eq 0 ]] || _k8s_ns_in_csv "*" "$ns"; then ns="*"; fi
             "$KUBECTL" config get-contexts "$ctx" >/dev/null 2>&1 || { echo "ERROR: context '$ctx' not found." >&2; return 1; }
             # The context must exist (you can't create a kube context through the
             # guard). A namespace, though, may legitimately not exist yet: arming
@@ -128,7 +128,7 @@ Scope management:
   ws k8s scope show                                        print the armed scope
   ws k8s scope clear                                       disarm
 
-Context-only scope (no --namespace, or --namespace '*'/all): pins the context
+Context-only scope (no --namespace, or a namespace list containing '*'): pins the context
 but leaves ALL namespaces in scope for writes — no per-namespace rejection.
 Handy for a throwaway cluster doing infra testing across many dynamic
 namespaces. Context-pin protections still apply (a different --context and

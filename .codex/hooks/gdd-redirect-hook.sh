@@ -8,7 +8,7 @@ JQ="${JQ:-jq}"
 command -v "$JQ" >/dev/null 2>&1 || exit 0
 "$JQ" -e . >/dev/null 2>&1 <<< "$input" || exit 0
 
-event="$("$JQ" -r '.hook_event_name // "PreToolUse"' <<< "$input")"
+event="$("$JQ" -r '.hook_event_name // ""' <<< "$input")"
 tool_name="$("$JQ" -r '.tool_name // ""' <<< "$input")"
 cmd="$("$JQ" -r '.tool_input.command // ""' <<< "$input")"
 [[ "$event" == "PreToolUse" && "$tool_name" == "Bash" && -n "$cmd" ]] || exit 0

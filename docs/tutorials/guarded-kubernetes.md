@@ -73,7 +73,7 @@ The scope lives in a per-session file, not your kubeconfig. `ws k8s scope clear`
 
 #### Context-only scope (pin the cluster, free up the namespaces)
 
-On a throwaway local cluster where you're doing deep infra testing across a dozen namespaces that come and go, per-namespace scoping is constant friction. There, the safety that matters is pinning the **context** (don't accidentally hit prod), not enumerating namespaces. Arm a **context-only** scope by omitting `--namespace` (or passing `--namespace '*'` / `--namespace all`):
+On a throwaway local cluster where you're doing deep infra testing across a dozen namespaces that come and go, per-namespace scoping is constant friction. There, the safety that matters is pinning the **context** (don't accidentally hit prod), not enumerating namespaces. Arm a **context-only** scope by omitting `--namespace` or including `*` in the namespace list:
 
 ```bash
 ws k8s scope set --context <ctx>            # context-only; all namespaces in scope for writes

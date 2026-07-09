@@ -41,6 +41,14 @@ run_hook() {
     [ -z "$output" ]
 }
 
+@test "payload without an explicit hook event defers" {
+    local payload
+    payload='{"session_id":"codex-redirect-test","tool_name":"Bash","tool_input":{"command":"git push"}}'
+    run env HOME="$HOME" GDD_PROJECT_ROOT="$WORK" bash "$HOOK_BIN" <<< "$payload"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "git push is denied with the configured ws guidance" {
     run_hook 'git push origin topic'
     [ "$status" -eq 0 ]
