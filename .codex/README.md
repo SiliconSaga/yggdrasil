@@ -32,7 +32,7 @@ The bridges do not import Claude's generic command allowlist, shell-composition 
 
 ## Trust the hook
 
-Codex reviews project-local command hooks by content hash. After cloning this workspace or changing either hook, open `/hooks`, inspect the `.codex/hooks.json` registrations and commands, then trust them. Codex skips an untrusted or changed hook and prints a startup warning until it is reviewed.
+Codex reviews project-local command hooks by content hash. After cloning this workspace or changing either hook, open `/hooks`, inspect the `.codex/hooks.json` registrations and commands, then trust them. Trusting a hook there can activate it in the current session; restart Codex only if the hook does not refresh. Codex skips an untrusted or changed hook and prints a startup warning until it is reviewed.
 
 The hook writes only deny, bypass, and infrastructure-warning entries to `~/.codex/hook-audit.log`. Deferred calls are already visible through normal Codex execution and are not duplicated there.
 
