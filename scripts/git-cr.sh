@@ -29,9 +29,11 @@ source "$SCRIPT_DIR/git-provider.sh"
 
 # Try to load ecosystem config for provider detection (optional — may not exist)
 _ECO=""
+_AUTH_ECO=""
 if [[ -f "$SCRIPT_DIR/ws-realm.sh" ]]; then
   source "$SCRIPT_DIR/ws-realm.sh"
   _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
+  _AUTH_ECO=$(ws_resolve_local_ecosystem 2>/dev/null) || _AUTH_ECO=""
 fi
 
 # Wrapper around gp_create_pr that captures the URL output and re-emits
@@ -209,7 +211,7 @@ FORK_URL=$(git remote get-url "$FORK_REMOTE" 2>/dev/null)
 
 # Detect provider and load implementation; set token before auth check
 gp_detect_and_load "$FORK_URL" "$_ECO"
-gp_set_token_for_url "$FORK_URL" "$_ECO"
+gp_set_token_for_url "$FORK_URL" "$_AUTH_ECO"
 gp_check_cli
 
 FORK_SLUG=$(gp_extract_slug "$FORK_URL")
@@ -260,7 +262,7 @@ if [[ -n "$UPSTREAM" ]]; then
   UPSTREAM_SLUG=$(gp_extract_slug "$UPSTREAM_URL")
 
   # Reporter token needed to read upstream default branch
-  gp_set_token_for_url "$UPSTREAM_URL" "$_ECO"
+  gp_set_token_for_url "$UPSTREAM_URL" "$_AUTH_ECO"
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
 
   echo "Opening cross-fork CR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
@@ -269,7 +271,7 @@ if [[ -n "$UPSTREAM" ]]; then
   echo ""
 
   # glab ≥1.65 with --head POSTs to the fork project — switch to fork write token
-  gp_set_token_for_url "$FORK_URL" "$_ECO"
+  gp_set_token_for_url "$FORK_URL" "$_AUTH_ECO"
 
   _create_pr_with_prominent_url \
     --repo "$UPSTREAM_SLUG" \
@@ -280,7 +282,7 @@ if [[ -n "$UPSTREAM" ]]; then
     --body-file "$BODYFILE"
 else
   # Use the token appropriate for the fork target
-  gp_set_token_for_url "$FORK_URL" "$_ECO"
+  gp_set_token_for_url "$FORK_URL" "$_AUTH_ECO"
 
   DEFAULT_BRANCH=$(gp_default_branch "$FORK_SLUG")
 

@@ -46,6 +46,7 @@ source "$SCRIPT_DIR/git-remote.sh"
 source "$SCRIPT_DIR/git-auth.sh"
 
 _RESOLVED_ECOSYSTEM=""
+_LOCAL_ECOSYSTEM=""
 # Initialize only if unset so callers that set COMPONENT_DIR before sourcing
 # this file (e.g. git-issue.sh) keep their value. Without :=, sourcing this
 # file from such callers wiped COMPONENT_DIR and broke downstream validation.
@@ -223,11 +224,37 @@ ws_resolve_ecosystem() {
     echo "$merged"
 }
 
-trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
+# Produce the credential/bootstrap authority view: committed workspace config
+# plus the operator-owned local override, deliberately excluding realm data.
+# Realms may choose repositories and providers after trust, but cannot attach
+# the operator's secrets or replace the realm bootstrap source by themselves.
+ws_resolve_local_ecosystem() {
+    if [[ -n "$_LOCAL_ECOSYSTEM" && -f "$_LOCAL_ECOSYSTEM" ]]; then
+        echo "$_LOCAL_ECOSYSTEM"
+        return
+    fi
+
+    local base="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    local merged
+    merged="$(mktemp)"
+    cp "$base" "$merged"
+    if [[ -f "$local_file" ]]; then
+        local tmp
+        tmp="$(mktemp)"
+        yq eval-all 'select(fileIndex == 0) *d select(fileIndex == 1)' \
+            "$merged" "$local_file" > "$tmp"
+        mv "$tmp" "$merged"
+    fi
+    _LOCAL_ECOSYSTEM="$merged"
+    echo "$merged"
+}
+
+trap 'rm -f "$_RESOLVED_ECOSYSTEM" "$_LOCAL_ECOSYSTEM" 2>/dev/null' EXIT
 
 # Resolve the gitTokens env-var name for a normalized "host/path" target.
 #
-# Walks .defaults.gitTokens in the merged ecosystem config looking for
+# Walks .defaults.gitTokens in the root-plus-local authority config looking for
 # the longest-prefix match against $1, and prints the configured env
 # var name on stdout. Prints nothing (and exits 0) if no entry matches —
 # callers branch on $? or on output emptiness.
@@ -243,7 +270,7 @@ trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 ws_resolve_token_var() {
     local target="$1"
     local eco
-    eco="$(ws_resolve_ecosystem)" || return 0
+    eco="$(ws_resolve_local_ecosystem)" || return 0
     [[ -f "$eco" ]] || return 0
     local best_key="" best_len=0
     while IFS= read -r key; do
@@ -317,12 +344,12 @@ HELP
     fi
 
     local eco
-    eco="$(ws_resolve_ecosystem)"
+    eco="$(ws_resolve_local_ecosystem)"
     local template_url
     template_url=$(yq '.defaults.templateRealm // ""' "$eco" 2>/dev/null)
     if [[ -z "$template_url" || "$template_url" == "null" ]]; then
         echo "ERROR: No template realm URL configured." >&2
-        echo "  Set defaults.templateRealm in ecosystem.local.yaml or your realm." >&2
+        echo "  Set defaults.templateRealm in ecosystem.local.yaml." >&2
         exit 1
     fi
     git_remote_validate "$template_url" remote

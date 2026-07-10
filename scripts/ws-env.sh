@@ -20,7 +20,7 @@ ws_load_env() {
         key="${BASH_REMATCH[2]}"
         raw_value="${BASH_REMATCH[3]}"
         case "$key" in
-            PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|BASH_ENV|ENV|IFS|PS4|PROMPT_COMMAND|SHELLOPTS|BASHOPTS)
+            PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|BASH_ENV|ENV|IFS|PS4|PROMPT_COMMAND|SHELLOPTS|BASHOPTS|GIT_CONFIG*|GIT_SSH*|GIT_ASKPASS|SSH_ASKPASS|GIT_EXEC_PATH|GIT_EXTERNAL_DIFF|GIT_PROXY_COMMAND|HOME|CDPATH)
                 echo "ERROR: refusing to set reserved variable '$key' from .env line $line_number in $env_file." >&2
                 return 1
                 ;;
