@@ -312,16 +312,17 @@ case "$UPSTREAM_HOST" in
     gitlab.com) DEFAULT_TOKEN_VAR="GITLAB_TOKEN" ;;
 esac
 
-# Prefer an explicit gitTokens mapping whose var is actually set; otherwise
-# fall back to the provider default var when it carries a value (mirrors
-# git_auth_resolve_token, so clone-fork matches ws push behavior). Echoes the
-# mapping result when neither is usable so require_token reports precisely.
+# An explicit gitTokens mapping always wins — even when its var is unset, in
+# which case require_token reports exactly which var to fill. The provider
+# default only covers targets with NO mapping; silently substituting it for a
+# mapped-but-unset var could run fork creation under the wrong identity.
+# (Deliberately stricter than git_auth_resolve_token's read-path fallback.)
 resolve_token_var_with_default() {
     local target="$1"
     local var
     var=$(ws_resolve_token_var "$target")
     [[ "$var" == "null" ]] && var=""
-    if [[ -n "$var" && -n "${!var:-}" ]]; then
+    if [[ -n "$var" ]]; then
         echo "$var"
         return
     fi

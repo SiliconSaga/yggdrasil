@@ -132,6 +132,30 @@ YAML
     [[ "$output" == *"Cross-group fork detected"* ]]
 }
 
+@test "explicit gitTokens mapping wins over the default even when its var is unset" {
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: forkhome
+  homes:
+    fork:
+      namespace: github.com/fork-org
+defaults:
+  gitTokens:
+    github.com/fork-org: GH_FORK_ONLY_TOKEN
+components:
+  widget:
+    tier: supporting
+    repo: https://github.com/source-org/widget.git
+YAML
+    export GH_TOKEN="gh-fallback-token"
+    unset GH_FORK_ONLY_TOKEN || true
+
+    run bash "$CLONE_FORK_BIN" widget
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'$GH_FORK_ONLY_TOKEN is not set'* ]]
+}
+
 @test "self-hosted GitLab gets no default-token fallback" {
     write_ecosystem <<'YAML'
 identity:
