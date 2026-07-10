@@ -33,6 +33,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ws-env.sh
 source "$SCRIPT_DIR/ws-env.sh"
 
+# shellcheck source=git-remote.sh
+source "$SCRIPT_DIR/git-remote.sh"
+
 # Shared HTTPS token-injection helpers (git_auth_env_for_url). Sourcing here
 # means every script that sources ws-realm.sh — clone, hoard, pull, realm,
 # push — can inject .env tokens into raw git operations instead of falling
@@ -322,6 +325,7 @@ HELP
         echo "  Set defaults.templateRealm in ecosystem.local.yaml or your realm." >&2
         exit 1
     fi
+    git_remote_validate "$template_url" remote
 
     local target="$REALMS_DIR/realm-template"
     if [[ -d "$target" ]]; then
@@ -333,7 +337,7 @@ HELP
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$template_url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$template_url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$template_url" "$target"
     echo ""
     echo "Template realm ready — you're on the shared 'realm-template' starter."
     echo ""
@@ -397,7 +401,7 @@ ws_realm_list() {
 
 ws_realm_clone_url() {
     local url="$1"
-    if [[ ! "$url" =~ ^(https?://|git@) ]]; then
+    if ! git_remote_validate "$url" remote; then
         echo "ERROR: Unknown subcommand or invalid URL '$url'." >&2
         echo "  Run 'ws realm' for usage." >&2
         exit 1
@@ -431,7 +435,7 @@ ws_realm_clone_url() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$url" "$target"
     echo ""
     echo "Community realm ready. Run 'ws clone --all' to clone components."
 }
