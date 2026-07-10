@@ -25,6 +25,8 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - **Docs site** — `docs/gdd/` methodology pages (features tour, trust and safety, permissions, agent training, organization stack, samples, vendor component role) and the ecosystem/CLI/setup reference docs (#53, #55–#57, #66, #70, #86, #93, #99).
 - **Versioning machinery** — SemVer policy for the workspace + `ws` CLI, this changelog, and the change-note tooling decision record (#97).
 - **Onboarding hardening** — scope-preselected PAT creation links in `ws diagnose` token misses, `ws realm init` fork-and-rename guidance for newcomers, `.env` token-setup docs (#119).
+- **Codex harness hooks** — Codex gets focused PreToolUse counterparts to the Claude hook: a Kubernetes-guard hook (#118) and a workflow-redirect hook that reads the same committed `[redirect-commands]` rules — redirect policy is shared platform-neutral data, so adding a rule affects both agents without editing either hook; raw `gh`/`glab` provider commands gained redirect rows in the same pass (#126).
+- **`ws k8s` context-only scope mode** — arm just a context with all namespaces in scope, for deep work on a local throwaway cluster where per-namespace scoping is friction without safety (#126).
 - Optional shellcheck linting for the workspace's own scripts (#98).
 
 ### Changed
@@ -37,6 +39,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `git mv` redirects to the plain-`mv` + bodyfile pattern, which keeps `ws commit`'s declared staging intact (#114).
 - `docs/dev-setup.md` renamed to `docs/workspace-setup.md` with an onboarding front-door polish pass (#109).
 - Hard-wrapped prose de-wrapped workspace-wide per the single-line-paragraph convention (#104).
+- Methodology docs consistency pass — the "good-enough" posture named as a first-class design statement, hook-doc altitude dedup, skills-reference taxonomy fix, link-shape cleanups (#120).
 
 ### Removed
 
@@ -49,6 +52,12 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - GitLab MR creation pins the source project explicitly instead of relying on `glab` inference (#102).
 - Provider auth checks are per-host, so an unrelated stale host in `glab`'s config no longer blocks every GitLab operation (#116).
 - Empty auth-env arrays no longer crash `ws` under macOS's bash 3.2 with `set -u` (#119).
+- `ws review --since prev-push` paginates the push-events lookup and recovers a missing previous push event, so the since-filter resolves on busy repos (#121).
+
+### Security
+
+- MCP configuration writes (`ws mcp-setup`) are human-gated instead of auto-approvable (#121).
+- Workspace credentials load as literal data rather than shell-evaluated content, and small `ws` input-validation edges were tightened (#121).
 
 ## Pre-1.0 archaeology
 

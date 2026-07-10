@@ -152,6 +152,8 @@ Manual (cannot be bats'd — requires real agent sessions): the **two-agent acce
 
 ## Phase 2+ roadmap — the session-config layer
 
+> **Status update (2026-07-09):** Phase 2 **shipped** via PR #111 — stance (the post-rename term for `mode`) / role / mentoring are session-scoped through `ws session set/get`, retired from Thalamus frontmatter (the template now points at the session file). Phase 3 (allowlist flavors) remains roadmap; the adjacent per-*agent* allowlist question is tracked separately in issue #127.
+
 Phase 1 is the first tenant of a broader idea worth recording (and captured in the Dionysus Thalamus): GDD currently stores `mode:` and `role:` in Thalamus frontmatter, which is **per-workspace**, but those are genuinely **per-session** concerns. One workspace routinely runs concurrent sessions wanting different things — the Scribe-role friction (an open Obsidian session shouldn't force the whole workspace to Scribe while you also do GDD work here), or mentoring-mode + a pointed-at cluster wanting a different allowlist **flavor** that warns on non-tutorial-namespace commands.
 
 The session file Phase 1 introduces is the natural home for all of it: `{identity, mode, role, allowlist-flavor}` keyed by session id, established fresh at orient. It does not replace the Thalamus (durable cross-session memory stays there) — it peels off the things that were only in frontmatter because there was nowhere better.

@@ -370,6 +370,14 @@ Each of these is more involved than the Chapter 1+2 loop and
 benefits from breaking into its own PR with its own review cycle.
 The basic shape doesn't change — you've already practiced it.
 
+## Local preview (optional)
+
+You don't need anything locally to publish — GitHub Pages builds the site remotely on every push, and the Ch 1+2 loop works fine with that. A local preview is worth setting up once you're iterating on look-and-feel and don't want to push to see each change.
+
+Local preview needs **Ruby + Bundler + Jekyll**, which `ws preflight` deliberately does *not* check (they're a this-template need, not a workspace prerequisite). Install Ruby (Windows: `winget install RubyInstallerTeam.RubyWithDevKit.3.3` — the DevKit-bundled build avoids an interactive post-install step; macOS/Linux: your package manager or a Ruby version manager), open a fresh shell so PATH picks it up (restart your whole IDE if you work inside one — it hands terminals its launch-time PATH), then `gem install bundler jekyll` and `bundle exec jekyll serve` from the component directory.
+
+One gotcha if you add a `Gemfile`: avoid the `wdm` gem (or pin it above 0.1.1) — `wdm 0.1.1` fails to compile on Ruby 3.3+, and it's only a file-watching optimization the preview works without.
+
 ---
 
 ## What's in this directory
