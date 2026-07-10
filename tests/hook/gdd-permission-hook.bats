@@ -249,6 +249,99 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "security: nested settings cannot grant an allow" {
+    seed_real_project_config
+    local nested="$WORK/components/untrusted"
+    mkdir -p "$nested/.claude"
+    cat > "$nested/.claude/settings.json" <<'JSON'
+{"permissions":{"allow":["Bash(evil *)"]}}
+JSON
+
+    run_hook "evil payload" "$nested"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "security: nested hook rules cannot replace the workspace baseline" {
+    seed_real_project_config
+    local nested="$WORK/components/untrusted"
+    mkdir -p "$nested/.claude/hooks"
+    printf '[ask-commands]\n' > "$nested/.claude/hooks/hook-rules"
+
+    run_hook "git push origin topic" "$nested"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws push"* ]]
+}
+
+@test "security: sensitive scratch state forces an ask instead of auto-allow" {
+    seed_real_project_config
+
+    run_hook_write "Write" "$WORK/.tmp/hook-bypass/git-commit.bypass"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: session identity state forces an ask instead of auto-allow" {
+    seed_real_project_config
+
+    run_hook_write "Edit" "$WORK/.tmp/gdd-agent-sessions/session.env"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "security: committed settings install Edit and Write hook matchers" {
+    run jq -e '
+        [.hooks.PreToolUse[].matcher] as $m |
+        ($m | index("Edit")) != null and ($m | index("Write")) != null
+    ' "$REPO_ROOT/.claude/settings.json"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "security: git config injection denies before an allow entry" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -c *)'
+
+    run_hook "git -c alias.diff=!id diff"
+
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "security: git executable diff helper denies before a diff allow" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git diff:*)'
+
+    run_hook "git diff --ext-diff HEAD"
+
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "security: git diff continuation does not allow git difftool" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git diff:*)'
+
+    run_hook "git difftool HEAD"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "ask: benign quotes and repeated whitespace cannot hide review mutation" {
+    seed_real_project_config
+
+    run_hook 'ws   review knarr "threads" 123 "--resolve-all"'
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
 
 @test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {

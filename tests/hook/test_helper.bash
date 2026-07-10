@@ -43,6 +43,7 @@ init_hook_env() {
     mkdir -p "$WORK/.claude/hooks"
     mkdir -p "$WORK/_home/.claude/hooks"
     export HOME="$WORK/_home"
+    export CLAUDE_PROJECT_DIR="$WORK"
 }
 
 # Write a synthetic project .claude/settings.json with the given

@@ -207,6 +207,15 @@ event=$(echo "$input" | jq -r '.hook_event_name // "PreToolUse"')
 # tools before the Bash-only tier logic runs.
 tool_name=$(echo "$input" | jq -r '.tool_name // ""')
 
+# Anchor project policy to the harness project root, never to the command cwd.
+# A component or realm may contain its own .claude files, but those nested
+# files are content inside this workspace—not authorities over the root hook.
+_hook_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+_trusted_root="${CLAUDE_PROJECT_DIR:-$_hook_root}"
+if [[ ! -d "$_trusted_root" ]]; then
+    _trusted_root="$_hook_root"
+fi
+
 # ─── Opt-out escape hatch ───────────────────────────────────────────
 # A user can disable this hook entirely on their own machine without
 # editing the committed settings.json. Set WS_HOOK_DISABLE=1 in your
@@ -491,20 +500,10 @@ _parse_rules_file() {
     done < "$file"
 }
 
-# Locate .claude/hooks/hook-rules by walking up from $cwd (closest
-# wins), same upward-walk + prev-equals-dir guard as collect_patterns.
-_rules_dir=""
-_rd="$cwd"
-_rp=""
-while [[ "$_rd" != "$_rp" && "$_rd" != "/" && "$_rd" != "." && "$_rd" != "" ]]; do
-    if [[ -f "$_rd/.claude/hooks/hook-rules" ]]; then
-        _rules_dir="$_rd/.claude/hooks"
-        break
-    fi
-    _rp="$_rd"
-    _rd=$(dirname "$_rd")
-done
-if [[ -n "$_rules_dir" ]]; then
+# The committed baseline and operator-local additive override are the only
+# rule files. Nested components, realms, and hoards cannot replace them.
+_rules_dir="$_trusted_root/.claude/hooks"
+if [[ -f "$_rules_dir/hook-rules" ]]; then
     _parse_rules_file "$_rules_dir/hook-rules"
     [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local" local
 fi
@@ -533,7 +532,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ws-k8s-guard
 # the fall-through `exit 0` at the bottom of the branch means
 # passthrough — the harness's normal flow handles it.
 if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
-    project_dir="${CLAUDE_PROJECT_DIR:-$cwd}"
+    project_dir="$_trusted_root"
     file_path=$(echo "$input" | jq -r '.tool_input.file_path // ""')
 
     # Path-traversal guard. The scratch-dir test below is a textual
@@ -584,6 +583,19 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     case "$real_probe/" in
         "$real_project/"*) : ;;   # resolves inside the project — OK
         *) exit 0 ;;              # resolves outside — passthrough
+    esac
+
+    # Guard state and security configuration must never inherit the broad
+    # scratch-directory auto-allow. The hook is a cooperative safety control,
+    # so force a human decision for normal Edit/Write flows touching it.
+    case "$abs_path" in
+        "$project_dir/.tmp/hook-bypass"|"$project_dir/.tmp/hook-bypass/"*|\
+        "$project_dir/.tmp/gdd-agent-sessions"|"$project_dir/.tmp/gdd-agent-sessions/"*|\
+        "$project_dir/.claude"|"$project_dir/.claude/"*|\
+        "$project_dir/.env"|"$project_dir/ecosystem.local.yaml")
+            cmd="$tool_name $file_path"
+            ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
+            ;;
     esac
 
     # Scratch dirs that auto-allow Edit / Write come from the
@@ -809,14 +821,34 @@ esac
 normalize_for_match() {
     local s="$1"
     case "$s" in
-        "bash ./scripts/"*) printf '%s' "${s#bash ./scripts/}" ;;
-        "bash scripts/"*)   printf '%s' "${s#bash scripts/}" ;;
-        "./scripts/"*)      printf '%s' "${s#./scripts/}" ;;
-        "scripts/"*)        printf '%s' "${s#scripts/}" ;;
-        *)                  printf '%s' "$s" ;;
+        "bash ./scripts/"*) s="${s#bash ./scripts/}" ;;
+        "bash scripts/"*)   s="${s#bash scripts/}" ;;
+        "./scripts/"*)      s="${s#./scripts/}" ;;
+        "scripts/"*)        s="${s#scripts/}" ;;
     esac
+    # Matching is conservative, not execution: remove one-token quoting and
+    # collapse harmless whitespace so quoting cannot hide an ask-tier action.
+    s="${s//\"/}"
+    s="${s//\'/}"
+    s="${s//$'\t'/ }"
+    while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done
+    s="${s# }"
+    s="${s% }"
+    printf '%s' "$s"
 }
 match_cmd="$(normalize_for_match "$cmd")"
+
+# Git's global execution modifiers and remote-helper transports run programs
+# before/under otherwise read-looking subcommands. They are never safe to
+# inherit from a broad `git diff`/`git show` allow pattern.
+if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
+    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])) ]]; then
+        deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
+    fi
+    if [[ "$match_cmd" =~ (^|[[:space:]])(ext|fd):: ]]; then
+        deny "Executable Git remote helper syntax is not allowed by read-oriented Git permissions."
+    fi
+fi
 
 # ─── Tier 2: Redirect deny — raw commands with a `ws` equivalent ────
 #
@@ -1168,8 +1200,9 @@ done
 # checked before the Tier 5/6 allow logic, so a destructive command
 # prompts even if some allowlist entry would otherwise pass it.
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
+    _ask_match="$(normalize_for_match "$_ask")"
     # shellcheck disable=SC2053
-    if [[ "$match_cmd" == $_ask ]]; then
+    if [[ "$match_cmd" == $_ask_match ]]; then
         _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo."
         case "$match_cmd" in
             rm|rm\ *)
@@ -1226,13 +1259,6 @@ done
 #     glob `*` so either `Bash(git status:*)` or `Bash(git status*)`
 #     in settings.json works as the user expects
 collect_patterns() {
-    # Walk up until either we hit a recognized root marker or
-    # `dirname` stops shrinking (it returns the same value twice in
-    # a row — that's the filesystem boundary, regardless of platform
-    # path convention). Without the prev-equals-dir guard we infinite-
-    # loop on Windows-style paths where `dirname D:` returns `.`
-    # and `dirname .` returns `.` again.
-    #
     # JSON parse guard: this script runs under `set -euo pipefail`.
     # A malformed settings.json would make jq exit non-zero and abort
     # the script mid-walk — turning a single corrupted file into a
@@ -1241,17 +1267,12 @@ collect_patterns() {
     # whole hook. Stderr from the validate goes to /dev/null because
     # the user's already seen the corruption when they edited the
     # file, and a per-invocation parse warning would be noise.
-    local dir="$cwd"
-    local prev=""
-    while [[ "$dir" != "$prev" && "$dir" != "/" && "$dir" != "." && "$dir" != "" ]]; do
-        if [[ -f "$dir/.claude/settings.json" ]] \
-            && jq empty "$dir/.claude/settings.json" 2>/dev/null; then
-            jq -r '.permissions.allow[]? | select(test("^Bash\\("))' \
-                "$dir/.claude/settings.json" 2>/dev/null
-        fi
-        prev="$dir"
-        dir=$(dirname "$dir")
-    done
+    local project_settings="$_trusted_root/.claude/settings.json"
+    if [[ -f "$project_settings" ]] \
+        && jq empty "$project_settings" 2>/dev/null; then
+        jq -r '.permissions.allow[]? | select(test("^Bash\\("))' \
+            "$project_settings" 2>/dev/null
+    fi
     if [[ -f "$HOME/.claude/settings.json" ]] \
         && jq empty "$HOME/.claude/settings.json" 2>/dev/null; then
         jq -r '.permissions.allow[]? | select(test("^Bash\\("))' \
@@ -1270,7 +1291,11 @@ while IFS= read -r raw; do
     [[ -z "$raw" ]] && continue
     pattern="${raw#Bash(}"
     pattern="${pattern%)}"
-    pattern="${pattern//:\*/*}"
+    continuation=0
+    if [[ "$pattern" == *':*' ]]; then
+        pattern="${pattern%:\*}"
+        continuation=1
+    fi
     # Normalize the pattern with the same transform applied to
     # $match_cmd above. Symmetric normalization lets either side use
     # bare or verbose form without breaking the match — so existing
@@ -1280,9 +1305,15 @@ while IFS= read -r raw; do
     # The shellcheck disable is intentional: bash's `[[ str == glob ]]`
     # uses pathname-style globbing on the right side ONLY when the
     # variable is unquoted. We WANT the glob behavior here.
-    # shellcheck disable=SC2053
-    if [[ "$match_cmd" == $match_pattern ]]; then
-        allow "settings.json: $raw"
+    if [[ "$continuation" -eq 1 ]]; then
+        if [[ "$match_cmd" == "$match_pattern" || "$match_cmd" == "$match_pattern "* ]]; then
+            allow "settings.json: $raw"
+        fi
+    else
+        # shellcheck disable=SC2053
+        if [[ "$match_cmd" == $match_pattern ]]; then
+            allow "settings.json: $raw"
+        fi
     fi
 done < <(collect_patterns)
 
