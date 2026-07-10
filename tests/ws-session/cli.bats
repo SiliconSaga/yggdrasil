@@ -38,3 +38,33 @@ run_ws() { run env WS_FOOTER_DISABLE=1 bash "$WS_BIN" "$@"; }
     run_ws session frobnicate
     [ "$status" -ne 0 ]
 }
+
+@test "ws session set rejects Kubernetes guard keys" {
+    run_ws session set GDD_K8S_CONTEXT production
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ws k8s scope"* ]]
+    [ ! -e "$ROOT_DIR/.tmp/gdd-agent-sessions/cli-test.env" ]
+}
+
+@test "ws session set rejects commit identity keys" {
+    run_ws session set GDD_CO_AUTHOR "Mallory <mallory@example.invalid>"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ws whoami"* ]]
+    [ ! -e "$ROOT_DIR/.tmp/gdd-agent-sessions/cli-test.env" ]
+}
+
+@test "ws session set accepts only stance role and mentoring keys" {
+    run_ws session set GDD_STANCE flow
+    [ "$status" -eq 0 ]
+    run_ws session set GDD_ROLE developer
+    [ "$status" -eq 0 ]
+    run_ws session set GDD_MENTORING false
+    [ "$status" -eq 0 ]
+
+    run_ws session show
+    [[ "$output" == *"GDD_STANCE=flow"* ]]
+    [[ "$output" == *"GDD_ROLE=developer"* ]]
+    [[ "$output" == *"GDD_MENTORING=false"* ]]
+}
