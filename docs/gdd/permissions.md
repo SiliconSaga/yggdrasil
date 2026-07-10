@@ -58,6 +58,8 @@ The Codex bridge maps the same platform-neutral classification differently becau
 
 Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`, `git mv`) with a corrective message pointing at the friendlier equivalent — a training layer, not a safety floor. The session-scoped escape hatch is `ws hook-bypass <slug>`, itself ask-gated so every bypass force-prompts the human. Mechanics and the full redirect list: [`.claude/hooks/README.md`](../../.claude/hooks/README.md) § Redirect tier and bypass; the human-facing walkthrough is [Agent Training](agent-training.md#what-happens-when-you-reach-for-git-commit--git-push--gh-pr-create).
 
+Codex consumes the same `[redirect-commands]` rows through a focused deny-or-defer bridge. A match returns the same `ws` guidance. A valid session-scoped bypass removes the redirect decision but does not auto-allow the command; Codex still applies its sandbox, network, and approval routing.
+
 ### `ws commit` flags auto-approve
 
 `ws commit`, `ws whoami`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json`. The `ws commit` allow patterns are:

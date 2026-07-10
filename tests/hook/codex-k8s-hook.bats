@@ -263,10 +263,15 @@ assert_denied() {
     grep -q 'PASSTHROUGH.*shared Kubernetes guard unavailable' "$HOME/.codex/hook-audit.log"
 }
 
-@test "Codex registration contains only the focused Bash PreToolUse bridge" {
-    run jq -e \
-        '.hooks.PreToolUse | (length == 1 and .[0].matcher == "^Bash$" and (.[0].hooks | length == 1) and (.[0].hooks[0].command | contains(".codex/hooks/gdd-k8s-hook.sh")))' \
-        "$REPO_ROOT/.codex/hooks.json"
+@test "Codex registration contains both focused Bash PreToolUse bridges" {
+    run jq -e '
+        .hooks.PreToolUse
+        | length == 1
+          and .[0].matcher == "^Bash$"
+          and (.[0].hooks | length == 2)
+          and any(.[0].hooks[]; .command | contains(".codex/hooks/gdd-k8s-hook.sh"))
+          and any(.[0].hooks[]; .command | contains(".codex/hooks/gdd-redirect-hook.sh"))
+    ' "$REPO_ROOT/.codex/hooks.json"
     [ "$status" -eq 0 ]
     run jq -e '.hooks | has("PermissionRequest") | not' "$REPO_ROOT/.codex/hooks.json"
     [ "$status" -eq 0 ]
