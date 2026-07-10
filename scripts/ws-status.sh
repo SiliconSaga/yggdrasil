@@ -67,7 +67,9 @@ print_repo_status "$ROOT_DIR"
 echo ""
 
 # Status of each component
-for name in $(yq '.components | keys | .[]' "$ECO"); do
+# `// {}` guards the fresh-workspace case: a missing or null components map
+# must read as empty, not surface a yq "cannot get keys of !!null" error.
+for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
     target="$COMPONENTS_DIR/$name"
     if [[ ! -d "$target/.git" ]]; then
         echo "=== $name === (not cloned)"
