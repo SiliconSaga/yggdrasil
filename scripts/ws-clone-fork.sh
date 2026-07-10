@@ -45,9 +45,16 @@ Prepare a ready-to-work fork-based clone of <component>:
      fork so future clones start clean. Force-pushes never happen — if
      histories diverge, the script stops and asks the user to resolve.
 
+Works against GitHub and GitLab sources: fork lookup/creation goes
+through gh or glab per the detected provider (github.com/gitlab.com
+auto-detect; self-hosted hosts map via defaults.gitProviders.<host>,
+and unmapped hosts default to GitLab).
+
 Token resolution is automatic: longest-prefix match on
-defaults.gitTokens against the fork's namespace. .env is already
-sourced by the ws dispatcher, so no manual sourcing is needed.
+defaults.gitTokens against the fork's namespace, falling back to the
+provider default (GH_TOKEN on github.com, GITLAB_TOKEN on gitlab.com)
+when no entry covers the target — same behavior as ws push. .env is
+already sourced by the ws dispatcher, so no manual sourcing is needed.
 
 Transport defaults to HTTPS with the .env token injected per-process
 (no SSH keys, no credential-manager prompt — same mechanism as ws push).
@@ -91,15 +98,18 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
+# shellcheck source=git-provider.sh
+source "$SCRIPT_DIR/git-provider.sh"
 
 # --- dependency checks ------------------------------------------------------
-for cmd in yq jq git glab; do
+# Generic tools only here; the provider CLI (gh or glab) is checked after the
+# source URL tells us which provider we're talking to.
+for cmd in yq jq git; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "ERROR: $cmd is required for ws clone-fork." >&2
         case "$cmd" in
             yq)   echo "  Install: https://github.com/mikefarah/yq" >&2 ;;
             jq)   echo "  Install: https://stedolan.github.io/jq/" >&2 ;;
-            glab) echo "  Install: https://gitlab.com/gitlab-org/cli" >&2 ;;
         esac
         exit 1
     fi
@@ -107,7 +117,7 @@ done
 
 ECO="$(ws_resolve_ecosystem)"
 
-# Scratch file for capturing glab stderr. Workspace convention is
+# Scratch file for capturing provider-CLI stderr. Workspace convention is
 # .tmp/ over /tmp — Git Bash maps /tmp to an unpredictable location
 # on Windows. .tmp/ is gitignored. Per-PID suffix avoids collisions;
 # each `2>` redirect truncates, so the file is reused safely and the
@@ -218,6 +228,32 @@ parse_fork_home_namespace() {
 }
 
 read -r UPSTREAM_HOST UPSTREAM_PATH < <(parse_git_url "$UPSTREAM_URL")
+
+# --- provider detection -------------------------------------------------------
+# github.com / gitlab.com auto-detect; other hosts resolve via
+# defaults.gitProviders.<host> or defaults.gitProvider. When nothing matches,
+# default to gitlab — every pre-parity clone-fork target was GitLab, so an
+# unmapped self-hosted host keeps its historical behavior instead of erroring.
+PROVIDER="$(gp_detect "$UPSTREAM_URL" "$ECO" 2>/dev/null || true)"
+[[ -z "$PROVIDER" ]] && PROVIDER="gitlab"
+case "$PROVIDER" in
+    github) PROVIDER_CLI="gh" ;;
+    gitlab) PROVIDER_CLI="glab" ;;
+    *)
+        echo "ERROR: ws clone-fork supports the github and gitlab providers (got '$PROVIDER' for $UPSTREAM_HOST)." >&2
+        echo "  Check defaults.gitProviders.$UPSTREAM_HOST / defaults.gitProvider in ecosystem config." >&2
+        exit 1
+        ;;
+esac
+if ! command -v "$PROVIDER_CLI" &>/dev/null; then
+    echo "ERROR: $PROVIDER_CLI is required for ws clone-fork on a $PROVIDER source." >&2
+    case "$PROVIDER_CLI" in
+        gh)   echo "  Install: https://cli.github.com/" >&2 ;;
+        glab) echo "  Install: https://gitlab.com/gitlab-org/cli" >&2 ;;
+    esac
+    exit 1
+fi
+
 UPSTREAM_LEAF_GROUP="$(dirname "$UPSTREAM_PATH")"        # e.g. "acme/team"
 UPSTREAM_REPO_NAME="$(basename "$UPSTREAM_PATH")"        # e.g. "widget"
 # Remote name for upstream: last segment of the parent group, or "upstream" if path is flat.
@@ -260,15 +296,44 @@ FORK_NAMESPACE="$(dirname "$FORK_PATH")"  # destination namespace for project cr
 # Token-walk lives in ws-realm.sh as `ws_resolve_token_var`. We pass the
 # full "host/path" target (which the shared helper expects).
 
-UPSTREAM_TOKEN_VAR=$(ws_resolve_token_var "$UPSTREAM_HOST/$UPSTREAM_PATH")
-FORK_TOKEN_VAR=$(ws_resolve_token_var "$UPSTREAM_HOST/$FORK_PATH")
-
-# Helper: load .env from workspace root if a needed var isn't loaded.
-# (ws dispatcher already sources .env, but ws-clone-fork.sh may be invoked
-# directly. Belt-and-suspenders.)
+# Load .env before resolving tokens — the default-fallback below needs the
+# token *values* visible, not just the var names. (ws dispatcher already
+# sources .env, but ws-clone-fork.sh may be invoked directly.)
 # shellcheck source=ws-env.sh
 source "$SCRIPT_DIR/ws-env.sh"
 ws_load_env "$ROOT_DIR/.env"
+
+# Default-token fallback for the canonical hosts only — the same posture as
+# git-auth.sh: gitlab-lookalike.example must never receive GITLAB_TOKEN via a
+# default; only an explicit defaults.gitTokens mapping sends a token there.
+DEFAULT_TOKEN_VAR=""
+case "$UPSTREAM_HOST" in
+    github.com) DEFAULT_TOKEN_VAR="GH_TOKEN" ;;
+    gitlab.com) DEFAULT_TOKEN_VAR="GITLAB_TOKEN" ;;
+esac
+
+# Prefer an explicit gitTokens mapping whose var is actually set; otherwise
+# fall back to the provider default var when it carries a value (mirrors
+# git_auth_resolve_token, so clone-fork matches ws push behavior). Echoes the
+# mapping result when neither is usable so require_token reports precisely.
+resolve_token_var_with_default() {
+    local target="$1"
+    local var
+    var=$(ws_resolve_token_var "$target")
+    [[ "$var" == "null" ]] && var=""
+    if [[ -n "$var" && -n "${!var:-}" ]]; then
+        echo "$var"
+        return
+    fi
+    if [[ -n "$DEFAULT_TOKEN_VAR" && -n "${!DEFAULT_TOKEN_VAR:-}" ]]; then
+        echo "$DEFAULT_TOKEN_VAR"
+        return
+    fi
+    echo "$var"
+}
+
+UPSTREAM_TOKEN_VAR=$(resolve_token_var_with_default "$UPSTREAM_HOST/$UPSTREAM_PATH")
+FORK_TOKEN_VAR=$(resolve_token_var_with_default "$UPSTREAM_HOST/$FORK_PATH")
 
 require_token() {
     local var="$1"
@@ -276,6 +341,9 @@ require_token() {
     if [[ -z "$var" || "$var" == "null" ]]; then
         echo "ERROR: No gitTokens entry covers '$purpose' on $UPSTREAM_HOST." >&2
         echo "  Add an entry to defaults.gitTokens in ecosystem.local.yaml." >&2
+        if [[ -n "$DEFAULT_TOKEN_VAR" ]]; then
+            echo "  (Or set the $UPSTREAM_HOST default \$$DEFAULT_TOKEN_VAR in .env — no mapping needed.)" >&2
+        fi
         exit 1
     fi
     local val="${!var:-}"
@@ -311,8 +379,52 @@ api_call() {
     GITLAB_TOKEN="$token" glab api --hostname "$UPSTREAM_HOST" "$@"
 }
 
+# GitHub counterpart. GH_HOST pins the instance the same way --hostname does
+# for glab. Paths carry no leading slash — Git Bash's MSYS layer rewrites
+# /repos/... as a Windows filesystem path.
+gh_api() {
+    local token_var="$1"; shift
+    local token="${!token_var}"
+    GH_TOKEN="$token" GH_HOST="$UPSTREAM_HOST" gh api "$@"
+}
+
+# Provider-neutral project lookup. Emits GitLab-shaped JSON either way — the
+# GitHub response is normalized to the field names the rest of this script
+# already consumes (ssh_url_to_repo / http_url_to_repo / web_url /
+# import_status), so everything downstream of the API layer stays provider-
+# agnostic. GitHub has no import_status; an existing repo reads "finished",
+# and a not-yet-materialized fork fails the fetch (the poll loop's retry case).
+api_project() {
+    local token_var="$1" path="$2"
+    if [[ "$PROVIDER" == "github" ]]; then
+        gh_api "$token_var" "repos/$path" \
+            | jq '{id, default_branch, ssh_url_to_repo: .ssh_url, http_url_to_repo: .clone_url, web_url: .html_url, import_status: "finished"}'
+    else
+        api_call "$token_var" "projects/$(urlencode "$path")"
+    fi
+}
+
 # Emit a one-click helper for the cross-group fork case and exit 2.
 emit_cross_group_helper() {
+    if [[ "$PROVIDER" == "github" ]]; then
+        echo "" >&2
+        echo "  Cross-group fork detected — manual step needed." >&2
+        echo "" >&2
+        echo "  Your fork-home token (\$$FORK_TOKEN_VAR) has rights on '$FORK_NAMESPACE'" >&2
+        echo "  but no read access on source repo '$UPSTREAM_PATH' (private, or the" >&2
+        echo "  token's scope/installation doesn't cover it). GitHub's fork flow needs" >&2
+        echo "  one identity with read on the source and fork rights on the destination." >&2
+        echo "" >&2
+        echo "  Click here to fork in the GitHub UI (pick '$FORK_NAMESPACE' as the owner):" >&2
+        echo "" >&2
+        echo "    https://$UPSTREAM_HOST/$UPSTREAM_PATH/fork" >&2
+        echo "" >&2
+        echo "  Once the fork exists, re-run:" >&2
+        echo "    ws clone-fork $COMPONENT" >&2
+        echo "" >&2
+        return
+    fi
+
     local fork_url="https://$UPSTREAM_HOST/$UPSTREAM_PATH/-/forks/new"
 
     # Best-effort: look up destination namespace ID for URL pre-fill.
@@ -370,13 +482,10 @@ echo "[ ws clone-fork: $COMPONENT ]"
 echo "  Source   : $UPSTREAM_PATH on $UPSTREAM_HOST"
 echo "  Fork     : $FORK_PATH"
 
-UPSTREAM_ENCODED="$(urlencode "$UPSTREAM_PATH")"
-FORK_ENCODED="$(urlencode "$FORK_PATH")"
-
 echo ""
 echo "  Step 1: check fork exists..."
 FORK_DETAILS=""
-if FORK_DETAILS=$(api_call "$FORK_TOKEN_VAR" "projects/$FORK_ENCODED" 2>/dev/null); then
+if FORK_DETAILS=$(api_project "$FORK_TOKEN_VAR" "$FORK_PATH" 2>/dev/null); then
     if echo "$FORK_DETAILS" | jq -e '.id' &>/dev/null; then
         echo "         ✓ fork exists ($(echo "$FORK_DETAILS" | jq -r '.web_url'))"
     else
@@ -399,7 +508,7 @@ if [[ -z "$FORK_DETAILS" ]]; then
     # Detect this up front and surface a UI-fork helper rather than letting
     # the API call fail with a cryptic 404.
     fork_probe_result=""
-    if ! fork_probe_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
+    if ! fork_probe_result=$(api_project "$FORK_TOKEN_VAR" "$UPSTREAM_PATH" 2>"$ERR_TMP"); then
         fork_probe_error="$(cat "$ERR_TMP" 2>/dev/null || true)"
         rm -f "$ERR_TMP"
         fork_probe_message="${fork_probe_error}${fork_probe_result}"
@@ -414,50 +523,73 @@ if [[ -z "$FORK_DETAILS" ]]; then
     fi
     rm -f "$ERR_TMP"
 
-    # Get upstream project ID (needed for fork API)
-    local_upstream_details=""
-    if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
-        echo "ERROR: Failed to fetch source project details." >&2
-        cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
-        exit 1
-    fi
-    rm -f "$ERR_TMP"
-    UPSTREAM_ID=$(echo "$local_upstream_details" | jq -r '.id')
-    if [[ -z "$UPSTREAM_ID" || "$UPSTREAM_ID" == "null" ]]; then
-        echo "ERROR: Could not determine source project ID." >&2
-        echo "$local_upstream_details" | head -20 >&2
-        exit 1
-    fi
+    if [[ "$PROVIDER" == "github" ]]; then
+        # `gh repo fork` takes the destination org via --org; forking into the
+        # token's own account must OMIT it (gh rejects --org naming a user).
+        # Compare the fork-home namespace against the token's login to decide.
+        fork_login=$(gh_api "$FORK_TOKEN_VAR" user 2>/dev/null | jq -r '.login // empty' || true)
+        fork_login_lc=$(printf '%s' "$fork_login" | tr '[:upper:]' '[:lower:]')
+        fork_namespace_lc=$(printf '%s' "$FORK_NAMESPACE" | tr '[:upper:]' '[:lower:]')
+        fork_args=("$UPSTREAM_PATH" --clone=false)
+        if [[ -n "$fork_namespace_lc" && "$fork_namespace_lc" != "$fork_login_lc" ]]; then
+            fork_args+=(--org "$FORK_NAMESPACE")
+        fi
+        if ! GH_TOKEN="${!FORK_TOKEN_VAR}" GH_HOST="$UPSTREAM_HOST" gh repo fork "${fork_args[@]}" 2>"$ERR_TMP"; then
+            echo "ERROR: Fork creation failed." >&2
+            cat "$ERR_TMP" >&2
+            rm -f "$ERR_TMP"
+            exit 1
+        fi
+        rm -f "$ERR_TMP"
+        FORK_DETAILS=""
+    else
+        # Get upstream project ID (needed for the GitLab fork API)
+        local_upstream_details=""
+        if ! local_upstream_details=$(api_project "$UPSTREAM_TOKEN_VAR" "$UPSTREAM_PATH" 2>"$ERR_TMP"); then
+            echo "ERROR: Failed to fetch source project details." >&2
+            cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
+            exit 1
+        fi
+        rm -f "$ERR_TMP"
+        UPSTREAM_ID=$(echo "$local_upstream_details" | jq -r '.id')
+        if [[ -z "$UPSTREAM_ID" || "$UPSTREAM_ID" == "null" ]]; then
+            echo "ERROR: Could not determine source project ID." >&2
+            echo "$local_upstream_details" | head -20 >&2
+            exit 1
+        fi
 
-    # POST /projects/:id/fork with namespace_path
-    fork_create_result=""
-    fork_create_err="$ERR_TMP"
-    if ! fork_create_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ID/fork" -X POST -f "namespace_path=$FORK_NAMESPACE" 2>"$fork_create_err"); then
-        echo "ERROR: Fork creation failed." >&2
-        cat "$fork_create_err" >&2
-        # Common failure: token lacks Maintainer role on the destination group.
-        if grep -qi "not allowed to import" "$fork_create_err"; then
-            echo "" >&2
-            echo "  GitLab error 'not allowed to import projects' usually means the token's role" >&2
-            echo "  on '$FORK_NAMESPACE' is too low (Developer is insufficient; need Maintainer)." >&2
-            echo "  Regenerate the token at the destination group with Maintainer+ role and 'api' scope." >&2
+        # POST /projects/:id/fork with namespace_path
+        fork_create_result=""
+        fork_create_err="$ERR_TMP"
+        if ! fork_create_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ID/fork" -X POST -f "namespace_path=$FORK_NAMESPACE" 2>"$fork_create_err"); then
+            echo "ERROR: Fork creation failed." >&2
+            cat "$fork_create_err" >&2
+            # Common failure: token lacks Maintainer role on the destination group.
+            if grep -qi "not allowed to import" "$fork_create_err"; then
+                echo "" >&2
+                echo "  GitLab error 'not allowed to import projects' usually means the token's role" >&2
+                echo "  on '$FORK_NAMESPACE' is too low (Developer is insufficient; need Maintainer)." >&2
+                echo "  Regenerate the token at the destination group with Maintainer+ role and 'api' scope." >&2
+            fi
+            rm -f "$fork_create_err"
+            exit 1
         fi
         rm -f "$fork_create_err"
-        exit 1
+        FORK_DETAILS="$fork_create_result"
     fi
-    rm -f "$fork_create_err"
-    FORK_DETAILS="$fork_create_result"
 
-    # Poll import_status until "finished". Default is 10 × 2s = 20s,
-    # which covers normal-size repos; heavier upstreams may need more.
-    # WS_CLONE_FORK_POLL_ITERATIONS overrides the count without a code
-    # change. A non-positive or non-numeric value falls back to 10.
+    # Poll until the fork is fetchable and (GitLab) import_status reaches
+    # "finished" — a GitHub fork has no import phase, so its first successful
+    # fetch reads "finished" via the api_project normalization. Default is
+    # 10 × 2s = 20s, which covers normal-size repos; heavier upstreams may
+    # need more. WS_CLONE_FORK_POLL_ITERATIONS overrides the count without a
+    # code change. A non-positive or non-numeric value falls back to 10.
     poll_max="${WS_CLONE_FORK_POLL_ITERATIONS:-10}"
     [[ "$poll_max" =~ ^[1-9][0-9]*$ ]] || poll_max=10
-    echo "         Fork created; waiting for import to finish..."
+    echo "         Fork created; waiting for it to become available..."
     for ((i = 1; i <= poll_max; i++)); do
         sleep 2
-        status_json=$(api_call "$FORK_TOKEN_VAR" "projects/$FORK_ENCODED" 2>/dev/null || echo '{}')
+        status_json=$(api_project "$FORK_TOKEN_VAR" "$FORK_PATH" 2>/dev/null || echo '{}')
         status=$(echo "$status_json" | jq -r '.import_status // "unknown"')
         echo "         attempt $i/$poll_max: import_status = $status"
         if [[ "$status" == "finished" ]]; then
@@ -480,7 +612,7 @@ fi
 # Need upstream details too (for remote URLs + default branch). Re-fetch if
 # we didn't already capture them during fork creation.
 if [[ -z "${local_upstream_details:-}" ]]; then
-    if ! local_upstream_details=$(api_call "$UPSTREAM_TOKEN_VAR" "projects/$UPSTREAM_ENCODED" 2>"$ERR_TMP"); then
+    if ! local_upstream_details=$(api_project "$UPSTREAM_TOKEN_VAR" "$UPSTREAM_PATH" 2>"$ERR_TMP"); then
         echo "ERROR: Failed to fetch source project details." >&2
         cat "$ERR_TMP" >&2; rm -f "$ERR_TMP"
         exit 1
