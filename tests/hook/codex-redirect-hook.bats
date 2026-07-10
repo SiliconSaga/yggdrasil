@@ -68,6 +68,8 @@ git commit -m test|git-commit
 git push|git-push
 gh pr create --title test|gh-pr-create
 git mv old new|git-mv
+gh pr view 123|gh-cli
+glab mr view 456|glab-cli
 CASES
 }
 

@@ -28,7 +28,7 @@ Assert `alice-sandbox,*` displays as context-only, `all` remains a literal names
 
 Run: `ws test yggdrasil tests/hook/codex-redirect-hook.bats tests/ws-k8s/wrapper.bats`
 
-Expected: the missing-event payload is denied, mixed wildcard output is not canonical, `all` displays as context-only, and namespace lifecycle coverage passes against the existing intended behavior.
+Expected RED: the command fails because the missing-event payload defers instead of being denied, mixed wildcard output is not canonical, and `all` remains a literal namespace instead of being treated as context-only; namespace lifecycle coverage passes against the existing intended behavior.
 
 ### Task 2: Tighten the implementation and docs
 
