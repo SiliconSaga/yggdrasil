@@ -43,16 +43,25 @@ ws_load_env() {
     done < "$env_file"
 }
 
+# Provider-token names are prefix-allowlisted: a gitTokens mapping may only
+# name a variable inside the provider namespaces (GITLAB_*/GITHUB_*/GH_*), so
+# it cannot route an arbitrary out-of-namespace secret (AWS_SECRET_ACCESS_KEY,
+# ...) into git auth. The guarantee is namespace-scoped, not token-only — a
+# mapping could still name a non-token var like GH_HOST, which then simply
+# fails as an unset/wrong credential rather than leaking anything foreign.
+# GITHUB_*/GH_* get the same namespaced freedom as GITLAB_*, which multi-org
+# GitHub setups need (e.g. an org bot token plus a personal PAT mapped to
+# different namespaces).
 ws_is_provider_token_var() {
     local name="$1"
-    [[ "$name" =~ ^GITLAB_[A-Z0-9_]+$ || "$name" == "GH_TOKEN" || "$name" == "GITHUB_TOKEN" ]]
+    [[ "$name" =~ ^(GITLAB|GITHUB|GH)_[A-Z0-9_]+$ ]]
 }
 
 ws_require_provider_token_var() {
     local name="$1"
     if ! ws_is_provider_token_var "$name"; then
         echo "ERROR: '$name' is not an allowed provider-token variable." >&2
-        echo "  gitTokens values must use GITLAB_*, GH_TOKEN, or GITHUB_TOKEN." >&2
+        echo "  gitTokens values must use GITLAB_*, GITHUB_*, or GH_* names." >&2
         return 1
     fi
 }

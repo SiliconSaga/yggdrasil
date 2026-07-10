@@ -6,7 +6,7 @@ GDD isn't just for coding. The same workspace drives software work *and* non-dev
 
 ## Prerequisites
 
-After cloning, run `bash scripts/ws preflight` from the workspace root — it checks each tool below, flags whether `scripts/` is on your PATH, and prints per-OS install hints for anything missing. It verifies the tools are *present*, not that any git provider is *authenticated* — provider tokens are a later step (see [`git-provider-setup.md`](git-provider-setup.md)) and are only needed once you start cloning remotes, pushing, or opening CRs. After installing any tool, open a fresh shell (or restart your editor) so PATH updates take effect — a freshly-installed tool won't appear in an already-running shell.
+After cloning, run `bash scripts/ws preflight` from the workspace root — it checks each tool below, flags whether `scripts/` is on your PATH, and prints per-OS install hints for anything missing. It verifies the tools are *present*, not that any git provider is *authenticated* — provider tokens are a later step (see [`git-provider-setup.md`](git-provider-setup.md)) and are only needed once you start cloning remotes, pushing, or opening CRs. After installing any tool, open a fresh shell so PATH updates take effect — a freshly-installed tool won't appear in an already-running shell. If you work inside an IDE, note that the IDE itself captures PATH at launch and hands that stale copy to every terminal it opens — a new terminal *tab* isn't enough; restart the whole IDE.
 
 **Required:**
 

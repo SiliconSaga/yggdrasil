@@ -82,6 +82,22 @@ SH
     export PATH="$STUB_BIN:$PATH"
 }
 
+@test "gitlab-auth --help prints help even when GITLAB_HOST is unset" {
+    run env -u GITLAB_HOST bash "$WS_BIN" gitlab-auth --help
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws gitlab-auth"* ]]
+    [[ "$output" != *"GITLAB_HOST is not set"* ]]
+}
+
+@test "ws help gitlab-auth reaches the same help without GITLAB_HOST" {
+    run env -u GITLAB_HOST bash "$WS_BIN" help gitlab-auth
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws gitlab-auth"* ]]
+    [[ "$output" != *"GITLAB_HOST is not set"* ]]
+}
+
 @test "gitlab-auth selects write token from fork-home namespace" {
     run bash "$WS_BIN" gitlab-auth
 

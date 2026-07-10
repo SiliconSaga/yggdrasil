@@ -822,6 +822,29 @@ HELP
 
 ws_gitlab_auth() {
     # ws:use-when configuring glab + git credentials from .env tokens
+
+    # Help must short-circuit ahead of every precondition — on a machine with
+    # no GITLAB_HOST, `ws gitlab-auth --help` is exactly the command a user
+    # runs to find out whether they need this at all.
+    if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'HELP'
+Usage: ws gitlab-auth [--status]
+
+Configure glab + optional git credentials for a GitLab host from .env tokens.
+Requires GITLAB_HOST — add 'export GITLAB_HOST=<your-gitlab-host>' to .env.
+
+  (no args)   Register the fork-home write token with glab, store path-scoped
+              git credentials for the source and fork namespaces, and verify
+              access with the source token.
+  --status    Show which gitTokens env vars are set/unset (no changes made).
+
+Only needed for GitLab API setup (typically self-hosted instances); GitHub
+and token-injected git operations work from .env without this step.
+See docs/git-provider-setup.md for token scopes and .env layout.
+HELP
+        return 0
+    fi
+
     local eco
     eco=$(ws_resolve_ecosystem)
 

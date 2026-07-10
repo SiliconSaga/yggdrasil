@@ -6,12 +6,13 @@ Where GDD goes after 1.0. The release line is **Claude-first with a published ro
 
 The biggest post-1.0 track. The portable layers are already agent-neutral — `AGENTS.md`, the `ws` CLI, `ws orient`, and skills as plain markdown work in any harness — while the Claude-specific pieces (the PreToolUse hook, `.claude/settings.json`) need per-agent counterparts.
 
-- **Codex** — actively in progress in a parallel workspace: session-scoped commit attribution already works cross-agent, and the compatibility bundle (startup/skill discovery, permission semantics, auth/review/MCP, setup validation) is underway.
-  - **First cross-agent hook** — a "Kubernetes guard" to help prevent accidental changes was implemented both within `ws` and as harness hooks for _both_ Claude and Codex, with the required subtle differences.
+- **Codex** — actively in progress: session-scoped commit attribution already works cross-agent, two focused Codex hooks now ship in-repo, and the compatibility bundle (startup/skill discovery, permission semantics, auth/review/MCP, setup validation) is underway.
+  - **Cross-agent hooks, shipped** — a "Kubernetes guard" to help prevent accidental changes was implemented both within `ws` and as harness hooks for _both_ Claude and Codex, with the required subtle differences; a second Codex hook delivers the workflow redirects (raw `git commit`/`git push`/provider commands → the `ws` wrappers) by reading the same committed `[redirect-commands]` rules the Claude hook uses — the first slice of the hook policy split below, live.
+  - **Per-agent onboarding docs** — Codex-specific setup guidance will live in a `CODEX.md` sibling to `CLAUDE.md` when Codex onboarding is written up; `AGENTS.md` stays agent-agnostic.
 - **Gemini and Antigravity** — next on deck once the two enabling primitives land, at which point adding an agent becomes mechanical rather than bespoke:
   - **Skill cross-registration** — skills stay canonical in `.agent/skills/`; a `ws` step registers them into each installed agent's native discovery path (Claude, Codex, Cursor, Antigravity), with stale-link cleanup on realm switches.
-  - **Hook policy split** — the hook's *policy* (redirects, destructive-ask patterns, corrective messages) becomes platform-neutral data, with thin per-agent enforcement adapters. Each agent gets the same training loop through its own hook mechanism.
-- **Cross-framework permissions** — mapping the allowlist model onto each framework's permission config; the semantics differ enough per harness that this rides with each agent's adapter.
+  - **Hook policy split** — the hook's *policy* (redirects, destructive-ask patterns, corrective messages) becomes platform-neutral data, with thin per-agent enforcement adapters. Each agent gets the same training loop through its own hook mechanism. The redirect rules already work this way (see above); the remaining sections follow as each agent's adapter needs them.
+- **Cross-framework permissions** — mapping the allowlist model onto each framework's permission config; the semantics differ enough per harness that this rides with each agent's adapter. Whether an agent-agnostic permissions source under `.agent/` should anchor this is tracked in [#127](https://github.com/SiliconSaga/yggdrasil/issues/127).
 
 ## More tutorials and template flavors
 

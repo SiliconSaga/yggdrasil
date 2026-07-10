@@ -66,7 +66,9 @@ What is explicitly **not** required for 1.0: multi-agent parity, the Team Thalam
 
 **Effort:** Small residual. The load-bearing fix already shipped; reprioritize — `B2`/`B3` now outrank this.
 
-### B2 — Cross-platform validation runs — ⬜ Not started
+### B2 — Cross-platform validation runs — 🟡 In progress
+
+**Status update (2026-07-09):** the Windows column has real coverage now: `Nano76Win11` (fresh Win11, no tooling) was dogfooded from bare machine through the gh-pages path — including a real production build (the "Local political site" case study in `docs/gdd/case-studies.md`) — and its findings fed straight back: `ws orient` self-diagnoses missing prereqs by running `ws preflight` for you, the onboarding docs stopped asserting PATH state and instruct making-it-so instead, auth was deliberately classified as deferred-to-first-remote-action rather than a preflight gate, and the bash-3.2 `set -u` crash fell out via #119. Residual papercuts from those runs are tracked as `P8`. **Remaining for the gate:** a one-shot newcomer run on a second clean Windows machine including the gh-pages tutorial (planned — the Nano76 runs were guided, not one-shot), which also covers the `B5` tutorial re-test; the Mac column has had no fresh-clone run recorded (`Idunn` — the host formerly named `rasmuss-mbp-2` — is the candidate).
 
 The "git clone and go" promise is validated almost entirely on the author's primary host (`Dionysus`, Win10 Pro, all prereqs pre-installed). Real confidence requires exercising the bootstrap path on systems that mirror what a fresh user actually has.
 
@@ -133,7 +135,9 @@ Two coherence gaps that read as "unfinished" to a public reader.
 
 **Approach:** Sweep every `ws` verb for uniform `--help` handling (treat `--help`/`-h` as a help request at every level, never as a malformed invocation). Separately, grep docs + skills for "see <X> above/below" style internal references and reconcile each against its actual current heading.
 
-### B5 — Tutorial + newcomer front door + adoption section — ⬜ Not started
+### B5 — Tutorial + newcomer front door + adoption section — 🟡 Mostly done
+
+**Status update (2026-07-09):** the doc-side gaps below closed via #109 (workspace-setup front-door polish), #119 (onboarding hardening: PAT-creation links, realm fork-and-rename guidance, `.env` token docs), and #120 (consistency pass): `docs/getting-started/index.md` now uses the full `bash scripts/ws` form deliberately in the pre-PATH steps and says so; the "Bringing GDD to Your Own Community" / "How adoption works" section describes the three-layer bootstrap as implemented (the *"details will evolve"* caveat is gone); and the gh-pages production path has published proof (`docs/gdd/case-studies.md`, "Local political site for a non-technical owner"). **Remaining:** the end-to-end fresh-clone tutorial re-test validating the ~15-min scaffold-to-live claim — this rides the `B2` second-Windows-machine run. Mermaid diagrams and additional template flavors stay roadmap.
 
 The tutorial is the literal front door for a public launch, and the `tutorial-next-pass` arc (Dionysus, active) is untouched. Known gaps already captured:
 
@@ -196,10 +200,18 @@ Loki phone-RC observation: following Bifrost work, *every* vanilla Gradle/build 
 The only remaining "residual" is behavioral (a sub-agent must actually *use* the inline override), not a code gap. Treat as done; no GA work required.
 
 ### P6 — `ws issue` bodyfile frontmatter + identity enforcement — ⬜
-Dionysus "Onboarding and identity": `ws issue` should accept a bodyfile with YAML frontmatter carrying title/label/component (mirroring commit bodyfiles); declare expected labels per component in ecosystem config and validate; enforce `identity.human_account` in provider-facing commands. Ties into `B4` (the `ws issue --help` gap) and the onboarding story. The broader "setup wizard during orientation / `ws overlay init`" piece is roadmap (`R6`).
+Dionysus "Onboarding and identity": `ws issue` should accept a bodyfile with YAML frontmatter carrying title/label/component (mirroring commit bodyfiles); declare expected labels per component in ecosystem config and validate; enforce `identity.human_account` in provider-facing commands. Ties into `B4` (the `ws issue --help` gap) and the onboarding story. The broader "setup wizard during orientation / `ws overlay init`" piece is roadmap (`R6`). Tracked as issue #124 (post-GA).
 
 ### P7 — Bulk-resolve review threads (`ws review … --reply-from`) — ⬜
-Dionysus + FG4: the `ws review <comp> reply <thread-id> "<msg>" --resolve` pattern recurs enough to script. Add `.reviews/` as the conventional drafts dir + a `--bodyfile`/`--reply-from` flag taking a YAML map of thread-id → reply → resolve (keep the positional one-liner form). FG4 hit this needing multi-paragraph markdown replies; Loki worked around it with a one-off script. Quality-of-life, not a gate.
+Dionysus + FG4: the `ws review <comp> reply <thread-id> "<msg>" --resolve` pattern recurs enough to script. Add `.reviews/` as the conventional drafts dir + a `--bodyfile`/`--reply-from` flag taking a YAML map of thread-id → reply → resolve (keep the positional one-liner form). FG4 hit this needing multi-paragraph markdown replies; Loki worked around it with a one-off script. Quality-of-life, not a gate. Tracked as issue #125 (post-GA).
+
+### P8 — Fresh-machine first-run papercuts (Nano76Win11 dogfood) — ✅ Done
+Residual findings from the `B2` fresh-Win11 dogfood runs (2026-06-21 → 2026-07-03):
+1. ✅ **`ws status` errors on a components-less workspace** — with no components cloned it printed the yggdrasil + hoard lines but also emitted `Error: cannot get keys of !!null, keys only works for maps and arrays` from an unguarded `yq '.components | keys'` walk. Fixed (2026-07-10, TDD'd) with a `// {}` guard — the same unguarded pattern turned out to live in `ws pull` and `ws vscode`, fixed alike; `ws list` / `ws clone --all` were already safe behind a `length` pre-check, now pinned by a test.
+2. ✅ **IDE holds stale PATH** — after a winget/brew tool install, a terminal restart isn't always enough; editors capture PATH at launch and need a full IDE restart. Documented in `docs/workspace-setup.md` (this pass).
+3. ✅ **gh-pages local-preview prereqs undocumented** — local Jekyll preview needs Ruby + Bundler + Jekyll, which `ws preflight` deliberately doesn't check (it's a per-template need, not a workspace prereq). Documented in the gh-pages template README, including the `wdm`-gem-won't-compile-on-Ruby-3.3+ gotcha (this pass).
+
+Two open *decisions* from the same runs were dispositioned 2026-07-09 rather than left pending: the canonical-allowlist-location question (`.claude/settings.json` vs an agent-agnostic `.agent/` source) is **deferred post-GA as issue #127** — GA ships `.claude/settings.json` as the committed Claude allowlist; and Codex onboarding guidance gets a **`CODEX.md` sibling to `CLAUDE.md`** when written (AGENTS.md stays agent-agnostic) — recorded in `docs/gdd/roadmap.md`.
 
 ---
 
@@ -207,7 +219,9 @@ Dionysus + FG4: the `ws review <comp> reply <thread-id> "<msg>" --resolve` patte
 
 These do **not** gate 1.0 but must have designed paths, since the author makes parallel progress on them across workspaces. Each is a pointer to where the real design lives plus the GA-relevant summary.
 
-### R1 — Cross-harness compatibility (Codex / Gemini / Antigravity) — 🟡 In progress (FG4)
+### R1 — Cross-harness compatibility (Codex / Gemini / Antigravity) — 🟡 In progress (mainline + FG4)
+
+**Status update (2026-07-09):** this track jumped ahead of its own plan, on mainline: #118 shipped a focused Codex PreToolUse hook for the `ws k8s` guard, and #126 shipped a focused Codex redirect hook that reads the committed `[redirect-commands]` rules directly — so the "hook platform-split" piece below has its first live slice (redirect policy is platform-neutral data; both agents consume it without either hook being edited). The hook-v3 extensions bullet graduated to issue #123. Two placement decisions landed 2026-07-09: Codex onboarding guidance goes in a `CODEX.md` sibling to `CLAUDE.md` when written (AGENTS.md stays agent-agnostic), and the agent-agnostic *allowlist* source question is deferred post-GA as issue #127.
 
 The biggest "bonus" track. Codex compatibility is actively in progress on the FG4 workspace. The designed path (FG4 "Codex compatibility plan"):
 - Keep shrinking root `AGENTS.md`; add per-agent skill symlinks/mirrors so Codex discovers repo skills under its native path while Claude/GDD keep the canonical `.agent/skills/` layout (see `R3`).
@@ -275,7 +289,7 @@ Designed-but-deferred, "defer until evidence of need":
 
 This records the Thalamus observations folded into this doc and removed from their files, so nothing is lost and the same item isn't re-tracked. Each Thalamus retains an Audit Log entry pointing here. Items **not** listed (cluster ops, NVIDIA/CFR day-job work, school-advocacy, knarr/ting/sweethome3d internals, GKE log exclusions) were deliberately left in place — they are operational/project-specific, not GA-readiness.
 
-> **Note on the host-specific files referenced below** (`Dionysus-thalamus.md`, `FG4WWY622F-thalamus.md`, `Loki-thalamus.md`, `rasmuss-mbp-2-thalamus.md`): these are **external to this repository.** They live in the per-developer thalami hoard (a separate git repo cloned under `hoards/<thalami-hoard>/`, gitignored at the workspace root — this repo's `hoards/` holds only a `.gitkeep`). The names are recorded here for the author's audit trail across machines, not as paths a reader of this repo can open. See `docs/gdd/hoards.md` and `docs/gdd/thalamus.md` for the hoard model.
+> **Note on the host-specific files referenced below** (`Dionysus-thalamus.md`, `FG4WWY622F-thalamus.md`, `Loki-thalamus.md`, `rasmuss-mbp-2-thalamus.md` — the latter host has since been renamed `Idunn`, so its file is now `Idunn-thalamus.md`): these are **external to this repository.** They live in the per-developer thalami hoard (a separate git repo cloned under `hoards/<thalami-hoard>/`, gitignored at the workspace root — this repo's `hoards/` holds only a `.gitkeep`). The names are recorded here for the author's audit trail across machines, not as paths a reader of this repo can open. See `docs/gdd/hoards.md` and `docs/gdd/thalamus.md` for the hoard model.
 
 **Dionysus-thalamus.md** → moved: multi-platform testing checklist (`B2`); `ws audit-permissions` over-matching (`B3`); `ws issue --help` + anchor-vs-reference doc drift (`B4`); `tutorial-next-pass` forward gaps (`B5`); `ws hoard upgrade` disable (`B7`); `ws rebase` idea, local-lint-tooling, bulk-resolve review threads, `git-issue.sh` querying, onboarding/identity + setup wizard (`P6`/`P7`/`R6`); `component/<comp>` target-kind + "review realms/hoards?" (`B1`); review-workflow enhancements (`P*`); Co-Authored-By sub-agent residual (`P5`); `hook-v3-extensions` non-Bash composition coverage (`R1`). Left in place: Nidavellir DNS IAM, blog refresh, school-board items, PKM/Outbox/nonclaudesidian, schools-site stale images, Nordri rdctl note, Backstage/upgradeable-templates far-future, DI-migration items, MTL-site analytics.
 
@@ -292,3 +306,5 @@ This records the Thalamus observations folded into this doc and removed from the
 Open a `gdd-ga-1.0` arc (shared `id` across hosts) whose `next:` references this doc. Mark each `B*`/`P*` item ✅ here as it lands; the arc closes when all `B*` are ✅ and `1.0.0` is tagged (`B6`). The `R*` items graduate to their own arcs when picked up — they are roadmap pointers, not arc-tracked here.
 
 **Sequencing note (2026-06-11):** the B1/B3/B4/B7 batch landed via `docs/plans/2026-06-10-gdd-ga-cleanups-plan.md`. The remaining GA blockers are **B2** (cross-platform runs — execute the checklist above on the two trial machines; it's a run-and-fix exercise, no plan needed) and **B6** (SemVer + CHANGELOG — needs the versioning-unit decision first, then the rest is mechanical), plus the **B5** tutorial/front-door pass tracked by its own arc. The **P\*** items are independent papercuts that can ride along with either; each **R\*** roadmap item needs its own brainstorm before any plan.
+
+**Sequencing note (2026-07-09, updated 2026-07-10):** what's actually between here and the tag: (1) **issue #122** — clone-fork GitHub provider path + default-token fallback + `gitlab-auth --help` — re-verified still valid on 2026-07-09, then **fixed 2026-07-10** (TDD'd, full suite 684/684); the issue's last acceptance box — live end-to-end clone-fork against real GitHub AND GitLab sources — deliberately rides the clean-machine runs, so close #122 after those; (2) the **P8.1** `ws status` null-components guard — **fixed 2026-07-10** alongside; (3) the **B2/B5** one-shot newcomer runs on the planned clean systems, gh-pages tutorial included; then (4) the **B6** release ceremony per `docs/gdd/versioning.md` (curate `[Unreleased]` → `1.0.0`, annotated tag, push). P6/P7 are filed as post-GA issues #124/#125; the R1 allowlist question is #127; session-liveness was resolved by decision (no liveness marker by design — staleness never gates; `ws clean --sessions-all` is the stale-scope remedy, per the rationale comment in `scripts/ws-k8s.sh`).

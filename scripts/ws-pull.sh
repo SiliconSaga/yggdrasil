@@ -99,7 +99,8 @@ else
     # No arg — walk all three families. Components are config-driven
     # (yq over ecosystem.yaml); realms and hoards are disk-driven
     # (any directory with a .git/ subfolder). Mirrors ws-status.sh.
-    for name in $(yq '.components | keys | .[]' "$ECO"); do
+    # `// {}` guards the fresh-workspace case (null/missing components map).
+    for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
         pull_repo "$name" "$COMPONENTS_DIR/$name"
     done
 
