@@ -53,6 +53,9 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - Provider auth checks are per-host, so an unrelated stale host in `glab`'s config no longer blocks every GitLab operation (#116).
 - Empty auth-env arrays no longer crash `ws` under macOS's bash 3.2 with `set -u` (#119).
 - `ws review --since prev-push` paginates the push-events lookup and recovers a missing previous push event, so the since-filter resolves on busy repos (#121).
+- `ws clone-fork` works against GitHub sources: provider-aware fork lookup/creation (`gh repo fork`, org-vs-user aware) and a GitHub fork-helper URL instead of the GitLab-only API/UI path; token resolution falls back to the provider default (`GH_TOKEN`/`GITLAB_TOKEN`) on the canonical hosts like `ws push` does; provider-token names gain `GITHUB_*`/`GH_*` namespacing to match `GITLAB_*` (#122).
+- `ws gitlab-auth --help` prints help even when `GITLAB_HOST` is unset (#122).
+- `ws status` / `ws pull` / `ws vscode` no longer surface a yq `cannot get keys of !!null` error on a workspace with no components declared — the first-run papercut from the fresh-Win11 dogfood runs.
 
 ### Security
 
