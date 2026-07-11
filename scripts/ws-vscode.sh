@@ -28,11 +28,11 @@ ECO="$(ws_resolve_ecosystem)"
 # Build folder list: yggdrasil root first, then cloned components
 folders='[{"path": "."}'
 # `// {}` guards the fresh-workspace case (null/missing components map).
-for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
+while IFS= read -r name; do
     if [[ -d "$COMPONENTS_DIR/$name/.git" ]]; then
         folders="$folders, {\"path\": \"components/$name\"}"
     fi
-done
+done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 folders="$folders]"
 
 # Write workspace file

@@ -40,10 +40,10 @@ fi
 printf "%-15s %-10s %-12s %-8s\n" "COMPONENT" "TIER" "CHART" "LOCAL"
 printf "%-15s %-10s %-12s %-8s\n" "---------" "----" "-----" "-----"
 
-for name in $(yq '.components | keys | .[]' "$ECO"); do
-    tier=$(yq ".components[\"$name\"].tier" "$ECO")
-    chart_version=$(yq ".components[\"$name\"].chartVersion" "$ECO")
-    disabled=$(yq ".components[\"$name\"].disabled // false" "$ECO")
+while IFS= read -r name; do
+    tier=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)].tier // ""' "$ECO")
+    chart_version=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)].chartVersion // ""' "$ECO")
+    disabled=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)].disabled // false' "$ECO")
 
     if [[ -d "$COMPONENTS_DIR/$name/.git" ]]; then
         local_status="yes"
@@ -56,4 +56,4 @@ for name in $(yq '.components | keys | .[]' "$ECO"); do
     fi
 
     printf "%-15s %-10s %-12s %-8s\n" "$name" "$tier" "$chart_version" "$local_status"
-done
+done < <(yq -r '.components | keys | .[]' "$ECO")

@@ -1150,7 +1150,7 @@ for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"};
         # all collapse to "unwired".
         _ar_cmd_value=""
         if [[ -f "$_ar_adapter_file" ]] && command -v yq >/dev/null 2>&1; then
-            _ar_cmd_value="$(yq -r ".commands.$_ar_verb // \"\"" "$_ar_adapter_file" 2>/dev/null || echo "")"
+            _ar_cmd_value="$(ADAPTER_VERB="$_ar_verb" yq -r '.commands[strenv(ADAPTER_VERB)] // ""' "$_ar_adapter_file" 2>/dev/null || echo "")"
         fi
         if [[ -n "$_ar_cmd_value" && "$_ar_cmd_value" != "null" ]]; then
             # WIRED — deny with bypass pointer (matches Tier 2 shape).

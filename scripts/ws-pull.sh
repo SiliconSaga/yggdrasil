@@ -100,9 +100,9 @@ else
     # (yq over ecosystem.yaml); realms and hoards are disk-driven
     # (any directory with a .git/ subfolder). Mirrors ws-status.sh.
     # `// {}` guards the fresh-workspace case (null/missing components map).
-    for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
+    while IFS= read -r name; do
         pull_repo "$name" "$COMPONENTS_DIR/$name"
-    done
+    done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 
     realms_dir="${REALMS_DIR:-$ROOT_DIR/realms}"
     if [[ -d "$realms_dir" ]]; then

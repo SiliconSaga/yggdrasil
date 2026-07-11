@@ -266,12 +266,12 @@ elif [[ "${1:-}" == "--all" ]]; then
         echo "  Run 'ws realm init' to get started, or 'ws realm <url>' for your community." >&2
         exit 1
     fi
-    for name in $(yq '.components | keys | .[]' "$ECO"); do
+    while IFS= read -r name; do
         clone_component "$name" "$ECO"
-    done
+    done < <(yq -r '.components | keys | .[]' "$ECO")
 elif [[ -n "${1:-}" ]]; then
     ECO="$(ws_resolve_ecosystem)"
-    if [[ "$(yq ".components[\"${1}\"] // \"missing\"" "$ECO")" == "missing" ]]; then
+    if [[ "$(COMPONENT_NAME="$1" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$ECO")" == "missing" ]]; then
         echo "ERROR: '$1' is not declared in ecosystem config." >&2
         echo "  Use 'ws clone --url <git-url>' for repos not in the ecosystem." >&2
         exit 1

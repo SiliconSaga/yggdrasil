@@ -102,7 +102,7 @@ ws_resolve_target() {
     local eco
     eco="$(ws_resolve_ecosystem)"
     local exists
-    exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
+    exists=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$eco")
     if [[ "$exists" == "missing" ]]; then
         echo "ERROR: no such target '$name' (looked for a component, realm, or hoard)." >&2
         echo "  Components must be declared in ecosystem config — run 'ws list'." >&2
@@ -514,7 +514,7 @@ HELP
     local eco
     eco="$(ws_resolve_ecosystem)"
     local exists
-    exists=$(yq ".components[\"$comp\"] // \"missing\"" "$eco")
+    exists=$(COMPONENT_NAME="$comp" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$eco")
     if [[ "$exists" == "missing" ]]; then
         echo "ERROR: '$comp' is not declared in ecosystem config." >&2
         exit 1
