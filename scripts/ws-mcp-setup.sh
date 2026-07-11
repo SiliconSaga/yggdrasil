@@ -106,7 +106,7 @@ fi
 # visually distinct before generating configuration.
 while IFS=$'\t' read -r server_name server_url; do
     [[ -n "$server_name" ]] || continue
-    if [[ "$server_url" =~ [[:cntrl:]] || ! "$server_url" =~ ^https?://[^/[:space:]]+(/.*)?$ ]]; then
+    if [[ "$server_url" =~ [[:cntrl:]] || ! "$server_url" =~ ^https?://[^/[:space:]]+(/[^[:space:]]*)?$ ]]; then
         echo "ERROR: MCP server '$server_name' must use an absolute HTTP(S) URL (got: $server_url)." >&2
         exit 1
     fi

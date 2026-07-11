@@ -78,6 +78,14 @@ git_remote_validate() {
         echo "ERROR: refusing executable Git remote helper syntax in '$display_value'." >&2
         return 1
     fi
+    # HTTP(S) userinfo means a credential baked into config or a URL — it
+    # would persist into .git/config and leak through process listings.
+    # Tokens belong in .env; ws injects them per-process. SSH usernames
+    # (ssh://git@…, git@host:…) are identities, not credentials — allowed.
+    if [[ "$value" =~ ^https?://[^/]*@ ]]; then
+        echo "ERROR: refusing Git remote with embedded credentials in '$display_value' — keep tokens in .env; ws injects them per-process." >&2
+        return 1
+    fi
 
     local host=""
     case "$value" in

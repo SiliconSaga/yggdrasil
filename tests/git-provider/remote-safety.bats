@@ -104,6 +104,22 @@ run_validator() {
     [[ "$output" == *"expected host 'gitlab.example.com'"* ]]
 }
 
+@test "remote validator rejects HTTPS remotes with embedded credentials" {
+    run_validator "https://oauth2:super-secret@gitlab.example.com/team/project.git"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"embedded credentials"* ]]
+    [[ "$output" != *"super-secret"* ]]
+}
+
+@test "remote validator keeps SSH usernames working" {
+    run_validator "ssh://git@gitlab.example.com:2222/team/project.git"
+    [ "$status" -eq 0 ]
+
+    run_validator "git@gitlab.example.com:team/project.git"
+    [ "$status" -eq 0 ]
+}
+
 @test "remote validator redacts embedded credentials from errors" {
     run_validator "http://oauth2:super-secret@gitlab.example.com/team/project.git"
 

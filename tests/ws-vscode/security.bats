@@ -25,6 +25,7 @@ YAML
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" == *"../outside"* ]]
     [ ! -e "$WORK/yggdrasil.code-workspace" ]
 }
 

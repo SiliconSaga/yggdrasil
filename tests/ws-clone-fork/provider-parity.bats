@@ -29,9 +29,12 @@ SH
     # Sandbox the git global config via HOME, not GIT_CONFIG_GLOBAL — the
     # env var needs git >= 2.32 and is silently IGNORED on older gits, which
     # both leaks the insteadOf rewrites into no-op land (tests then hit the
-    # real network) and reads the developer's actual ~/.gitconfig.
+    # real network) and reads the developer's actual ~/.gitconfig. Unset the
+    # inherited override vars too, or a runner exporting them would point
+    # git past the sandbox entirely.
     export HOME="$BATS_TEST_TMPDIR/home"
     mkdir -p "$HOME"
+    unset GIT_CONFIG_GLOBAL XDG_CONFIG_HOME
     export GH_LOG GH_FORK_MARKER
 }
 

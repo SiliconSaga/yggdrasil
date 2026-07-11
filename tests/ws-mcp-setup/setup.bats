@@ -86,6 +86,15 @@ run_mcp() {
     [[ "$output" != *"plain HTTP"* ]]
 }
 
+@test "mcp setup rejects whitespace inside an endpoint URL" {
+    write_realm_mcp "https://mcp.example.com/path with spaces"
+
+    run_mcp
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"absolute HTTP(S) URL"* ]]
+}
+
 @test "mcp setup flags embedded credentials in an endpoint" {
     write_realm_mcp https://svc-user:sekret@mcp.example.com/service
 
