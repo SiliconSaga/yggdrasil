@@ -2,6 +2,22 @@
 load test_helper
 setup() { make_kubectl_stub "default"; }
 
+make_kustomize_probe() {
+    local rendered="$1"
+    export KUSTOMIZE_PROBE="$BATS_TEST_TMPDIR/kustomize-called"
+    cat > "$BATS_TEST_TMPDIR/kubectl-kustomize-probe" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == "kustomize" ]]; then
+  touch "$KUSTOMIZE_PROBE"
+  cat "$rendered"
+else
+  echo default
+fi
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize-probe"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize-probe"
+}
+
 @test "script resolver anchors slash-relative paths to the payload cwd" {
     mkdir -p "$BATS_TEST_TMPDIR/work/scripts"
     printf '#!/bin/bash\nkubectl get pods\n' > "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh"
@@ -80,6 +96,7 @@ setup() { make_kubectl_stub "default"; }
 }
 @test "apply -k inspects rendered resources and allows an in-scope namespace" {
     mkdir -p "$BATS_TEST_TMPDIR/overlay"
+    printf 'resources: []\n' > "$BATS_TEST_TMPDIR/overlay/kustomization.yaml"
     cat > "$BATS_TEST_TMPDIR/rendered.yaml" <<'EOF'
 apiVersion: v1
 kind: ConfigMap
@@ -98,6 +115,7 @@ EOF
 }
 @test "apply --kustomize blocks a rendered out-of-scope namespace" {
     mkdir -p "$BATS_TEST_TMPDIR/overlay"
+    printf 'resources: []\n' > "$BATS_TEST_TMPDIR/overlay/kustomization.yaml"
     cat > "$BATS_TEST_TMPDIR/rendered.yaml" <<'EOF'
 apiVersion: v1
 kind: ConfigMap
@@ -116,6 +134,7 @@ EOF
 }
 @test "apply -k blocks a rendered cluster-scoped resource" {
     mkdir -p "$BATS_TEST_TMPDIR/overlay"
+    printf 'resources: []\n' > "$BATS_TEST_TMPDIR/overlay/kustomization.yaml"
     cat > "$BATS_TEST_TMPDIR/rendered.yaml" <<'EOF'
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -134,6 +153,90 @@ EOF
 @test "apply -k fails closed when the local kustomization path is missing" {
     run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/missing-overlay"
     [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "apply -k rejects an HTTPS resource before invoking kubectl kustomize" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay"
+    cat > "$overlay/kustomization.yaml" <<'YAML'
+resources:
+  - https://attacker.example/base.yaml
+YAML
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k rejects a Git-style remote resource before rendering" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay"
+    cat > "$overlay/kustomization.yaml" <<'YAML'
+resources:
+  - github.com/example/repo//base?ref=main
+YAML
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k rejects absolute and parent-traversal resources before rendering" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay"
+    printf 'resources:\n  - ../outside.yaml\n' > "$overlay/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\n' > "$BATS_TEST_TMPDIR/outside.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+
+    printf 'resources:\n  - /etc/hosts\n' > "$overlay/kustomization.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k recursively rejects a remote reference in a local child" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay/child"
+    printf 'resources:\n  - child\n' > "$overlay/kustomization.yaml"
+    cat > "$overlay/child/kustomization.yaml" <<'YAML'
+resources:
+  - https://attacker.example/nested.yaml
+YAML
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k renders after a recursively local reference graph passes" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay/child"
+    printf 'resources:\n  - child\n  - configmap.yaml\n' > "$overlay/kustomization.yaml"
+    printf 'resources:\n  - child-configmap.yaml\n' > "$overlay/child/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: root\n' > "$overlay/configmap.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: child\n' > "$overlay/child/child-configmap.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: rendered\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    [ -e "$KUSTOMIZE_PROBE" ]
 }
 @test "apply -f a remote URL BLOCKs (cannot resolve)" {
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f https://example.com/x.yaml
