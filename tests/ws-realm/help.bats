@@ -28,6 +28,29 @@ YAML
     cat > "$work/ecosystem.local.yaml" <<'YAML'
 notes: keep
 YAML
+    printf 'components: {}\n' > "$work/realms/realm.test/ecosystem.yaml"
+
+    run env \
+        "ROOT_DIR=$work" \
+        "REALMS_DIR=$work/realms" \
+        "COMPONENTS_DIR=$work/components" \
+        "HOARDS_DIR=$work/hoards" \
+        "ECOSYSTEM=$work/ecosystem.yaml" \
+        "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
+        bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm set to: realm.test"* ]]
+    [ "$(yq '.realm' "$work/ecosystem.local.yaml")" = "realm.test" ]
+    [ "$(yq '.notes' "$work/ecosystem.local.yaml")" = "keep" ]
+}
+
+@test "ws realm use requires explicit trust in a non-interactive session" {
+    work="$BATS_TEST_TMPDIR/work-trust"
+    mkdir -p "$work/realms/realm.test" "$work/components" "$work/hoards"
+    printf 'components: {}\n' > "$work/ecosystem.yaml"
+    printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
+    printf 'components: {}\n' > "$work/realms/realm.test/ecosystem.yaml"
 
     run env \
         "ROOT_DIR=$work" \
@@ -38,10 +61,50 @@ YAML
         "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
         bash "$WS_BIN" realm use realm.test
 
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--trust"* ]]
+    [ "$(yq '.realm // ""' "$work/ecosystem.local.yaml")" = "" ]
+}
+
+@test "ws realm use --trust summarizes the trust surface before selection" {
+    work="$BATS_TEST_TMPDIR/work-summary"
+    mkdir -p "$work/realms/realm.test/adapters" "$work/components" "$work/hoards"
+    printf 'components: {}\n' > "$work/ecosystem.yaml"
+    printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
+    cat > "$work/realms/realm.test/ecosystem.yaml" <<'YAML'
+defaults:
+  gitTokens:
+    git.example.com/team: GITLAB_TEAM_TOKEN
+components:
+  app:
+    repo: https://git.example.com/team/app.git
+mcp:
+  servers:
+    assistant:
+      transport: http
+      url: https://mcp.example.com/api
+YAML
+    cat > "$work/realms/realm.test/adapters/app.yaml" <<'YAML'
+commands:
+  test: uv run pytest
+YAML
+
+    run env \
+        "ROOT_DIR=$work" \
+        "REALMS_DIR=$work/realms" \
+        "COMPONENTS_DIR=$work/components" \
+        "HOARDS_DIR=$work/hoards" \
+        "ECOSYSTEM=$work/ecosystem.yaml" \
+        "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
+        bash "$WS_BIN" realm use --trust realm.test
+
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Active realm set to: realm.test"* ]]
+    [[ "$output" == *"Realm trust summary"* ]]
+    [[ "$output" == *"git.example.com"* ]]
+    [[ "$output" == *"uv run pytest"* ]]
+    [[ "$output" == *"GITLAB_TEAM_TOKEN"* ]]
+    [[ "$output" == *"https://mcp.example.com/api"* ]]
     [ "$(yq '.realm' "$work/ecosystem.local.yaml")" = "realm.test" ]
-    [ "$(yq '.notes' "$work/ecosystem.local.yaml")" = "keep" ]
 }
 
 @test "ws realm use avoids direct yq string interpolation" {
@@ -70,7 +133,7 @@ YAML
         "HOARDS_DIR=$work/hoards" \
         "ECOSYSTEM=$work/ecosystem.yaml" \
         "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
-        bash "$WS_BIN" realm use 'realm" | .notes = "changed'
+        bash "$WS_BIN" realm use --trust 'realm" | .notes = "changed'
 
     [ "$status" -ne 0 ]
     [ "$(yq '.realm' "$work/ecosystem.local.yaml")" = "realm.safe" ]

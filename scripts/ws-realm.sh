@@ -125,11 +125,8 @@ ws_resolve_target() {
 #
 # Discovery rule:
 #   1. ecosystem.local.yaml `realm:` selector, if set and dir exists
-#   2. Single non-template realm in realms/ (matches realm-* but not realm-template)
-#   3. realm-template, if present
-#   4. Empty (no realm active)
-#
-# Errors if step 2 finds multiple non-template realms (ambiguous).
+#   2. trusted bundled realm-template, if present
+#   3. Empty (community realms require explicit `ws realm use` trust)
 ws_detect_realm() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
@@ -146,35 +143,11 @@ ws_detect_realm() {
         fi
     fi
 
-    # Auto-detect: a single realm-* that is not realm-template
-    local candidates=()
-    if [[ -d "$REALMS_DIR" ]]; then
-        for d in "$REALMS_DIR"/realm-*/; do
-            [[ -d "$d" ]] || continue
-            local dname
-            dname="$(basename "$d")"
-            [[ "$dname" == "realm-template" ]] && continue
-            candidates+=("$dname")
-        done
+    if [[ -d "$REALMS_DIR/realm-template" ]]; then
+        echo "realm-template"
+        return
     fi
-
-    case "${#candidates[@]}" in
-        0)
-            if [[ -d "$REALMS_DIR/realm-template" ]]; then
-                echo "realm-template"
-                return
-            fi
-            echo ""
-            ;;
-        1)
-            echo "${candidates[0]}"
-            ;;
-        *)
-            echo "ERROR: Multiple non-template realms found in realms/: ${candidates[*]}." >&2
-            echo "  Set 'realm: <name>' in ecosystem.local.yaml to pick one." >&2
-            exit 1
-            ;;
-    esac
+    echo ""
 }
 
 # Produce a merged ecosystem config (upstream + realm + local).
@@ -309,7 +282,7 @@ ws_realm_help() {
     echo "Subcommands:" >&2
     echo "  init            Clone the template realm for tutorials" >&2
     echo "  <git-url>       Clone a community realm" >&2
-    echo "  use <name>      Set active realm in ecosystem.local.yaml" >&2
+    echo "  use [--trust] <name>  Review and select a cloned realm" >&2
     echo "  list            Show available realms and which is active" >&2
     echo "" >&2
     echo "Also available via ws:" >&2
@@ -374,12 +347,58 @@ HELP
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
+ws_realm_trust_summary() {
+    local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
+    echo "Realm trust summary: $name"
+    echo "  Repository hosts:"
+    local found=0 repo host adapter_file commands
+    while IFS= read -r repo; do
+        [[ -n "$repo" ]] || continue
+        host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"
+        echo "    $host  ←  $repo"
+        found=1
+    done < <(yq -r '.components // {} | to_entries | .[] | .value.repo // empty' "$realm_file" 2>/dev/null)
+    [[ "$found" -eq 1 ]] || echo "    (none declared)"
+
+    echo "  Adapter commands:"
+    found=0
+    for adapter_file in "$realm_dir"/adapters/*.yaml; do
+        [[ -f "$adapter_file" ]] || continue
+        commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null || true)"
+        if [[ -n "$commands" ]]; then
+            echo "    $(basename "$adapter_file" .yaml):"
+            echo "$commands"
+            found=1
+        fi
+    done
+    [[ "$found" -eq 1 ]] || echo "    (none declared)"
+
+    echo "  Credential-mapping requests (not authoritative until copied locally):"
+    commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null || true)"
+    if [[ -n "$commands" ]]; then echo "$commands"; else echo "    (none declared)"; fi
+
+    echo "  MCP endpoints:"
+    commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  " + .value.url' "$realm_file" 2>/dev/null || true)"
+    if [[ -n "$commands" ]]; then echo "$commands"; else echo "    (none declared)"; fi
+}
+
 ws_realm_use() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: ws realm use <name>" >&2
+    local trust=0 name=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --trust) trust=1 ;;
+            -*) echo "ERROR: Unknown option '$1'." >&2; exit 1 ;;
+            *)
+                [[ -z "$name" ]] || { echo "Usage: ws realm use [--trust] <name>" >&2; exit 1; }
+                name="$1"
+                ;;
+        esac
+        shift
+    done
+    if [[ -z "$name" ]]; then
+        echo "Usage: ws realm use [--trust] <name>" >&2
         exit 1
     fi
-    local name="$1"
     # Validate realm name — prevent path traversal
     if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
         echo "ERROR: Invalid realm name '$name'. Must be alphanumeric with dots, dashes, underscores." >&2
@@ -392,6 +411,24 @@ ws_realm_use() {
             [[ -d "$d" ]] && echo "    $(basename "$d")"
         done
         exit 1
+    fi
+    local realm_file="$REALMS_DIR/$name/ecosystem.yaml"
+    if [[ ! -f "$realm_file" ]] || ! yq '.' "$realm_file" >/dev/null 2>&1; then
+        echo "ERROR: Realm '$name' has no valid ecosystem.yaml." >&2
+        exit 1
+    fi
+
+    ws_realm_trust_summary "$name"
+    echo ""
+    if [[ "$trust" -ne 1 ]]; then
+        if [[ -t 0 ]]; then
+            local confirm
+            read -r -p "Trust and activate this realm? [y/N] " confirm
+            [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; return 0; }
+        else
+            echo "ERROR: Non-interactive realm selection requires --trust after reviewing the summary." >&2
+            exit 1
+        fi
     fi
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
@@ -464,7 +501,8 @@ ws_realm_clone_url() {
     git_auth_env_for_url "$url"
     env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$url" "$target"
     echo ""
-    echo "Community realm ready. Run 'ws clone --all' to clone components."
+    echo "Community realm cloned but not active. Review and select it with:"
+    echo "  ws realm use $repo_name"
 }
 
 ws_actions() {
