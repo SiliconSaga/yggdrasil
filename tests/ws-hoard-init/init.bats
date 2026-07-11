@@ -146,6 +146,19 @@ setup() {
     [[ "$output" == *"Available templates"* ]]
 }
 
+@test "template traversal is rejected even when the escaped directory exists" {
+    local templates="$BATS_TEST_TMPDIR/templates"
+    mkdir -p "$templates/hoards" "$templates/outside"
+    printf '# outside\n' > "$templates/outside/README.md"
+    export TEMPLATES_DIR="$templates"
+
+    run_hoard_init ../outside --name escaped
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid hoard template name"* ]]
+    [ ! -e "$HOARDS_DIR/escaped" ]
+}
+
 # ---------------------------------------------------------------------------
 # Yaml-driven flow: clone failure paths
 # ---------------------------------------------------------------------------
@@ -173,7 +186,7 @@ setup() {
     mkdir -p "$tdir"
     cat > "$tdir/template.yaml" <<'YAML'
 upstream: /nonexistent/path/upstream-only.git
-pin: ""
+pin: "0000000000000000000000000000000000000000"
 fallback: ""
 post_clone:
   - strip_git
@@ -195,6 +208,8 @@ YAML
     # Stand up a synthetic upstream bare repo
     local upstream_url
     upstream_url="$(make_bare_upstream synthetic)"
+    local upstream_pin
+    upstream_pin="$(bare_head_for_url "$upstream_url")"
 
     # Generate a fresh template.yaml inside the fixture template dir
     # pointing at the bare upstream we just built. Each test gets its
@@ -204,7 +219,7 @@ YAML
     cp -R "$FIXTURES_DIR/templates/hoards/synthetic-vault/." "$tdir/"
     cat > "$tdir/template.yaml" <<YAML
 upstream: $upstream_url
-pin: ""
+pin: "$upstream_pin"
 fallback: ""
 post_clone:
   - strip_git
@@ -236,13 +251,15 @@ YAML
     # helper should fall through cleanly.
     local fallback_url
     fallback_url="$(make_bare_upstream synthetic-fb)"
+    local fallback_pin
+    fallback_pin="$(bare_head_for_url "$fallback_url")"
 
     local tdir="$BATS_TEST_TMPDIR/templates/hoards/fallback-vault"
     mkdir -p "$tdir/gdd-bridge"
     echo "# Bridge" > "$tdir/gdd-bridge/AGENTS.md"
     cat > "$tdir/template.yaml" <<YAML
 upstream: /nonexistent/path/never-resolves.git
-pin: ""
+pin: "$fallback_pin"
 fallback: $fallback_url
 post_clone:
   - strip_git
@@ -278,13 +295,15 @@ YAML
     # bridge dir exists in the template but should NOT be applied.
     local upstream_url
     upstream_url="$(make_bare_upstream stripgit-only)"
+    local upstream_pin
+    upstream_pin="$(bare_head_for_url "$upstream_url")"
 
     local tdir="$BATS_TEST_TMPDIR/templates/hoards/stripgit-only-vault"
     mkdir -p "$tdir/gdd-bridge"
     echo "should-not-land" > "$tdir/gdd-bridge/SKIP.md"
     cat > "$tdir/template.yaml" <<YAML
 upstream: $upstream_url
-pin: ""
+pin: "$upstream_pin"
 fallback: ""
 post_clone:
   - strip_git
@@ -300,12 +319,14 @@ YAML
 @test "yaml flow: unknown post_clone step warns but continues" {
     local upstream_url
     upstream_url="$(make_bare_upstream unknownstep)"
+    local upstream_pin
+    upstream_pin="$(bare_head_for_url "$upstream_url")"
 
     local tdir="$BATS_TEST_TMPDIR/templates/hoards/unknownstep-vault"
     mkdir -p "$tdir"
     cat > "$tdir/template.yaml" <<YAML
 upstream: $upstream_url
-pin: ""
+pin: "$upstream_pin"
 fallback: ""
 post_clone:
   - bogus_step
@@ -319,4 +340,45 @@ YAML
     [ -d "$HOARDS_DIR/unknown-step" ]
     # strip_git still ran — followed by ws_hoard_init's own git init
     [ -d "$HOARDS_DIR/unknown-step/.git" ]
+}
+
+@test "yaml flow: mutable refs are rejected before clone" {
+    local upstream_url
+    upstream_url="$(make_bare_upstream mutable-pin)"
+    local tdir="$BATS_TEST_TMPDIR/templates/hoards/mutable-pin-vault"
+    mkdir -p "$tdir"
+    cat > "$tdir/template.yaml" <<YAML
+upstream: $upstream_url
+pin: main
+fallback: ""
+post_clone:
+  - strip_git
+YAML
+    export TEMPLATES_DIR="$BATS_TEST_TMPDIR/templates"
+
+    run_hoard_init mutable-pin-vault --name mutable
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"full 40-character commit SHA"* ]]
+    [ ! -e "$HOARDS_DIR/mutable" ]
+}
+
+@test "yaml flow: a missing pin is rejected before clone" {
+    local upstream_url
+    upstream_url="$(make_bare_upstream missing-pin)"
+    local tdir="$BATS_TEST_TMPDIR/templates/hoards/missing-pin-vault"
+    mkdir -p "$tdir"
+    cat > "$tdir/template.yaml" <<YAML
+upstream: $upstream_url
+fallback: ""
+post_clone:
+  - strip_git
+YAML
+    export TEMPLATES_DIR="$BATS_TEST_TMPDIR/templates"
+
+    run_hoard_init missing-pin-vault --name unpinned
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"full 40-character commit SHA"* ]]
+    [ ! -e "$HOARDS_DIR/unpinned" ]
 }

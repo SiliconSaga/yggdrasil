@@ -522,9 +522,13 @@ ws_hoard_init_from_yaml() {
         echo "ERROR: $manifest is missing the 'upstream' field." >&2
         exit 1
     fi
-    git_remote_validate "$upstream" remote
+    if [[ ! "$pin" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        echo "ERROR: $manifest must set 'pin' to a full 40-character commit SHA." >&2
+        exit 1
+    fi
+    git_remote_validate "$upstream" local
     if [[ -n "$fallback" ]]; then
-        git_remote_validate "$fallback" remote
+        git_remote_validate "$fallback" local
     fi
 
     local -a GIT_AUTH_ENV=()
@@ -554,15 +558,12 @@ ws_hoard_init_from_yaml() {
         fi
     fi
 
-    # Honor the pin if set. A configured pin is mandatory: silently falling
-    # back to the default branch would defeat the reproducibility intent of
-    # pinning in the first place.
-    if [[ -n "$pin" ]]; then
-        if ! (cd "$target" && git checkout -q "$pin"); then
-            echo "ERROR: failed to check out pin '$pin' in $target." >&2
-            echo "  Verify the pin exists in the cloned upstream's history." >&2
-            exit 1
-        fi
+    # The manifest pin is mandatory and immutable. A detached checkout avoids
+    # silently following a mutable branch or tag on later runs.
+    if ! git -C "$target" checkout -q --detach "$pin"; then
+        echo "ERROR: failed to check out pin '$pin' in $target." >&2
+        echo "  Verify the full commit SHA exists in the cloned upstream's history." >&2
+        exit 1
     fi
 
     # Iterate post_clone steps in the manifest's declared order, so future
@@ -629,6 +630,11 @@ ws_hoard_init() {
     if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
         template="$1"
         shift
+    fi
+
+    if [[ ! "$template" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid hoard template name '$template'." >&2
+        exit 2
     fi
 
     local template_dir="$TEMPLATES_DIR/hoards/$template"

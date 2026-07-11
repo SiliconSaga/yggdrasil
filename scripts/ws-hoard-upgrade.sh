@@ -28,6 +28,79 @@
 
 # Sourced by ws-hoard.sh; do not enable strict mode here.
 
+# Resolve a manifest-controlled relative path and prove its deepest existing
+# ancestor remains physically below ROOT. Reject absolute paths, parent
+# traversal, Windows/UNC absolute forms, and symlink escapes. Prints the
+# textual candidate path on success.
+_ws_hoard_contained_path() {
+    local root="$1" rel="$2" label="$3"
+    if [[ -z "$rel" || "$rel" == /* || "$rel" == \\* || "$rel" =~ ^[A-Za-z]:[/\\] ]]; then
+        echo "ERROR: $label '$rel' escapes the $label root (absolute or empty path)." >&2
+        return 1
+    fi
+    case "$rel" in
+        ..|../*|*/..|*/../*)
+            echo "ERROR: $label '$rel' escapes the $label root (parent traversal)." >&2
+            return 1
+            ;;
+    esac
+
+    local root_real candidate probe probe_real
+    root_real="$(cd "$root" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: cannot resolve $label root: $root" >&2
+        return 1
+    }
+    candidate="$root/$rel"
+    if [[ -L "$candidate" ]]; then
+        echo "ERROR: $label '$rel' escapes the $label root (symlink target)." >&2
+        return 1
+    fi
+
+    probe="$candidate"
+    if [[ -e "$probe" && ! -d "$probe" ]]; then
+        probe="${probe%/*}"
+    fi
+    while [[ ! -d "$probe" && "$probe" == */* ]]; do
+        probe="${probe%/*}"
+    done
+    probe_real="$(cd "$probe" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: cannot resolve $label path '$rel'." >&2
+        return 1
+    }
+    case "$probe_real/" in
+        "$root_real/"*) printf '%s\n' "$candidate" ;;
+        *)
+            echo "ERROR: $label '$rel' escapes the $label root (symlinked ancestor)." >&2
+            return 1
+            ;;
+    esac
+}
+
+_ws_hoard_validate_manifest_paths() {
+    local hoard_dir="$1" template_dir="$2"
+    local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
+    [[ -f "$upgrade_yaml" ]] || return 0
+
+    local count i rel rfile rsrc
+    count="$(yq '.files_remove // [] | length' "$upgrade_yaml")"
+    i=0
+    while [[ $i -lt $count ]]; do
+        rel="$(yq ".files_remove[$i]" "$upgrade_yaml")"
+        _ws_hoard_contained_path "$hoard_dir" "$rel" "hoard" >/dev/null || return 1
+        i=$((i + 1))
+    done
+
+    count="$(yq '.managed_regions // [] | length' "$upgrade_yaml")"
+    i=0
+    while [[ $i -lt $count ]]; do
+        rfile="$(yq ".managed_regions[$i].file" "$upgrade_yaml")"
+        rsrc="$(yq ".managed_regions[$i].source" "$upgrade_yaml")"
+        _ws_hoard_contained_path "$hoard_dir" "$rfile" "hoard" >/dev/null || return 1
+        _ws_hoard_contained_path "$template_dir/.upgrade" "$rsrc" "template upgrade" >/dev/null || return 1
+        i=$((i + 1))
+    done
+}
+
 # Read a hoard's provenance. Prints "<template> <applied_version>" on
 # success; returns 1 if .hoard.yaml is missing or has no template.
 _ws_hoard_provenance_read() {
@@ -69,6 +142,8 @@ _ws_hoard_upgrade_plan() {
     local hoard_dir="$1" template_dir="$2" applied_override="${3:-}"
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
     local cp_json="$hoard_dir/.obsidian/community-plugins.json"
+
+    _ws_hoard_validate_manifest_paths "$hoard_dir" "$template_dir" || return 1
 
     local version applied prov
     version="$(_ws_hoard_manifest_version "$template_dir")" || return 1
@@ -341,6 +416,8 @@ _ws_hoard_apply_manifest() {
     local hoard_dir="$2"
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
 
+    _ws_hoard_validate_manifest_paths "$hoard_dir" "$template_dir" || return 1
+
     if [[ ! -f "$upgrade_yaml" ]]; then
         echo "ERROR: template has no upgrade.yaml: $template_dir" >&2
         return 1
@@ -559,6 +636,7 @@ _ws_hoard_apply_manifest() {
 _ws_hoard_apply_regions() {
     local hoard_dir="$1" template_dir="$2"
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
+    _ws_hoard_validate_manifest_paths "$hoard_dir" "$template_dir" || return 1
     local rn ri rfile rid rsrc
     rn="$(yq '.managed_regions // [] | length' "$upgrade_yaml")"
     ri=0
@@ -675,6 +753,10 @@ ws_hoard_upgrade() {
     if [[ -z "$hoard_name" ]]; then
         ws_hoard_upgrade_help; return 1
     fi
+    if [[ ! "$hoard_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid hoard name '$hoard_name'." >&2
+        return 1
+    fi
 
     local hoard_dir="$HOARDS_DIR/$hoard_name"
     if [[ ! -d "$hoard_dir" ]]; then
@@ -709,11 +791,17 @@ ws_hoard_upgrade() {
         return 1
     fi
 
+    if [[ ! "$template" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid hoard template name '$template'." >&2
+        return 1
+    fi
+
     local template_dir="$TEMPLATES_DIR/hoards/$template"
     if [[ ! -f "$template_dir/.upgrade/upgrade.yaml" ]]; then
         echo "ERROR: template '$template' has no .upgrade/upgrade.yaml" >&2
         return 1
     fi
+    _ws_hoard_validate_manifest_paths "$hoard_dir" "$template_dir" || return 1
 
     if [[ "$mode" == "plan" ]]; then
         _ws_hoard_upgrade_plan "$hoard_dir" "$template_dir" "$baseline"

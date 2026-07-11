@@ -4,6 +4,90 @@ load test_helper
 
 setup() { setup_dirs; }
 
+@test "provenance rejects a template name that traverses outside hoards templates" {
+    make_hoard h1
+    mkdir -p "$TEMPLATES_DIR/outside/.upgrade"
+    printf 'version: 1\nplugins: []\n' > "$TEMPLATES_DIR/outside/.upgrade/upgrade.yaml"
+    printf 'template: ../outside\napplied_version: 0\n' > "$HOARDS_DIR/h1/.hoard.yaml"
+
+    run ws_hoard_upgrade h1 --plan
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid hoard template name"* ]]
+}
+
+@test "manifest files_remove traversal is rejected before backup or deletion" {
+    make_template thalami "version: 2
+plugins: []
+files_remove:
+  - ../victim.txt"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    printf 'preserve\n' > "$HOARDS_DIR/victim.txt"
+    make_fake_gh
+
+    run ws_hoard_upgrade h1 --apply
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"escapes the hoard root"* ]]
+    [ -f "$HOARDS_DIR/victim.txt" ]
+    [ ! -e "$HOARDS_DIR/h1/.upgrade-backup" ]
+}
+
+@test "manifest files_remove rejects a symlink escape" {
+    make_template thalami "version: 2
+plugins: []
+files_remove:
+  - linked/victim.txt"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    mkdir -p "$BATS_TEST_TMPDIR/outside"
+    printf 'preserve\n' > "$BATS_TEST_TMPDIR/outside/victim.txt"
+    ln -s "$BATS_TEST_TMPDIR/outside" "$HOARDS_DIR/h1/linked"
+
+    run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"escapes the hoard root"* ]]
+    [ -f "$BATS_TEST_TMPDIR/outside/victim.txt" ]
+}
+
+@test "managed region destination traversal is rejected before splice" {
+    make_template thalami "version: 2
+plugins: []
+managed_regions:
+  - file: ../outside.md
+    id: controls
+    source: regions/controls.md"
+    printf 'new\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/regions/controls.md"
+    make_hoard h1
+    printf 'preserve\n' > "$HOARDS_DIR/outside.md"
+
+    run _ws_hoard_apply_regions "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"escapes the hoard root"* ]]
+    [ "$(cat "$HOARDS_DIR/outside.md")" = "preserve" ]
+}
+
+@test "managed region source traversal is rejected before splice" {
+    make_template thalami "version: 2
+plugins: []
+managed_regions:
+  - file: Dashboard.md
+    id: controls
+    source: ../outside.md"
+    printf 'untrusted\n' > "$TEMPLATES_DIR/hoards/thalami/outside.md"
+    make_hoard h1
+    printf 'preserve\n' > "$HOARDS_DIR/h1/Dashboard.md"
+
+    run _ws_hoard_apply_regions "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"escapes the template upgrade root"* ]]
+    [ "$(cat "$HOARDS_DIR/h1/Dashboard.md")" = "preserve" ]
+}
+
 @test "provenance: write then read round-trips" {
     make_hoard h1
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 3
