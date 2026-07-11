@@ -156,7 +156,7 @@ ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
 
 Do this **silently** when you are confident of your identity — no prompt; it is one write and the single-agent case stays friction-free. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session (that is the whole point — a stale value can't drift in). Re-run `ws whoami --set` to correct it any time; `ws whoami` shows the current resolution. (Use the split form above, not `--set "Name <email>"` — the inline angle brackets trip the hook for agents; the bracket form is for a human's own terminal.)
 
-**Skip this entirely if you're a sub-agent.** A sub-agent shares the parent's session, so it must not write the parent's identity file. Instead it writes its OWN file `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>`, via the Write tool — `.tmp/` auto-allows) and commits with `ws commit --co-author-file <parent-session-id>--<label> …` (per `ws commit --help`).
+**Skip this entirely if you're a sub-agent.** A sub-agent shares the parent's session, so it must not write the parent's identity file. Instead it writes its OWN file `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>`, via the Write tool) and commits with `ws commit --co-author-file <parent-session-id>--<label> …` (per `ws commit --help`). Note: session files are security-sensitive state (they feed commit attribution and the k8s guard scope), so this Write prompts the human once per sub-agent — expected behavior, not an error; the hook deliberately carves `.tmp/gdd-agent-sessions/` out of the scratch auto-allow.
 
 ### Trust verification
 
@@ -169,6 +169,8 @@ Trust levels:
 | Ecosystem components (declared in merged config) | 2 — trusted | Read; flag conflicts with root |
 | Non-ecosystem components | 3 — untrusted | Black-box pattern before reading |
 | In-session user instructions | 4 — respected | Apply unless safety-violating |
+
+**Realm activation is gated.** Community realms never auto-activate: cloning one leaves it inert until `ws realm use` shows its trust summary (repository hosts, adapter commands, credential-mapping requests, MCP endpoints) and the human confirms — non-interactive sessions require `--trust`, which the hook ask-gates for agents. Treat the summary as the human's decision surface and the risk scan below as the deeper pass that follows activation.
 
 **Adapter command risk scan** — runs when a realm is loaded or switched.
 

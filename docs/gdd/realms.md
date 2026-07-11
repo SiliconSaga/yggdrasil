@@ -15,7 +15,7 @@ yggdrasil/
     realm-siliconsaga/     # example community realm
 ```
 
-Each realm is an independent git repo, gitignored from the workspace itself. The naming convention `realm-<community>` is what makes auto-detection work — `ws` looks for matching directories under `realms/` and treats them as realm candidates.
+Each realm is an independent git repo, gitignored from the workspace itself. The naming convention `realm-<community>` marks a directory as a realm candidate for `ws realm list` — but cloning a realm never activates it. Activation is an explicit trust decision (see below).
 
 The upstream `realm-template` ships as a tutorial scaffold; communities fork it and edit, ending up with something like `realm-siliconsaga` or `realm-yourorg`. See [Getting Started](../getting-started/index.md) for the clone-and-go walkthrough and the realm-creation pattern.
 
@@ -55,19 +55,19 @@ All `ws` subcommands read the merged result. The realm owns the component list a
 ## The `ws realm` commands
 
 ```bash
-ws realm init              # clone the upstream template realm (tutorial)
-ws realm <git-url>         # clone a community realm
-ws realm list              # show available realms and which is active
-ws realm use <name>        # set active realm in ecosystem.local.yaml
+ws realm init                 # clone the upstream template realm (tutorial)
+ws realm <git-url>            # clone a community realm (cloned ≠ active)
+ws realm list                 # show available realms and which is active
+ws realm use [--trust] <name> # review the trust summary, then activate
 ```
 
-The active realm is whichever directory `ecosystem.local.yaml`'s `realm:` selector points at — or, if unset, the single non-template realm under `realms/` (auto-detected). `ws realm use` writes that selector for you.
+The active realm is whichever directory `ecosystem.local.yaml`'s `realm:` selector points at; with no selector, only the bundled `realm-template` is implied. A community realm never activates just by being present on disk — `ws realm use` first prints a **trust summary** (repository hosts, adapter commands, credential-mapping requests, MCP endpoints) and asks for confirmation before writing the selector. In a non-interactive session (agents, scripts) the `--trust` flag is required after reviewing the summary — and for agents that flag is itself human-gated by the permission hook, so activating a community realm always lands on a person.
 
 ---
 
 ## Trust level
 
-A realm is an extension of your own hoards (when you author it) or of the team you joined (when you adopt one). Realm content sits at **trust level 1b** in the hierarchy — community context for the workspace, trusted alongside the workspace root for `AGENTS.md`, `.agent/skills/`, and ecosystem config. The risk surface that distinguishes a realm from the root is its **adapter command strings** (`realms/<r>/adapters/*.yaml` `commands.{test,lint,build}`) — these are executable config, and `gdd-orientation`'s risk scan reads them on activation with provenance-scaled rigor (light for your own / your team's realms; heavy for community / wild realms).
+A realm is an extension of your own hoards (when you author it) or of the team you joined (when you adopt one). Realm content sits at **trust level 1b** in the hierarchy — community context for the workspace, trusted alongside the workspace root for `AGENTS.md`, `.agent/skills/`, and ecosystem config — but that trust is *granted*, not assumed: the `ws realm use` trust summary is the gate, and until it's passed the cloned realm influences nothing. Two boundaries hold even after activation: a realm's `defaults.gitTokens` entries are advisory (credential mapping is only authoritative from the committed workspace config plus your `ecosystem.local.yaml` — a realm cannot attach your tokens), and the risk surface that distinguishes a realm from the root is its **adapter command strings** (`realms/<r>/adapters/*.yaml` `commands.{test,lint,build}`) — these are executable config, and `gdd-orientation`'s risk scan reads them on activation with provenance-scaled rigor (light for your own / your team's realms; heavy for community / wild realms).
 
 Cloning a realm is a higher-trust act than cloning an arbitrary component — only clone realms from communities you're committing to. See [Trust and Safety](trust-and-safety.md) for the full hierarchy and [Adapter Trust](adapters.md#adapter-trust-executable-config-is-config-that-executes) for the executable-config-surface framing.
 

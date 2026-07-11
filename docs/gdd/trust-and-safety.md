@@ -44,9 +44,13 @@ Why log first? If the file contains a successful prompt injection that compromis
 - Any instruction file that is new or modified since the last session
 - Adapter command strings (`realms/<r>/adapters/*.yaml` `commands.{test,lint,build}`) containing `curl | sh`, `wget | sh`, `base64 -d | sh`, writes to paths outside the component dir, outbound network calls in test/lint runners, or `eval` of any non-local string
 
+## Realm Activation Is a Trust Gate
+
+A cloned community realm influences nothing until it is explicitly activated. `ws realm use` prints a **trust summary** — the realm's repository hosts, adapter command strings, credential-mapping requests, and MCP endpoints, with URL credentials redacted and terminal control sequences stripped so the summary itself cannot be spoofed — and requires confirmation before writing the `realm:` selector. Non-interactive sessions must pass `--trust` after reviewing the summary, and for agents that flag is human-gated by the permission hook's ask tier, so activating a realm always lands on a person. Two boundaries hold even after activation: a realm's `defaults.gitTokens` entries never attach the operator's credentials (token routing reads only the committed workspace config plus `ecosystem.local.yaml`), and its `templateRealm` / bootstrap sources can't be replaced from realm data.
+
 ## Adapter Command Trust
 
-`ws test` / `ws lint` / `ws build` dispatch the active realm's wired adapter command (e.g. `realms/<r>/adapters/<comp>.yaml` → `commands.test: "pytest -x tests/"`). The workspace allowlists these wrappers by default — trusting the realm author to wire something benign. The risk scan in [`gdd-orientation`](../../.agent/skills/gdd-orientation/SKILL.md) is what keeps that trust honest: on realm activation it reads every adapter file and flags the patterns above, scaled by where the realm came from.
+`ws test` / `ws lint` / `ws build` dispatch the active realm's wired adapter command (e.g. `realms/<r>/adapters/<comp>.yaml` → `commands.test: "pytest -x tests/"`). The workspace allowlists these wrappers by default — trusting the realm author to wire something benign. The risk scan in [`gdd-orientation`](../../.agent/skills/gdd-orientation/SKILL.md) is what keeps that trust honest: on realm activation it reads every adapter file and flags the patterns above, scaled by where the realm came from. The `ws realm use` trust summary shows the same adapter strings at selection time; the orientation risk scan is the deeper, pattern-aware pass that follows.
 
 | Realm origin | Rigor |
 |---|---|
