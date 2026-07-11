@@ -113,9 +113,19 @@ while IFS=$'\t' read -r server_name server_url; do
     if [[ "$server_url" == http://* ]]; then
         authority="${server_url#http://}"
         authority="${authority%%/*}"
-        host="${authority%%:*}"
+        authority="${authority##*@}"
+        if [[ "$authority" == \[*\]* ]]; then
+            host="${authority#\[}"
+            host="${host%%\]*}"
+        else
+            host="${authority%%:*}"
+        fi
+        if [[ -z "$host" ]]; then
+            echo "ERROR: MCP server '$server_name' has an empty HTTP host." >&2
+            exit 1
+        fi
         case "$host" in
-            localhost|127.*|\[::1\]) : ;;
+            localhost|127.*|::1) : ;;
             *) echo "WARNING: MCP server '$server_name' uses plain HTTP on nonlocal host '$host'." >&2 ;;
         esac
     fi

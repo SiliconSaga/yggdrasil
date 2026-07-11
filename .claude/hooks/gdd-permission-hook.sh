@@ -575,28 +575,44 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         exit 0  # target is a symlink — let the harness prompt
     fi
     sym_probe="${abs_path%/*}"
+    unresolved_suffix=""
     while [[ ! -d "$sym_probe" && "$sym_probe" == */* ]]; do
+        unresolved_suffix="/${sym_probe##*/}$unresolved_suffix"
         sym_probe="${sym_probe%/*}"
     done
     real_probe="$(cd "$sym_probe" 2>/dev/null && pwd -P)" || exit 0
     real_project="$(cd "$project_dir" 2>/dev/null && pwd -P)" || exit 0
+    resolved_abs_path="$real_probe$unresolved_suffix/${abs_path##*/}"
     case "$real_probe/" in
         "$real_project/"*) : ;;   # resolves inside the project — OK
         *) exit 0 ;;              # resolves outside — passthrough
     esac
 
     # Guard state and security configuration must never inherit the broad
-    # scratch-directory auto-allow. The hook is a cooperative safety control,
-    # so force a human decision for normal Edit/Write flows touching it.
+    # scratch-directory auto-allow. Check both the requested path and its
+    # resolved ancestor so a scratch symlink alias cannot hide a sensitive
+    # destination inside the workspace.
+    sensitive_path=0
     case "$abs_path" in
         "$project_dir/.tmp/hook-bypass"|"$project_dir/.tmp/hook-bypass/"*|\
         "$project_dir/.tmp/gdd-agent-sessions"|"$project_dir/.tmp/gdd-agent-sessions/"*|\
         "$project_dir/.claude"|"$project_dir/.claude/"*|\
         "$project_dir/.env"|"$project_dir/ecosystem.local.yaml")
-            cmd="$tool_name $file_path"
-            ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
+            sensitive_path=1
             ;;
     esac
+    case "$resolved_abs_path" in
+        "$real_project/.tmp/hook-bypass"|"$real_project/.tmp/hook-bypass/"*|\
+        "$real_project/.tmp/gdd-agent-sessions"|"$real_project/.tmp/gdd-agent-sessions/"*|\
+        "$real_project/.claude"|"$real_project/.claude/"*|\
+        "$real_project/.env"|"$real_project/ecosystem.local.yaml")
+            sensitive_path=1
+            ;;
+    esac
+    if [[ "$sensitive_path" -eq 1 ]]; then
+        cmd="$tool_name $file_path"
+        ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
+    fi
 
     # Scratch dirs that auto-allow Edit / Write come from the
     # [scratch-dirs] section of hook-rules (parsed above). The baseline

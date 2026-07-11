@@ -221,6 +221,7 @@ _k8s_kustomize_refs() {
       (.bases // [])[],
       (.components // [])[],
       (.patchesStrategicMerge // [])[],
+      ((.patchesJson6902 // [])[] | (.path // "")),
       ((.patches // [])[] | select(tag == "!!str")),
       ((.patches // [])[] | select(tag == "!!map") | (.path // "")),
       (.generators // [])[],
@@ -254,6 +255,7 @@ _k8s_validate_kustomize_dir() {
         echo "local kustomization directory has no kustomization file: $dir"
         return 1
     }
+    [[ -L "$file" ]] && { echo "symlinked kustomization file is not allowed: $file"; return 1; }
     if ! refs="$(_k8s_kustomize_refs "$file")"; then
         echo "could not parse local kustomization file: $file"
         return 1

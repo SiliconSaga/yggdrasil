@@ -34,6 +34,10 @@
 # textual candidate path on success.
 _ws_hoard_contained_path() {
     local root="$1" rel="$2" label="$3"
+    if [[ "$rel" =~ [[:cntrl:]] ]]; then
+        echo "ERROR: $label path contains a control character." >&2
+        return 1
+    fi
     if [[ -z "$rel" || "$rel" == /* || "$rel" == \\* || "$rel" =~ ^[A-Za-z]:[/\\] ]]; then
         echo "ERROR: $label '$rel' escapes the $label root (absolute or empty path)." >&2
         return 1

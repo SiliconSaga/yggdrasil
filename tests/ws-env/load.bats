@@ -59,6 +59,15 @@ EOF
         GIT_EXEC_PATH \
         GIT_EXTERNAL_DIFF \
         GIT_PROXY_COMMAND \
+        GIT_DIR \
+        GIT_WORK_TREE \
+        GIT_INDEX_FILE \
+        GIT_OBJECT_DIRECTORY \
+        GIT_ALTERNATE_OBJECT_DIRECTORIES \
+        GIT_NAMESPACE \
+        GIT_EDITOR \
+        GIT_SEQUENCE_EDITOR \
+        GIT_PAGER \
         HOME \
         CDPATH; do
         local env_file="$BATS_TEST_TMPDIR/$key.env"

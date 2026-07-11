@@ -286,6 +286,31 @@ JSON
     [[ "$output" == *"security-sensitive workspace state"* ]]
 }
 
+@test "security: a scratch symlink alias to sensitive state still forces an ask" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+    ln -s "$WORK/.claude" "$WORK/.tmp/security-alias"
+
+    run_hook_write "Write" "$WORK/.tmp/security-alias/settings.json"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: a scratch alias to the project root cannot hide a sensitive file" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+    touch "$WORK/.env"
+    ln -s "$WORK" "$WORK/.tmp/root-alias"
+
+    run_hook_write "Write" "$WORK/.tmp/root-alias/.env"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "security: session identity state forces an ask instead of auto-allow" {
     seed_real_project_config
 

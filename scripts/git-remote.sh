@@ -11,13 +11,23 @@ git_remote_host() {
             authority="${value#https://}"
             authority="${authority%%/*}"
             authority="${authority##*@}"
-            host="${authority%%:*}"
+            if [[ "$authority" == \[*\]* ]]; then
+                host="${authority#\[}"
+                host="${host%%\]*}"
+            else
+                host="${authority%%:*}"
+            fi
             ;;
         ssh://*)
             authority="${value#ssh://}"
             authority="${authority%%/*}"
             authority="${authority##*@}"
-            host="${authority%%:*}"
+            if [[ "$authority" == \[*\]* ]]; then
+                host="${authority#\[}"
+                host="${host%%\]*}"
+            else
+                host="${authority%%:*}"
+            fi
             ;;
         *)
             if [[ "$value" =~ ^([^@/:]+@)?([^@/:]+):(.+)$ ]]; then
@@ -31,14 +41,33 @@ git_remote_host() {
     printf '%s' "$host" | tr '[:upper:]' '[:lower:]'
 }
 
+git_remote_display_value() {
+    local value="${1:-}" prefix rest authority
+    if [[ "$value" == *://* ]]; then
+        prefix="${value%%://*}://"
+        rest="${value#*://}"
+        authority="${rest%%/*}"
+        if [[ "$authority" == *@* ]]; then
+            printf '%s[redacted]@%s' "$prefix" "${rest##*@}"
+            return
+        fi
+    elif [[ "$value" =~ ^[^@/:]+@[^:]+:.+$ ]]; then
+        printf '[redacted]@%s' "${value##*@}"
+        return
+    fi
+    printf '%s' "$value"
+}
+
 git_remote_validate() {
     local value="${1:-}" mode="${2:-remote}" expected="${3:-}"
+    local display_value
+    display_value="$(git_remote_display_value "$value")"
     if [[ -z "$value" ]]; then
         echo "ERROR: Git remote value is empty." >&2
         return 1
     fi
     if [[ "$value" == -* ]]; then
-        echo "ERROR: refusing option-like Git remote value '$value'." >&2
+        echo "ERROR: refusing option-like Git remote value '$display_value'." >&2
         return 1
     fi
     if [[ "$value" =~ [[:cntrl:]] ]]; then
@@ -46,7 +75,7 @@ git_remote_validate() {
         return 1
     fi
     if [[ "$value" =~ ^[A-Za-z][A-Za-z0-9+.-]*:: ]]; then
-        echo "ERROR: refusing executable Git remote helper syntax in '$value'." >&2
+        echo "ERROR: refusing executable Git remote helper syntax in '$display_value'." >&2
         return 1
     fi
 
@@ -54,13 +83,13 @@ git_remote_validate() {
     case "$value" in
         https://*|ssh://*)
             host="$(git_remote_host "$value")" || {
-                echo "ERROR: malformed Git remote '$value'; use HTTPS or SSH." >&2
+                echo "ERROR: malformed Git remote '$display_value'; use HTTPS or SSH." >&2
                 return 1
             }
             case "$value" in
                 https://*/*|ssh://*/*) : ;;
                 *)
-                    echo "ERROR: malformed Git remote '$value'; repository path is missing." >&2
+                    echo "ERROR: malformed Git remote '$display_value'; repository path is missing." >&2
                     return 1
                     ;;
             esac
@@ -72,7 +101,7 @@ git_remote_validate() {
             fi
             ;;
         *://*)
-            echo "ERROR: Git remotes must use HTTPS or SSH; unsupported URL scheme in '$value'." >&2
+            echo "ERROR: Git remotes must use HTTPS or SSH; unsupported URL scheme in '$display_value'." >&2
             return 1
             ;;
         *)

@@ -52,6 +52,15 @@ files_remove:
     [ -f "$BATS_TEST_TMPDIR/outside/victim.txt" ]
 }
 
+@test "manifest paths reject control characters before resolution" {
+    make_hoard h1
+
+    run _ws_hoard_contained_path "$HOARDS_DIR/h1" $'notes/unsafe\nname.md' "hoard"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"control character"* ]]
+}
+
 @test "manifest plugin id traversal is rejected before backup or download" {
     make_template thalami "version: 2
 plugins:

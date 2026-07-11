@@ -223,6 +223,41 @@ YAML
     [ ! -e "$KUSTOMIZE_PROBE" ]
 }
 
+@test "apply -k rejects a remote legacy JSON patch before rendering" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay"
+    cat > "$overlay/kustomization.yaml" <<'YAML'
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: example
+    path: https://attacker.example/patch.json
+YAML
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k rejects a symlinked kustomization file before rendering" {
+    local overlay="$BATS_TEST_TMPDIR/overlay"
+    mkdir -p "$overlay"
+    printf 'resources: []\n' > "$BATS_TEST_TMPDIR/outside-kustomization.yaml"
+    ln -s "$BATS_TEST_TMPDIR/outside-kustomization.yaml" "$overlay/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$overlay"
+
+    [[ "$output" == BLOCK:precondition:* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
 @test "apply -k renders after a recursively local reference graph passes" {
     local overlay="$BATS_TEST_TMPDIR/overlay"
     mkdir -p "$overlay/child"

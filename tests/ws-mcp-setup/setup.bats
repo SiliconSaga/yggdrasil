@@ -68,6 +68,24 @@ run_mcp() {
     [[ "$output" != *"plain HTTP"* ]]
 }
 
+@test "mcp setup does not mistake loopback-looking userinfo for a local host" {
+    write_realm_mcp http://127.0.0.1@evil.example/service
+
+    run_mcp
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARNING"*"plain HTTP"*"evil.example"* ]]
+}
+
+@test "mcp setup treats bracketed IPv6 loopback as local" {
+    write_realm_mcp http://[::1]:8080/service
+
+    run_mcp
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"plain HTTP"* ]]
+}
+
 @test "mcp setup accepts HTTPS endpoints" {
     write_realm_mcp https://mcp.example.com/service
 

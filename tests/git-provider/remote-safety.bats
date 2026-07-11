@@ -86,10 +86,26 @@ run_validator() {
     [[ "$output" == *"expected host 'gitlab.example.com'"* ]]
 }
 
+@test "remote validator redacts embedded credentials from errors" {
+    run_validator "http://oauth2:super-secret@gitlab.example.com/team/project.git"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"super-secret"* ]]
+    [[ "$output" == *"[redacted]"* ]]
+}
+
 @test "remote host extraction normalizes supported URL forms" {
     run bash -c 'source "$1"; git_remote_host "$2"' \
         _ "$REMOTE_LIB" "ssh://git@GitLab.Example.com:2222/team/project.git"
 
     [ "$status" -eq 0 ]
     [ "$output" = "gitlab.example.com" ]
+}
+
+@test "remote host extraction preserves bracketed IPv6 literals" {
+    run bash -c 'source "$1"; git_remote_host "$2"' \
+        _ "$REMOTE_LIB" "ssh://git@[::1]:2222/team/project.git"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "::1" ]
 }
