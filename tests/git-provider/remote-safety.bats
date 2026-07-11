@@ -63,6 +63,24 @@ run_validator() {
     [[ "$output" == *"HTTPS or SSH"* ]]
 }
 
+@test "remote validator rejects Windows drive-letter paths in remote mode" {
+    run_validator "C:/repos/project.git"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"filesystem paths"* ]]
+
+    run_validator 'C:\repos\project.git'
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"filesystem paths"* ]]
+}
+
+@test "remote validator accepts Windows drive-letter paths only in local mode" {
+    run_validator "C:/repos/project.git" local
+
+    [ "$status" -eq 0 ]
+}
+
 @test "remote validator accepts local paths only in local mode" {
     mkdir -p "$BATS_TEST_TMPDIR/repo.git"
 

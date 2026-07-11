@@ -347,6 +347,14 @@ HELP
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
+# The trust summary renders realm-controlled strings on the terminal at the
+# exact moment a human decides whether to trust the realm. Strip control
+# characters (keeping newline/tab structure) so ANSI escape sequences cannot
+# repaint or hide parts of the review being approved.
+_ws_realm_summary_text() {
+    printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
+}
+
 ws_realm_trust_summary() {
     local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
     echo "Realm trust summary: $name"
@@ -355,9 +363,13 @@ ws_realm_trust_summary() {
     while IFS= read -r repo; do
         [[ -n "$repo" ]] || continue
         host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"
-        echo "    $host  ←  $repo"
+        # Redact any embedded credential before display — the summary must
+        # never be the thing that leaks a token into terminal scrollback.
+        echo "    $(_ws_realm_summary_text "$host")  ←  $(_ws_realm_summary_text "$(git_remote_display_value "$repo")")"
         found=1
-    done < <(yq -r '.components // {} | to_entries | .[] | .value.repo // empty' "$realm_file" 2>/dev/null)
+    # `// ""` not `// empty` — `empty` is jq syntax; Mike Farah's yq rejects it,
+    # which (silently, behind 2>/dev/null) blanked this whole section.
+    done < <(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
     echo "  Adapter commands:"
@@ -367,7 +379,7 @@ ws_realm_trust_summary() {
         commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null || true)"
         if [[ -n "$commands" ]]; then
             echo "    $(basename "$adapter_file" .yaml):"
-            echo "$commands"
+            echo "$(_ws_realm_summary_text "$commands")"
             found=1
         fi
     done
@@ -375,11 +387,11 @@ ws_realm_trust_summary() {
 
     echo "  Credential-mapping requests (not authoritative until copied locally):"
     commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null || true)"
-    if [[ -n "$commands" ]]; then echo "$commands"; else echo "    (none declared)"; fi
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
     echo "  MCP endpoints:"
     commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  " + .value.url' "$realm_file" 2>/dev/null || true)"
-    if [[ -n "$commands" ]]; then echo "$commands"; else echo "    (none declared)"; fi
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 }
 
 ws_realm_use() {

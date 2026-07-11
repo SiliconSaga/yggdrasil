@@ -100,11 +100,63 @@ YAML
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Realm trust summary"* ]]
-    [[ "$output" == *"git.example.com"* ]]
+    # The repo URL itself, not just the host — the host string also appears in
+    # the gitTokens line, which once let a broken repo enumeration pass unseen.
+    [[ "$output" == *"https://git.example.com/team/app.git"* ]]
     [[ "$output" == *"uv run pytest"* ]]
     [[ "$output" == *"GITLAB_TEAM_TOKEN"* ]]
     [[ "$output" == *"https://mcp.example.com/api"* ]]
     [ "$(yq '.realm' "$work/ecosystem.local.yaml")" = "realm.test" ]
+}
+
+@test "ws realm use --trust redacts embedded credentials in the trust summary" {
+    work="$BATS_TEST_TMPDIR/work-redact"
+    mkdir -p "$work/realms/realm.test" "$work/components" "$work/hoards"
+    printf 'components: {}\n' > "$work/ecosystem.yaml"
+    printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
+    cat > "$work/realms/realm.test/ecosystem.yaml" <<'YAML'
+components:
+  app:
+    repo: https://oauth2:sekret123@git.example.com/team/app.git
+YAML
+
+    run env \
+        "ROOT_DIR=$work" \
+        "REALMS_DIR=$work/realms" \
+        "COMPONENTS_DIR=$work/components" \
+        "HOARDS_DIR=$work/hoards" \
+        "ECOSYSTEM=$work/ecosystem.yaml" \
+        "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
+        bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"sekret123"* ]]
+    [[ "$output" == *"[redacted]@git.example.com"* ]]
+}
+
+@test "ws realm use --trust strips terminal control sequences from the summary" {
+    work="$BATS_TEST_TMPDIR/work-ansi"
+    mkdir -p "$work/realms/realm.test/adapters" "$work/components" "$work/hoards"
+    printf 'components: {}\n' > "$work/ecosystem.yaml"
+    printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
+    printf 'components: {}\n' > "$work/realms/realm.test/ecosystem.yaml"
+    cat > "$work/realms/realm.test/adapters/app.yaml" <<'YAML'
+commands:
+  test: "safe \x1b[2K\x1b[1A spoofed"
+YAML
+
+    run env \
+        "ROOT_DIR=$work" \
+        "REALMS_DIR=$work/realms" \
+        "COMPONENTS_DIR=$work/components" \
+        "HOARDS_DIR=$work/hoards" \
+        "ECOSYSTEM=$work/ecosystem.yaml" \
+        "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
+        bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"safe"*"spoofed"* ]]
+    [[ "$output" != *$'\x1b'* ]]
 }
 
 @test "ws realm use avoids direct yq string interpolation" {

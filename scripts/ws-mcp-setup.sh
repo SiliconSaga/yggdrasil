@@ -110,6 +110,9 @@ while IFS=$'\t' read -r server_name server_url; do
         echo "ERROR: MCP server '$server_name' must use an absolute HTTP(S) URL (got: $server_url)." >&2
         exit 1
     fi
+    if [[ "$server_url" =~ ^https?://[^/]*@ ]]; then
+        echo "WARNING: MCP server '$server_name' embeds credentials (userinfo) in its URL — they land in the generated config verbatim; prefer a credential-free endpoint." >&2
+    fi
     if [[ "$server_url" == http://* ]]; then
         authority="${server_url#http://}"
         authority="${authority%%/*}"

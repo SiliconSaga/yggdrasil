@@ -52,7 +52,9 @@ YAML
 }
 
 @test "workspace component iteration does not word-split yq output" {
-    run rg -n 'for name in \$\(yq' "$REPO_ROOT/scripts"
+    # grep, not rg: on an rg-less machine `run rg` would fail with
+    # command-not-found (also nonzero) and this test would pass vacuously.
+    run grep -rF 'for name in $(yq' "$REPO_ROOT/scripts"
 
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 1 ]
 }

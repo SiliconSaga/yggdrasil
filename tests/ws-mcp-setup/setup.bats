@@ -86,6 +86,15 @@ run_mcp() {
     [[ "$output" != *"plain HTTP"* ]]
 }
 
+@test "mcp setup flags embedded credentials in an endpoint" {
+    write_realm_mcp https://svc-user:sekret@mcp.example.com/service
+
+    run_mcp
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARNING"*"embeds credentials"* ]]
+}
+
 @test "mcp setup accepts HTTPS endpoints" {
     write_realm_mcp https://mcp.example.com/service
 

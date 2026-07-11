@@ -105,7 +105,15 @@ git_remote_validate() {
             return 1
             ;;
         *)
-            if [[ "$value" =~ ^([^@/:]+@)?([^@/:]+):(.+)$ ]]; then
+            # Windows drive-letter forms (C:/repo, C:\repo) would otherwise
+            # match the scp-like host:path shape below with host "c" — they
+            # are filesystem paths and must follow the local-mode rule.
+            if [[ "$value" =~ ^[A-Za-z]:[/\\] ]]; then
+                if [[ "$mode" != "local" ]]; then
+                    echo "ERROR: Git remotes must use HTTPS or SSH; filesystem paths require an explicit local clone flow." >&2
+                    return 1
+                fi
+            elif [[ "$value" =~ ^([^@/:]+@)?([^@/:]+):(.+)$ ]]; then
                 host="$(git_remote_host "$value")" || return 1
             elif [[ "$mode" == "local" && ( "$value" == /* || "$value" == ./* || "$value" == ../* ) ]]; then
                 :
