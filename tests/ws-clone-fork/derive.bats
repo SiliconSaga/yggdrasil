@@ -17,7 +17,12 @@ SH
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
     export COMPONENTS_DIR="$BATS_TEST_TMPDIR/components"
-    export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+    # Sandbox the git global config via HOME, not GIT_CONFIG_GLOBAL — the
+    # env var needs git >= 2.32 and is silently IGNORED on older gits, which
+    # both leaks the insteadOf rewrites into no-op land (tests then hit the
+    # real network) and reads the developer's actual ~/.gitconfig.
+    export HOME="$BATS_TEST_TMPDIR/home"
+    mkdir -p "$HOME"
     export GITLAB_SOURCE_TOKEN="source-token"
     export GITLAB_FORK_TOKEN="fork-token"
 }
@@ -32,7 +37,10 @@ run_clone_fork() {
 
 map_clone_url() {
     local api_url="$1" bare="$2"
-    git config --file "$GIT_CONFIG_GLOBAL" "url.file://$bare.insteadOf" "$api_url"
+    # Native git on Windows can't resolve MSYS /tmp/... inside a file:// URL —
+    # hand it the mixed C:/ form so the insteadOf rewrite clones for real.
+    command -v cygpath >/dev/null 2>&1 && bare="$(cygpath -m "$bare")"
+    git config --file "$HOME/.gitconfig" "url.file://$bare.insteadOf" "$api_url"
 }
 
 @test "homes.fork.namespace derives an absolute fork-home project path" {

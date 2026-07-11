@@ -188,10 +188,29 @@ fi
 
 cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 
+# Externally-supplied paths (payload cwd/file_path, CLAUDE_PROJECT_DIR)
+# arrive in whatever form the host favors — POSIX /tmp/x, C:/x, or D:\x on
+# Windows, and any mix of the three for the SAME location once MSYS path
+# conversion or a native harness is involved. Every tier below compares
+# paths textually, so one input in a different form silently defeats the
+# comparison (an anchored prefix match that never matches fails open as
+# passthrough). Normalize every external path to POSIX form up front:
+# cygpath reconciles drive-letter, backslash, and mount forms on Git Bash;
+# on POSIX hosts it is absent and paths are already consistent.
+_normalize_host_path() {
+    local p="$1"
+    if [[ -n "$p" ]] && command -v cygpath >/dev/null 2>&1; then
+        cygpath -u "$p" 2>/dev/null || printf '%s' "$p"
+        return
+    fi
+    printf '%s' "$p"
+}
+
 # Fall back to the script's own pwd if the harness didn't supply
 # a cwd field — better than aborting on a missing key.
 cwd=$(echo "$input" | jq -r '.cwd // empty')
 [[ -z "$cwd" ]] && cwd=$(pwd)
+cwd="$(_normalize_host_path "$cwd")"
 
 # Which hook event are we firing on? The same script supports both
 # PreToolUse and PermissionRequest — the output JSON shape and the
@@ -211,7 +230,7 @@ tool_name=$(echo "$input" | jq -r '.tool_name // ""')
 # A component or realm may contain its own .claude files, but those nested
 # files are content inside this workspace—not authorities over the root hook.
 _hook_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
-_trusted_root="${CLAUDE_PROJECT_DIR:-$_hook_root}"
+_trusted_root="$(_normalize_host_path "${CLAUDE_PROJECT_DIR:-$_hook_root}")"
 if [[ ! -d "$_trusted_root" ]]; then
     _trusted_root="$_hook_root"
 fi
@@ -534,6 +553,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ws-k8s-guard
 if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     project_dir="$_trusted_root"
     file_path=$(echo "$input" | jq -r '.tool_input.file_path // ""')
+    file_path="$(_normalize_host_path "$file_path")"
 
     # Path-traversal guard. The scratch-dir test below is a textual
     # prefix match, so a path like `.tmp/../../etc/whatever` would
@@ -1105,18 +1125,14 @@ _ar_resolve_realm() {
             return 0
         fi
     fi
-    # Auto-detect: single non-template realm-* dir.
-    local d dname count=0 found=""
-    if [[ -d "$root/realms" ]]; then
-        for d in "$root"/realms/realm-*/; do
-            [[ -d "$d" ]] || continue
-            dname="$(basename "$d")"
-            [[ "$dname" == "realm-template" ]] && continue
-            found="$dname"
-            count=$((count + 1))
-        done
+    # No selector → only the trusted bundled realm-template may be implied,
+    # mirroring ws_detect_realm: a community realm activates exclusively via
+    # the explicit `ws realm use` trust step, so the hook must not route
+    # adapter redirects through a realm the user never accepted.
+    if [[ -d "$root/realms/realm-template" ]]; then
+        echo "realm-template"
+        return 0
     fi
-    [[ $count -eq 1 ]] && { echo "$found"; return 0; }
     return 1
 }
 

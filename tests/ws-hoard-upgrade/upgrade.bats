@@ -43,7 +43,8 @@ files_remove:
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     mkdir -p "$BATS_TEST_TMPDIR/outside"
     printf 'preserve\n' > "$BATS_TEST_TMPDIR/outside/victim.txt"
-    ln -s "$BATS_TEST_TMPDIR/outside" "$HOARDS_DIR/h1/linked"
+    ln -s "$BATS_TEST_TMPDIR/outside" "$HOARDS_DIR/h1/linked" 2>/dev/null || true
+    [[ -L "$HOARDS_DIR/h1/linked" ]] || skip "real symlinks not supported on this platform"
 
     run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
 

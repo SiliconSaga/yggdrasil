@@ -289,7 +289,8 @@ JSON
 @test "security: a scratch symlink alias to sensitive state still forces an ask" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
-    ln -s "$WORK/.claude" "$WORK/.tmp/security-alias"
+    ln -s "$WORK/.claude" "$WORK/.tmp/security-alias" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/security-alias" ]] || skip "real symlinks not supported on this platform"
 
     run_hook_write "Write" "$WORK/.tmp/security-alias/settings.json"
 
@@ -302,7 +303,8 @@ JSON
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
     touch "$WORK/.env"
-    ln -s "$WORK" "$WORK/.tmp/root-alias"
+    ln -s "$WORK" "$WORK/.tmp/root-alias" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/root-alias" ]] || skip "real symlinks not supported on this platform"
 
     run_hook_write "Write" "$WORK/.tmp/root-alias/.env"
 
@@ -363,6 +365,14 @@ JSON
     seed_real_project_config
 
     run_hook 'ws   review knarr "threads" 123 "--resolve-all"'
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: realm trust selection always lands on a human" {
+    seed_real_project_config
+
+    run_hook "ws realm use --trust realm-community"
 
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }

@@ -26,7 +26,12 @@ SH
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
     export COMPONENTS_DIR="$BATS_TEST_TMPDIR/components"
-    export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+    # Sandbox the git global config via HOME, not GIT_CONFIG_GLOBAL — the
+    # env var needs git >= 2.32 and is silently IGNORED on older gits, which
+    # both leaks the insteadOf rewrites into no-op land (tests then hit the
+    # real network) and reads the developer's actual ~/.gitconfig.
+    export HOME="$BATS_TEST_TMPDIR/home"
+    mkdir -p "$HOME"
     export GH_LOG GH_FORK_MARKER
 }
 
@@ -54,10 +59,17 @@ make_bare_pair() {
 }
 
 map_github_clone_urls() {
-    git config --file "$GIT_CONFIG_GLOBAL" \
-        "url.file://$FORK_BARE.insteadOf" "https://github.com/$GH_STUB_FORK_PATH.git"
-    git config --file "$GIT_CONFIG_GLOBAL" \
-        "url.file://$SOURCE_BARE.insteadOf" "https://github.com/$GH_STUB_SOURCE_PATH.git"
+    # Native git on Windows can't resolve MSYS /tmp/... inside a file:// URL —
+    # hand it the mixed C:/ form so the insteadOf rewrite clones for real.
+    local fork_bare="$FORK_BARE" source_bare="$SOURCE_BARE"
+    if command -v cygpath >/dev/null 2>&1; then
+        fork_bare="$(cygpath -m "$fork_bare")"
+        source_bare="$(cygpath -m "$source_bare")"
+    fi
+    git config --file "$HOME/.gitconfig" \
+        "url.file://$fork_bare.insteadOf" "https://github.com/$GH_STUB_FORK_PATH.git"
+    git config --file "$HOME/.gitconfig" \
+        "url.file://$source_bare.insteadOf" "https://github.com/$GH_STUB_SOURCE_PATH.git"
 }
 
 # gh stub: logs every invocation; behavior driven by env:

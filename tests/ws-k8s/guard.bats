@@ -248,7 +248,8 @@ YAML
     local overlay="$BATS_TEST_TMPDIR/overlay"
     mkdir -p "$overlay"
     printf 'resources: []\n' > "$BATS_TEST_TMPDIR/outside-kustomization.yaml"
-    ln -s "$BATS_TEST_TMPDIR/outside-kustomization.yaml" "$overlay/kustomization.yaml"
+    ln -s "$BATS_TEST_TMPDIR/outside-kustomization.yaml" "$overlay/kustomization.yaml" 2>/dev/null || true
+    [[ -L "$overlay/kustomization.yaml" ]] || skip "real symlinks not supported on this platform"
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
     make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
 
