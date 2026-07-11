@@ -14,6 +14,7 @@ setup_synthetic_realm() {
     export ECOSYSTEM_LOCAL="$ROOT_DIR/ecosystem.local.yaml"
 
     mkdir -p "$REALMS_DIR/realm-test/adapters"
+    printf 'realm: realm-test\n' > "$ECOSYSTEM_LOCAL"
 
     # Stub linter: drops a marker in its cwd (proves it ran in the
     # component dir, robust to /var vs /private/var symlink differences)
