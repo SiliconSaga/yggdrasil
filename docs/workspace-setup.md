@@ -53,10 +53,11 @@ Treat this as a required step, not a nicety. Putting the workspace `scripts/` di
 export PATH="/path/to/yggdrasil/scripts:$PATH"
 ```
 
-**Windows** — two wrinkles worth knowing:
+**Windows** — three wrinkles worth knowing:
 
 - **`bash` itself may not be on your *system* PATH.** Git for Windows offers a few PATH choices at install time; the common "Git from the command line and also from 3rd-party software" option adds Git's `cmd\` directory (so `git` works in cmd/PowerShell) but **not** the `bin\` / `usr\bin\` directory that holds `bash.exe`. If `bash` isn't found outside Git Bash, add `C:\Program Files\Git\bin` (or `…\usr\bin`) to your PATH.
 - **Adding `scripts/` persistently.** Inside Git Bash, the `~/.bashrc` export above is enough. To also run `ws` from cmd/PowerShell, add the scripts directory to your Windows PATH via **Settings → System → About → Advanced system settings → Environment Variables**, edit **Path**, and append the full path to `…\yggdrasil\scripts`. Open a new terminal afterward.
+- **Git Bash mangles Unix-style paths passed to native `.exe`s.** When you hand a container-absolute path (e.g. `/data`, `/home/wineuser/rend`, `/opt/...`) to a Windows-native executable like `docker`, `kubectl`, or `nerdctl`, MSYS auto-rewrites it into a Windows path (`C:\Program Files\Git\data`), which breaks the argument. Set `MSYS_NO_PATHCONV=1` to disable that rewriting. For an interactive shell, `export MSYS_NO_PATHCONV=1` in `~/.bashrc`. For Claude Code (so every Bash call — including subagents — inherits it without a per-command prefix), add it to the `env` block of `.claude/settings.local.json`: `{ "env": { "MSYS_NO_PATHCONV": "1" } }`. This only affects Git Bash on Windows; it is a harmless no-op on macOS/Linux.
 
 ## Workspace CLI (`ws`)
 
