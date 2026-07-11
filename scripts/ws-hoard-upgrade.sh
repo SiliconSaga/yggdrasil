@@ -81,7 +81,18 @@ _ws_hoard_validate_manifest_paths() {
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
     [[ -f "$upgrade_yaml" ]] || return 0
 
-    local count i rel rfile rsrc
+    local count i rel rfile rsrc plugin_id
+    count="$(yq '.plugins // [] | length' "$upgrade_yaml")"
+    i=0
+    while [[ $i -lt $count ]]; do
+        plugin_id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
+        if [[ ! "$plugin_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "ERROR: Invalid plugin id '$plugin_id'; expected one safe path segment." >&2
+            return 1
+        fi
+        i=$((i + 1))
+    done
+
     count="$(yq '.files_remove // [] | length' "$upgrade_yaml")"
     i=0
     while [[ $i -lt $count ]]; do

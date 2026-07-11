@@ -52,6 +52,24 @@ files_remove:
     [ -f "$BATS_TEST_TMPDIR/outside/victim.txt" ]
 }
 
+@test "manifest plugin id traversal is rejected before backup or download" {
+    make_template thalami "version: 2
+plugins:
+  - id: ../../../escaped-plugin
+    repo: example/plugin
+    pin: \"1.0.0\""
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    make_fake_gh
+
+    run ws_hoard_upgrade h1 --apply
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid plugin id"* ]]
+    [ ! -e "$HOARDS_DIR/escaped-plugin" ]
+    [ ! -e "$HOARDS_DIR/h1/.upgrade-backup" ]
+}
+
 @test "managed region destination traversal is rejected before splice" {
     make_template thalami "version: 2
 plugins: []
