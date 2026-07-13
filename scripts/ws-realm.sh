@@ -376,7 +376,10 @@ ws_realm_trust_summary() {
     found=0
     for adapter_file in "$realm_dir"/adapters/*.yaml; do
         [[ -f "$adapter_file" ]] || continue
-        commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null || true)"
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null)"; then
+            echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
+            return 1
+        fi
         if [[ -n "$commands" ]]; then
             echo "    $(basename "$adapter_file" .yaml):"
             echo "$(_ws_realm_summary_text "$commands")"
@@ -384,6 +387,22 @@ ws_realm_trust_summary() {
         fi
     done
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
+
+    echo "  Fork routing requests:"
+    if ! commands="$(yq -r '
+        ([
+          {"key": "identity.forkRemote", "value": (.identity.forkRemote // "")},
+          {"key": "identity.homes.fork.namespace", "value": (.identity.homes.fork.namespace // "")}
+        ] + [
+          .components // {} | to_entries | .[] |
+          {"key": ("components." + .key + ".forkRepo"), "value": (.value.forkRepo // "")}
+        ])
+        | .[] | select(.value != "") | "    " + .key + "  →  " + .value
+    ' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render fork routing from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
     echo "  Credential-mapping requests (not authoritative until copied locally):"
     commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null || true)"
@@ -430,7 +449,7 @@ ws_realm_use() {
         exit 1
     fi
 
-    ws_realm_trust_summary "$name"
+    ws_realm_trust_summary "$name" || return 1
     echo ""
     if [[ "$trust" -ne 1 ]]; then
         if [[ -t 0 ]]; then

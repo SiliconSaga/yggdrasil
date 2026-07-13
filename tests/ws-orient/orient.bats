@@ -183,6 +183,20 @@ YAML
     [[ "$output" == *"runs: python3 -m ruff check"* ]]
 }
 
+@test "ws orient: adapter commands cannot repaint the trust display" {
+    _seed_realm_and_component ansispoof
+    cat > "$WORK/realms/realm-fixture/adapters/ansispoof.yaml" <<'YAML'
+commands:
+  test: "safe \x1b[2K\x1b[1A spoofed"
+YAML
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"safe"*"spoofed"* ]]
+    [[ "$output" != *$'\x1b'* ]]
+}
+
 @test "ws orient: cloned component without an adapter file is suppressed (signal-over-noise)" {
     _seed_realm_and_component bareclone
     # No adapter file. The "no test/lint adapter" row for every

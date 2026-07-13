@@ -331,6 +331,10 @@ emit_workspace_selftest() {
 # Caller (emit_component_adapters) is responsible for skipping
 # components with no adapter file at all; by the time we get here,
 # adapter_file is guaranteed to exist on disk.
+_ws_orient_display_text() {
+    printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
+}
+
 _emit_one_adapter() {
     local comp="$1" active_realm="$2"
     echo "  $comp"
@@ -346,7 +350,7 @@ _emit_one_adapter() {
             continue
         fi
         if [[ -n "$cmd" && "$cmd" != "null" ]]; then
-            printf '    ws %s [runs: %s]\n' "$verb" "$cmd"
+            printf '    ws %s [runs: %s]\n' "$verb" "$(_ws_orient_display_text "$cmd")"
             any=1
         fi
     done

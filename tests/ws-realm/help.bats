@@ -78,6 +78,12 @@ defaults:
 components:
   app:
     repo: https://git.example.com/team/app.git
+    forkRepo: https://git.example.com/operator/app.git
+identity:
+  forkRemote: operator
+  homes:
+    fork:
+      namespace: git.example.com/operator
 mcp:
   servers:
     assistant:
@@ -105,8 +111,38 @@ YAML
     [[ "$output" == *"https://git.example.com/team/app.git"* ]]
     [[ "$output" == *"uv run pytest"* ]]
     [[ "$output" == *"GITLAB_TEAM_TOKEN"* ]]
+    [[ "$output" == *"https://git.example.com/operator/app.git"* ]]
+    [[ "$output" == *"git.example.com/operator"* ]]
+    [[ "$output" == *"forkRemote"*"operator"* ]]
     [[ "$output" == *"https://mcp.example.com/api"* ]]
     [ "$(yq '.realm' "$work/ecosystem.local.yaml")" = "realm.test" ]
+}
+
+@test "ws realm use refuses adoption when adapter command extraction fails" {
+    work="$BATS_TEST_TMPDIR/work-broken-adapter"
+    mkdir -p "$work/realms/realm.test/adapters" "$work/components" "$work/hoards"
+    printf 'components: {}\n' > "$work/ecosystem.yaml"
+    printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
+    printf 'components: {}\n' > "$work/realms/realm.test/ecosystem.yaml"
+    cat > "$work/realms/realm.test/adapters/app.yaml" <<'YAML'
+commands:
+  test: uv run pytest
+  metadata:
+    hidden: value
+YAML
+
+    run env \
+        "ROOT_DIR=$work" \
+        "REALMS_DIR=$work/realms" \
+        "COMPONENTS_DIR=$work/components" \
+        "HOARDS_DIR=$work/hoards" \
+        "ECOSYSTEM=$work/ecosystem.yaml" \
+        "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" \
+        bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot safely render adapter commands"* ]]
+    [ "$(yq '.realm // ""' "$work/ecosystem.local.yaml")" = "" ]
 }
 
 @test "ws realm use --trust redacts embedded credentials in the trust summary" {
