@@ -17,6 +17,12 @@ SH
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
     export COMPONENTS_DIR="$BATS_TEST_TMPDIR/components"
+    # Isolate REALMS_DIR to an empty dir so these clone-fork-logic tests don't
+    # inherit whatever realm the developer happens to have cloned in the repo's
+    # realms/ (an active realm makes ws_resolve_ecosystem require realm trust,
+    # which these tests neither set up nor exercise).
+    export REALMS_DIR="$BATS_TEST_TMPDIR/realms"
+    mkdir -p "$REALMS_DIR"
     # Sandbox the git global config via HOME, not GIT_CONFIG_GLOBAL — the
     # env var needs git >= 2.32 and is silently IGNORED on older gits, which
     # both leaks the insteadOf rewrites into no-op land (tests then hit the
