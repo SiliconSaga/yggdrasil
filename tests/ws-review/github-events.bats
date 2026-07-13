@@ -21,6 +21,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$path" == "repos/owner/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ]]; then
+    if [[ "${FUTURE_COMMIT:-}" == "1" ]]; then
+        jq -r "$filter" <<'JSON'
+{"commit":{"committer":{"date":"2099-07-08T08:30:00Z"}}}
+JSON
+        exit 0
+    fi
     jq -r "$filter" <<'JSON'
 {"commit":{"committer":{"date":"2026-07-08T08:30:00Z"}}}
 JSON
@@ -38,6 +44,16 @@ BASH
     chmod +x "$BIN_DIR/gh"
 }
 
+@test "GitHub previous-push lookup ignores a future-dated commit fallback" {
+    run --separate-stderr env "FUTURE_COMMIT=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 1' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
+    [[ "$stderr" == *"ignoring untrusted commit timestamps"* ]]
+}
+
 @test "GitHub push lookup treats a quoted branch name literally" {
     run env "PATH=$BIN_DIR:$PATH" bash -c \
         'source "$1"; gp_review_push_timestamp owner/repo '\''feature/"quoted"'\'' 0' \
@@ -47,12 +63,12 @@ BASH
     [ "$output" = "2026-07-08T09:00:00Z" ]
 }
 
-@test "GitHub previous-push lookup falls back through the latest event before SHA" {
+@test "GitHub previous-push lookup falls back to all history when the event is missing" {
     run --separate-stderr env "PATH=$BIN_DIR:$PATH" bash -c \
         'source "$1"; gp_review_push_timestamp owner/repo feature/review 1' \
         _ "$REPO_ROOT/scripts/providers/github.sh"
 
     [ "$status" -eq 0 ]
-    [ "$output" = "2026-07-08T08:30:00Z" ]
-    [[ "$stderr" == *"using its prior head commit time"* ]]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
+    [[ "$stderr" == *"ignoring untrusted commit timestamps"* ]]
 }
