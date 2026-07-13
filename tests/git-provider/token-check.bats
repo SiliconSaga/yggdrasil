@@ -46,10 +46,40 @@ SH
     [ "$output" = "octocat" ]
 }
 
+@test "GitHub api probe ignores stderr warnings on success" {
+    cat > "$STUB_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+echo "octocat"
+echo "provider warning" >&2
+SH
+    chmod +x "$STUB_DIR/gh"
+    PATH="$STUB_DIR:$PATH"
+
+    run gp_token_api_login github github.com sometoken
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "octocat" ]
+}
+
 @test "api probe extracts the GitLab username when the provider accepts the token" {
     cat > "$STUB_DIR/glab" <<'SH'
 #!/usr/bin/env bash
 printf '{"username":"gitlab-user"}\n'
+SH
+    chmod +x "$STUB_DIR/glab"
+    PATH="$STUB_DIR:$PATH"
+
+    run gp_token_api_login gitlab gitlab.example.com sometoken
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "gitlab-user" ]
+}
+
+@test "GitLab api probe ignores stderr warnings on success" {
+    cat > "$STUB_DIR/glab" <<'SH'
+#!/usr/bin/env bash
+printf '{"username":"gitlab-user"}\n'
+echo "provider warning" >&2
 SH
     chmod +x "$STUB_DIR/glab"
     PATH="$STUB_DIR:$PATH"

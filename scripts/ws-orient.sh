@@ -332,7 +332,7 @@ emit_workspace_selftest() {
 # components with no adapter file at all; by the time we get here,
 # adapter_file is guaranteed to exist on disk.
 _ws_orient_display_text() {
-    printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
+    printf '%s' "$1" | tr '\011\012\015' '   ' | tr -d '\000-\010\013-\037\177'
 }
 
 _emit_one_adapter() {

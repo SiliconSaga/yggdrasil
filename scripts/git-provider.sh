@@ -197,26 +197,38 @@ gp_token_api_login() {
     if command -v timeout >/dev/null 2>&1; then to=(timeout 10)
     elif command -v gtimeout >/dev/null 2>&1; then to=(gtimeout 10)
     fi
-    local out rc parsed class reason
+    local out rc parsed class reason diagnostic stderr_file stderr_out
     case "$provider" in
         github)
             command -v gh >/dev/null 2>&1 || return 2
-            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>&1)
+            if ! stderr_file=$(mktemp "${TMPDIR:-/tmp}/gdd-provider-stderr.XXXXXX"); then
+                printf '%s' "could not create temporary provider diagnostic file"
+                return 3
+            fi
+            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>"$stderr_file")
             rc=$?
             ;;
         gitlab)
             command -v glab >/dev/null 2>&1 || return 2
             command -v jq >/dev/null 2>&1 || return 2
-            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>&1)
+            if ! stderr_file=$(mktemp "${TMPDIR:-/tmp}/gdd-provider-stderr.XXXXXX"); then
+                printf '%s' "could not create temporary provider diagnostic file"
+                return 3
+            fi
+            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>"$stderr_file")
             rc=$?
             ;;
         *)
             return 2
             ;;
     esac
+    stderr_out="$(<"$stderr_file")"
+    rm -f "$stderr_file"
     if [[ $rc -ne 0 ]]; then
-        class="$(gp_api_error_classify "$rc" "$out")"
-        reason="$(gp_api_error_one_line "$out" "$tok")"
+        diagnostic="$stderr_out"
+        [[ -n "$diagnostic" ]] || diagnostic="$out"
+        class="$(gp_api_error_classify "$rc" "$diagnostic")"
+        reason="$(gp_api_error_one_line "$diagnostic" "$tok")"
         if [[ "$class" == "auth" ]]; then
             return 1
         fi

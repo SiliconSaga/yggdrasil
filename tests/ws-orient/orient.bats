@@ -239,6 +239,21 @@ YAML
     [[ "$output" != *$'\x1b'* ]]
 }
 
+@test "ws orient: adapter commands render control whitespace on one line" {
+    _seed_realm_and_component whitespacespoof
+    cat > "$WORK/realms/realm-fixture/adapters/whitespacespoof.yaml" <<'YAML'
+commands:
+  test: "safe\nspoofed\trow\rnext"
+YAML
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ws test [runs: safe spoofed row next]"* ]]
+    [[ "$output" != *$'safe\nspoofed'* ]]
+    [[ "$output" != *$'spoofed\trow'* ]]
+}
+
 @test "ws orient: cloned component without an adapter file is suppressed (signal-over-noise)" {
     _seed_realm_and_component bareclone
     # No adapter file. The "no test/lint adapter" row for every
