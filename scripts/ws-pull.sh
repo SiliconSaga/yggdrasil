@@ -39,8 +39,6 @@ if ! command -v yq &>/dev/null; then
     exit 1
 fi
 
-ECO="$(ws_resolve_ecosystem)"
-
 pull_repo() {
     local name="$1"
     local target="$2"
@@ -100,6 +98,7 @@ else
     # (yq over ecosystem.yaml); realms and hoards are disk-driven
     # (any directory with a .git/ subfolder). Mirrors ws-status.sh.
     # `// {}` guards the fresh-workspace case (null/missing components map).
+    ECO="$(ws_resolve_ecosystem)"
     while IFS= read -r name; do
         pull_repo "$name" "$COMPONENTS_DIR/$name"
     done < <(yq -r '.components // {} | keys | .[]' "$ECO")
@@ -118,6 +117,19 @@ else
             [[ -d "${hoard_path}.git" ]] || continue
             pull_repo "$(basename "$hoard_path")" "$hoard_path"
         done
+    fi
+fi
+
+# Pulling a realm is the recovery path when its approved trust inputs have
+# drifted, so do not require current trust before the pull. Afterward, surface
+# the state without updating the operator-owned approval fingerprint.
+active_realm=""
+if active_realm="$(ws_detect_realm 2>/dev/null)" && [[ -n "$active_realm" ]]; then
+    trust_state="$(ws_realm_trust_state "$active_realm")"
+    if [[ "$trust_state" != "current" ]]; then
+        echo ""
+        echo "Realm trust reapproval required for '$active_realm' after pull (state: $trust_state)."
+        echo "  Review the current trust summary, then run: ws realm use $active_realm"
     fi
 fi
 

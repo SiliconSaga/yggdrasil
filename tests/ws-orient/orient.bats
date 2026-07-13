@@ -144,6 +144,48 @@ MD
     [[ "$output" == *"AGENTS.md"* ]]
 }
 
+@test "ws orient: selected realm without an approval fingerprint requests reapproval" {
+    mkdir -p "$WORK/realms/realm-fixture"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    printf 'realm: realm-fixture\n' > "$WORK/ecosystem.local.yaml"
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Trust: reapproval required"* ]]
+    [[ "$output" == *"ws realm use realm-fixture"* ]]
+}
+
+@test "ws orient: approved realm reports current trust without another prompt" {
+    mkdir -p "$WORK/realms/realm-fixture"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Trust: approved"* ]]
+    [[ "$output" != *"Trust: reapproval required"* ]]
+}
+
+@test "ws orient: stale realm trust requests reapproval but still renders" {
+    mkdir -p "$WORK/realms/realm-fixture/adapters"
+    mkdir -p "$WORK/components/app/.git"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    printf 'commands:\n  test: uv run pytest\n' > "$WORK/realms/realm-fixture/adapters/app.yaml"
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+    printf 'commands:\n  test: uv run pytest -q\n' > "$WORK/realms/realm-fixture/adapters/app.yaml"
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Trust: reapproval required"* ]]
+    [[ "$output" == *"ws realm use realm-fixture"* ]]
+    [[ "$output" == *"uv run pytest -q"* ]]
+}
+
 # ─── per-component adapters with resolved command ──────────────────
 
 # Helper: drop a fixture realm + a cloned component dir. Used by the

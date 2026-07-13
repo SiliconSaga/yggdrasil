@@ -28,6 +28,16 @@ YAML
 }
 
 run_mcp() {
+    local fingerprint
+    fingerprint="$(bash -c 'source "$1"; ws_realm_trust_fingerprint realm-fixture' _ "$WORK/scripts/ws-realm.sh")"
+    [ -n "$fingerprint" ]
+    REALM_NAME="realm-fixture" REALM_FINGERPRINT="$fingerprint" yq -i '
+        .realm = strenv(REALM_NAME) |
+        ._gdd.realmTrust = {
+          "realm": strenv(REALM_NAME),
+          "fingerprint": strenv(REALM_FINGERPRINT)
+        }
+    ' "$WORK/ecosystem.local.yaml"
     run bash "$WORK/scripts/ws-mcp-setup.sh" --dry-run
 }
 

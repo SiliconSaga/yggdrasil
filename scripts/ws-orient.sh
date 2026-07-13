@@ -446,6 +446,14 @@ emit_active_realm() {
     if [[ -f "$realm_agents" ]]; then
         echo "  Guide: $realm_agents"
     fi
+    local trust_state
+    trust_state="$(ws_realm_trust_state "$_ORIENT_REALM")"
+    if [[ "$trust_state" == "current" ]]; then
+        echo "  Trust: approved"
+    else
+        echo "  Trust: reapproval required (state: $trust_state)"
+        echo "  Review and approve with: ws realm use $_ORIENT_REALM"
+    fi
 }
 
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats
