@@ -42,6 +42,10 @@ ws mcp-setup
 # review-thread state.
 ws review * reply *
 ws review * threads * --resolve*
+# Activating a realm grants trust to its config surface (adapters, MCP
+# endpoints, component catalog). --trust exists so a HUMAN can skip the
+# interactive confirm — an agent passing it must still land on a person.
+ws realm use *
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2

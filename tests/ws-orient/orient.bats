@@ -114,9 +114,7 @@ setup() {
     [[ "$output" == *"Active realm: none"* ]]
 }
 
-@test "ws orient: surfaces the active realm name when one is present" {
-    # Drop a fixture realm; auto-detection picks the single
-    # non-template realm-* directory under realms/.
+@test "ws orient: does not autoactivate a sole community realm" {
     mkdir -p "$WORK/realms/realm-fixture"
     cat > "$WORK/realms/realm-fixture/ecosystem.yaml" <<'YAML'
 identity:
@@ -127,6 +125,18 @@ YAML
 # realm-fixture
 MD
     run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm: none"* ]]
+}
+
+@test "ws orient: surfaces an explicitly selected community realm" {
+    mkdir -p "$WORK/realms/realm-fixture"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    printf '# realm-fixture\n' > "$WORK/realms/realm-fixture/AGENTS.md"
+    printf 'realm: realm-fixture\n' > "$WORK/ecosystem.local.yaml"
+
+    run_ws orient
+
     [ "$status" -eq 0 ]
     [[ "$output" == *"Active realm: realm-fixture"* ]]
     # Pointer to the realm's AGENTS.md so the agent can navigate
@@ -147,6 +157,7 @@ identity:
   human_account: testuser
 components: {}
 YAML
+    printf 'realm: realm-fixture\n' > "$WORK/ecosystem.local.yaml"
     # .git as a real dir marks the component as cloned for orient's
     # enumeration. No actual git operations happen — orient is
     # read-only and never invokes git on the component.
@@ -249,6 +260,7 @@ identity:
   human_account: testuser
 components: {}
 YAML
+    printf 'realm: realm-fixture\n' > "$WORK/ecosystem.local.yaml"
     _seed_skill "$WORK/.agent/skills" ws-skill "Workspace-tier skill"
     _seed_skill "$WORK/realms/realm-fixture/.agent/skills" realm-skill "Realm-tier skill"
     run_ws orient
@@ -269,19 +281,11 @@ YAML
 
 # ─── resilience: ambiguous realm + malformed YAML survive ───────────
 
-@test "ws orient: ambiguous realm renders a clear status, not a hard exit" {
-    # ws_detect_realm exits 1 when multiple non-template realm-*
-    # dirs are present and no ecosystem.local.yaml `realm:` selector
-    # picks one. Orient should catch that, render an "ambiguous"
-    # status with the resolution hint, and continue rendering the
-    # rest of the output — not die mid-section.
+@test "ws orient: multiple unselected community realms remain inactive" {
     mkdir -p "$WORK/realms/realm-alpha" "$WORK/realms/realm-beta"
     run_ws orient
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Active realm: ambiguous"* ]]
-    [[ "$output" == *"ecosystem.local.yaml"* ]]
-    # Subsequent sections must still render — Skills header proves
-    # we didn't bail at the realm step.
+    [[ "$output" == *"Active realm: none"* ]]
     [[ "$output" == *"Skills"* ]]
 }
 

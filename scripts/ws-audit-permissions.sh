@@ -130,6 +130,9 @@ Bash(bash *)|high|Allows running any bash script or inline bash invocation. Effe
 Bash(sh *)|high|Same as bash * but for sh.
 Bash(rm -rf *)|high|Recursive force-delete with any target. Wildcards a destructive verb.
 Bash(rm *)|high|rm with arbitrary args (with -rf or without).
+Bash(git -c *)|high|Git configuration injection can define executable aliases and helpers beneath an allowed command.
+Bash(git * --ext-diff *)|high|Git executable helper flags can run external programs beneath a read-looking diff command.
+Bash(git * ext::*)|high|Git remote helper syntax can execute a command instead of contacting a repository.
 Bash(kubectl:*)|high|Blanket kubectl auto-approval covers writes to every context and overrides narrower read-only allowances.
 Bash(curl *)|medium|Unscoped network egress. Sometimes legitimate (fetching public APIs); consider scoping to a domain.
 Bash(wget *)|medium|Same as curl — unscoped fetch.

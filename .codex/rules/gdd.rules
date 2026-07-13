@@ -1,0 +1,66 @@
+prefix_rule(
+    pattern = ["ws", "commit"],
+    decision = "allow",
+    justification = "GDD ws commit creates a local Git commit; publishing remains separately gated by ws push.",
+    match = [
+        "ws commit yggdrasil .commits/example.md",
+        "ws commit --co-author-file session--worker yggdrasil .commits/example.md",
+    ],
+    not_match = [
+        "ws push yggdrasil",
+        "ws cr yggdrasil Example .crs/example.md",
+    ],
+)
+
+prefix_rule(
+    pattern = ["ws", "pull"],
+    decision = "allow",
+    justification = "GDD ws pull updates only clean local repositories from their configured remotes.",
+    match = [
+        "ws pull",
+        "ws pull yggdrasil",
+        "ws pull gangplank",
+    ],
+    not_match = [
+        "ws push yggdrasil",
+    ],
+)
+
+prefix_rule(
+    pattern = ["ws", "diagnose"],
+    decision = "allow",
+    justification = "GDD ws diagnose performs read-only remote, token, and provider checks.",
+    match = [
+        "ws diagnose yggdrasil",
+        "ws diagnose --no-api-check gangplank",
+    ],
+    not_match = [
+        "ws push gangplank",
+    ],
+)
+
+prefix_rule(
+    pattern = ["ws", "realm", "init"],
+    decision = "allow",
+    justification = "GDD ws realm init clones the fixed shared tutorial realm into the workspace.",
+    match = [
+        "ws realm init",
+    ],
+    not_match = [
+        "ws realm https://example.com/untrusted.git",
+    ],
+)
+
+prefix_rule(
+    pattern = ["ws", "hoard", "init"],
+    decision = "allow",
+    justification = "GDD ws hoard init uses templates committed in this trusted workspace and never publishes the resulting repository.",
+    match = [
+        "ws hoard init",
+        "ws hoard init thalami --name personal-notes",
+        "ws hoard init obsidian-vault --name notes",
+    ],
+    not_match = [
+        "ws hoard https://example.com/untrusted.git",
+    ],
+)

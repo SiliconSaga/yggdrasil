@@ -206,6 +206,120 @@ _k8s_validate_rendered_docs() {
     [[ $docs_seen -gt 0 ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
 }
 
+_k8s_kustomization_file() {
+    local dir="$1" name
+    for name in kustomization.yaml kustomization.yml Kustomization; do
+        [[ -f "$dir/$name" ]] && { printf '%s' "$dir/$name"; return 0; }
+    done
+    return 1
+}
+
+_k8s_kustomize_refs() {
+    local file="$1"
+    yq -r '[
+      (.resources // [])[],
+      (.bases // [])[],
+      (.components // [])[],
+      (.patchesStrategicMerge // [])[],
+      ((.patchesJson6902 // [])[] | (.path // "")),
+      ((.patches // [])[] | select(tag == "!!str")),
+      ((.patches // [])[] | select(tag == "!!map") | (.path // "")),
+      (.generators // [])[],
+      (.transformers // [])[],
+      (.configurations // [])[],
+      (.crds // [])[],
+      ((.configMapGenerator // [])[] | (.files // [])[]),
+      ((.configMapGenerator // [])[] | (.envs // [])[]),
+      ((.secretGenerator // [])[] | (.files // [])[]),
+      ((.secretGenerator // [])[] | (.envs // [])[]),
+      (.openapi.path // "")
+    ] | .[] | select(. != "" and . != null)' "$file" 2>/dev/null
+}
+
+_k8s_validate_kustomize_dir() {
+    local root_real="$1" dir="$2"
+    local dir_real file refs ref path candidate probe probe_real
+    [[ -L "$dir" ]] && { echo "symlinked kustomization directory is not allowed: $dir"; return 1; }
+    dir_real="$(cd "$dir" 2>/dev/null && pwd -P)" || { echo "cannot resolve local kustomization directory: $dir"; return 1; }
+    case "$dir_real/" in
+        "$root_real/"*) : ;;
+        *) echo "kustomization directory escapes the selected local root: $dir"; return 1 ;;
+    esac
+
+    case "${_K8S_KUSTOMIZE_VISITED:-}" in
+        *$'\n'"$dir_real"$'\n'*) return 0 ;;
+    esac
+    _K8S_KUSTOMIZE_VISITED="${_K8S_KUSTOMIZE_VISITED:-}"$'\n'"$dir_real"$'\n'
+
+    file="$(_k8s_kustomization_file "$dir_real")" || {
+        echo "local kustomization directory has no kustomization file: $dir"
+        return 1
+    }
+    [[ -L "$file" ]] && { echo "symlinked kustomization file is not allowed: $file"; return 1; }
+    if ! refs="$(_k8s_kustomize_refs "$file")"; then
+        echo "could not parse local kustomization file: $file"
+        return 1
+    fi
+
+    while IFS= read -r ref || [[ -n "$ref" ]]; do
+        [[ -n "$ref" ]] || continue
+        if [[ "$ref" =~ [[:cntrl:]] ]]; then
+            echo "kustomization reference contains a control character"
+            return 1
+        fi
+        case "$ref" in
+            *://*|*::*|*'?'*|*'#'*|*//*|git@*:*|/*|\\*|[A-Za-z]:[/\\]*)
+                echo "remote or absolute kustomization reference is not allowed: $ref"
+                return 1
+                ;;
+        esac
+        case "$ref" in
+            ..|../*|*/..|*/../*)
+                echo "parent traversal in kustomization reference is not allowed: $ref"
+                return 1
+                ;;
+        esac
+
+        # Generator files may use key=path syntax. Validate the path side;
+        # remote/query forms were already rejected above before stripping.
+        path="$ref"
+        case "$path" in *=*) path="${path#*=}" ;; esac
+        [[ -n "$path" ]] || { echo "empty kustomization file reference"; return 1; }
+        candidate="$dir_real/$path"
+        [[ -e "$candidate" || -L "$candidate" ]] || {
+            echo "local kustomization reference does not exist: $ref"
+            return 1
+        }
+        [[ -L "$candidate" ]] && {
+            echo "symlinked kustomization reference is not allowed: $ref"
+            return 1
+        }
+        if [[ -d "$candidate" ]]; then probe="$candidate"; else probe="${candidate%/*}"; fi
+        probe_real="$(cd "$probe" 2>/dev/null && pwd -P)" || {
+            echo "cannot resolve local kustomization reference: $ref"
+            return 1
+        }
+        case "$probe_real/" in
+            "$root_real/"*) : ;;
+            *) echo "kustomization reference escapes the selected local root: $ref"; return 1 ;;
+        esac
+        if [[ -d "$candidate" ]]; then
+            _k8s_validate_kustomize_dir "$root_real" "$candidate" || return 1
+        fi
+    done <<< "$refs"
+}
+
+k8s_guard_validate_kustomize_tree() {
+    local root="$1" root_real
+    [[ -d "$root" && ! -L "$root" ]] || {
+        echo "kustomization target is not a non-symlink local directory: $root"
+        return 1
+    }
+    root_real="$(cd "$root" 2>/dev/null && pwd -P)" || return 1
+    _K8S_KUSTOMIZE_VISITED=""
+    _k8s_validate_kustomize_dir "$root_real" "$root_real"
+}
+
 # Print one verdict: NOT_K8S | READ_NO_SCOPE | WRITE_NO_SCOPE |
 # READ_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
@@ -341,11 +455,16 @@ k8s_guard_evaluate() {
     # Render only an existing local directory; remote inputs and render failures
     # fail closed rather than turning a namespace guess into approval.
     if [[ ${#kdirs[@]} -gt 0 ]]; then
-        local k k_path rendered validation
+        local k k_path rendered validation preflight
         for k in "${kdirs[@]}"; do
             k_path="$k"
             [[ -d "$k_path" ]] || k_path="$(_k8s_normalize_path "$k")"
             [[ -d "$k_path" ]] || { printf 'BLOCK:precondition:-k %s is not a readable local directory' "$k"; return 0; }
+            if ! preflight="$(k8s_guard_validate_kustomize_tree "$k_path" 2>&1)"; then
+                preflight="${preflight//$'\n'/; }"
+                printf 'BLOCK:precondition:-k %s failed local-only reference validation: %s' "$k" "$preflight"
+                return 0
+            fi
             rendered="$("${KUBECTL:-kubectl}" kustomize "$k_path" 2>/dev/null)" || {
                 printf 'BLOCK:precondition:-k %s could not be rendered safely' "$k"; return 0;
             }

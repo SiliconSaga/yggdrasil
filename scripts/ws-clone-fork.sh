@@ -137,6 +137,7 @@ if [[ -z "$UPSTREAM_URL" || "$UPSTREAM_URL" == "null" ]]; then
     echo "        repo: <source-project-git-url>" >&2
     exit 1
 fi
+git_remote_validate "$UPSTREAM_URL" remote
 
 # Per-component fork override (full URL)
 FORK_REPO_OVERRIDE=$(COMP="$COMPONENT" yq '.components[strenv(COMP)].forkRepo // ""' "$ECO" 2>/dev/null)
@@ -649,6 +650,12 @@ else
     echo "  Transport: ssh"
 fi
 
+# Provider API payloads are untrusted input. Before any clone or remote sink,
+# require the selected source and fork URLs to use a supported Git transport
+# and to remain on the provider host derived from the configured source URL.
+git_remote_validate "$FORK_REMOTE_URL" remote "$UPSTREAM_HOST"
+git_remote_validate "$UPSTREAM_REMOTE_URL" remote "$UPSTREAM_HOST"
+
 # --- clone or repair local checkout -----------------------------------------
 TARGET="$COMPONENTS_DIR/$COMPONENT"
 echo ""
@@ -741,7 +748,7 @@ else
     echo "         CLONE: $FORK_REMOTE_URL → $TARGET (remote: $FORK_REMOTE)"
     GIT_AUTH_ENV=()
     git_auth_env_for_url "$FORK_REMOTE_URL"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$FORK_REMOTE" "$FORK_REMOTE_URL" "$TARGET"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
     git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
 fi
 

@@ -69,7 +69,7 @@ echo ""
 # Status of each component
 # `// {}` guards the fresh-workspace case: a missing or null components map
 # must read as empty, not surface a yq "cannot get keys of !!null" error.
-for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
+while IFS= read -r name; do
     target="$COMPONENTS_DIR/$name"
     if [[ ! -d "$target/.git" ]]; then
         echo "=== $name === (not cloned)"
@@ -80,7 +80,7 @@ for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
     echo "=== $name ==="
     print_repo_status "$target"
     echo ""
-done
+done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 
 # Walk realms/ — directories with a .git/ subfolder. Disk-driven, not
 # config-driven; we show all cloned realms regardless of active-realm

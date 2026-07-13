@@ -43,6 +43,7 @@ init_hook_env() {
     mkdir -p "$WORK/.claude/hooks"
     mkdir -p "$WORK/_home/.claude/hooks"
     export HOME="$WORK/_home"
+    export CLAUDE_PROJECT_DIR="$WORK"
 }
 
 # Write a synthetic project .claude/settings.json with the given
@@ -196,14 +197,16 @@ run_hook_ps() {
 #
 # Creates: $WORK/components/<comp>/ (cwd anchor for tests),
 #          $WORK/realms/<realm>/ + ecosystem.yaml, optional adapter
-#          file. Auto-detection picks the single non-template realm-*
-#          dir so no ecosystem.local.yaml selector is needed.
+#          file. The synthetic local config explicitly selects the
+#          realm — community realms only activate via the explicit
+#          trust step, so auto-detection no longer exists to lean on.
 seed_adapter_fixture() {
     local comp="$1"
     local adapter_yaml="$2"
     local realm="${3:-realm-fixture}"
     mkdir -p "$WORK/components/$comp"
     mkdir -p "$WORK/realms/$realm/adapters"
+    printf 'realm: %s\n' "$realm" > "$WORK/ecosystem.local.yaml"
     cat > "$WORK/realms/$realm/ecosystem.yaml" <<'YAML'
 identity:
   human_account: testuser

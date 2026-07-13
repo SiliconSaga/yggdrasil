@@ -121,6 +121,24 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/gdd-permission-hook.sh\""
+          }
+        ]
       }
     ]
   }

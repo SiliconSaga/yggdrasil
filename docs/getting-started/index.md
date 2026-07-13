@@ -147,6 +147,7 @@ The upstream yggdrasil workspace deliberately declares no components — compone
 
 ```bash
 ws realm https://github.com/SiliconSaga/realm-siliconsaga.git   # the author's community
+ws realm use realm-siliconsaga   # review the trust summary, confirm activation
 ws list              # now shows the realm's components
 ws clone terasology  # or any component that interests you
 ```
@@ -173,7 +174,7 @@ Adoption uses a three-layer configuration — implemented today:
 
 1. **Yggdrasil upstream** — fork or clone the generic workspace. Ships with tutorial components and sample configuration. Works out of the box for exploring GDD.
 
-2. **Your realm** — a small separate repo (named with a `realm-<community>` convention, e.g. `realm-siliconsaga`) containing your community's configuration: which components to work on, agent identity and attribution, domain settings. When this repo is present in `realms/`, Yggdrasil detects it automatically and merges its config — no config file edits needed. Convention over configuration.
+2. **Your realm** — a small separate repo (named with a `realm-<community>` convention, e.g. `realm-siliconsaga`) containing your community's configuration: which components to work on, agent identity and attribution, domain settings. Cloning it puts it in `realms/`; activating it is a one-time explicit trust step (`ws realm use`) that first shows you what the realm brings — repository hosts, adapter commands, credential-mapping requests, MCP endpoints — before its config merges in.
 
 3. **Local overrides** — `ecosystem.local.yaml` (gitignored) for per-developer settings on top of the realm. Same as today.
 
@@ -183,10 +184,11 @@ The bootstrap for a new community member:
 git clone https://github.com/SiliconSaga/yggdrasil.git   # or your fork
 cd yggdrasil
 bash scripts/ws realm https://github.com/YourOrg/realm-yourorg.git
-bash scripts/ws clone --all    # pulls components declared in the realm
+bash scripts/ws realm use realm-yourorg   # review the trust summary, confirm
+bash scripts/ws clone --all               # pulls components declared in the realm
 ```
 
-One person sets up the realm repo for the community. Everyone else runs two commands. The realm declares which components to clone, so `ws clone --all` pulls exactly what the community needs.
+One person sets up the realm repo for the community. Everyone else runs three commands — clone the realm, review-and-trust it, pull its components. The `ws realm use` step shows a trust summary (which hosts, which adapter commands, which credential mappings, which MCP endpoints the realm brings) and asks for your confirmation; that's deliberate, because a realm is executable configuration and activating one is the trust decision of the whole bootstrap. The realm declares which components to clone, so `ws clone --all` pulls exactly what the community needs.
 
 `ws clone` accepts arbitrary git URLs for flexibility — any repo gets cloned into `components/`. Realm repos get cloned into `realms/` via `ws realm <url>` and are recognized as configuration when their name matches the `realm-<community>` convention.
 

@@ -27,6 +27,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - **Onboarding hardening** — scope-preselected PAT creation links in `ws diagnose` token misses, `ws realm init` fork-and-rename guidance for newcomers, `.env` token-setup docs (#119).
 - **Codex harness hooks** — Codex gets focused PreToolUse counterparts to the Claude hook: a Kubernetes-guard hook (#118) and a workflow-redirect hook that reads the same committed `[redirect-commands]` rules — redirect policy is shared platform-neutral data, so adding a rule affects both agents without editing either hook; raw `gh`/`glab` provider commands gained redirect rows in the same pass (#126).
 - **`ws k8s` context-only scope mode** — arm just a context with all namespaces in scope, for deep work on a local throwaway cluster where per-namespace scoping is friction without safety (#126).
+- **Realm activation trust gate** — `ws realm use` shows a trust summary of what the realm brings (repository hosts, adapter commands, credential-mapping requests, MCP endpoints — with URL credentials redacted and terminal control sequences stripped so the summary can't be spoofed) and requires confirmation; `--trust` covers non-interactive runs and is itself hook ask-gated for agents (#129).
+- **Shared Git remote validation** — clone/realm/hoard URL sinks reject option injection, executable remote-helper syntax (`ext::`), control characters, unsupported schemes, and filesystem paths (including Windows drive-letter forms) outside explicit local flows; provider-API-returned clone URLs are pinned to the configured source host (#129).
+- **Kustomize local-only preflight** — the k8s guard validates a `-k` target's whole reference graph (resources, bases, patches incl. legacy JSON6902, generators) as local, non-symlinked, and root-contained before rendering (#129).
+- MCP endpoint validation at `ws mcp-setup` time: absolute HTTP(S) shape required, plain-HTTP-on-nonlocal-host and embedded-credential warnings (#129).
 - Optional shellcheck linting for the workspace's own scripts (#98).
 
 ### Changed
@@ -40,6 +44,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `docs/dev-setup.md` renamed to `docs/workspace-setup.md` with an onboarding front-door polish pass (#109).
 - Hard-wrapped prose de-wrapped workspace-wide per the single-line-paragraph convention (#104).
 - Methodology docs consistency pass — the "good-enough" posture named as a first-class design statement, hook-doc altitude dedup, skills-reference taxonomy fix, link-shape cleanups (#120).
+- **Community realm auto-detection removed** — with no `realm:` selector in `ecosystem.local.yaml`, only the bundled `realm-template` is implied. Existing workspaces that relied on auto-detecting a lone community realm should run `ws realm use <name>` once (#129).
+- The permission hook anchors all policy (rules files, allowlists, scratch and sensitive paths) to the workspace root instead of walking up from the command cwd; `Edit`/`Write` route through the hook, and security-sensitive state (`.claude/`, `.env`, `ecosystem.local.yaml`, hook-bypass markers, agent session files) asks instead of inheriting the scratch auto-allow (#129).
+- Hoard templates require an immutable full-SHA `pin` (checked out detached), and hoard-upgrade manifests are validated against traversal and symlink escapes before any file operation (#129).
+- `ws session set` accepts only the public stance/role/mentoring keys — guard and identity keys route through `ws k8s scope` and `ws whoami` (#129).
 
 ### Removed
 
@@ -61,6 +69,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 
 - MCP configuration writes (`ws mcp-setup`) are human-gated instead of auto-approvable (#121).
 - Workspace credentials load as literal data rather than shell-evaluated content, and small `ws` input-validation edges were tightened (#121).
+- Credential routing reads only the committed workspace config plus `ecosystem.local.yaml` — a realm's `defaults.gitTokens` entries can no longer attach the operator's tokens (#129).
+- `.env` loading refuses Git execution and configuration variables (`GIT_CONFIG*`, `GIT_SSH*`, askpass/editor/pager vars, the `GIT_DIR` family) plus `HOME`/`CDPATH` (#129).
+- Git execution modifiers (`-c`, `--ext-diff`, `--upload-pack`, remote-helper transports) deny ahead of permission matching, and `ws audit-permissions` flags allowlist entries that would cover them as high severity (#129).
+- Hook path comparisons normalize Windows path forms (via `cygpath` on Git Bash) before matching — previously an anchored prefix check could silently never match payload paths on Windows, failing open to passthrough (#129).
 
 ## Pre-1.0 archaeology
 

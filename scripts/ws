@@ -773,10 +773,10 @@ HELP
             # an error. (False-alarm fix: was reporting "no gitTokens
             # entry matches" for vanilla GitHub remotes that work
             # fine via $GH_TOKEN.)
-            local default_var=""
-            case "$provider" in
-                github) default_var="GH_TOKEN" ;;
-                gitlab) default_var="GITLAB_TOKEN" ;;
+            local default_var="" remote_host="${normalized%%/*}"
+            case "$provider:$remote_host" in
+                github:github.com) default_var="GH_TOKEN" ;;
+                gitlab:gitlab.com) default_var="GITLAB_TOKEN" ;;
             esac
             if [[ -n "$default_var" ]]; then
                 local default_val="${!default_var:-}"
@@ -847,6 +847,8 @@ HELP
 
     local eco
     eco=$(ws_resolve_ecosystem)
+    local auth_eco
+    auth_eco=$(ws_resolve_local_ecosystem)
 
     local host="${GITLAB_HOST:-}"
     if [[ -z "$host" ]]; then
@@ -865,7 +867,7 @@ HELP
             [[ -z "$key" || "$key" == "null" ]] && continue
             [[ "$key" != "$host/"* ]] && continue
             local var
-            var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+            var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$auth_eco")
             [[ -z "$var" || "$var" == "null" ]] && continue
             found=1
             if ! ws_require_provider_token_var "$var"; then
@@ -879,7 +881,7 @@ HELP
                 echo "  ✗ $var (NOT SET) — covers $key"
                 echo "    → Add 'export $var=<token>' to .env, then re-run: ws gitlab-auth"
             fi
-        done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+        done < <(yq '.defaults.gitTokens | keys | .[]' "$auth_eco" 2>/dev/null)
         if [[ "$found" -eq 0 ]]; then
             echo "  (none — add entries to defaults.gitTokens in ecosystem.local.yaml)"
         fi
@@ -912,9 +914,9 @@ HELP
         [[ "$key" != "$host/"* ]] && continue
         if [[ ( "$fork_token_target" == "$key" || "$fork_token_target" == "$key/"* ) && ${#key} -gt ${#write_key} ]]; then
             write_key="$key"
-            write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+            write_token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$auth_eco")
         fi
-    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$auth_eco" 2>/dev/null)
 
     if [[ -z "$write_token_var" || "$write_token_var" == "null" ]]; then
         echo "ERROR: No gitTokens entry found for fork namespace '$fork_namespace' on host '$host'." >&2
@@ -965,7 +967,7 @@ EOF
         [[ -z "$key" || "$key" == "null" ]] && continue
         [[ "$key" != "$host/"* ]] && continue
         local token_var token_val cred_path normalized_path git_path
-        token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        token_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$auth_eco")
         [[ -z "$token_var" || "$token_var" == "null" ]] && continue
         ws_require_provider_token_var "$token_var" || exit 1
         token_val="${!token_var:-}"
@@ -978,7 +980,7 @@ EOF
         if [[ "$git_path" != "$normalized_path" ]]; then
             approve_git_credential "$git_path" "$token_val"
         fi
-    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$auth_eco" 2>/dev/null)
     echo "   ✓ Stored path-scoped credentials in $(git config --global credential.helper || echo 'credential store') for $host ($stored_count entries)"
 
     # 3. Verify with git ls-remote on a declared component URL
@@ -1013,7 +1015,7 @@ EOF
         [[ -z "$key" || "$key" == "null" || "$key" == "$write_key" ]] && continue
         [[ "$key" != "$host/"* ]] && continue
         local other_var
-        other_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$eco")
+        other_var=$(KEY="$key" yq '.defaults.gitTokens[strenv(KEY)] // ""' "$auth_eco")
         [[ -z "$other_var" || "$other_var" == "null" ]] && continue
         ws_require_provider_token_var "$other_var" || exit 1
         local other_val="${!other_var:-}"
@@ -1023,7 +1025,7 @@ EOF
             echo "   ✗ Additional token $other_var (for $key) is not set in environment" >&2
         fi
         other_count=$((other_count + 1))
-    done < <(yq '.defaults.gitTokens | keys | .[]' "$eco" 2>/dev/null)
+    done < <(yq '.defaults.gitTokens | keys | .[]' "$auth_eco" 2>/dev/null)
 
     echo ""
     echo "Done. Run 'ws clone <component>' to continue."

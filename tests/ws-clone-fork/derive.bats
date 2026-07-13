@@ -17,6 +17,15 @@ SH
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
     export COMPONENTS_DIR="$BATS_TEST_TMPDIR/components"
+    # Sandbox the git global config via HOME, not GIT_CONFIG_GLOBAL — the
+    # env var needs git >= 2.32 and is silently IGNORED on older gits, which
+    # both leaks the insteadOf rewrites into no-op land (tests then hit the
+    # real network) and reads the developer's actual ~/.gitconfig. Unset the
+    # inherited override vars too, or a runner exporting them would point
+    # git past the sandbox entirely.
+    export HOME="$BATS_TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+    unset GIT_CONFIG_GLOBAL XDG_CONFIG_HOME
     export GITLAB_SOURCE_TOKEN="source-token"
     export GITLAB_FORK_TOKEN="fork-token"
 }
@@ -27,6 +36,14 @@ write_ecosystem() {
 
 run_clone_fork() {
     run bash "$CLONE_FORK_BIN" widget
+}
+
+map_clone_url() {
+    local api_url="$1" bare="$2"
+    # Native git on Windows can't resolve MSYS /tmp/... inside a file:// URL —
+    # hand it the mixed C:/ form so the insteadOf rewrite clones for real.
+    command -v cygpath >/dev/null 2>&1 && bare="$(cygpath -m "$bare")"
+    git config --file "$HOME/.gitconfig" "url.file://$bare.insteadOf" "$api_url"
 }
 
 @test "homes.fork.namespace derives an absolute fork-home project path" {
@@ -146,7 +163,11 @@ YAML
     # Git for Windows normalizes local paths when storing a remote URL
     # (/d/… → D:/…), so assert against what git stored, not the raw shell path.
     UNRELATED_STORED="$(git -C "$TARGET" remote get-url upstream)"
-    git -C "$TARGET" remote add _srcprobe "$SOURCE_BARE"
+    SOURCE_API="https://gitlab.example.com/source/alice-fork-group/widget.git"
+    FORK_STORED="https://gitlab.example.com/forks/alice-fork-group/widget.git"
+    map_clone_url "$SOURCE_API" "$SOURCE_BARE"
+    map_clone_url "$FORK_STORED" "$FORK_BARE"
+    git -C "$TARGET" remote add _srcprobe "$SOURCE_API"
     SOURCE_STORED="$(git -C "$TARGET" remote get-url _srcprobe)"
     git -C "$TARGET" remote remove _srcprobe
 
@@ -159,12 +180,12 @@ project="${@: -1}"
 case "$project" in
   projects/source%2Falice-fork-group%2Fwidget)
     cat <<JSON
-{"id":1,"default_branch":"main","ssh_url_to_repo":"$SOURCE_BARE","http_url_to_repo":"$SOURCE_BARE","web_url":"https://gitlab.example.com/source/alice-fork-group/widget"}
+{"id":1,"default_branch":"main","ssh_url_to_repo":"git@gitlab.example.com:source/alice-fork-group/widget.git","http_url_to_repo":"https://gitlab.example.com/source/alice-fork-group/widget.git","web_url":"https://gitlab.example.com/source/alice-fork-group/widget"}
 JSON
     ;;
   projects/forks%2Falice-fork-group%2Fwidget)
     cat <<JSON
-{"id":2,"default_branch":"main","import_status":"finished","ssh_url_to_repo":"$FORK_BARE","http_url_to_repo":"$FORK_BARE","web_url":"https://gitlab.example.com/forks/alice-fork-group/widget"}
+{"id":2,"default_branch":"main","import_status":"finished","ssh_url_to_repo":"git@gitlab.example.com:forks/alice-fork-group/widget.git","http_url_to_repo":"https://gitlab.example.com/forks/alice-fork-group/widget.git","web_url":"https://gitlab.example.com/forks/alice-fork-group/widget"}
 JSON
     ;;
   *)
@@ -224,7 +245,11 @@ YAML
     git -C "$TARGET" remote add team "$UNRELATED_BARE"
     # See the upstream test above — assert against git's stored form, not the raw path.
     UNRELATED_STORED="$(git -C "$TARGET" remote get-url team)"
-    git -C "$TARGET" remote add _srcprobe "$SOURCE_BARE"
+    SOURCE_API="https://gitlab.example.com/source/team/widget.git"
+    FORK_STORED="https://gitlab.example.com/forks/alice-fork-group/widget.git"
+    map_clone_url "$SOURCE_API" "$SOURCE_BARE"
+    map_clone_url "$FORK_STORED" "$FORK_BARE"
+    git -C "$TARGET" remote add _srcprobe "$SOURCE_API"
     SOURCE_STORED="$(git -C "$TARGET" remote get-url _srcprobe)"
     git -C "$TARGET" remote remove _srcprobe
 
@@ -237,12 +262,12 @@ project="${@: -1}"
 case "$project" in
   projects/source%2Fteam%2Fwidget)
     cat <<JSON
-{"id":1,"default_branch":"main","ssh_url_to_repo":"$SOURCE_BARE","http_url_to_repo":"$SOURCE_BARE","web_url":"https://gitlab.example.com/source/team/widget"}
+{"id":1,"default_branch":"main","ssh_url_to_repo":"git@gitlab.example.com:source/team/widget.git","http_url_to_repo":"https://gitlab.example.com/source/team/widget.git","web_url":"https://gitlab.example.com/source/team/widget"}
 JSON
     ;;
   projects/forks%2Falice-fork-group%2Fwidget)
     cat <<JSON
-{"id":2,"default_branch":"main","import_status":"finished","ssh_url_to_repo":"$FORK_BARE","http_url_to_repo":"$FORK_BARE","web_url":"https://gitlab.example.com/forks/alice-fork-group/widget"}
+{"id":2,"default_branch":"main","import_status":"finished","ssh_url_to_repo":"git@gitlab.example.com:forks/alice-fork-group/widget.git","http_url_to_repo":"https://gitlab.example.com/forks/alice-fork-group/widget.git","web_url":"https://gitlab.example.com/forks/alice-fork-group/widget"}
 JSON
     ;;
   *)

@@ -778,9 +778,11 @@ source "$SCRIPT_DIR/git-provider.sh"
 
 # Load merged ecosystem config for provider detection (self-hosted mappings)
 _ECO=""
+_AUTH_ECO=""
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
+_AUTH_ECO=$(ws_resolve_local_ecosystem 2>/dev/null) || _AUTH_ECO=""
 
 # Parse component (first positional arg, always required)
 if [[ $# -lt 1 ]]; then
@@ -1009,7 +1011,7 @@ gp_load "$_SELECTED_PROVIDER"
 # doesn't fall through to glab auth status when only split tokens are set.
 # Use the exact selected remote URL captured above — not a re-match by slug.
 if [[ -n "$_SELECTED_URL" ]]; then
-    gp_set_token_for_url "$_SELECTED_URL" "$_ECO"
+    gp_set_token_for_url "$_SELECTED_URL" "$_AUTH_ECO"
 fi
 
 # Provider-specific auth check

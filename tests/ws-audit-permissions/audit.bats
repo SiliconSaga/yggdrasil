@@ -122,6 +122,19 @@ Bash(curl https://example.com/api)"
     [[ "$output" == *"severity: high"* ]]
 }
 
+@test "detect: dangerous Git execution modifiers are high" {
+    write_settings project "Bash(git -c *)
+Bash(git diff --ext-diff *)
+Bash(git clone ext::*)"
+
+    run_audit
+
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"Git configuration injection"* ]]
+    [[ "$output" == *"Git executable helper"* ]]
+    [[ "$output" == *"Git remote helper"* ]]
+}
+
 # ─── Medium detections ──────────────────────────────────────────────
 
 @test "detect: Bash(curl *) is medium" {

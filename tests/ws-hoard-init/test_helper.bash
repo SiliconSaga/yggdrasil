@@ -93,6 +93,11 @@ make_bare_upstream() {
     echo "file://$bare"
 }
 
+bare_head_for_url() {
+    local url="$1"
+    git --git-dir="${url#file://}" rev-parse refs/heads/main
+}
+
 # Run ws-hoard.sh init with the propagating env. Args are forwarded.
 run_hoard_init() {
     run bash "$WS_HOARD_BIN" init "$@"

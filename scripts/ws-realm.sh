@@ -33,6 +33,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ws-env.sh
 source "$SCRIPT_DIR/ws-env.sh"
 
+# shellcheck source=git-remote.sh
+source "$SCRIPT_DIR/git-remote.sh"
+
 # Shared HTTPS token-injection helpers (git_auth_env_for_url). Sourcing here
 # means every script that sources ws-realm.sh — clone, hoard, pull, realm,
 # push — can inject .env tokens into raw git operations instead of falling
@@ -43,6 +46,7 @@ source "$SCRIPT_DIR/ws-env.sh"
 source "$SCRIPT_DIR/git-auth.sh"
 
 _RESOLVED_ECOSYSTEM=""
+_LOCAL_ECOSYSTEM=""
 # Initialize only if unset so callers that set COMPONENT_DIR before sourcing
 # this file (e.g. git-issue.sh) keep their value. Without :=, sourcing this
 # file from such callers wiped COMPONENT_DIR and broke downstream validation.
@@ -98,7 +102,7 @@ ws_resolve_target() {
     local eco
     eco="$(ws_resolve_ecosystem)"
     local exists
-    exists=$(yq ".components[\"$name\"] // \"missing\"" "$eco")
+    exists=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$eco")
     if [[ "$exists" == "missing" ]]; then
         echo "ERROR: no such target '$name' (looked for a component, realm, or hoard)." >&2
         echo "  Components must be declared in ecosystem config — run 'ws list'." >&2
@@ -121,11 +125,8 @@ ws_resolve_target() {
 #
 # Discovery rule:
 #   1. ecosystem.local.yaml `realm:` selector, if set and dir exists
-#   2. Single non-template realm in realms/ (matches realm-* but not realm-template)
-#   3. realm-template, if present
-#   4. Empty (no realm active)
-#
-# Errors if step 2 finds multiple non-template realms (ambiguous).
+#   2. trusted bundled realm-template, if present
+#   3. Empty (community realms require explicit `ws realm use` trust)
 ws_detect_realm() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
@@ -142,35 +143,11 @@ ws_detect_realm() {
         fi
     fi
 
-    # Auto-detect: a single realm-* that is not realm-template
-    local candidates=()
-    if [[ -d "$REALMS_DIR" ]]; then
-        for d in "$REALMS_DIR"/realm-*/; do
-            [[ -d "$d" ]] || continue
-            local dname
-            dname="$(basename "$d")"
-            [[ "$dname" == "realm-template" ]] && continue
-            candidates+=("$dname")
-        done
+    if [[ -d "$REALMS_DIR/realm-template" ]]; then
+        echo "realm-template"
+        return
     fi
-
-    case "${#candidates[@]}" in
-        0)
-            if [[ -d "$REALMS_DIR/realm-template" ]]; then
-                echo "realm-template"
-                return
-            fi
-            echo ""
-            ;;
-        1)
-            echo "${candidates[0]}"
-            ;;
-        *)
-            echo "ERROR: Multiple non-template realms found in realms/: ${candidates[*]}." >&2
-            echo "  Set 'realm: <name>' in ecosystem.local.yaml to pick one." >&2
-            exit 1
-            ;;
-    esac
+    echo ""
 }
 
 # Produce a merged ecosystem config (upstream + realm + local).
@@ -220,11 +197,37 @@ ws_resolve_ecosystem() {
     echo "$merged"
 }
 
-trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
+# Produce the credential/bootstrap authority view: committed workspace config
+# plus the operator-owned local override, deliberately excluding realm data.
+# Realms may choose repositories and providers after trust, but cannot attach
+# the operator's secrets or replace the realm bootstrap source by themselves.
+ws_resolve_local_ecosystem() {
+    if [[ -n "$_LOCAL_ECOSYSTEM" && -f "$_LOCAL_ECOSYSTEM" ]]; then
+        echo "$_LOCAL_ECOSYSTEM"
+        return
+    fi
+
+    local base="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    local merged
+    merged="$(mktemp)"
+    cp "$base" "$merged"
+    if [[ -f "$local_file" ]]; then
+        local tmp
+        tmp="$(mktemp)"
+        yq eval-all 'select(fileIndex == 0) *d select(fileIndex == 1)' \
+            "$merged" "$local_file" > "$tmp"
+        mv "$tmp" "$merged"
+    fi
+    _LOCAL_ECOSYSTEM="$merged"
+    echo "$merged"
+}
+
+trap 'rm -f "$_RESOLVED_ECOSYSTEM" "$_LOCAL_ECOSYSTEM" 2>/dev/null' EXIT
 
 # Resolve the gitTokens env-var name for a normalized "host/path" target.
 #
-# Walks .defaults.gitTokens in the merged ecosystem config looking for
+# Walks .defaults.gitTokens in the root-plus-local authority config looking for
 # the longest-prefix match against $1, and prints the configured env
 # var name on stdout. Prints nothing (and exits 0) if no entry matches —
 # callers branch on $? or on output emptiness.
@@ -240,7 +243,7 @@ trap 'rm -f "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 ws_resolve_token_var() {
     local target="$1"
     local eco
-    eco="$(ws_resolve_ecosystem)" || return 0
+    eco="$(ws_resolve_local_ecosystem)" || return 0
     [[ -f "$eco" ]] || return 0
     local best_key="" best_len=0
     while IFS= read -r key; do
@@ -279,7 +282,7 @@ ws_realm_help() {
     echo "Subcommands:" >&2
     echo "  init            Clone the template realm for tutorials" >&2
     echo "  <git-url>       Clone a community realm" >&2
-    echo "  use <name>      Set active realm in ecosystem.local.yaml" >&2
+    echo "  use [--trust] <name>  Review and select a cloned realm" >&2
     echo "  list            Show available realms and which is active" >&2
     echo "" >&2
     echo "Also available via ws:" >&2
@@ -314,14 +317,15 @@ HELP
     fi
 
     local eco
-    eco="$(ws_resolve_ecosystem)"
+    eco="$(ws_resolve_local_ecosystem)"
     local template_url
     template_url=$(yq '.defaults.templateRealm // ""' "$eco" 2>/dev/null)
     if [[ -z "$template_url" || "$template_url" == "null" ]]; then
         echo "ERROR: No template realm URL configured." >&2
-        echo "  Set defaults.templateRealm in ecosystem.local.yaml or your realm." >&2
+        echo "  Set defaults.templateRealm in ecosystem.local.yaml." >&2
         exit 1
     fi
+    git_remote_validate "$template_url" remote
 
     local target="$REALMS_DIR/realm-template"
     if [[ -d "$target" ]]; then
@@ -333,7 +337,7 @@ HELP
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$template_url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$template_url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$template_url" "$target"
     echo ""
     echo "Template realm ready — you're on the shared 'realm-template' starter."
     echo ""
@@ -343,12 +347,70 @@ HELP
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
+# The trust summary renders realm-controlled strings on the terminal at the
+# exact moment a human decides whether to trust the realm. Strip control
+# characters (keeping newline/tab structure) so ANSI escape sequences cannot
+# repaint or hide parts of the review being approved.
+_ws_realm_summary_text() {
+    printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
+}
+
+ws_realm_trust_summary() {
+    local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
+    echo "Realm trust summary: $name"
+    echo "  Repository hosts:"
+    local found=0 repo host adapter_file commands
+    while IFS= read -r repo; do
+        [[ -n "$repo" ]] || continue
+        host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"
+        # Redact any embedded credential before display — the summary must
+        # never be the thing that leaks a token into terminal scrollback.
+        echo "    $(_ws_realm_summary_text "$host")  ←  $(_ws_realm_summary_text "$(git_remote_display_value "$repo")")"
+        found=1
+    # `// ""` not `// empty` — `empty` is jq syntax; Mike Farah's yq rejects it,
+    # which (silently, behind 2>/dev/null) blanked this whole section.
+    done < <(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)
+    [[ "$found" -eq 1 ]] || echo "    (none declared)"
+
+    echo "  Adapter commands:"
+    found=0
+    for adapter_file in "$realm_dir"/adapters/*.yaml; do
+        [[ -f "$adapter_file" ]] || continue
+        commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null || true)"
+        if [[ -n "$commands" ]]; then
+            echo "    $(basename "$adapter_file" .yaml):"
+            echo "$(_ws_realm_summary_text "$commands")"
+            found=1
+        fi
+    done
+    [[ "$found" -eq 1 ]] || echo "    (none declared)"
+
+    echo "  Credential-mapping requests (not authoritative until copied locally):"
+    commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null || true)"
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+
+    echo "  MCP endpoints:"
+    commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  " + .value.url' "$realm_file" 2>/dev/null || true)"
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+}
+
 ws_realm_use() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: ws realm use <name>" >&2
+    local trust=0 name=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --trust) trust=1 ;;
+            -*) echo "ERROR: Unknown option '$1'." >&2; exit 1 ;;
+            *)
+                [[ -z "$name" ]] || { echo "Usage: ws realm use [--trust] <name>" >&2; exit 1; }
+                name="$1"
+                ;;
+        esac
+        shift
+    done
+    if [[ -z "$name" ]]; then
+        echo "Usage: ws realm use [--trust] <name>" >&2
         exit 1
     fi
-    local name="$1"
     # Validate realm name — prevent path traversal
     if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
         echo "ERROR: Invalid realm name '$name'. Must be alphanumeric with dots, dashes, underscores." >&2
@@ -361,6 +423,24 @@ ws_realm_use() {
             [[ -d "$d" ]] && echo "    $(basename "$d")"
         done
         exit 1
+    fi
+    local realm_file="$REALMS_DIR/$name/ecosystem.yaml"
+    if [[ ! -f "$realm_file" ]] || ! yq '.' "$realm_file" >/dev/null 2>&1; then
+        echo "ERROR: Realm '$name' has no valid ecosystem.yaml." >&2
+        exit 1
+    fi
+
+    ws_realm_trust_summary "$name"
+    echo ""
+    if [[ "$trust" -ne 1 ]]; then
+        if [[ -t 0 ]]; then
+            local confirm
+            read -r -p "Trust and activate this realm? [y/N] " confirm
+            [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; return 0; }
+        else
+            echo "ERROR: Non-interactive realm selection requires --trust after reviewing the summary." >&2
+            exit 1
+        fi
     fi
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
@@ -397,7 +477,7 @@ ws_realm_list() {
 
 ws_realm_clone_url() {
     local url="$1"
-    if [[ ! "$url" =~ ^(https?://|git@) ]]; then
+    if ! git_remote_validate "$url" remote; then
         echo "ERROR: Unknown subcommand or invalid URL '$url'." >&2
         echo "  Run 'ws realm' for usage." >&2
         exit 1
@@ -431,9 +511,10 @@ ws_realm_clone_url() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$url" "$target"
     echo ""
-    echo "Community realm ready. Run 'ws clone --all' to clone components."
+    echo "Community realm cloned but not active. Review and select it with:"
+    echo "  ws realm use $repo_name"
 }
 
 ws_actions() {
@@ -483,7 +564,7 @@ HELP
     local eco
     eco="$(ws_resolve_ecosystem)"
     local exists
-    exists=$(yq ".components[\"$comp\"] // \"missing\"" "$eco")
+    exists=$(COMPONENT_NAME="$comp" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$eco")
     if [[ "$exists" == "missing" ]]; then
         echo "ERROR: '$comp' is not declared in ecosystem config." >&2
         exit 1

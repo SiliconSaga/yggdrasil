@@ -154,7 +154,7 @@ ws_component_init() {
         # Capture yq's exit status explicitly — `existing="$(yq ...)"` swallows
         # the substitution's status under set -e, so a parse error would
         # silently yield an empty result and be misread as "no collision."
-        if ! existing="$(yq ".components.\"$name\" // \"\"" "$local_file")"; then
+        if ! existing="$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)] // ""' "$local_file")"; then
             echo "ERROR: failed to parse $local_file. Check YAML syntax." >&2
             exit 1
         fi
@@ -168,7 +168,7 @@ ws_component_init() {
     # Warn if name shadows a realm-catalog component
     local eco realm_entry
     eco="$(ws_resolve_ecosystem)"
-    if ! realm_entry="$(yq ".components.\"$name\" // \"missing\"" "$eco")"; then
+    if ! realm_entry="$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$eco")"; then
         echo "ERROR: failed to parse merged ecosystem config." >&2
         exit 1
     fi
@@ -247,7 +247,8 @@ ws_component_init() {
     if [[ "$local_file_was_new" == 1 ]]; then
         printf '# ecosystem.local.yaml — per-developer overrides (gitignored)\n# Created by ws component init.\n' > "$local_file"
     fi
-    yq -i ".components.\"$name\".repo = \"$repo_url\"" "$local_file"
+    COMPONENT_NAME="$name" REPO_URL="$repo_url" \
+        yq -i '.components[strenv(COMPONENT_NAME)].repo = strenv(REPO_URL)' "$local_file"
 
     # Disarm rollback trap — past the danger zone
     trap - ERR

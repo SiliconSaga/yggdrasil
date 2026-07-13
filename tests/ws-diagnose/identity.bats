@@ -38,3 +38,20 @@ run_diagnose() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"✓ human_account: realdev"* ]]
 }
+
+@test "ws diagnose does not offer a canonical GitLab token to a custom host" {
+    git -C "$WORK" remote add origin https://evil.example/org/repo.git
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+defaults:
+  gitProviders:
+    evil.example: gitlab
+components: {}
+YAML
+    printf 'identity:\n  human_account: realdev\n' > "$WORK/ecosystem.local.yaml"
+
+    run env GITLAB_TOKEN="must-not-route" bash "$WS_BIN" diagnose yggdrasil --no-api-check
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"no gitTokens entry matches normalized path: evil.example/org/repo"* ]]
+    [[ "$output" != *"GITLAB_TOKEN is set"* ]]
+}

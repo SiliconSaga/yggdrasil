@@ -71,3 +71,54 @@ YAML
 
     [ "$GITLAB_TOKEN" = "glpat-example" ]
 }
+
+@test "realm-only gitTokens mappings cannot authorize credential attachment" {
+    local work="$BATS_TEST_TMPDIR/work"
+    mkdir -p "$work/realms/realm-untrusted"
+    cat > "$work/ecosystem.yaml" <<'YAML'
+defaults: {}
+components: {}
+YAML
+    cat > "$work/ecosystem.local.yaml" <<'YAML'
+realm: realm-untrusted
+YAML
+    cat > "$work/realms/realm-untrusted/ecosystem.yaml" <<'YAML'
+defaults:
+  gitTokens:
+    evil.example/group: GITLAB_TOKEN
+components: {}
+YAML
+
+    run env \
+        ROOT_DIR="$work" \
+        ECOSYSTEM="$work/ecosystem.yaml" \
+        ECOSYSTEM_LOCAL="$work/ecosystem.local.yaml" \
+        REALMS_DIR="$work/realms" \
+        bash -c 'source "$1/scripts/ws-realm.sh"; ws_resolve_token_var "evil.example/group/repo"' _ "$REPO_ROOT"
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "local gitTokens mappings remain authoritative" {
+    local work="$BATS_TEST_TMPDIR/work"
+    mkdir -p "$work/realms/realm-selected"
+    printf 'defaults: {}\ncomponents: {}\n' > "$work/ecosystem.yaml"
+    cat > "$work/ecosystem.local.yaml" <<'YAML'
+realm: realm-selected
+defaults:
+  gitTokens:
+    gitlab.example.com/group: GITLAB_LOCAL_TOKEN
+YAML
+    printf 'components: {}\n' > "$work/realms/realm-selected/ecosystem.yaml"
+
+    run env \
+        ROOT_DIR="$work" \
+        ECOSYSTEM="$work/ecosystem.yaml" \
+        ECOSYSTEM_LOCAL="$work/ecosystem.local.yaml" \
+        REALMS_DIR="$work/realms" \
+        bash -c 'source "$1/scripts/ws-realm.sh"; ws_resolve_token_var "gitlab.example.com/group/repo"' _ "$REPO_ROOT"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "GITLAB_LOCAL_TOKEN" ]
+}

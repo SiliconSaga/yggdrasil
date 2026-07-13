@@ -26,6 +26,15 @@ SH
     export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
     export COMPONENTS_DIR="$BATS_TEST_TMPDIR/components"
+    # Sandbox the git global config via HOME, not GIT_CONFIG_GLOBAL — the
+    # env var needs git >= 2.32 and is silently IGNORED on older gits, which
+    # both leaks the insteadOf rewrites into no-op land (tests then hit the
+    # real network) and reads the developer's actual ~/.gitconfig. Unset the
+    # inherited override vars too, or a runner exporting them would point
+    # git past the sandbox entirely.
+    export HOME="$BATS_TEST_TMPDIR/home"
+    mkdir -p "$HOME"
+    unset GIT_CONFIG_GLOBAL XDG_CONFIG_HOME
     export GH_LOG GH_FORK_MARKER
 }
 
@@ -52,6 +61,20 @@ make_bare_pair() {
     export SOURCE_BARE FORK_BARE
 }
 
+map_github_clone_urls() {
+    # Native git on Windows can't resolve MSYS /tmp/... inside a file:// URL —
+    # hand it the mixed C:/ form so the insteadOf rewrite clones for real.
+    local fork_bare="$FORK_BARE" source_bare="$SOURCE_BARE"
+    if command -v cygpath >/dev/null 2>&1; then
+        fork_bare="$(cygpath -m "$fork_bare")"
+        source_bare="$(cygpath -m "$source_bare")"
+    fi
+    git config --file "$HOME/.gitconfig" \
+        "url.file://$fork_bare.insteadOf" "https://github.com/$GH_STUB_FORK_PATH.git"
+    git config --file "$HOME/.gitconfig" \
+        "url.file://$source_bare.insteadOf" "https://github.com/$GH_STUB_SOURCE_PATH.git"
+}
+
 # gh stub: logs every invocation; behavior driven by env:
 #   GH_STUB_LOGIN            login returned by `api user` (default: alice)
 #   GH_STUB_FORK_PATH        repo path that plays the fork
@@ -66,8 +89,16 @@ write_gh_stub() {
 
 emit_repo_json() {
     local repo_id="$1" bare="$2" path="$3"
+    local ssh_url="git@github.com:$path.git" http_url="https://github.com/$path.git"
+    if [[ "$path" == "${GH_STUB_FORK_PATH:-}" ]]; then
+        ssh_url="${GH_STUB_FORK_SSH_URL:-$ssh_url}"
+        http_url="${GH_STUB_FORK_HTTP_URL:-$http_url}"
+    else
+        ssh_url="${GH_STUB_SOURCE_SSH_URL:-$ssh_url}"
+        http_url="${GH_STUB_SOURCE_HTTP_URL:-$http_url}"
+    fi
     cat <<JSON
-{"id":$repo_id,"default_branch":"main","ssh_url":"$bare","clone_url":"$bare","html_url":"https://github.com/$path"}
+{"id":$repo_id,"default_branch":"main","ssh_url":"$ssh_url","clone_url":"$http_url","html_url":"https://github.com/$path"}
 JSON
 }
 
@@ -183,6 +214,7 @@ YAML
     export GH_STUB_FORK_EXISTS=1
     export GH_STUB_SOURCE_PATH="source-org/widget"
     export GH_TOKEN="gh-fallback-token"
+    map_github_clone_urls
 
     write_ecosystem <<'YAML'
 identity:
@@ -205,6 +237,44 @@ YAML
     git -C "$TARGET" remote get-url source-org
 }
 
+@test "provider API clone URLs must remain on the requested provider host" {
+    write_gh_stub
+    export GH_STUB_FORK_PATH="fork-org/widget"
+    export GH_STUB_FORK_EXISTS=1
+    export GH_STUB_SOURCE_PATH="source-org/widget"
+    export GH_STUB_FORK_SSH_URL="git@evil.example:fork-org/widget.git"
+    export GH_STUB_FORK_HTTP_URL="https://evil.example/fork-org/widget.git"
+    export GH_STUB_SOURCE_SSH_URL="git@evil.example:source-org/widget.git"
+    export GH_STUB_SOURCE_HTTP_URL="https://evil.example/source-org/widget.git"
+    export GH_TOKEN="gh-fallback-token"
+    local git_log="$BATS_TEST_TMPDIR/tampered-git.log"
+    export git_log
+    cat > "$TEST_BIN/git" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$git_log"
+exit 0
+SH
+    chmod +x "$TEST_BIN/git"
+
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: forkhome
+  homes:
+    fork:
+      namespace: github.com/fork-org
+components:
+  widget:
+    tier: supporting
+    repo: https://github.com/source-org/widget.git
+YAML
+
+    run bash "$CLONE_FORK_BIN" widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"expected host 'github.com'"* ]]
+    [ ! -s "$git_log" ]
+}
+
 @test "github missing fork is created via gh repo fork --org" {
     make_bare_pair
     write_gh_stub
@@ -212,6 +282,7 @@ YAML
     export GH_STUB_SOURCE_PATH="source-org/widget"
     export GH_STUB_LOGIN="alice"
     export GH_TOKEN="gh-fallback-token"
+    map_github_clone_urls
 
     write_ecosystem <<'YAML'
 identity:
@@ -240,6 +311,7 @@ YAML
     export GH_STUB_SOURCE_PATH="source-org/widget"
     export GH_STUB_LOGIN="alice"
     export GH_TOKEN="gh-fallback-token"
+    map_github_clone_urls
 
     write_ecosystem <<'YAML'
 identity:

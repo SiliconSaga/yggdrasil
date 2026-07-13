@@ -522,12 +522,20 @@ ws_hoard_init_from_yaml() {
         echo "ERROR: $manifest is missing the 'upstream' field." >&2
         exit 1
     fi
+    if [[ ! "$pin" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        echo "ERROR: $manifest must set 'pin' to a full 40-character commit SHA." >&2
+        exit 1
+    fi
+    git_remote_validate "$upstream" local
+    if [[ -n "$fallback" ]]; then
+        git_remote_validate "$fallback" local
+    fi
 
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$upstream"
     echo "Cloning $upstream into $target..."
-    if ! env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$upstream" "$target" 2>/dev/null; then
+    if ! env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$upstream" "$target" 2>/dev/null; then
         if [[ -n "$fallback" ]]; then
             # The failed upstream clone may have left $target half-populated
             # (partial fetch, broken .git/, etc.). Wipe it before retrying so
@@ -535,7 +543,7 @@ ws_hoard_init_from_yaml() {
             rm -rf "$target"
             echo "  Upstream clone failed; trying fallback: $fallback" >&2
             git_auth_env_for_url "$fallback"
-            if ! env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$fallback" "$target" 2>/dev/null; then
+            if ! env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$fallback" "$target" 2>/dev/null; then
                 echo "ERROR: clone failed for both upstream and fallback." >&2
                 echo "  upstream: $upstream" >&2
                 echo "  fallback: $fallback" >&2
@@ -550,15 +558,12 @@ ws_hoard_init_from_yaml() {
         fi
     fi
 
-    # Honor the pin if set. A configured pin is mandatory: silently falling
-    # back to the default branch would defeat the reproducibility intent of
-    # pinning in the first place.
-    if [[ -n "$pin" ]]; then
-        if ! (cd "$target" && git checkout -q "$pin"); then
-            echo "ERROR: failed to check out pin '$pin' in $target." >&2
-            echo "  Verify the pin exists in the cloned upstream's history." >&2
-            exit 1
-        fi
+    # The manifest pin is mandatory and immutable. A detached checkout avoids
+    # silently following a mutable branch or tag on later runs.
+    if ! git -C "$target" checkout -q --detach "$pin"; then
+        echo "ERROR: failed to check out pin '$pin' in $target." >&2
+        echo "  Verify the full commit SHA exists in the cloned upstream's history." >&2
+        exit 1
     fi
 
     # Iterate post_clone steps in the manifest's declared order, so future
@@ -625,6 +630,11 @@ ws_hoard_init() {
     if [[ -n "${1:-}" && "${1:0:1}" != "-" ]]; then
         template="$1"
         shift
+    fi
+
+    if [[ ! "$template" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid hoard template name '$template'." >&2
+        exit 2
     fi
 
     local template_dir="$TEMPLATES_DIR/hoards/$template"
@@ -896,7 +906,8 @@ ws_hoard_clone_url() {
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"
     [[ -n "$GIT_AUTH_LABEL" ]] && echo "Using $GIT_AUTH_LABEL for HTTPS $GIT_AUTH_PROVIDER clone auth (no credential helper prompt)"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone "$url" "$target"
+    git_remote_validate "$url" remote
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$url" "$target"
     echo ""
     echo "Hoard cloned: $target"
 

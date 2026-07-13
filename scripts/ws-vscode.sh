@@ -25,15 +25,26 @@ fi
 
 ECO="$(ws_resolve_ecosystem)"
 
-# Build folder list: yggdrasil root first, then cloned components
-folders='[{"path": "."}'
+# Build folder list: yggdrasil root first, then cloned components.
+# `folders` stays a complete, well-formed JSON array on every iteration —
+# each append round-trips through from_json rather than hand-editing
+# brackets, so a future edit can't silently produce broken JSON.
+folders='[{"path": "."}]'
 # `// {}` guards the fresh-workspace case (null/missing components map).
-for name in $(yq '.components // {} | keys | .[]' "$ECO"); do
-    if [[ -d "$COMPONENTS_DIR/$name/.git" ]]; then
-        folders="$folders, {\"path\": \"components/$name\"}"
+while IFS= read -r name; do
+    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+        # Name the offending key so a large catalog is diagnosable — control
+        # characters stripped first, since an invalid key is exactly the one
+        # string that must not be echoed to the terminal raw.
+        safe_name="$(printf '%s' "$name" | tr -d '\000-\037\177')"
+        echo "ERROR: Invalid component name '$safe_name' in ecosystem config; expected lowercase alphanumeric segments with hyphens or dots." >&2
+        exit 1
     fi
-done
-folders="$folders]"
+    if [[ -d "$COMPONENTS_DIR/$name/.git" ]]; then
+        folders="$(FOLDERS_JSON="$folders" COMPONENT_PATH="components/$name" \
+            yq -n -o=json 'strenv(FOLDERS_JSON) | from_json + [{"path": strenv(COMPONENT_PATH)}]')"
+    fi
+done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 
 # Write workspace file
 echo "{" > "$OUTPUT"

@@ -136,17 +136,21 @@ clone_component() {
     local remote
     remote=$(remote_name_from_url "$repo_url")
 
+    git_remote_validate "$repo_url" remote
+
     echo "CLONE: $name -> $target (remote: $remote)"
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$repo_url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$remote" "$repo_url" "$target"
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$remote" -- "$repo_url" "$target"
 }
 
 clone_url() {
     local url="$1"
     local name="$2"
     local add_eco="$3"
+
+    git_remote_validate "$url" local
 
     # Derive name from URL if not specified, lowercased
     if [[ -z "$name" ]]; then
@@ -179,7 +183,7 @@ clone_url() {
         local -a GIT_AUTH_ENV=()
         local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
         git_auth_env_for_url "$url"
-        env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$remote" "$url" "$target"
+        env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$remote" -- "$url" "$target"
     fi
 
     if [[ "$add_eco" == "true" ]]; then
@@ -262,12 +266,12 @@ elif [[ "${1:-}" == "--all" ]]; then
         echo "  Run 'ws realm init' to get started, or 'ws realm <url>' for your community." >&2
         exit 1
     fi
-    for name in $(yq '.components | keys | .[]' "$ECO"); do
+    while IFS= read -r name; do
         clone_component "$name" "$ECO"
-    done
+    done < <(yq -r '.components | keys | .[]' "$ECO")
 elif [[ -n "${1:-}" ]]; then
     ECO="$(ws_resolve_ecosystem)"
-    if [[ "$(yq ".components[\"${1}\"] // \"missing\"" "$ECO")" == "missing" ]]; then
+    if [[ "$(COMPONENT_NAME="$1" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$ECO")" == "missing" ]]; then
         echo "ERROR: '$1' is not declared in ecosystem config." >&2
         echo "  Use 'ws clone --url <git-url>' for repos not in the ecosystem." >&2
         exit 1

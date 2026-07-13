@@ -338,7 +338,7 @@ _emit_one_adapter() {
     local verb cmd rc=0 any=0 parse_failed=0
     for verb in test lint build; do
         rc=0
-        cmd="$(yq -r ".commands.$verb // \"\"" "$adapter_file" 2>/dev/null)" || rc=$?
+        cmd="$(ADAPTER_VERB="$verb" yq -r '.commands[strenv(ADAPTER_VERB)] // ""' "$adapter_file" 2>/dev/null)" || rc=$?
         if [[ $rc -ne 0 ]]; then
             # Don't let one malformed adapter file abort the whole
             # orient run — surface a diagnostic, keep walking.

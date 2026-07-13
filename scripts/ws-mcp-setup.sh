@@ -101,6 +101,39 @@ if [[ -n "$missing_fields" && "$missing_fields" != "null" ]]; then
     exit 1
 fi
 
+# MCP endpoints are realm-selected trust inputs. Keep their flexibility, but
+# require an absolute HTTP(S) shape and make nonlocal cleartext endpoints
+# visually distinct before generating configuration.
+while IFS=$'\t' read -r server_name server_url; do
+    [[ -n "$server_name" ]] || continue
+    if [[ "$server_url" =~ [[:cntrl:]] || ! "$server_url" =~ ^https?://[^/[:space:]]+(/[^[:space:]]*)?$ ]]; then
+        echo "ERROR: MCP server '$server_name' must use an absolute HTTP(S) URL (got: $server_url)." >&2
+        exit 1
+    fi
+    if [[ "$server_url" =~ ^https?://[^/]*@ ]]; then
+        echo "WARNING: MCP server '$server_name' embeds credentials (userinfo) in its URL — they land in the generated config verbatim; prefer a credential-free endpoint." >&2
+    fi
+    if [[ "$server_url" == http://* ]]; then
+        authority="${server_url#http://}"
+        authority="${authority%%/*}"
+        authority="${authority##*@}"
+        if [[ "$authority" == \[*\]* ]]; then
+            host="${authority#\[}"
+            host="${host%%\]*}"
+        else
+            host="${authority%%:*}"
+        fi
+        if [[ -z "$host" ]]; then
+            echo "ERROR: MCP server '$server_name' has an empty HTTP host." >&2
+            exit 1
+        fi
+        case "$host" in
+            localhost|127.*|::1) : ;;
+            *) echo "WARNING: MCP server '$server_name' uses plain HTTP on nonlocal host '$host'." >&2 ;;
+        esac
+    fi
+done < <(yq -r '.mcp.servers | to_entries | .[] | [.key, .value.url] | @tsv' "$ECO")
+
 # Build .mcp.json using yq transformation
 # Claude Code HTTP format: {"mcpServers": {"name": {"type": "http", "url": "..."}}}
 mcp_json="$(yq -o=json '{
