@@ -33,6 +33,47 @@ EOF
     [ ! -e "$marker" ]
 }
 
+@test "ws_load_env strips whitespace-delimited inline comments from unquoted values" {
+    local env_file="$BATS_TEST_TMPDIR/inline-comments.env"
+    cat > "$env_file" <<'EOF'
+export INLINE=value   # explanatory comment
+TRIMMED=  padded value   # trailing explanation
+EOF
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    [ "$INLINE" = "value" ]
+    [ "$TRIMMED" = "padded value" ]
+}
+
+@test "ws_load_env preserves hashes inside quoted and non-comment values" {
+    local env_file="$BATS_TEST_TMPDIR/literal-hashes.env"
+    cat > "$env_file" <<'EOF'
+DOUBLE_QUOTED="value # retained" # explanatory comment
+SINGLE_QUOTED='other # retained'   # explanatory comment
+NON_COMMENT=prefix#suffix
+EOF
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    [ "$DOUBLE_QUOTED" = "value # retained" ]
+    [ "$SINGLE_QUOTED" = "other # retained" ]
+    [ "$NON_COMMENT" = "prefix#suffix" ]
+}
+
+@test "ws_load_env rejects trailing content after a quoted value" {
+    local env_file="$BATS_TEST_TMPDIR/trailing-content.env"
+    printf 'BROKEN="closed" trailing\n' > "$env_file"
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"invalid .env line 1"* ]]
+}
+
 @test "ws_load_env rejects command-environment variables" {
     local env_file="$BATS_TEST_TMPDIR/.env"
     cat > "$env_file" <<'EOF'
