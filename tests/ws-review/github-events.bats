@@ -33,13 +33,14 @@ JSON
     exit 0
 fi
 
-jq -r "$filter" <<'JSON'
-[
+before="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+[[ "${EMPTY_BEFORE:-}" == "1" ]] && before=""
+[[ "${ZERO_BEFORE:-}" == "1" ]] && before="0000000000000000000000000000000000000000"
+jq -n --arg before "$before" '[
   {"type":"PushEvent","payload":{"ref":"refs/heads/feature/other","before":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"created_at":"2026-07-08T10:00:00Z"},
   {"type":"PushEvent","payload":{"ref":"refs/heads/feature/\"quoted\"","before":"cccccccccccccccccccccccccccccccccccccccc"},"created_at":"2026-07-08T09:00:00Z"},
-  {"type":"PushEvent","payload":{"ref":"refs/heads/feature/review","before":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"created_at":"2026-07-08T09:30:00Z"}
-]
-JSON
+  {"type":"PushEvent","payload":{"ref":"refs/heads/feature/review","before":$before},"created_at":"2026-07-08T09:30:00Z"}
+]' | jq -r "$filter"
 BASH
     chmod +x "$BIN_DIR/gh"
 }
@@ -71,4 +72,24 @@ BASH
     [ "$status" -eq 0 ]
     [ "$output" = "1970-01-01T00:00:00Z" ]
     [[ "$stderr" == *"ignoring untrusted commit timestamps"* ]]
+}
+
+@test "GitHub previous-push lookup falls back when the first event has no before SHA" {
+    run --separate-stderr env "EMPTY_BEFORE=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 1' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
+    [[ "$stderr" == *"showing all review history"* ]]
+}
+
+@test "GitHub previous-push lookup falls back when the first event has a zero before SHA" {
+    run --separate-stderr env "ZERO_BEFORE=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 1' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
+    [[ "$stderr" == *"showing all review history"* ]]
 }

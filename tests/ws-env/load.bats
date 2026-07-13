@@ -76,6 +76,17 @@ EOF
     [[ "$output" == *"invalid .env line 1"* ]]
 }
 
+@test "ws_load_env rejects a later quote after the first closing quote" {
+    local env_file="$BATS_TEST_TMPDIR/later-quote.env"
+    printf 'BROKEN="closed" trailing " # comment\n' > "$env_file"
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"quoted value has trailing content"* ]]
+}
+
 @test "ws_load_env rejects command-environment variables" {
     local env_file="$BATS_TEST_TMPDIR/.env"
     cat > "$env_file" <<'EOF'

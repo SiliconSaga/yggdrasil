@@ -4,31 +4,35 @@
 _ws_env_parse_value() {
     local raw_value="$1" env_file="$2" line_number="$3"
     local value quote tail trimmed_tail char prev
-    local i closing=-1 saw_quote=0 had_leading_whitespace=0
+    local i j closing=-1 backslashes=0 had_leading_whitespace=0
 
     [[ "$raw_value" == [[:space:]]* ]] && had_leading_whitespace=1
     while [[ "$raw_value" == [[:space:]]* ]]; do raw_value="${raw_value#?}"; done
 
     if [[ "$raw_value" == \"* || "$raw_value" == \'* ]]; then
         quote="${raw_value:0:1}"
-        for ((i=${#raw_value}-1; i>=1; i--)); do
+        for ((i=1; i<${#raw_value}; i++)); do
             char="${raw_value:i:1}"
             [[ "$char" == "$quote" ]] || continue
-            saw_quote=1
-            tail="${raw_value:i+1}"
-            trimmed_tail="$tail"
-            while [[ "$trimmed_tail" == [[:space:]]* ]]; do trimmed_tail="${trimmed_tail#?}"; done
-            if [[ -z "$trimmed_tail" || ( "$tail" == [[:space:]]* && "$trimmed_tail" == \#* ) ]]; then
-                closing=$i
-                break
-            fi
+            backslashes=0
+            j=$((i - 1))
+            while [[ "$j" -ge 1 && "${raw_value:j:1}" == "\\" ]]; do
+                backslashes=$((backslashes + 1))
+                j=$((j - 1))
+            done
+            [[ $((backslashes % 2)) -eq 1 ]] && continue
+            closing=$i
+            break
         done
         if [[ "$closing" -lt 0 ]]; then
-            if [[ "$saw_quote" -eq 0 ]]; then
-                echo "ERROR: invalid .env line $line_number in $env_file; quoted value is not closed." >&2
-            else
-                echo "ERROR: invalid .env line $line_number in $env_file; quoted value has trailing content." >&2
-            fi
+            echo "ERROR: invalid .env line $line_number in $env_file; quoted value is not closed." >&2
+            return 1
+        fi
+        tail="${raw_value:closing+1}"
+        trimmed_tail="$tail"
+        while [[ "$trimmed_tail" == [[:space:]]* ]]; do trimmed_tail="${trimmed_tail#?}"; done
+        if [[ -n "$trimmed_tail" && ! ( "$tail" == [[:space:]]* && "$trimmed_tail" == \#* ) ]]; then
+            echo "ERROR: invalid .env line $line_number in $env_file; quoted value has trailing content." >&2
             return 1
         fi
         value="${raw_value:1:closing-1}"

@@ -534,8 +534,8 @@ fi
 # not relative to the agent's cwd — the agent's cwd can be anywhere.
 # Deviation from brief: brief used ${_rules_dir%/.claude/hooks}/scripts/
 # which fails in the test environment (cwd → $WORK, no $WORK/scripts/).
-# shellcheck source=../../scripts/ws-k8s-guard.sh
 _k8s_guard_loaded=0
+# shellcheck source=../../scripts/ws-k8s-guard.sh
 if source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ws-k8s-guard.sh" 2>/dev/null \
     && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_guard_loaded=1

@@ -305,9 +305,31 @@ _ws_hoard_backup() {
             printf '\n# Pre-upgrade snapshots written by `ws hoard upgrade --apply`\n.upgrade-backup/\n' >> "$gi"
         fi
     fi
-    # mktemp -d adds a random suffix so two snapshots in the same second
-    # can't merge into one directory (which would weaken rollback).
-    snap="$(mktemp -d "$hoard_dir/.upgrade-backup/${ts}-XXXXXX")" || return 1
+    # A fixed-width sequence suffix preserves creation order when multiple snapshots land in the same second. Atomic mkdir handles a concurrent creator without allowing snapshots to merge.
+    local sequence=0 candidate candidate_base candidate_sequence
+    for candidate in "$hoard_dir/.upgrade-backup/${ts}-"*; do
+        [[ -d "$candidate" && ! -L "$candidate" ]] || continue
+        candidate_base="$(basename "$candidate")"
+        [[ "$candidate_base" =~ ^${ts}-([0-9]{6})$ ]] || continue
+        candidate_sequence=$((10#${BASH_REMATCH[1]}))
+        [[ "$candidate_sequence" -ge "$sequence" ]] && sequence=$((candidate_sequence + 1))
+    done
+    while [[ "$sequence" -le 999999 ]]; do
+        printf -v snap '%s/.upgrade-backup/%s-%06d' "$hoard_dir" "$ts" "$sequence"
+        if mkdir "$snap" 2>/dev/null; then
+            break
+        fi
+        if [[ -e "$snap" || -L "$snap" ]]; then
+            sequence=$((sequence + 1))
+            continue
+        fi
+        echo "ERROR: cannot create backup snapshot: $snap" >&2
+        return 1
+    done
+    [[ -d "$snap" && ! -L "$snap" ]] || {
+        echo "ERROR: exhausted same-second backup sequence for $ts" >&2
+        return 1
+    }
     local entry base
     for entry in "$hoard_dir"/* "$hoard_dir"/.[!.]*; do
         [[ -e "$entry" ]] || continue

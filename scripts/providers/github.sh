@@ -162,12 +162,8 @@ gp_review_push_timestamp() {
     # can forge it forward to suppress review comments. Fall back to all history;
     # this is noisier but cannot hide feedback.
     if [[ "$index" -eq 1 ]]; then
-        local previous_head
-        previous_head=$(awk -F $'\t' 'NR == 1 { print $2; exit }' <<< "$events")
-        if [[ "$previous_head" =~ ^[0-9a-fA-F]{40}$ && ! "$previous_head" =~ ^0+$ ]]; then
-            echo "NOTE: GitHub omitted the previous push event; ignoring untrusted commit timestamps and showing all review history." >&2
-            echo "1970-01-01T00:00:00Z"
-        fi
+        echo "NOTE: GitHub omitted the previous push event; ignoring untrusted commit timestamps and showing all review history." >&2
+        echo "1970-01-01T00:00:00Z"
     fi
 }
 

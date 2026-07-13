@@ -278,6 +278,41 @@ plugins:
     [ "$(cat "$HOARDS_DIR/h1/note.md")" = "original" ]
 }
 
+@test "rollback: same-second snapshots use creation order instead of a random suffix" {
+    make_hoard h1
+    local stub_dir="$BATS_TEST_TMPDIR/same-second-bin"
+    mkdir -p "$stub_dir"
+    cat > "$stub_dir/date" <<'SH'
+#!/usr/bin/env bash
+printf '20260713-120000\n'
+SH
+    cat > "$stub_dir/mktemp" <<'SH'
+#!/usr/bin/env bash
+count=0
+[[ -f "$MKTEMP_STATE" ]] && count="$(<"$MKTEMP_STATE")"
+if [[ "$count" -eq 0 ]]; then suffix="ZZZZZZ"; else suffix="AAAAAA"; fi
+printf '%s\n' "$((count + 1))" > "$MKTEMP_STATE"
+template="${!#}"
+path="${template%XXXXXX}${suffix}"
+mkdir -p "$path"
+printf '%s\n' "$path"
+SH
+    chmod +x "$stub_dir/date" "$stub_dir/mktemp"
+    export MKTEMP_STATE="$BATS_TEST_TMPDIR/mktemp-state"
+    PATH="$stub_dir:$PATH"
+
+    printf 'first\n' > "$HOARDS_DIR/h1/note.md"
+    _ws_hoard_backup "$HOARDS_DIR/h1" >/dev/null
+    printf 'second\n' > "$HOARDS_DIR/h1/note.md"
+    _ws_hoard_backup "$HOARDS_DIR/h1" >/dev/null
+    printf 'current\n' > "$HOARDS_DIR/h1/note.md"
+
+    run _ws_hoard_rollback "$HOARDS_DIR/h1"
+
+    [ "$status" -eq 0 ]
+    [ "$(cat "$HOARDS_DIR/h1/note.md")" = "second" ]
+}
+
 @test "rollback: errors when no snapshot exists" {
     make_hoard h1
     run _ws_hoard_rollback "$HOARDS_DIR/h1"
