@@ -954,7 +954,7 @@ elif [[ -n "$_PEEK_CR" ]]; then
             _probe_rc=$?
             _probe_msg="$(review_probe_one_line "$_probe_output")"
             [[ -n "$_probe_msg" ]] || _probe_msg="provider exited $_probe_rc without details"
-            if ! review_probe_not_found "$_probe_rc" "$_probe_msg"; then
+            if ! review_probe_not_found "$_probe_rc" "$_probe_output"; then
                 _PROBE_FAILURES+=("${_prov}:${_slug}: $_probe_msg")
             fi
         fi

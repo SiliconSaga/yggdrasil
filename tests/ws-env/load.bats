@@ -38,6 +38,7 @@ EOF
     cat > "$env_file" <<'EOF'
 export INLINE=value   # explanatory comment
 TRIMMED=  padded value   # trailing explanation
+EMPTY_COMMENT=   # intentionally empty
 EOF
 
     source "$ENV_LIB"
@@ -45,6 +46,7 @@ EOF
 
     [ "$INLINE" = "value" ]
     [ "$TRIMMED" = "padded value" ]
+    [ "$EMPTY_COMMENT" = "" ]
 }
 
 @test "ws_load_env preserves hashes inside quoted and non-comment values" {

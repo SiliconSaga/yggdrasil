@@ -72,6 +72,21 @@ SH
     [ "$status" -eq 1 ]
 }
 
+@test "api probe classifies an auth status beyond the displayed diagnostic limit" {
+    cat > "$STUB_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+printf '%0250d' 0 >&2
+echo ' gh: Bad credentials (HTTP 401)' >&2
+exit 1
+SH
+    chmod +x "$STUB_DIR/gh"
+    PATH="$STUB_DIR:$PATH"
+
+    run gp_token_api_login github github.com badtoken
+
+    [ "$status" -eq 1 ]
+}
+
 @test "api error classifier distinguishes auth not-found transport and unknown failures" {
     run gp_api_error_classify 1 "gh: Bad credentials (HTTP 401)"
     [ "$status" -eq 0 ]

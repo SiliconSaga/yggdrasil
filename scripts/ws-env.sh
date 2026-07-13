@@ -4,8 +4,9 @@
 _ws_env_parse_value() {
     local raw_value="$1" env_file="$2" line_number="$3"
     local value quote tail trimmed_tail char prev
-    local i closing=-1 saw_quote=0
+    local i closing=-1 saw_quote=0 had_leading_whitespace=0
 
+    [[ "$raw_value" == [[:space:]]* ]] && had_leading_whitespace=1
     while [[ "$raw_value" == [[:space:]]* ]]; do raw_value="${raw_value#?}"; done
 
     if [[ "$raw_value" == \"* || "$raw_value" == \'* ]]; then
@@ -33,15 +34,19 @@ _ws_env_parse_value() {
         value="${raw_value:1:closing-1}"
     else
         value="$raw_value"
-        for ((i=1; i<${#value}; i++)); do
-            char="${value:i:1}"
-            [[ "$char" == "#" ]] || continue
-            prev="${value:i-1:1}"
-            if [[ "$prev" == [[:space:]] ]]; then
-                value="${value:0:i}"
-                break
-            fi
-        done
+        if [[ "$had_leading_whitespace" -eq 1 && "$value" == \#* ]]; then
+            value=""
+        else
+            for ((i=1; i<${#value}; i++)); do
+                char="${value:i:1}"
+                [[ "$char" == "#" ]] || continue
+                prev="${value:i-1:1}"
+                if [[ "$prev" == [[:space:]] ]]; then
+                    value="${value:0:i}"
+                    break
+                fi
+            done
+        fi
         while [[ "$value" == *[[:space:]] ]]; do value="${value%?}"; done
     fi
 

@@ -73,6 +73,10 @@ YAML
     printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
     cat > "$work/realms/realm.test/ecosystem.yaml" <<'YAML'
 defaults:
+  gddHome: https://docs.example.com/gdd
+  upstreamRemote: upstream
+  gitProviders:
+    git.example.com: gitlab
   gitTokens:
     git.example.com/team: GITLAB_TEAM_TOKEN
 components:
@@ -111,10 +115,14 @@ YAML
     [[ "$output" == *"https://git.example.com/team/app.git"* ]]
     [[ "$output" == *"uv run pytest"* ]]
     [[ "$output" == *"GITLAB_TEAM_TOKEN"* ]]
+    [[ "$output" == *"defaults.gddHome"*"https://docs.example.com/gdd"* ]]
+    [[ "$output" == *"defaults.upstreamRemote"*"upstream"* ]]
+    [[ "$output" == *"defaults.gitProviders.git.example.com"*"gitlab"* ]]
     [[ "$output" == *"https://git.example.com/operator/app.git"* ]]
     [[ "$output" == *"git.example.com/operator"* ]]
     [[ "$output" == *"forkRemote"*"operator"* ]]
     [[ "$output" == *"https://mcp.example.com/api"* ]]
+    [[ "$output" == *"transport=http"* ]]
     [ "$(yq '.realm' "$work/ecosystem.local.yaml")" = "realm.test" ]
 }
 

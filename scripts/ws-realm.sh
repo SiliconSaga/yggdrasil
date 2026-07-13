@@ -536,6 +536,23 @@ ws_realm_trust_summary() {
     fi
     if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
+    echo "  Provider and workflow routing:"
+    if ! commands="$(yq -r '
+        ([
+          {"key": "defaults.gddHome", "value": (.defaults.gddHome // "")},
+          {"key": "defaults.upstreamRemote", "value": (.defaults.upstreamRemote // "")},
+          {"key": "defaults.gitProvider", "value": (.defaults.gitProvider // "")}
+        ] + [
+          .defaults.gitProviders // {} | to_entries | .[] |
+          {"key": ("defaults.gitProviders." + .key), "value": .value}
+        ])
+        | .[] | select(.value != "") | "    " + .key + "  →  " + .value
+    ' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render provider/workflow routing from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+
     echo "  Credential-mapping requests (not authoritative until copied locally):"
     if ! commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render credential mappings from $realm_file; refusing realm adoption." >&2
@@ -544,7 +561,7 @@ ws_realm_trust_summary() {
     if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
     echo "  MCP endpoints:"
-    if ! commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  " + .value.url' "$realm_file" 2>/dev/null)"; then
+    if ! commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  transport=" + .value.transport + " " + .value.url' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
         return 1
     fi

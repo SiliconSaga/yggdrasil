@@ -215,8 +215,8 @@ gp_token_api_login() {
             ;;
     esac
     if [[ $rc -ne 0 ]]; then
+        class="$(gp_api_error_classify "$rc" "$out")"
         reason="$(gp_api_error_one_line "$out" "$tok")"
-        class="$(gp_api_error_classify "$rc" "$reason")"
         if [[ "$class" == "auth" ]]; then
             return 1
         fi
