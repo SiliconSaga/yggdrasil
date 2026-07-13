@@ -53,6 +53,44 @@ _LOCAL_ECOSYSTEM=""
 : "${COMPONENT_DIR:=""}"  # Set by ws_resolve_target
 
 # ---------------------------------------------------------------------------
+# Native-path yq wrapper — makes ws immune to MSYS path-conversion state.
+# ---------------------------------------------------------------------------
+# On Git Bash (Windows), MSYS may or may not auto-convert Unix-style paths
+# (/d/…, /tmp/…) into Windows paths (D:\…) when handing arguments to native
+# executables like yq.exe. With MSYS_NO_PATHCONV=1 set (e.g. to keep docker
+# volume paths intact) the conversion is OFF, so yq.exe cannot open a
+# "/d/…/ecosystem.yaml" argument — which breaks every ws command that reads
+# config. Defend at the boundary: convert any file-path argument with
+# `cygpath -m` (yields D:/… with forward slashes, which yq accepts regardless
+# of the env state) before invoking the real binary. Off Windows there is no
+# cygpath, so this is a transparent pass-through.
+ws_native_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -m -- "$1"
+    else
+        printf '%s' "$1"
+    fi
+}
+
+# yq() shadows the binary: any argument that is an existing file is converted
+# for the native binary; the expression and flags pass through untouched.
+# stdin-based calls (echo … | yq '…') carry no file argument and are
+# unaffected. Callers use `type -P yq` to probe for the real binary.
+yq() {
+    local _arg
+    local -a _args=()
+    for _arg in "$@"; do
+        if [[ -f "$_arg" ]]; then
+            _args+=("$(ws_native_path "$_arg")")
+        else
+            _args+=("$_arg")
+        fi
+    done
+    command yq "${_args[@]}"
+}
+export -f ws_native_path yq
+
+# ---------------------------------------------------------------------------
 # Shared functions (used by ws-clone.sh, ws-list.sh, ws, etc.)
 # ---------------------------------------------------------------------------
 
@@ -93,7 +131,7 @@ ws_resolve_target() {
     fi
 
     # Check yq is available
-    if ! command -v yq &>/dev/null; then
+    if ! type -P yq &>/dev/null; then
         echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
         exit 1
     fi
