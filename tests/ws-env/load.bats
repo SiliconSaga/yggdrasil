@@ -80,6 +80,20 @@ EOF
     done
 }
 
+@test "ws_load_env rejects dispatcher path globals" {
+    source "$ENV_LIB"
+    local key
+    for key in SCRIPT_DIR ROOT_DIR ECOSYSTEM ECOSYSTEM_LOCAL REALMS_DIR COMPONENTS_DIR; do
+        local env_file="$BATS_TEST_TMPDIR/$key.env"
+        printf '%s=%s\n' "$key" "/attacker-controlled" > "$env_file"
+
+        run ws_load_env "$env_file"
+
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"refusing to set reserved variable '$key'"* ]]
+    done
+}
+
 @test "ws_load_env still accepts provider token variables" {
     local env_file="$BATS_TEST_TMPDIR/provider.env"
     printf 'GITLAB_TOKEN=glpat-example\n' > "$env_file"

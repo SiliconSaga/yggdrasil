@@ -748,7 +748,7 @@ HELP
         # Normalize URL the same way gp_set_token_for_url does
         local normalized
         normalized=$(echo "$url" \
-            | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
+            | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
 
         # Longest-prefix match against defaults.gitTokens
         # (shared with ws-clone-fork.sh via ws-realm.sh).
@@ -904,7 +904,7 @@ HELP
     fi
 
     fork_token_target=$(printf '%s' "$fork_namespace" \
-        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
+        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
     fork_token_target="${fork_token_target#/}"
     if [[ "$fork_token_target" != "$host" && "$fork_token_target" != "$host/"* ]]; then
         fork_token_target="$host/$fork_token_target"
@@ -938,7 +938,7 @@ HELP
 
     # 1. Register write token with glab
     echo "1. Registering write token ($write_token_var) with glab..."
-    if glab auth login --hostname "$host" --token "$write_token" 2>/dev/null; then
+    if printf '%s\n' "$write_token" | glab auth login --hostname "$host" --stdin 2>/dev/null; then
         echo "   ✓ glab authenticated"
     else
         echo "   ✗ glab auth login failed" >&2

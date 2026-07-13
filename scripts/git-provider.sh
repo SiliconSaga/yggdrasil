@@ -25,6 +25,8 @@ _GP_LOADED_PROVIDER=""
 
 # shellcheck source=ws-env.sh
 source "$_GP_SCRIPT_DIR/ws-env.sh"
+# shellcheck source=git-remote.sh
+source "$_GP_SCRIPT_DIR/git-remote.sh"
 
 # Detect provider from a remote URL.
 # Usage: gp_detect URL [ECOSYSTEM_FILE]
@@ -200,9 +202,18 @@ gp_load() {
 # Convenience: detect + load in one call.
 # Usage: gp_detect_and_load URL [ECOSYSTEM_FILE]
 gp_detect_and_load() {
-    local provider
+    local provider host
     provider=$(gp_detect "$@") || return 1
-    gp_load "$provider"
+    gp_load "$provider" || return 1
+
+    # Provider CLIs accept owner/repo slugs that do not encode the host. Pin
+    # their API authority from the already-selected remote so GitHub Enterprise
+    # and self-hosted GitLab calls cannot silently fall back to a public host.
+    host="$(git_remote_host "$1")" || return 1
+    case "$provider" in
+        github) export GH_HOST="$host" ;;
+        gitlab) export GITLAB_HOST="$host" ;;
+    esac
 }
 
 # Select and export the appropriate authentication token for a URL.
@@ -226,7 +237,7 @@ gp_set_token_for_url() {
     # https://host/path        → host/path
     local normalized
     normalized=$(echo "$url" \
-        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||')
+        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||')
 
     # Find the longest matching key (most-specific group path wins)
     local best_var="" best_len=0

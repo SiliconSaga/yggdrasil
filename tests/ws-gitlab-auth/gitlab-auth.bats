@@ -45,10 +45,14 @@ YAML
 
     cat > "$STUB_BIN/glab" <<'SH'
 #!/usr/bin/env bash
+stdin_token=""
+case " $* " in
+  *" --stdin "*) IFS= read -r stdin_token || true ;;
+esac
 {
   printf 'glab:'
   printf ' %q' "$@"
-  printf ' token=%s\n' "${GITLAB_TOKEN:-}"
+  printf ' token=%s stdin=%s\n' "${GITLAB_TOKEN:-}" "$stdin_token"
 } >> "$GLAB_LOG"
 exit 0
 SH
@@ -98,11 +102,13 @@ SH
     [[ "$output" != *"GITLAB_HOST is not set"* ]]
 }
 
-@test "gitlab-auth selects write token from fork-home namespace" {
+@test "gitlab-auth sends the fork-home write token over stdin, not argv" {
     run bash "$WS_BIN" gitlab-auth
 
     [ "$status" -eq 0 ]
-    [[ "$(cat "$GLAB_LOG")" == *"--token fork-namespace-token"* ]]
+    [[ "$(cat "$GLAB_LOG")" == *"--stdin"* ]]
+    [[ "$(cat "$GLAB_LOG")" != *"--token"* ]]
+    [[ "$(cat "$GLAB_LOG")" == *"stdin=fork-namespace-token"* ]]
     [[ "$(cat "$GIT_LOG")" == *"password=fork-namespace-token"* ]]
     [[ "$output" == *"Registering write token (GITLAB_FORK_NAMESPACE_TOKEN)"* ]]
 }
