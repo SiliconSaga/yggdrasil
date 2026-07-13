@@ -55,3 +55,34 @@ YAML
     [[ "$output" == *"no gitTokens entry matches normalized path: evil.example/org/repo"* ]]
     [[ "$output" != *"GITLAB_TOKEN is set"* ]]
 }
+
+@test "ws diagnose reports provider connection failures as unverifiable" {
+    git -C "$WORK" remote add origin https://git.example.com/group/repo.git
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+defaults:
+  gitProviders:
+    git.example.com: gitlab
+  gitTokens:
+    git.example.com/group: GITLAB_GROUP_TOKEN
+components: {}
+YAML
+    printf 'identity:\n  human_account: realdev\n' > "$WORK/ecosystem.local.yaml"
+    mkdir -p "$WORK/bin"
+    cat > "$WORK/bin/glab" <<'SH'
+#!/usr/bin/env bash
+echo 'error connecting to git.example.com: context deadline exceeded' >&2
+exit 1
+SH
+    chmod +x "$WORK/bin/glab"
+
+    run env -u BATS_TEST_NAME \
+        PATH="$WORK/bin:$PATH" \
+        GITLAB_GROUP_TOKEN="fake-group-token" \
+        bash "$WS_BIN" diagnose yggdrasil
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"could not verify"* ]]
+    [[ "$output" == *"outside"*"sandbox"* ]]
+    [[ "$output" != *"REJECTED"* ]]
+    [[ "$output" != *"bad credentials"* ]]
+}

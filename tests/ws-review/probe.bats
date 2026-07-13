@@ -54,3 +54,22 @@ SH
     [[ "$output" == *"Could not verify CR #103"* ]]
     [[ "$output" != *"not found on any remote"* ]]
 }
+
+@test "probe treats an explicit provider HTTP 404 as a missing CR" {
+    cat > "$BATS_TEST_TMPDIR/bin/gh" <<'SH'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "auth" && "${2:-}" == "status" ]]; then exit 0; fi
+if [[ "${1:-}" == "api" ]]; then
+    echo 'gh: Not Found (HTTP 404)' >&2
+    exit 1
+fi
+exit 1
+SH
+    chmod +x "$BATS_TEST_TMPDIR/bin/gh"
+
+    run bash "$WS_REVIEW_BIN" review-probe 103 --compact
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not found on any remote"* ]]
+    [[ "$output" != *"Could not verify CR #103"* ]]
+}

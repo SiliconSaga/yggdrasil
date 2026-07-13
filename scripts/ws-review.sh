@@ -81,23 +81,12 @@ review_help() {
 }
 
 review_probe_not_found() {
-    local msg="$1"
-    # A real provider "not found" is a 404. Shell/tooling errors like
-    # "gh: command not found" also contain "not found" but are genuine
-    # failures that must surface, not be swallowed as a missing CR.
-    case "$msg" in
-        *"command not found"*) return 1 ;;
-    esac
-    [[ "$msg" == *"HTTP 404"* || "$msg" == *"404 Not Found"* || "$msg" == *"Not Found"* || "$msg" == *"not found"* ]]
+    local rc="$1" msg="$2"
+    [[ "$(gp_api_error_classify "$rc" "$msg")" == "not_found" ]]
 }
 
 review_probe_one_line() {
-    local msg="$1"
-    msg="${msg//$'\r'/ }"
-    msg="${msg//$'\n'/ }"
-    msg="${msg#"${msg%%[![:space:]]*}"}"
-    msg="${msg%"${msg##*[![:space:]]}"}"
-    printf '%s' "$msg"
+    gp_api_error_one_line "$1"
 }
 
 review_jq_string_literal() {
@@ -965,7 +954,7 @@ elif [[ -n "$_PEEK_CR" ]]; then
             _probe_rc=$?
             _probe_msg="$(review_probe_one_line "$_probe_output")"
             [[ -n "$_probe_msg" ]] || _probe_msg="provider exited $_probe_rc without details"
-            if ! review_probe_not_found "$_probe_msg"; then
+            if ! review_probe_not_found "$_probe_rc" "$_probe_msg"; then
                 _PROBE_FAILURES+=("${_prov}:${_slug}: $_probe_msg")
             fi
         fi

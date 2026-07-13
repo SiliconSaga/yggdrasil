@@ -133,9 +133,61 @@ gp_token_is_placeholder() {
     esac
 }
 
+# Render provider diagnostics as a bounded, terminal-safe single line. The
+# optional secret is removed with literal bash substring operations so it is
+# never passed through another process's argv or interpreted as a pattern.
+gp_api_error_one_line() {
+    local msg="$1" secret="${2:-}" prefix suffix
+    msg="${msg//$'\r'/ }"
+    msg="${msg//$'\n'/ }"
+    msg="${msg//$'\t'/ }"
+    msg="$(printf '%s' "$msg" | tr -d '\000-\010\013-\037\177')"
+    if [[ -n "$secret" ]]; then
+        while [[ "$msg" == *"$secret"* ]]; do
+            prefix="${msg%%"$secret"*}"
+            suffix="${msg#*"$secret"}"
+            msg="${prefix}[redacted]${suffix}"
+        done
+    fi
+    while [[ "$msg" == *"  "* ]]; do msg="${msg//  / }"; done
+    msg="${msg#"${msg%%[![:space:]]*}"}"
+    msg="${msg%"${msg##*[![:space:]]}"}"
+    if [[ ${#msg} -gt 240 ]]; then
+        msg="${msg:0:237}..."
+    fi
+    printf '%s' "$msg"
+}
+
+# Classify a provider/API failure without treating a generic non-zero exit as
+# credential rejection. Output is intentionally provider-neutral so diagnose,
+# review, and future callers share the same decision boundary.
+gp_api_error_classify() {
+    local rc="$1" msg="$2" normalized
+    if [[ "$rc" -eq 124 ]]; then
+        echo "transport"
+        return 0
+    fi
+    normalized="$(printf '%s' "$msg" | tr '[:upper:]' '[:lower:]')"
+    case "$normalized" in
+        *"http 401"*|*"http 403"*|*"401 unauthorized"*|*"403 forbidden"*|*"status code 401"*|*"status code 403"*)
+            echo "auth"
+            ;;
+        *"http 404"*|*"404 not found"*|*"status code 404"*)
+            echo "not_found"
+            ;;
+        *"dial tcp"*|*"no such host"*|*"could not resolve host"*|*"temporary failure in name resolution"*|*"network is unreachable"*|*"error connecting"*|*"failed to connect"*|*"connection refused"*|*"connection reset"*|*"tls handshake"*|*"certificate verify failed"*|*"context deadline exceeded"*|*"operation timed out"*|*"i/o timeout"*)
+            echo "transport"
+            ;;
+        *)
+            echo "unknown"
+            ;;
+    esac
+}
+
 # Best-effort token validity probe. Echoes the account login on success (rc 0);
-# rc 1 = the provider rejected the token; rc 2 = couldn't check (CLI/jq missing
-# or provider unsupported). Never prints the token itself.
+# rc 1 = explicit provider authentication/scope rejection; rc 2 = unsupported
+# or unavailable CLI; rc 3 = transport or otherwise indeterminate failure, with
+# a sanitized diagnostic. Never prints the token itself.
 # Usage: gp_token_api_login PROVIDER HOST TOKEN
 gp_token_api_login() {
     local provider="$1" host="$2" tok="$3"
@@ -145,27 +197,52 @@ gp_token_api_login() {
     if command -v timeout >/dev/null 2>&1; then to=(timeout 10)
     elif command -v gtimeout >/dev/null 2>&1; then to=(gtimeout 10)
     fi
-    local out rc
+    local out rc parsed class reason
     case "$provider" in
         github)
             command -v gh >/dev/null 2>&1 || return 2
-            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>/dev/null)
+            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>&1)
             rc=$?
             ;;
         gitlab)
             command -v glab >/dev/null 2>&1 || return 2
             command -v jq >/dev/null 2>&1 || return 2
-            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>/dev/null)
+            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>&1)
             rc=$?
-            [[ $rc -eq 0 ]] && out=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null)
             ;;
         *)
             return 2
             ;;
     esac
-    # 124 = `timeout` killed the probe → unreachable/transport, not a rejection.
-    [[ $rc -eq 124 ]] && return 3
-    [[ $rc -ne 0 || -z "$out" ]] && return 1
+    if [[ $rc -ne 0 ]]; then
+        reason="$(gp_api_error_one_line "$out" "$tok")"
+        class="$(gp_api_error_classify "$rc" "$reason")"
+        if [[ "$class" == "auth" ]]; then
+            return 1
+        fi
+        if [[ -z "$reason" ]]; then
+            if [[ "$class" == "transport" ]]; then
+                reason="provider API probe timed out or could not connect"
+            else
+                reason="provider CLI exited $rc without details"
+            fi
+        fi
+        printf '%s' "$reason"
+        return 3
+    fi
+
+    if [[ "$provider" == "gitlab" ]]; then
+        if ! parsed=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null); then
+            printf '%s' "provider returned an invalid user response"
+            return 3
+        fi
+        out="$parsed"
+    fi
+    out="$(gp_api_error_one_line "$out")"
+    if [[ -z "$out" ]]; then
+        printf '%s' "provider returned an empty user response"
+        return 3
+    fi
     printf '%s' "$out"
 }
 

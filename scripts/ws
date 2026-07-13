@@ -636,7 +636,11 @@ _ws_token_status() {
         0) printf '✓ %s is valid (authenticated as %s)' "$var_name" "$login" ;;
         1) printf '✗ %s is set but REJECTED by %s — bad credentials (expired, wrong value, or missing scope)\n%s' \
                "$var_name" "$provider" "$(_ws_pat_setup_lines "$provider" "$host" "$var_name")" ;;
-        3) printf '✓ %s is set (could not verify — %s unreachable or the probe timed out)' "$var_name" "$provider" ;;
+        3)
+            [[ -n "$login" ]] || login="$provider probe failed without details"
+            printf '⚠ %s is set (could not verify — %s)\n      → Retry outside the network sandbox or use --no-api-check for offline diagnosis.' \
+                "$var_name" "$login"
+            ;;
         *) printf '✓ %s is set (could not verify — %s CLI unavailable)' "$var_name" "$provider" ;;
     esac
 }
