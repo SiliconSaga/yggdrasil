@@ -114,6 +114,26 @@ _ws_hoard_validate_manifest_paths() {
         _ws_hoard_contained_path "$template_dir/.upgrade" "$rsrc" "template upgrade" >/dev/null || return 1
         i=$((i + 1))
     done
+
+    # The upgrade also writes a fixed set of metadata/plugin paths that do not
+    # appear in the manifest. Validate those targets with the same physical
+    # containment rule so a hoard-shipped symlink cannot redirect a backup,
+    # JSON rewrite, provenance bump, or managed README migration.
+    local fixed_rel
+    for fixed_rel in \
+        .hoard.yaml \
+        .gitignore \
+        .upgrade-backup \
+        .obsidian \
+        .obsidian/plugins \
+        .obsidian/community-plugins.json \
+        .obsidian/core-plugins.json \
+        README.md \
+        Welcome.md \
+        00_Inbox \
+        00_Inbox/Welcome.md; do
+        _ws_hoard_contained_path "$hoard_dir" "$fixed_rel" "hoard" >/dev/null || return 1
+    done
 }
 
 # Read a hoard's provenance. Prints "<template> <applied_version>" on
@@ -273,6 +293,8 @@ _ws_hoard_upgrade_plan() {
 _ws_hoard_backup() {
     local hoard_dir="$1"
     local ts snap
+    _ws_hoard_contained_path "$hoard_dir" ".upgrade-backup" "hoard" >/dev/null || return 1
+    _ws_hoard_contained_path "$hoard_dir" ".gitignore" "hoard" >/dev/null || return 1
     ts="$(date '+%Y%m%d-%H%M%S')"
     mkdir -p "$hoard_dir/.upgrade-backup" || return 1
     # Ensure git ignores the snapshots. Hoards adopted via --template predate
@@ -306,9 +328,18 @@ _ws_hoard_rollback() {
         return 1
     }
     local backups_dir="$hoard_dir/.upgrade-backup"
+    _ws_hoard_contained_path "$hoard_dir" ".upgrade-backup" "hoard" >/dev/null || return 1
     [[ -d "$backups_dir" ]] || return 1
-    local latest
-    latest="$(find "$backups_dir" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+    local latest="" latest_base="" candidate candidate_base
+    for candidate in "$backups_dir"/*; do
+        [[ -d "$candidate" && ! -L "$candidate" ]] || continue
+        candidate_base="$(basename "$candidate")"
+        [[ "$candidate_base" =~ ^[0-9]{8}-[0-9]{6}-[A-Za-z0-9]{6}$ ]] || continue
+        if [[ -z "$latest_base" || "$candidate_base" > "$latest_base" ]]; then
+            latest="$candidate"
+            latest_base="$candidate_base"
+        fi
+    done
     [[ -n "$latest" ]] || return 1
     # Clear the hoard first (except .git and the backups themselves) so files
     # created after the snapshot — e.g. freshly downloaded plugin dirs — don't

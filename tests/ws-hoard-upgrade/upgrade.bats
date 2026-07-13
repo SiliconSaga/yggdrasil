@@ -62,6 +62,26 @@ files_remove:
     [[ "$output" == *"control character"* ]]
 }
 
+@test "fixed community plugin target rejects a symlink before backup or write" {
+    make_template thalami "version: 2
+plugins: []"
+    make_hoard h1
+    _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian"
+    local outside="$BATS_TEST_TMPDIR/outside-settings.json"
+    printf 'preserve\n' > "$outside"
+    rm -f "$HOARDS_DIR/h1/.obsidian/community-plugins.json"
+    ln -s "$outside" "$HOARDS_DIR/h1/.obsidian/community-plugins.json" 2>/dev/null || true
+    [[ -L "$HOARDS_DIR/h1/.obsidian/community-plugins.json" ]] || skip "real symlinks not supported on this platform"
+
+    run ws_hoard_upgrade h1 --apply
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$outside")" = "preserve" ]
+    [ ! -e "$HOARDS_DIR/h1/.upgrade-backup" ]
+}
+
 @test "manifest plugin id traversal is rejected before backup or download" {
     make_template thalami "version: 2
 plugins:
@@ -262,6 +282,21 @@ plugins:
     make_hoard h1
     run _ws_hoard_rollback "$HOARDS_DIR/h1"
     [ "$status" -ne 0 ]
+}
+
+@test "rollback ignores non-snapshot directories that sort after real backups" {
+    make_hoard h1
+    printf 'original\n' > "$HOARDS_DIR/h1/note.txt"
+    run _ws_hoard_backup "$HOARDS_DIR/h1"
+    [ "$status" -eq 0 ]
+    printf 'current\n' > "$HOARDS_DIR/h1/note.txt"
+    mkdir -p "$HOARDS_DIR/h1/.upgrade-backup/zzz-evil"
+    printf 'shadow\n' > "$HOARDS_DIR/h1/.upgrade-backup/zzz-evil/note.txt"
+
+    run _ws_hoard_rollback "$HOARDS_DIR/h1"
+
+    [ "$status" -eq 0 ]
+    [ "$(cat "$HOARDS_DIR/h1/note.txt")" = "original" ]
 }
 
 @test "region splice: inserts wrapped block when markers absent" {
