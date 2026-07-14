@@ -70,7 +70,7 @@ gp_create_pr() {
         --base "$base" \
         --head "$head_ref" \
         --title "$title" \
-        --body-file "$body_file"
+        --body-file "$(ws_native_path "$body_file")"
 }
 
 # Create an issue.
@@ -91,7 +91,7 @@ gp_create_issue() {
         --repo "$repo" \
         --title "$title" \
         --label "$label" \
-        --body-file "$body_file"
+        --body-file "$(ws_native_path "$body_file")"
 }
 
 # --- Review functions ---

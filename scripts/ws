@@ -1209,6 +1209,9 @@ case "$COMMAND" in
     k8s)
         bash "$SCRIPT_DIR/ws-k8s.sh" "$@"
         ;;
+    docker)
+        bash "$SCRIPT_DIR/ws-docker.sh" "$@"
+        ;;
     whoami)
         bash "$SCRIPT_DIR/ws-whoami.sh" "$@"
         ;;
