@@ -21,7 +21,7 @@ The yggdrasil workspace ships templates in two shapes: in-repo `templates/<kind>
 | **Hoard** | `templates/hoards/<type>/` | `hoards/<type>-<username>/` | `ws hoard init <type>` (copies + git-inits) |
 | **Component** | `templates/components/<flavor>/` | `components/<name>/` | `ws component init <flavor> <name>` (copies + git-inits) |
 
-A *template* is a forkable scaffold. An *instance* is the on-disk result of running its `init` command. A *tutorial* is an instance deliberately suitable for newcomers — the `gh-pages` component template produces a tutorial instance with a comprehensive README and a designed-to-be-edited home page. Other flavors may not be tutorial-friendly (they're production scaffolds).
+A *template* is a forkable scaffold. An *instance* is the on-disk result of running its `init` command. A *tutorial* is an instance deliberately suitable for newcomers — the `gh-pages` component template produces a tutorial instance with a comprehensive README and a designed-to-be-edited home page. Other flavors may not be tutorial-friendly (they're production scaffolds). `ws realm init` only clones the upstream realm template; review and activate it separately with `ws realm use realm-template` before using its configuration.
 
 ## Setup
 

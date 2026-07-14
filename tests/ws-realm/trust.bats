@@ -118,6 +118,25 @@ YAML
     [ "$output" = "error" ]
 }
 
+@test "ws list succeeds when an unselected realm template directory exists" {
+    mkdir -p "$REALMS_DIR/realm-template"
+    printf 'components: {}\n' > "$REALMS_DIR/realm-template/ecosystem.yaml"
+
+    run bash "$WS_BIN" list
+
+    [ "$status" -eq 0 ]
+}
+
+@test "explicitly selected realm without approval fails with activation guidance" {
+    REALM_NAME="realm.test" yq -i '.realm = strenv(REALM_NAME)' "$ECOSYSTEM_LOCAL"
+
+    run bash -c 'source "$1"; ws_resolve_ecosystem' _ "$REALM_LIB"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"reapproval"* ]]
+    [[ "$output" == *"ws realm use realm.test"* ]]
+}
+
 @test "realm reapproval records changed trust and restores current state" {
     approve_realm
     ADAPTER_TEST="uv run pytest -q" yq -i \

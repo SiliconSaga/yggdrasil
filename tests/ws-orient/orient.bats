@@ -129,6 +129,17 @@ MD
     [[ "$output" == *"Active realm: none"* ]]
 }
 
+@test "ws orient: does not autoactivate an unselected realm template" {
+    mkdir -p "$WORK/realms/realm-template"
+    printf 'components: {}\n' > "$WORK/realms/realm-template/ecosystem.yaml"
+    printf '# realm-template\n' > "$WORK/realms/realm-template/AGENTS.md"
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Active realm: none"* ]]
+}
+
 @test "ws orient: surfaces an explicitly selected community realm" {
     mkdir -p "$WORK/realms/realm-fixture"
     printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"

@@ -44,7 +44,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `docs/dev-setup.md` renamed to `docs/workspace-setup.md` with an onboarding front-door polish pass (#109).
 - Hard-wrapped prose de-wrapped workspace-wide per the single-line-paragraph convention (#104).
 - Methodology docs consistency pass — the "good-enough" posture named as a first-class design statement, hook-doc altitude dedup, skills-reference taxonomy fix, link-shape cleanups (#120).
-- **Community realm auto-detection removed** — with no `realm:` selector in `ecosystem.local.yaml`, only the bundled `realm-template` is implied. Existing workspaces that relied on auto-detecting a lone community realm should run `ws realm use <name>` once (#129).
+- **Realm auto-detection removed** — with no `realm:` selector in `ecosystem.local.yaml`, no realm is active, including the upstream `realm-template`. Existing workspaces that relied on an implicitly selected realm should run `ws realm use <name>` once (#129, #130).
 - The permission hook anchors all policy (rules files, allowlists, scratch and sensitive paths) to the workspace root instead of walking up from the command cwd; `Edit`/`Write` route through the hook, and security-sensitive state (`.claude/`, `.env`, `ecosystem.local.yaml`, hook-bypass markers, agent session files) asks instead of inheriting the scratch auto-allow (#129).
 - Hoard templates require an immutable full-SHA `pin` (checked out detached), and hoard-upgrade manifests are validated against traversal and symlink escapes before any file operation (#129).
 - `ws session set` accepts only the public stance/role/mentoring keys — guard and identity keys route through `ws k8s scope` and `ws whoami` (#129).

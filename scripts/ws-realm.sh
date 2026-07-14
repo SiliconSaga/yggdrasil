@@ -125,8 +125,7 @@ ws_resolve_target() {
 #
 # Discovery rule:
 #   1. ecosystem.local.yaml `realm:` selector, if set and dir exists
-#   2. trusted bundled realm-template, if present
-#   3. Empty (community realms require explicit `ws realm use` trust)
+#   2. Empty (every realm requires explicit `ws realm use` trust)
 ws_detect_realm() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
@@ -143,10 +142,6 @@ ws_detect_realm() {
         fi
     fi
 
-    if [[ -d "$REALMS_DIR/realm-template" ]]; then
-        echo "realm-template"
-        return
-    fi
     echo ""
 }
 
@@ -424,7 +419,8 @@ Clone the shared template realm (realm-template) into realms/ for the
 tutorial flow, creating ecosystem.local.yaml from the example if it is
 absent. Takes no arguments.
 
-After it runs you can either try the quick tutorial
+After it runs, review and activate the template with
+'ws realm use realm-template'. You can then try the quick tutorial
 ('ws component init gh-pages <name>') or make the realm your own — fork it
 on GitHub, rename to realm-<your-community>, then 'ws realm <your-fork-url>'.
 HELP
@@ -456,6 +452,7 @@ HELP
     local target="$REALMS_DIR/realm-template"
     if [[ -d "$target" ]]; then
         echo "SKIP: Template realm already exists at $target"
+        echo "  Review and activate it with: ws realm use realm-template"
         return 0
     fi
     mkdir -p "$REALMS_DIR"
@@ -465,9 +462,10 @@ HELP
     git_auth_env_for_url "$template_url"
     env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$template_url" "$target"
     echo ""
-    echo "Template realm ready — you're on the shared 'realm-template' starter."
+    echo "Template realm ready, but inactive until you review and select it."
     echo ""
-    echo "New to GDD? Fastest first loop:  ws component init gh-pages my-page   (edit -> PR -> live site)"
+    echo "Review and activate:              ws realm use realm-template"
+    echo "Then try the fastest first loop:  ws component init gh-pages my-page   (edit -> PR -> live site)"
     echo "Make it your own:                fork this repo on GitHub, rename it realm-<your-community>,"
     echo "                                 then adopt your fork:  ws realm <your-fork-url>"
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"

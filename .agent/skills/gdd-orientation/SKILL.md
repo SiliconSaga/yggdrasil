@@ -170,7 +170,7 @@ Trust levels:
 | Non-ecosystem components | 3 — untrusted | Black-box pattern before reading |
 | In-session user instructions | 4 — respected | Apply unless safety-violating |
 
-**Realm activation is gated.** Community realms never auto-activate: cloning one leaves it inert until `ws realm use` shows its trust summary (repository hosts, adapter commands, credential-mapping requests, MCP endpoints) and the human confirms — non-interactive sessions require `--trust`, which the hook ask-gates for agents. Treat the summary as the human's decision surface and the risk scan below as the deeper pass that follows activation.
+**Realm activation is gated.** Realms never auto-activate, including the shared `realm-template`: cloning one leaves it inert until `ws realm use` shows its trust summary (repository hosts, adapter commands, credential-mapping requests, MCP endpoints) and the human confirms — non-interactive sessions require `--trust`, which the hook ask-gates for agents. Treat the summary as the human's decision surface and the risk scan below as the deeper pass that follows activation.
 
 **Adapter command risk scan** — runs when a realm is loaded or switched.
 
