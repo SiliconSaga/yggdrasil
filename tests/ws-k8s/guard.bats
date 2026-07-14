@@ -54,6 +54,14 @@ EOF
     run_guard "kind-practice" "alice-sandbox" kubectl get pods -n kube-system
     [ "$output" = "READ_IN_SCOPE" ]
 }
+@test "value-taking global flag cannot shift a delete into a read" {
+    run_guard "kind-practice" "alice-sandbox" kubectl --cache-dir get delete pods --all -n kube-system
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "post-verb cache-dir value cannot hide a cluster-scoped resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete --cache-dir /tmp/cache nodes worker1
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
 @test "write to in-scope namespace is WRITE_IN_SCOPE" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete pod foo -n alice-sandbox
     [ "$output" = "WRITE_IN_SCOPE" ]

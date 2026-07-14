@@ -125,8 +125,7 @@ ws_resolve_target() {
 #
 # Discovery rule:
 #   1. ecosystem.local.yaml `realm:` selector, if set and dir exists
-#   2. trusted bundled realm-template, if present
-#   3. Empty (community realms require explicit `ws realm use` trust)
+#   2. Empty (every realm requires explicit `ws realm use` trust)
 ws_detect_realm() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     if [[ -f "$local_file" ]]; then
@@ -143,11 +142,132 @@ ws_detect_realm() {
         fi
     fi
 
-    if [[ -d "$REALMS_DIR/realm-template" ]]; then
-        echo "realm-template"
-        return
-    fi
     echo ""
+}
+
+# Hash the semantic realm trust inputs rather than the realm Git revision.
+# Canonical JSON ignores YAML comments, formatting, and mapping order while
+# retaining every ecosystem/adapter value that the workspace may consume.
+ws_realm_trust_fingerprint() {
+    local name="$1" realm_dir realm_file canonical adapter_file relative fingerprint
+    local LC_ALL=C
+    local -a records=()
+    if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid realm name '$name' for trust fingerprinting." >&2
+        return 1
+    fi
+    realm_dir="$REALMS_DIR/$name"
+    realm_file="$realm_dir/ecosystem.yaml"
+    if [[ ! -f "$realm_file" || -L "$realm_file" ]]; then
+        echo "ERROR: Realm '$name' has no regular ecosystem.yaml trust input." >&2
+        return 1
+    fi
+    if ! canonical="$(yq -o=json -I=0 'sort_keys(..)' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: Cannot canonicalize $realm_file for trust approval." >&2
+        return 1
+    fi
+    records+=("ecosystem.yaml"$'\t'"$canonical")
+    for adapter_file in "$realm_dir"/adapters/*.yaml; do
+        [[ -e "$adapter_file" || -L "$adapter_file" ]] || continue
+        if [[ ! -f "$adapter_file" || -L "$adapter_file" ]]; then
+            echo "ERROR: Realm adapter trust input must be a regular file: $adapter_file" >&2
+            return 1
+        fi
+        relative="adapters/$(basename "$adapter_file")"
+        if ! canonical="$(yq -o=json -I=0 'sort_keys(..)' "$adapter_file" 2>/dev/null)"; then
+            echo "ERROR: Cannot canonicalize $adapter_file for trust approval." >&2
+            return 1
+        fi
+        records+=("$relative"$'\t'"$canonical")
+    done
+    if ! fingerprint="$(printf '%s\n' "${records[@]}" | git hash-object --stdin 2>/dev/null)"; then
+        echo "ERROR: Cannot calculate the trust fingerprint for realm '$name'." >&2
+        return 1
+    fi
+    if [[ ! "$fingerprint" =~ ^[0-9a-f]{40,64}$ ]]; then
+        echo "ERROR: Invalid trust fingerprint produced for realm '$name'." >&2
+        return 1
+    fi
+    printf '%s\n' "$fingerprint"
+}
+
+# Report the selected realm's approval state without blocking read-only status
+# surfaces such as `ws orient`. This function intentionally emits one token.
+ws_realm_trust_state() {
+    local name="$1" local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    local realm_tag fingerprint_tag approved_realm approved_fingerprint current_fingerprint
+    if [[ ! -f "$local_file" ]]; then
+        echo "missing"
+        return 0
+    fi
+    if ! yq '.' "$local_file" >/dev/null 2>&1; then
+        echo "error"
+        return 0
+    fi
+    realm_tag="$(yq -r '._gdd.realmTrust.realm | tag' "$local_file" 2>/dev/null)" || { echo "error"; return 0; }
+    fingerprint_tag="$(yq -r '._gdd.realmTrust.fingerprint | tag' "$local_file" 2>/dev/null)" || { echo "error"; return 0; }
+    if [[ "$realm_tag" == "!!null" && "$fingerprint_tag" == "!!null" ]]; then
+        echo "missing"
+        return 0
+    fi
+    if [[ "$realm_tag" != "!!str" || "$fingerprint_tag" != "!!str" ]]; then
+        echo "error"
+        return 0
+    fi
+    approved_realm="$(yq -r '._gdd.realmTrust.realm' "$local_file" 2>/dev/null)" || { echo "error"; return 0; }
+    approved_fingerprint="$(yq -r '._gdd.realmTrust.fingerprint' "$local_file" 2>/dev/null)" || { echo "error"; return 0; }
+    if [[ ! "$approved_fingerprint" =~ ^[0-9a-f]{40,64}$ ]]; then
+        echo "error"
+        return 0
+    fi
+    if [[ "$approved_realm" != "$name" ]]; then
+        echo "stale"
+        return 0
+    fi
+    if ! current_fingerprint="$(ws_realm_trust_fingerprint "$name" 2>/dev/null)"; then
+        echo "error"
+        return 0
+    fi
+    if [[ "$current_fingerprint" == "$approved_fingerprint" ]]; then
+        echo "current"
+    else
+        echo "stale"
+    fi
+}
+
+ws_require_realm_trust() {
+    local name="$1" state
+    state="$(ws_realm_trust_state "$name")"
+    [[ "$state" == "current" ]] && return 0
+    echo "ERROR: Realm '$name' trust reapproval is required (state: $state)." >&2
+    echo "  Review the current trust summary, then run: ws realm use $name" >&2
+    return 1
+}
+
+# Persist exactly the trust inputs the human reviewed. Recompute immediately
+# before writing so a concurrent pull/edit cannot turn the approval prompt into
+# authorization for different realm content.
+ws_realm_record_approval() {
+    local name="$1" reviewed_fingerprint="$2" current_fingerprint
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    if ! current_fingerprint="$(ws_realm_trust_fingerprint "$name")"; then
+        return 1
+    fi
+    if [[ "$current_fingerprint" != "$reviewed_fingerprint" ]]; then
+        echo "ERROR: Realm trust inputs changed while they were being reviewed; refusing approval." >&2
+        echo "  Review the new summary and try again: ws realm use $name" >&2
+        return 1
+    fi
+    if [[ ! -f "$local_file" ]]; then
+        printf '{}\n' > "$local_file"
+    fi
+    REALM_NAME="$name" REALM_FINGERPRINT="$reviewed_fingerprint" yq -i '
+        .realm = strenv(REALM_NAME) |
+        ._gdd.realmTrust = {
+          "realm": strenv(REALM_NAME),
+          "fingerprint": strenv(REALM_FINGERPRINT)
+        }
+    ' "$local_file"
 }
 
 # Produce a merged ecosystem config (upstream + realm + local).
@@ -169,6 +289,7 @@ ws_resolve_ecosystem() {
     local active_realm
     active_realm="$(ws_detect_realm)"
     if [[ -n "$active_realm" ]]; then
+        ws_require_realm_trust "$active_realm" || return 1
         realm_file="$REALMS_DIR/$active_realm/ecosystem.yaml"
         if [[ ! -f "$realm_file" ]]; then
             echo "ERROR: Active realm '$active_realm' has no ecosystem.yaml." >&2
@@ -298,7 +419,8 @@ Clone the shared template realm (realm-template) into realms/ for the
 tutorial flow, creating ecosystem.local.yaml from the example if it is
 absent. Takes no arguments.
 
-After it runs you can either try the quick tutorial
+After it runs, review and activate the template with
+'ws realm use realm-template'. You can then try the quick tutorial
 ('ws component init gh-pages <name>') or make the realm your own — fork it
 on GitHub, rename to realm-<your-community>, then 'ws realm <your-fork-url>'.
 HELP
@@ -330,6 +452,7 @@ HELP
     local target="$REALMS_DIR/realm-template"
     if [[ -d "$target" ]]; then
         echo "SKIP: Template realm already exists at $target"
+        echo "  Review and activate it with: ws realm use realm-template"
         return 0
     fi
     mkdir -p "$REALMS_DIR"
@@ -339,9 +462,10 @@ HELP
     git_auth_env_for_url "$template_url"
     env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$template_url" "$target"
     echo ""
-    echo "Template realm ready — you're on the shared 'realm-template' starter."
+    echo "Template realm ready, but inactive until you review and select it."
     echo ""
-    echo "New to GDD? Fastest first loop:  ws component init gh-pages my-page   (edit -> PR -> live site)"
+    echo "Review and activate:              ws realm use realm-template"
+    echo "Then try the fastest first loop:  ws component init gh-pages my-page   (edit -> PR -> live site)"
     echo "Make it your own:                fork this repo on GitHub, rename it realm-<your-community>,"
     echo "                                 then adopt your fork:  ws realm <your-fork-url>"
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
@@ -359,7 +483,11 @@ ws_realm_trust_summary() {
     local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
     echo "Realm trust summary: $name"
     echo "  Repository hosts:"
-    local found=0 repo host adapter_file commands
+    local found=0 repo host adapter_file commands repos
+    if ! repos="$(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
     while IFS= read -r repo; do
         [[ -n "$repo" ]] || continue
         host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"
@@ -367,16 +495,21 @@ ws_realm_trust_summary() {
         # never be the thing that leaks a token into terminal scrollback.
         echo "    $(_ws_realm_summary_text "$host")  ←  $(_ws_realm_summary_text "$(git_remote_display_value "$repo")")"
         found=1
-    # `// ""` not `// empty` — `empty` is jq syntax; Mike Farah's yq rejects it,
-    # which (silently, behind 2>/dev/null) blanked this whole section.
-    done < <(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)
+    done <<< "$repos"
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
     echo "  Adapter commands:"
     found=0
     for adapter_file in "$realm_dir"/adapters/*.yaml; do
-        [[ -f "$adapter_file" ]] || continue
-        commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null || true)"
+        [[ -e "$adapter_file" || -L "$adapter_file" ]] || continue
+        if [[ ! -f "$adapter_file" || -L "$adapter_file" ]]; then
+            echo "ERROR: adapter trust input must be a regular file: $adapter_file" >&2
+            return 1
+        fi
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null)"; then
+            echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
+            return 1
+        fi
         if [[ -n "$commands" ]]; then
             echo "    $(basename "$adapter_file" .yaml):"
             echo "$(_ws_realm_summary_text "$commands")"
@@ -385,12 +518,51 @@ ws_realm_trust_summary() {
     done
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
+    echo "  Fork routing requests:"
+    if ! commands="$(yq -r '
+        ([
+          {"key": "identity.forkRemote", "value": (.identity.forkRemote // "")},
+          {"key": "identity.homes.fork.namespace", "value": (.identity.homes.fork.namespace // "")}
+        ] + [
+          .components // {} | to_entries | .[] |
+          {"key": ("components." + .key + ".forkRepo"), "value": (.value.forkRepo // "")}
+        ])
+        | .[] | select(.value != "") | "    " + .key + "  →  " + .value
+    ' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render fork routing from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+
+    echo "  Provider and workflow routing:"
+    if ! commands="$(yq -r '
+        ([
+          {"key": "defaults.gddHome", "value": (.defaults.gddHome // "")},
+          {"key": "defaults.upstreamRemote", "value": (.defaults.upstreamRemote // "")},
+          {"key": "defaults.gitProvider", "value": (.defaults.gitProvider // "")}
+        ] + [
+          .defaults.gitProviders // {} | to_entries | .[] |
+          {"key": ("defaults.gitProviders." + .key), "value": .value}
+        ])
+        | .[] | select(.value != "") | "    " + .key + "  →  " + .value
+    ' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render provider/workflow routing from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
+    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+
     echo "  Credential-mapping requests (not authoritative until copied locally):"
-    commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null || true)"
+    if ! commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render credential mappings from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
     if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
     echo "  MCP endpoints:"
-    commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  " + .value.url' "$realm_file" 2>/dev/null || true)"
+    if ! commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  transport=" + .value.transport + " " + .value.url' "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
     if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 }
 
@@ -430,7 +602,11 @@ ws_realm_use() {
         exit 1
     fi
 
-    ws_realm_trust_summary "$name"
+    local reviewed_fingerprint
+    if ! reviewed_fingerprint="$(ws_realm_trust_fingerprint "$name")"; then
+        return 1
+    fi
+    ws_realm_trust_summary "$name" || return 1
     echo ""
     if [[ "$trust" -ne 1 ]]; then
         if [[ -t 0 ]]; then
@@ -442,12 +618,7 @@ ws_realm_use() {
             exit 1
         fi
     fi
-    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
-    if [[ -f "$local_file" ]]; then
-        REALM_NAME="$name" yq -i '.realm = strenv(REALM_NAME)' "$local_file"
-    else
-        echo "realm: \"$name\"" > "$local_file"
-    fi
+    ws_realm_record_approval "$name" "$reviewed_fingerprint" || return 1
     echo "Active realm set to: $name"
 }
 

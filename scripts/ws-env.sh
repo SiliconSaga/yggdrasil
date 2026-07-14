@@ -1,11 +1,67 @@
 #!/usr/bin/env bash
 # Shared literal .env loading and provider-token variable policy.
 
+_ws_env_parse_value() {
+    local raw_value="$1" env_file="$2" line_number="$3"
+    local value quote tail trimmed_tail char prev
+    local i j closing=-1 backslashes=0 had_leading_whitespace=0
+
+    [[ "$raw_value" == [[:space:]]* ]] && had_leading_whitespace=1
+    while [[ "$raw_value" == [[:space:]]* ]]; do raw_value="${raw_value#?}"; done
+
+    if [[ "$raw_value" == \"* || "$raw_value" == \'* ]]; then
+        quote="${raw_value:0:1}"
+        for ((i=1; i<${#raw_value}; i++)); do
+            char="${raw_value:i:1}"
+            [[ "$char" == "$quote" ]] || continue
+            backslashes=0
+            j=$((i - 1))
+            while [[ "$j" -ge 1 && "${raw_value:j:1}" == "\\" ]]; do
+                backslashes=$((backslashes + 1))
+                j=$((j - 1))
+            done
+            [[ $((backslashes % 2)) -eq 1 ]] && continue
+            closing=$i
+            break
+        done
+        if [[ "$closing" -lt 0 ]]; then
+            echo "ERROR: invalid .env line $line_number in $env_file; quoted value is not closed." >&2
+            return 1
+        fi
+        tail="${raw_value:closing+1}"
+        trimmed_tail="$tail"
+        while [[ "$trimmed_tail" == [[:space:]]* ]]; do trimmed_tail="${trimmed_tail#?}"; done
+        if [[ -n "$trimmed_tail" && ! ( "$tail" == [[:space:]]* && "$trimmed_tail" == \#* ) ]]; then
+            echo "ERROR: invalid .env line $line_number in $env_file; quoted value has trailing content." >&2
+            return 1
+        fi
+        value="${raw_value:1:closing-1}"
+    else
+        value="$raw_value"
+        if [[ "$had_leading_whitespace" -eq 1 && "$value" == \#* ]]; then
+            value=""
+        else
+            for ((i=1; i<${#value}; i++)); do
+                char="${value:i:1}"
+                [[ "$char" == "#" ]] || continue
+                prev="${value:i-1:1}"
+                if [[ "$prev" == [[:space:]] ]]; then
+                    value="${value:0:i}"
+                    break
+                fi
+            done
+        fi
+        while [[ "$value" == *[[:space:]] ]]; do value="${value%?}"; done
+    fi
+
+    printf '%s' "$value"
+}
+
 ws_load_env() {
     local env_file="$1"
     [[ -f "$env_file" ]] || return 0
 
-    local line line_number=0 key raw_value value quote
+    local line line_number=0 key raw_value value
     local assignment_re='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_number=$((line_number + 1))
@@ -20,22 +76,13 @@ ws_load_env() {
         key="${BASH_REMATCH[2]}"
         raw_value="${BASH_REMATCH[3]}"
         case "$key" in
-            PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|BASH_ENV|ENV|IFS|PS4|PROMPT_COMMAND|SHELLOPTS|BASHOPTS|GIT_CONFIG*|GIT_SSH*|GIT_ASKPASS|SSH_ASKPASS|GIT_EXEC_PATH|GIT_EXTERNAL_DIFF|GIT_PROXY_COMMAND|GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_NAMESPACE|GIT_EDITOR|GIT_SEQUENCE_EDITOR|GIT_PAGER|HOME|CDPATH)
+            PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|BASH_ENV|ENV|IFS|PS4|PROMPT_COMMAND|SHELLOPTS|BASHOPTS|GIT_CONFIG*|GIT_SSH*|GIT_ASKPASS|SSH_ASKPASS|GIT_EXEC_PATH|GIT_EXTERNAL_DIFF|GIT_PROXY_COMMAND|GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_NAMESPACE|GIT_EDITOR|GIT_SEQUENCE_EDITOR|GIT_PAGER|HOME|CDPATH|SCRIPT_DIR|ROOT_DIR|ECOSYSTEM|ECOSYSTEM_LOCAL|REALMS_DIR|COMPONENTS_DIR|HOARDS_DIR|TEMPLATES_DIR)
                 echo "ERROR: refusing to set reserved variable '$key' from .env line $line_number in $env_file." >&2
                 return 1
                 ;;
         esac
-        while [[ "$raw_value" == [[:space:]]* ]]; do raw_value="${raw_value#?}"; done
-        while [[ "$raw_value" == *[[:space:]] ]]; do raw_value="${raw_value%?}"; done
-
-        value="$raw_value"
-        if [[ "$raw_value" == \"* || "$raw_value" == \'* ]]; then
-            quote="${raw_value:0:1}"
-            if [[ ${#raw_value} -lt 2 || "${raw_value: -1}" != "$quote" ]]; then
-                echo "ERROR: invalid .env line $line_number in $env_file; quoted value is not closed." >&2
-                return 1
-            fi
-            value="${raw_value:1:${#raw_value}-2}"
+        if ! value="$(_ws_env_parse_value "$raw_value" "$env_file" "$line_number")"; then
+            return 1
         fi
 
         printf -v "$key" '%s' "$value"

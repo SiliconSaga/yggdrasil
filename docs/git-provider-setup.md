@@ -265,9 +265,7 @@ export GITLAB_HOST=git.mycompany.com
 For self-hosted instances, register the hostname with `glab` once after setting `GITLAB_HOST`:
 
 ```bash
-source .env
-# Uses the multi-token write var if set (see .env.example), else GITLAB_TOKEN
-glab auth login --hostname "$GITLAB_HOST" --token "${GITLAB_GDD_GROUP_WRITE_TOKEN:-$GITLAB_TOKEN}"
+ws gitlab-auth
 ```
 
 For `gitlab.com`, `glab` reads `GITLAB_TOKEN` automatically and no `auth login` step is needed. For self-hosted, the one-time login registers the host for API calls. `ws push` does not require the OS credential helper for HTTPS remotes when a matching `.env` / `defaults.gitTokens` token is present; it injects that token into the single push process and disables credential-helper prompts.

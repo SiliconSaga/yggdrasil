@@ -38,7 +38,7 @@ _GIT_AUTH_SH_LOADED=1
 git_auth_normalize_url() {
   local url="$1"
   echo "$url" \
-    | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||'
+    | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||'
 }
 
 # Print the bare host of an https:// URL (empty/return 1 otherwise — SSH

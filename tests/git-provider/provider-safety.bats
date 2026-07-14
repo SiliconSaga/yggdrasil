@@ -3,6 +3,43 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     source "$REPO_ROOT/scripts/git-provider.sh"
+    source "$REPO_ROOT/scripts/git-auth.sh"
+}
+
+@test "HTTPS normalization never treats an at-sign in the path as userinfo" {
+    run git_auth_normalize_url "https://attacker.example/x@gitlab.mycorp.com/team/widget.git"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "attacker.example/x@gitlab.mycorp.com/team/widget" ]
+}
+
+@test "provider token routing does not cross an at-sign in the URL path" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-at-path.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitTokens:
+    gitlab.mycorp.com/team: GITLAB_CORPORATE_TOKEN
+YAML
+    export GITLAB_CORPORATE_TOKEN="corporate-secret"
+    unset GITLAB_TOKEN
+
+    gp_set_token_for_url "https://attacker.example/x@gitlab.mycorp.com/team/widget.git" "$eco"
+
+    [ "${GITLAB_TOKEN:-}" = "" ]
+}
+
+@test "provider selection pins GitHub Enterprise API calls to the remote host" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-ghe.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitProviders:
+    ghe.example.com: github
+YAML
+    unset GH_HOST
+
+    gp_detect_and_load "https://ghe.example.com/team/widget.git" "$eco"
+
+    [ "$GH_HOST" = "ghe.example.com" ]
 }
 
 @test "gp_load rejects provider names that escape the providers directory" {

@@ -61,7 +61,7 @@ ws realm list                 # show available realms and which is active
 ws realm use [--trust] <name> # review the trust summary, then activate
 ```
 
-The active realm is whichever directory `ecosystem.local.yaml`'s `realm:` selector points at; with no selector, only the bundled `realm-template` is implied. A community realm never activates just by being present on disk — `ws realm use` first prints a **trust summary** (repository hosts, adapter commands, credential-mapping requests, MCP endpoints) and asks for confirmation before writing the selector. In a non-interactive session (agents, scripts) the `--trust` flag is required after reviewing the summary — and for agents that flag is itself human-gated by the permission hook, so activating a community realm always lands on a person.
+The active realm is whichever directory `ecosystem.local.yaml`'s `realm:` selector points at; with no selector, no realm is active. No realm activates just by being present on disk, including the upstream `realm-template` cloned by `ws realm init` — `ws realm use` first prints a **trust summary** (repository hosts, adapter commands, credential-mapping requests, MCP endpoints) and asks for confirmation before writing the selector. In a non-interactive session (agents, scripts) the `--trust` flag is required after reviewing the summary — and for agents that flag is itself human-gated by the permission hook, so activating a realm always lands on a person.
 
 ---
 

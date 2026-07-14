@@ -33,6 +33,60 @@ EOF
     [ ! -e "$marker" ]
 }
 
+@test "ws_load_env strips whitespace-delimited inline comments from unquoted values" {
+    local env_file="$BATS_TEST_TMPDIR/inline-comments.env"
+    cat > "$env_file" <<'EOF'
+export INLINE=value   # explanatory comment
+TRIMMED=  padded value   # trailing explanation
+EMPTY_COMMENT=   # intentionally empty
+EOF
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    [ "$INLINE" = "value" ]
+    [ "$TRIMMED" = "padded value" ]
+    [ "$EMPTY_COMMENT" = "" ]
+}
+
+@test "ws_load_env preserves hashes inside quoted and non-comment values" {
+    local env_file="$BATS_TEST_TMPDIR/literal-hashes.env"
+    cat > "$env_file" <<'EOF'
+DOUBLE_QUOTED="value # retained" # explanatory comment
+SINGLE_QUOTED='other # retained'   # explanatory comment
+NON_COMMENT=prefix#suffix
+EOF
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    [ "$DOUBLE_QUOTED" = "value # retained" ]
+    [ "$SINGLE_QUOTED" = "other # retained" ]
+    [ "$NON_COMMENT" = "prefix#suffix" ]
+}
+
+@test "ws_load_env rejects trailing content after a quoted value" {
+    local env_file="$BATS_TEST_TMPDIR/trailing-content.env"
+    printf 'BROKEN="closed" trailing\n' > "$env_file"
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"invalid .env line 1"* ]]
+}
+
+@test "ws_load_env rejects a later quote after the first closing quote" {
+    local env_file="$BATS_TEST_TMPDIR/later-quote.env"
+    printf 'BROKEN="closed" trailing " # comment\n' > "$env_file"
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"quoted value has trailing content"* ]]
+}
+
 @test "ws_load_env rejects command-environment variables" {
     local env_file="$BATS_TEST_TMPDIR/.env"
     cat > "$env_file" <<'EOF'
@@ -72,6 +126,20 @@ EOF
         CDPATH; do
         local env_file="$BATS_TEST_TMPDIR/$key.env"
         printf '%s=%s\n' "$key" "attacker-controlled" > "$env_file"
+
+        run ws_load_env "$env_file"
+
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"refusing to set reserved variable '$key'"* ]]
+    done
+}
+
+@test "ws_load_env rejects dispatcher path globals" {
+    source "$ENV_LIB"
+    local key
+    for key in SCRIPT_DIR ROOT_DIR ECOSYSTEM ECOSYSTEM_LOCAL REALMS_DIR COMPONENTS_DIR HOARDS_DIR TEMPLATES_DIR; do
+        local env_file="$BATS_TEST_TMPDIR/$key.env"
+        printf '%s=%s\n' "$key" "/attacker-controlled" > "$env_file"
 
         run ws_load_env "$env_file"
 

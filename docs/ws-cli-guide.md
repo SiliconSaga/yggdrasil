@@ -192,7 +192,7 @@ For CRs, `identity.forkRemote` remains the default fork/head remote. Use `ws cr 
 `ws orient` is the L1 layer of the progressive-disclosure surface (L0 is `AGENTS.md`, L2 is per-subcommand `ws <cmd> --help`). It prints a deterministic discovery menu:
 
 - **Subcommand survey** — every dispatched subcommand with its `# ws:use-when …` docstring, built dynamically by scanning the dispatcher in `scripts/ws`.
-- **Active realm** — the `ecosystem.local.yaml`-selected realm (community realms activate only via the explicit `ws realm use` trust step; without a selector only the bundled `realm-template` is implied), with a pointer at its `AGENTS.md` guide.
+- **Active realm** — the realm selected in `ecosystem.local.yaml`, with a pointer at its `AGENTS.md` guide. Every realm, including `realm-template`, activates only through the explicit `ws realm use` trust step; without a selector no realm is active.
 - **Per-component adapter wiring** — for each cloned component with a realm-side adapter file, the wired verbs (`ws test`, `ws lint`, `ws build`) and the **resolved command** each dispatches (`runs: ./gradlew test`). Components without an adapter file are suppressed so the section stays signal-rich.
 - **Skill index** — workspace skills (`/.agent/skills/`) and active-realm skills (`realms/<r>/.agent/skills/`), parsed from each SKILL.md frontmatter.
 

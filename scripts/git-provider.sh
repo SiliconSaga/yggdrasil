@@ -25,6 +25,10 @@ _GP_LOADED_PROVIDER=""
 
 # shellcheck source=ws-env.sh
 source "$_GP_SCRIPT_DIR/ws-env.sh"
+# shellcheck source=git-remote.sh
+source "$_GP_SCRIPT_DIR/git-remote.sh"
+# shellcheck source=git-auth.sh
+source "$_GP_SCRIPT_DIR/git-auth.sh"
 
 # Detect provider from a remote URL.
 # Usage: gp_detect URL [ECOSYSTEM_FILE]
@@ -121,9 +125,7 @@ gp_pat_create_url() {
     esac
 }
 
-# True (rc 0) if VALUE is one of the literal sample token values shipped in
-# .env.example, so `ws diagnose` can flag "you left the placeholder" instead of
-# reporting it as a real token. Exact match only — no heuristics.
+# True (rc 0) if VALUE is one of the literal sample token values shipped in .env.example, so `ws diagnose` can flag "you left the placeholder" instead of reporting it as a real token. Exact match only — no heuristics.
 gp_token_is_placeholder() {
     case "$1" in
         ghp_xxxxxxxxxxxx|glpat-xxxxxxxxxxxx) return 0 ;;
@@ -131,39 +133,120 @@ gp_token_is_placeholder() {
     esac
 }
 
-# Best-effort token validity probe. Echoes the account login on success (rc 0);
-# rc 1 = the provider rejected the token; rc 2 = couldn't check (CLI/jq missing
-# or provider unsupported). Never prints the token itself.
+# Render provider diagnostics as a bounded, terminal-safe single line. The optional secret is removed with literal bash substring operations so it is never passed through another process's argv or interpreted as a pattern.
+gp_api_error_one_line() {
+    local msg="$1" secret="${2:-}" prefix suffix
+    msg="${msg//$'\r'/ }"
+    msg="${msg//$'\n'/ }"
+    msg="${msg//$'\t'/ }"
+    msg="$(printf '%s' "$msg" | tr -d '\000-\010\013-\037\177')"
+    if [[ -n "$secret" ]]; then
+        while [[ "$msg" == *"$secret"* ]]; do
+            prefix="${msg%%"$secret"*}"
+            suffix="${msg#*"$secret"}"
+            msg="${prefix}[redacted]${suffix}"
+        done
+    fi
+    while [[ "$msg" == *"  "* ]]; do msg="${msg//  / }"; done
+    msg="${msg#"${msg%%[![:space:]]*}"}"
+    msg="${msg%"${msg##*[![:space:]]}"}"
+    if [[ ${#msg} -gt 240 ]]; then
+        msg="${msg:0:237}..."
+    fi
+    printf '%s' "$msg"
+}
+
+# Classify a provider/API failure without treating a generic non-zero exit as credential rejection. Output is intentionally provider-neutral so diagnose, review, and future callers share the same decision boundary.
+gp_api_error_classify() {
+    local rc="$1" msg="$2" normalized
+    if [[ "$rc" -eq 124 ]]; then
+        echo "transport"
+        return 0
+    fi
+    normalized="$(printf '%s' "$msg" | tr '[:upper:]' '[:lower:]')"
+    case "$normalized" in
+        *"http 401"*|*"http 403"*|*"401 unauthorized"*|*"403 forbidden"*|*"status code 401"*|*"status code 403"*)
+            echo "auth"
+            ;;
+        *"http 404"*|*"404 not found"*|*"status code 404"*)
+            echo "not_found"
+            ;;
+        *"dial tcp"*|*"no such host"*|*"could not resolve host"*|*"temporary failure in name resolution"*|*"network is unreachable"*|*"error connecting"*|*"failed to connect"*|*"connection refused"*|*"connection reset"*|*"tls handshake"*|*"certificate verify failed"*|*"context deadline exceeded"*|*"operation timed out"*|*"i/o timeout"*)
+            echo "transport"
+            ;;
+        *)
+            echo "unknown"
+            ;;
+    esac
+}
+
+# Best-effort token validity probe. Echoes the account login on success (rc 0); rc 1 = explicit provider authentication/scope rejection; rc 2 = unsupported or unavailable CLI; rc 3 = transport or otherwise indeterminate failure, with a sanitized diagnostic. Never prints the token itself.
 # Usage: gp_token_api_login PROVIDER HOST TOKEN
 gp_token_api_login() {
     local provider="$1" host="$2" tok="$3"
-    # Portable, optional timeout so a slow or unreachable network can't hang the
-    # probe. Absent on stock macOS (no coreutils) — then we run without it.
+    # Portable, optional timeout so a slow or unreachable network can't hang the probe. Absent on stock macOS (no coreutils) — then we run without it.
     local -a to=()
     if command -v timeout >/dev/null 2>&1; then to=(timeout 10)
     elif command -v gtimeout >/dev/null 2>&1; then to=(gtimeout 10)
     fi
-    local out rc
+    local out rc parsed class reason diagnostic stderr_file stderr_out
     case "$provider" in
         github)
             command -v gh >/dev/null 2>&1 || return 2
-            out=$(env GH_TOKEN="$tok" GH_HOST="$host" ${to[@]+"${to[@]}"} gh api user --jq .login 2>/dev/null)
+            if ! stderr_file=$(mktemp "${TMPDIR:-/tmp}/gdd-provider-stderr.XXXXXX"); then
+                printf '%s' "could not create temporary provider diagnostic file"
+                return 3
+            fi
+            out=$(env GH_TOKEN="$tok" GH_HOST="$host" GH_NO_UPDATE_NOTIFIER=1 ${to[@]+"${to[@]}"} gh api user --jq .login 2>"$stderr_file")
             rc=$?
             ;;
         gitlab)
             command -v glab >/dev/null 2>&1 || return 2
             command -v jq >/dev/null 2>&1 || return 2
-            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" ${to[@]+"${to[@]}"} glab api user 2>/dev/null)
+            if ! stderr_file=$(mktemp "${TMPDIR:-/tmp}/gdd-provider-stderr.XXXXXX"); then
+                printf '%s' "could not create temporary provider diagnostic file"
+                return 3
+            fi
+            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" GLAB_CHECK_UPDATE=false ${to[@]+"${to[@]}"} glab api user 2>"$stderr_file")
             rc=$?
-            [[ $rc -eq 0 ]] && out=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null)
             ;;
         *)
             return 2
             ;;
     esac
-    # 124 = `timeout` killed the probe → unreachable/transport, not a rejection.
-    [[ $rc -eq 124 ]] && return 3
-    [[ $rc -ne 0 || -z "$out" ]] && return 1
+    stderr_out="$(<"$stderr_file")"
+    rm -f "$stderr_file"
+    if [[ $rc -ne 0 ]]; then
+        diagnostic="$stderr_out"
+        [[ -n "$diagnostic" ]] || diagnostic="$out"
+        class="$(gp_api_error_classify "$rc" "$diagnostic")"
+        reason="$(gp_api_error_one_line "$diagnostic" "$tok")"
+        if [[ "$class" == "auth" ]]; then
+            return 1
+        fi
+        if [[ -z "$reason" ]]; then
+            if [[ "$class" == "transport" ]]; then
+                reason="provider API probe timed out or could not connect"
+            else
+                reason="provider CLI exited $rc without details"
+            fi
+        fi
+        printf '%s' "$reason"
+        return 3
+    fi
+
+    if [[ "$provider" == "gitlab" ]]; then
+        if ! parsed=$(printf '%s' "$out" | jq -r '.username // empty' 2>/dev/null); then
+            printf '%s' "provider returned an invalid user response"
+            return 3
+        fi
+        out="$parsed"
+    fi
+    out="$(gp_api_error_one_line "$out")"
+    if [[ -z "$out" ]]; then
+        printf '%s' "provider returned an empty user response"
+        return 3
+    fi
     printf '%s' "$out"
 }
 
@@ -200,9 +283,16 @@ gp_load() {
 # Convenience: detect + load in one call.
 # Usage: gp_detect_and_load URL [ECOSYSTEM_FILE]
 gp_detect_and_load() {
-    local provider
+    local provider host
     provider=$(gp_detect "$@") || return 1
-    gp_load "$provider"
+    gp_load "$provider" || return 1
+
+    # Provider CLIs accept owner/repo slugs that do not encode the host. Pin their API authority from the already-selected remote so enterprise provider calls cannot silently fall back to a public host.
+    host="$(git_remote_host "$1")" || return 1
+    case "$provider" in
+        github) export GH_HOST="$host" ;;
+        gitlab) export GITLAB_HOST="$host" ;;
+    esac
 }
 
 # Select and export the appropriate authentication token for a URL.
@@ -219,14 +309,8 @@ gp_set_token_for_url() {
     map_count=$(yq '.defaults.gitTokens | length' "$eco" 2>/dev/null || echo 0)
     [[ "$map_count" -eq 0 ]] && return 0
 
-    # Normalize URL: strip protocol, embedded credentials, .git suffix
-    # Use explicit http/https patterns — \? is GNU sed only, not macOS BSD sed
-    # ssh://user@host:port/path → host/path  (BRE: capture host, discard port)
-    # git@host:path            → host/path
-    # https://host/path        → host/path
     local normalized
-    normalized=$(echo "$url" \
-        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^@]*@||; s|^http://[^@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||')
+    normalized="$(git_auth_normalize_url "$url")"
 
     # Find the longest matching key (most-specific group path wins)
     local best_var="" best_len=0

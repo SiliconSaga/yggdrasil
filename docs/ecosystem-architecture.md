@@ -98,10 +98,10 @@ A realm is a small git repo containing community-specific configuration. The GDD
 `ws realm` quick reference:
 
 ```bash
-ws realm init              # Clone the template realm (tutorials)
+ws realm init              # Clone the inactive template realm (tutorials)
 ws realm <git-url>         # Clone a community realm
 ws realm list              # Show available realms
-ws realm use <name>        # Switch active realm
+ws realm use <name>        # Review and activate a cloned realm
 ```
 
 ## Deployment Manifest Generation (removed)

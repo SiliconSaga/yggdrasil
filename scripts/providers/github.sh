@@ -157,16 +157,13 @@ gp_review_push_timestamp() {
         return 0
     fi
 
-    # A latest event with no preceding event still identifies the prior branch
-    # head. Its commit time predates the actual push, which is a safe lower bound
-    # for review filtering: it may include a few extra comments but omits none.
+    # If GitHub's lossy event feed omitted the preceding push, do not substitute
+    # the previous head's committer date: a PR author controls that timestamp and
+    # can forge it forward to suppress review comments. Fall back to all history;
+    # this is noisier but cannot hide feedback.
     if [[ "$index" -eq 1 ]]; then
-        local previous_head
-        previous_head=$(awk -F $'\t' 'NR == 1 { print $2; exit }' <<< "$events")
-        if [[ "$previous_head" =~ ^[0-9a-fA-F]{40}$ && ! "$previous_head" =~ ^0+$ ]]; then
-            echo "NOTE: GitHub omitted the previous push event; using its prior head commit time." >&2
-            gh api "repos/$slug/commits/$previous_head" --jq '.commit.committer.date' 2>/dev/null
-        fi
+        echo "NOTE: GitHub omitted the previous push event; ignoring untrusted commit timestamps and showing all review history." >&2
+        echo "1970-01-01T00:00:00Z"
     fi
 }
 
