@@ -549,6 +549,8 @@ This is the core of the Terasology-inspired dual resolution. It reads
 components have local Git checkouts, and generates ArgoCD Application manifests
 accordingly.
 
+> **Retired (2026-07).** Both `ws resolve` and the `.generated/` output directory it wrote to were dropped after this design shipped: the ecosystem now ships customized ArgoCD manifests directly instead of generating them, so there is no resolve step and no generated-manifests dir. This section (and the script below) is kept only as a historical record. `.generated/` is no longer a workspace convention — put any ad-hoc rendered/preview output in `.tmp/` instead.
+
 **Step 1: Create `scripts/ws-resolve.sh`**
 
 ```bash
