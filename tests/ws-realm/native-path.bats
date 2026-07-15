@@ -34,16 +34,22 @@ EOF
 @test "yq does not convert an expression that happens to name a relative file" {
     local config="$BATS_TEST_TMPDIR/ecosystem.yaml"
     : > "$config"
+    : > "$ROOT_DIR/ecosystem.yaml"
 
-    # The suite runs from the workspace root, where ecosystem.yaml exists.
-    # It is a valid positional expression string as far as the wrapper is
-    # concerned, so existence alone must not make it a file operand.
-    run env REPO_ROOT="$REPO_ROOT" CONFIG="$config" ROOT_DIR="$ROOT_DIR" PATH="$PATH" bash -c 'source "$REPO_ROOT/scripts/ws-realm.sh"; yq '\''ecosystem.yaml'\'' "$CONFIG"'
+    # The expression deliberately names an existing relative file. Existence alone must not make a relative expression into a native file operand.
+    run env REPO_ROOT="$REPO_ROOT" CONFIG="$config" ROOT_DIR="$ROOT_DIR" PATH="$PATH" bash -c 'cd "$ROOT_DIR" || exit 1; source "$REPO_ROOT/scripts/ws-realm.sh"; yq '\''ecosystem.yaml'\'' "$CONFIG"'
 
     [ "$status" -eq 0 ]
     [[ "$output" == *$'YQ_ARG=ecosystem.yaml\n'* ]]
     [[ "$output" != *"YQ_ARG=NATIVE:ecosystem.yaml"* ]]
     [[ "$output" == *"YQ_ARG=NATIVE:$config"* ]]
+}
+
+@test "scripts probe the real yq binary instead of the exported wrapper function" {
+    run rg -n 'command -v yq' "$REPO_ROOT/scripts"
+
+    [ "$status" -eq 1 ]
+    [ -z "$output" ]
 }
 
 @test "ws_native_path converts a relative body-file path for native CLIs" {

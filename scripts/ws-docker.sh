@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ws-docker.sh — docker passthrough that neutralizes MSYS path mangling on
-# Windows Git Bash, so container-absolute arguments (/data, /opt/rend, and
+# Windows Git Bash, so container-absolute arguments (/data, /opt/render, and
 # -v name:/path mounts) reach docker unrewritten. Transparent passthrough on
 # macOS/Linux.
 # ws:use-when running docker with Windows/MSYS path conversion handled automatically
@@ -14,7 +14,7 @@ Usage: ws docker <docker args...>
 
 Thin docker passthrough. On Git Bash / MSYS (Windows) it exports
 MSYS_NO_PATHCONV=1 for this one invocation so Unix-style container paths
-(/data, /opt/rend, -v vol:/path) are NOT rewritten into Windows paths before
+(/data, /opt/render, -v vol:/path) are NOT rewritten into Windows paths before
 docker sees them. On macOS/Linux it is a transparent passthrough — everything
 after 'ws docker' goes straight to docker unchanged.
 

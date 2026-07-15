@@ -182,6 +182,25 @@ plugins: []"
     [ "$(cat "$outside_data")" = "preserve" ]
 }
 
+@test "plugin data overlay rejects a symlinked template source" {
+    make_template thalami "version: 2
+plugins: []"
+    make_hoard h1
+    mkdir -p "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview"
+    local outside_source="$BATS_TEST_TMPDIR/outside-template-data.json"
+    printf '{"outside":true}\n' > "$outside_source"
+    ln -s "$outside_source" "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json" 2>/dev/null || true
+    [[ -L "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json" ]] || skip "real symlinks not supported on this platform"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$outside_source")" = '{"outside":true}' ]
+    [ ! -e "$HOARDS_DIR/h1/.obsidian/plugins/dataview/data.json" ]
+}
+
 @test "managed region destination traversal is rejected before splice" {
     make_template thalami "version: 2
 plugins: []

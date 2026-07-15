@@ -49,7 +49,7 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 source "$SCRIPT_DIR/ws-realm.sh"
 
 
-if ! command -v yq &>/dev/null; then
+if ! type -P yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
     exit 1
 fi

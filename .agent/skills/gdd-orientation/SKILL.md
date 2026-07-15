@@ -117,7 +117,7 @@ If the human agrees to commit now: `ws commit <hoard> <bodyfile>` → `ws pull <
 Read the YAML between the leading `---` markers. Update `last_session` to today's date **only if parsing succeeded** — never rewrite frontmatter on a parse failure (the file may be hand-edited; clobbering loses the human's edits).
 
 - Establish **stance** for this session: `ws session set GDD_STANCE <quick|zen|flow>` — ask the human if unset, or default to `flow` when they want to move fast.
-- Establish **role**: `ws session set GDD_ROLE <developer|designer|reviewer|scribe>` — ask if unset, default `developer`.
+- Establish **role**: `ws session set GDD_ROLE <developer|designer|reviewer|scribe>` — if unset, perform the hoard vault scan below before asking so detected vaults can inform the choice; default `developer` only when the human wants to move fast.
 - Establish **mentoring** (composable overlay): `ws session set GDD_MENTORING <true|false>` — default `false`; offer to enable on a tutorial-shaped signal (a practice signal routes straight to `gdd-k8s`, not the mentoring overlay).
 - Read the current values any time with `ws session get GDD_STANCE` (etc.).
 
@@ -208,7 +208,7 @@ Run `ws audit-permissions`. Exit code = finding count (0 = clean). Surface findi
 
 If `ws audit-permissions` errors (missing dependency, shell incompatibility), note the failure briefly and continue.
 
-### Hoard vault scan (when role is null)
+### Hoard vault scan (during role establishment)
 
 If `ws session get GDD_ROLE` is empty (role not yet established), also call `ws hoard scan --flavor vault`. Parse the YAML output and surface a brief inventory alongside the role question:
 

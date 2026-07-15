@@ -71,7 +71,32 @@ YAML
 
     [ "$status" -eq 0 ]
     [ "$(yq -r '.components."adopted-source".tier' "$WORK/ecosystem.local.yaml")" = "supporting" ]
-    [ "$(yq -r '.components."adopted-source".repo' "$WORK/ecosystem.local.yaml")" = "$(realpath "$source")" ]
+    local expected_repo
+    if command -v realpath >/dev/null 2>&1; then
+        expected_repo="$(realpath "$source")"
+    else
+        expected_repo="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+    fi
+    [ "$(yq -r '.components."adopted-source".repo' "$WORK/ecosystem.local.yaml")" = "$expected_repo" ]
+}
+
+@test "compatibility ecosystem flag retains the canonical adoption behavior" {
+    local source="$BATS_TEST_TMPDIR/adopted-alias.git"
+    mkdir -p "$source"
+    printf 'components: {}\n' > "$WORK/ecosystem.yaml"
+    printf 'components: {}\n' > "$WORK/ecosystem.local.yaml"
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" bash "$WORK/scripts/ws-clone.sh" --url "$source" --name adopted-alias --add-eco
+
+    [ "$status" -eq 0 ]
+    [ "$(yq -r '.components."adopted-alias".tier' "$WORK/ecosystem.local.yaml")" = "supporting" ]
+    local expected_repo
+    if command -v realpath >/dev/null 2>&1; then
+        expected_repo="$(realpath "$source")"
+    else
+        expected_repo="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+    fi
+    [ "$(yq -r '.components."adopted-alias".repo' "$WORK/ecosystem.local.yaml")" = "$expected_repo" ]
 }
 
 @test "template realm helper syntax is rejected before git clone" {

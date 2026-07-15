@@ -12,7 +12,7 @@ processing, and PARA conventions.
 ## When to Load
 
 - **Path A — the active session role is `scribe`** — orientation establishes it with `ws session set GDD_ROLE scribe` and loads this skill per the standard role flow
-- **Path B — orientation discovers a vault while the session role is unset** — orientation surfaces the vault and offers scribe role; if the user accepts, this skill loads
+- **Path B — orientation is establishing an unset session role and discovers a vault** — orientation surfaces the vault alongside the role choices and offers scribe role; if the user accepts, this skill loads
 - **Path C — mid-session keyword dip-in** — user says something matching
   capture intent (*"jot this in my inbox"*, *"add a daily note"*,
   *"capture this idea"*) while in another role; load this skill ad-hoc

@@ -15,7 +15,7 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
-if ! command -v yq &>/dev/null; then
+if ! type -P yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
     exit 1
 fi

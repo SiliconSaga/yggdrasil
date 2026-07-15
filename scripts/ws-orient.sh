@@ -49,7 +49,7 @@ fi
 # helpful diagnostic at startup. Deliberately AFTER the --help
 # short-circuit so a fresh-machine user can still discover `ws orient`
 # before installing every prerequisite.
-if ! command -v yq &>/dev/null; then
+if ! type -P yq &>/dev/null; then
     # Fresh machine: ws orient can't read the ecosystem config without yq.
     # Rather than a bare error, flow straight into preflight (which runs
     # WITHOUT yq) so the user gets the full per-OS install hints in one

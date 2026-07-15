@@ -19,7 +19,7 @@ EOF
 }
 
 run_docker_wrapper() {
-    run env \
+    run env -u MSYS_NO_PATHCONV \
         PATH="$STUB_DIR:$PATH" \
         TEST_UNAME="$1" \
         DOCKER="$STUB_DIR/docker-stub" \
