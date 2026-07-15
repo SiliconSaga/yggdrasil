@@ -371,14 +371,24 @@ _ws_hoard_rollback() {
     local backups_dir="$hoard_dir/.upgrade-backup"
     _ws_hoard_contained_path "$hoard_dir" ".upgrade-backup" "hoard" >/dev/null || return 1
     [[ -d "$backups_dir" ]] || return 1
-    local latest="" latest_base="" candidate candidate_base
+    local latest="" latest_base="" latest_timestamp="" latest_suffix="" latest_is_sequence=0
+    local candidate candidate_base candidate_timestamp candidate_suffix candidate_is_sequence
     for candidate in "$backups_dir"/*; do
         [[ -d "$candidate" && ! -L "$candidate" ]] || continue
         candidate_base="$(basename "$candidate")"
-        [[ "$candidate_base" =~ ^[0-9]{8}-[0-9]{6}-[A-Za-z0-9]{6}$ ]] || continue
-        if [[ -z "$latest_base" || "$candidate_base" > "$latest_base" ]]; then
+        [[ "$candidate_base" =~ ^([0-9]{8}-[0-9]{6})-([A-Za-z0-9]{6})$ ]] || continue
+        candidate_timestamp="${BASH_REMATCH[1]}"
+        candidate_suffix="${BASH_REMATCH[2]}"
+        candidate_is_sequence=0
+        [[ "$candidate_suffix" =~ ^[0-9]{6}$ ]] && candidate_is_sequence=1
+        if [[ -z "$latest_base" || "$candidate_timestamp" > "$latest_timestamp" ]] ||
+           { [[ "$candidate_timestamp" == "$latest_timestamp" ]] && [[ "$candidate_is_sequence" -gt "$latest_is_sequence" ]]; } ||
+           { [[ "$candidate_timestamp" == "$latest_timestamp" ]] && [[ "$candidate_is_sequence" -eq "$latest_is_sequence" ]] && [[ "$candidate_suffix" > "$latest_suffix" ]]; }; then
             latest="$candidate"
             latest_base="$candidate_base"
+            latest_timestamp="$candidate_timestamp"
+            latest_suffix="$candidate_suffix"
+            latest_is_sequence="$candidate_is_sequence"
         fi
     done
     [[ -n "$latest" ]] || return 1
