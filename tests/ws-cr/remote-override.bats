@@ -107,3 +107,24 @@ SH
     [[ "$output" == *"--remote requires a git remote name"* ]]
     [[ ! -f "$GH_LOG" ]]
 }
+
+@test "git-cr.sh --upstream refuses a same-provider cross-host token route" {
+    git -C "$WORK" remote set-url alt https://github.enterprise.test/upstream/project.git
+    cat > "$ECOSYSTEM" <<'YAML'
+identity:
+  human_account: testuser
+  forkRemote: fork
+defaults:
+  gitProviders:
+    github.enterprise.test: github
+components: {}
+YAML
+
+    run bash -c 'cd "$1" || exit 1; GIT_CR_REMOTE=fork bash "$2" --upstream "test: cross-host CR" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Cross-host CR creation is not supported"* ]]
+    [[ "$output" == *"github.com"* ]]
+    [[ "$output" == *"github.enterprise.test"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}

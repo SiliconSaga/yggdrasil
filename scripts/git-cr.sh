@@ -259,6 +259,26 @@ if [[ -n "$UPSTREAM" ]]; then
     exit 1
   fi
 
+  # Provider tokens are host-bound. The supported fork flow keeps both
+  # remotes on one host; refusing a hand-wired cross-host layout is safer than
+  # swapping to the upstream token while the provider CLI remains pinned to
+  # the fork host.
+  FORK_HOST=$(git_remote_host "$FORK_URL") || {
+    echo "ERROR: Cannot determine host for fork remote '$FORK_REMOTE'." >&2
+    exit 1
+  }
+  UPSTREAM_HOST=$(git_remote_host "$UPSTREAM_URL") || {
+    echo "ERROR: Cannot determine host for upstream remote '$UPSTREAM_REMOTE'." >&2
+    exit 1
+  }
+  if [[ "$UPSTREAM_HOST" != "$FORK_HOST" ]]; then
+    echo "ERROR: Cross-host CR creation is not supported because provider credentials are host-bound." >&2
+    echo "  Fork ($FORK_REMOTE): $FORK_HOST" >&2
+    echo "  Upstream ($UPSTREAM_REMOTE): $UPSTREAM_HOST" >&2
+    echo "  Use same-host fork/upstream remotes or create the CR manually with host-specific credentials." >&2
+    exit 1
+  fi
+
   UPSTREAM_SLUG=$(gp_extract_slug "$UPSTREAM_URL")
 
   # Reporter token needed to read upstream default branch

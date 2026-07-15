@@ -85,7 +85,7 @@ _ws_hoard_validate_manifest_paths() {
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
     [[ -f "$upgrade_yaml" ]] || return 0
 
-    local count i rel rfile rsrc plugin_id
+    local count i rel rfile rsrc plugin_id plugin_asset
     count="$(yq '.plugins // [] | length' "$upgrade_yaml")"
     i=0
     while [[ $i -lt $count ]]; do
@@ -94,8 +94,27 @@ _ws_hoard_validate_manifest_paths() {
             echo "ERROR: Invalid plugin id '$plugin_id'; expected one safe path segment." >&2
             return 1
         fi
+        _ws_hoard_contained_path "$hoard_dir" ".obsidian/plugins/$plugin_id" "hoard" >/dev/null || return 1
+        for plugin_asset in main.js manifest.json styles.css; do
+            _ws_hoard_contained_path "$hoard_dir" ".obsidian/plugins/$plugin_id/$plugin_asset" "hoard" >/dev/null || return 1
+        done
         i=$((i + 1))
     done
+
+    local data_path data_id
+    if [[ -d "$template_dir/.upgrade/data" ]]; then
+        for data_path in "$template_dir/.upgrade/data"/*/data.json; do
+            [[ -e "$data_path" || -L "$data_path" ]] || continue
+            data_id="$(basename "$(dirname "$data_path")")"
+            if [[ ! "$data_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+                echo "ERROR: Invalid plugin data id '$data_id'; expected one safe path segment." >&2
+                return 1
+            fi
+            _ws_hoard_contained_path "$template_dir/.upgrade" "data/$data_id/data.json" "template upgrade" >/dev/null || return 1
+            _ws_hoard_contained_path "$hoard_dir" ".obsidian/plugins/$data_id" "hoard" >/dev/null || return 1
+            _ws_hoard_contained_path "$hoard_dir" ".obsidian/plugins/$data_id/data.json" "hoard" >/dev/null || return 1
+        done
+    fi
 
     count="$(yq '.files_remove // [] | length' "$upgrade_yaml")"
     i=0
@@ -510,14 +529,22 @@ _ws_hoard_apply_manifest() {
     plugin_count="$(yq '.plugins | length' "$upgrade_yaml")"
     if [[ "$plugin_count" -gt 0 ]]; then
         echo "Downloading $plugin_count plugin(s) from GitHub releases..."
-        local i=0
+        local i=0 plugin_asset
         while [[ $i -lt $plugin_count ]]; do
             local id repo pin
             id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
             repo="$(yq ".plugins[$i].repo" "$upgrade_yaml")"
             pin="$(yq ".plugins[$i].pin" "$upgrade_yaml")"
-            local plugin_dir="$hoard_dir/.obsidian/plugins/$id"
-            mkdir -p "$plugin_dir"
+            local plugin_rel=".obsidian/plugins/$id" plugin_dir
+            plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$plugin_rel" "hoard")" || return 1
+            mkdir -p "$plugin_dir" || return 1
+            # Revalidate after creation and immediately before the download so
+            # an existing or newly introduced per-plugin symlink cannot turn
+            # the release client's --dir into an out-of-hoard write.
+            plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$plugin_rel" "hoard")" || return 1
+            for plugin_asset in main.js manifest.json styles.css; do
+                _ws_hoard_contained_path "$hoard_dir" "$plugin_rel/$plugin_asset" "hoard" >/dev/null || return 1
+            done
             printf "  [%d/%d] %s @ %s — " $((i+1)) "$plugin_count" "$id" "$pin"
             if _ws_hoard_upgrade_gh_download "$pin" "$repo" "$plugin_dir"; then
                 echo "ok"
@@ -534,7 +561,22 @@ _ws_hoard_apply_manifest() {
     # 2. Overlay template's data/<id>/data.json files into the hoard.
     if [[ -d "$template_dir/.upgrade/data" ]]; then
         echo "Seeding plugin settings (data.json)..."
-        cp -R "$template_dir/.upgrade/data/." "$hoard_dir/.obsidian/plugins/"
+        local data_path data_id data_source data_plugin_rel data_plugin_dir data_target
+        for data_path in "$template_dir/.upgrade/data"/*/data.json; do
+            [[ -e "$data_path" || -L "$data_path" ]] || continue
+            data_id="$(basename "$(dirname "$data_path")")"
+            if [[ ! "$data_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+                echo "ERROR: Invalid plugin data id '$data_id'; expected one safe path segment." >&2
+                return 1
+            fi
+            data_source="$(_ws_hoard_contained_path "$template_dir/.upgrade" "data/$data_id/data.json" "template upgrade")" || return 1
+            data_plugin_rel=".obsidian/plugins/$data_id"
+            data_plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$data_plugin_rel" "hoard")" || return 1
+            mkdir -p "$data_plugin_dir" || return 1
+            data_plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$data_plugin_rel" "hoard")" || return 1
+            data_target="$(_ws_hoard_contained_path "$hoard_dir" "$data_plugin_rel/data.json" "hoard")" || return 1
+            cp "$data_source" "$data_target" || return 1
+        done
         echo ""
     fi
 
