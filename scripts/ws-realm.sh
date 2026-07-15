@@ -72,15 +72,19 @@ ws_native_path() {
     fi
 }
 
-# yq() shadows the binary: any argument that is an existing file is converted
-# for the native binary; the expression and flags pass through untouched.
-# stdin-based calls (echo … | yq '…') carry no file argument and are
-# unaffected. Callers use `type -P yq` to probe for the real binary.
+# yq() shadows the binary: absolute Unix-style arguments that name existing
+# files are converted for the native binary; expressions, flags, and relative
+# paths pass through untouched. Native Windows processes resolve relative paths
+# from the same working directory, while restricting conversion to absolute
+# paths avoids mistaking an expression for a file merely because a same-named
+# relative file exists. stdin-based calls (echo … | yq '…') carry no file
+# argument and are unaffected. Callers use `type -P yq` to probe for the real
+# binary.
 yq() {
     local _arg
     local -a _args=()
     for _arg in "$@"; do
-        if [[ -f "$_arg" ]]; then
+        if [[ "$_arg" == /* && -f "$_arg" ]]; then
             _args+=("$(ws_native_path "$_arg")")
         else
             _args+=("$_arg")

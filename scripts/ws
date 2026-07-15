@@ -25,6 +25,7 @@
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
 #   k8s scope set|show|clear / k8s <args>   Guarded kubectl: prevalidate context + namespace
+#   docker <args>     Run docker with Windows/MSYS path conversion handled automatically
 #   whoami [--set "Name <email>"]  Show/set this session's commit identity
 #   session get|set|show         Get/set this session's stance/role/mentoring config
 #   exec <comp> <cmd...> Run a command in a component dir
