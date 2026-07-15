@@ -386,7 +386,8 @@ emit_skill_index() {
 # decide whether to surface the "no skills" fallback.
 _emit_skills_in() {
     local skills_dir="$1" scope="$2"
-    local skill_file rendered=0
+    local skill_file rendered=0 scope_display
+    scope_display="$(_ws_orient_display_text "$scope")"
     for skill_file in "$skills_dir"/*/SKILL.md; do
         [[ -f "$skill_file" ]] || continue
         local name description
@@ -403,10 +404,12 @@ _emit_skills_in() {
         # malformed so the row still surfaces something useful.
         [[ -z "$name" || "$name" == "null" ]] && name="$(basename "$(dirname "$skill_file")")"
         [[ "$description" == "null" ]] && description=""
+        name="$(_ws_orient_display_text "$name")"
+        description="$(_ws_orient_display_text "$description")"
         if [[ -n "$description" ]]; then
-            printf '  [%s] %s — %s\n' "$scope" "$name" "$description"
+            printf '  [%s] %s — %s\n' "$scope_display" "$name" "$description"
         else
-            printf '  [%s] %s\n' "$scope" "$name"
+            printf '  [%s] %s\n' "$scope_display" "$name"
         fi
         rendered=1
     done

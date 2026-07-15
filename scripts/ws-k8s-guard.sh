@@ -2,6 +2,11 @@
 # ws-k8s-guard.sh — shared k8s practice guard (sourced by ws-k8s.sh and the
 # permission hook). Single source of truth for the allow/block verdict.
 
+# Complex shell forms cannot be tokenized safely by the small normalizer below.
+# Every consumer recognizes this fixed sentinel and handles Kubernetes-looking
+# payloads as a fail-closed decision rather than inspecting only the first line.
+K8S_GUARD_UNSAFE_COMMAND_SENTINEL="__GDD_K8S_UNSAFE_COMMAND__"
+
 # Normalize a filesystem path for the -f on-disk check. Claude Code passes
 # native Windows paths (C:\Users\…\m.yaml) on Windows; Git Bash's `[[ -f ]]`
 # and yq choke on the backslash/drive form, so the guard would fail closed with
@@ -19,6 +24,12 @@ _k8s_normalize_path() {
 # helper's guarantee.
 k8s_guard_normalize_command() {
     local command="$1" token base
+    case "$command" in
+        *$'\n'*|*$'\r'*|*"&&"*|*"||"*|*";"*|*"|"*|*"&"*|*">"*|*"<"*|*'`'*|*'$('* )
+            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+            return 0
+            ;;
+    esac
     local -a words=()
     read -r -a words <<< "$command"
     [[ ${#words[@]} -gt 0 ]] || return 0
@@ -333,7 +344,7 @@ k8s_guard_evaluate() {
     else
         printf 'NOT_K8S'; return 0
     fi
-    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 a
+    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a
     local ffiles=()
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
@@ -354,6 +365,8 @@ k8s_guard_evaluate() {
             -k|--kustomize) kdirs+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
             -k=*|--kustomize=*) kdirs+=("${a#*=}");;
             -k?*) kdirs+=("${a#-k}");;       # attached short form: -k<dir>
+            --raw) raw_api=1; i=$((i+2)); continue ;;
+            --raw=*) raw_api=1 ;;
             # Known value-taking flags: consume the FOLLOWING token as the flag's
             # value so it isn't mistaken for a positional (e.g. a namespace name
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
@@ -404,6 +417,10 @@ k8s_guard_evaluate() {
             esac ;;
     esac
     if _k8s_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
+    if [[ $raw_api -eq 1 ]]; then
+        printf 'BLOCK:unbounded:--raw API paths are not namespace-scope-bounded for writes'
+        return 0
+    fi
     [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
     if [[ $all_ns -eq 1 ]]; then printf 'BLOCK:unbounded:--all-namespaces write is not scope-bounded'; return 0; fi
 
