@@ -468,6 +468,14 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+@test "ask: canonical ecosystem adoption flag lands on a human" {
+    seed_real_project_config
+
+    run_hook "ws clone --url https://evil.example/pwn.git --name pwn --add-to-ecosystem"
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
 @test "ask: backslash escapes cannot hide an ask-tier option" {
     seed_real_project_config
 

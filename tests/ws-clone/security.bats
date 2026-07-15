@@ -61,6 +61,19 @@ YAML
     [[ "$(<"$GIT_LOG")" == *"clone"*"$source"* ]]
 }
 
+@test "canonical ecosystem flag adds an explicit URL clone to local config" {
+    local source="$BATS_TEST_TMPDIR/adopted-source.git"
+    mkdir -p "$source"
+    printf 'components: {}\n' > "$WORK/ecosystem.yaml"
+    printf 'components: {}\n' > "$WORK/ecosystem.local.yaml"
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" bash "$WORK/scripts/ws-clone.sh" --url "$source" --name adopted-source --add-to-ecosystem
+
+    [ "$status" -eq 0 ]
+    [ "$(yq -r '.components."adopted-source".tier' "$WORK/ecosystem.local.yaml")" = "supporting" ]
+    [ "$(yq -r '.components."adopted-source".repo' "$WORK/ecosystem.local.yaml")" = "$(realpath "$source")" ]
+}
+
 @test "template realm helper syntax is rejected before git clone" {
     cat > "$WORK/ecosystem.yaml" <<'YAML'
 defaults:

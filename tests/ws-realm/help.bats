@@ -110,6 +110,8 @@ YAML
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Realm trust summary"* ]]
+    [[ "$output" == *$'  Component repository routes:\n'* ]]
+    [[ "$output" == *$'  Adapter commands:\n    app:\n      test  uv run pytest'* ]]
     # The repo URL itself, not just the host — the host string also appears in
     # the gitTokens line, which once let a broken repo enumeration pass unseen.
     [[ "$output" == *"https://git.example.com/team/app.git"* ]]

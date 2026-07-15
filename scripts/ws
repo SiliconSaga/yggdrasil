@@ -10,7 +10,7 @@
 #   orient            Deterministic "what can I do here?" menu — workspace
 #                     toolset + active realm + adapters + skill index
 #   status [--verbose] Git status across workspace
-#   clone [comp|--all|--url <url> [--name N] [--add-eco]] Clone components
+#   clone [comp|--all|--url <url> [--name N] [--add-to-ecosystem]] Clone components
 #   clone-fork <comp>  Fork-aware clone: ensure fork exists, clone fork, wire
 #                      both remotes, sync main with upstream. Idempotent.
 #   pull [comp]       Pull all or one component

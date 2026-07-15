@@ -524,7 +524,7 @@ _ws_realm_summary_text() {
 ws_realm_trust_summary() {
     local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
     echo "Realm trust summary: $name"
-    echo "  Repository hosts:"
+    echo "  Component repository routes:"
     local found=0 repo host adapter_file commands repos
     if ! repos="$(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
@@ -548,7 +548,7 @@ ws_realm_trust_summary() {
             echo "ERROR: adapter trust input must be a regular file: $adapter_file" >&2
             return 1
         fi
-        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "    " + .key + "  " + .value' "$adapter_file" 2>/dev/null)"; then
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "      " + .key + "  " + .value' "$adapter_file" 2>/dev/null)"; then
             echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
             return 1
         fi

@@ -100,7 +100,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
    Or bring your own project — any git repo can become a component:
 
    ```bash
-   ws clone --url https://github.com/your-org/your-project.git --add-eco
+   ws clone --url https://github.com/your-org/your-project.git --add-to-ecosystem
    ```
 
    (Existing communities publish their component catalogs through *realms* — covered in [Explore a community's components](#explore-a-communitys-components) below. You don't need one to start.)

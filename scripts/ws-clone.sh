@@ -5,10 +5,11 @@
 # Usage:
 #   ws-clone.sh <component>                          Clone a declared component
 #   ws-clone.sh --all                                Clone all non-disabled components
-#   ws-clone.sh --url <git-url> [--name <name>] [--add-eco]
+#   ws-clone.sh --url <git-url> [--name <name>] [--add-to-ecosystem]
 #                                                    Clone an arbitrary repo
-#     --name    Override the component directory name (default: derived from URL)
-#     --add-eco Add the component to ecosystem.local.yaml as trusted
+#     --name               Override the component directory name (default: derived from URL)
+#     --add-to-ecosystem   Add the component to ecosystem.local.yaml as trusted
+#     --add-eco            Compatibility alias for --add-to-ecosystem
 #
 # Components are cloned into components/<component-name>/ as independent
 # Git repos. If the directory already exists, it is skipped.
@@ -26,10 +27,11 @@ for _arg in "$@"; do
 Usage:
   ws clone <component>                          Clone a declared ecosystem component
   ws clone --all                                Clone all non-disabled components
-  ws clone --url <git-url> [--name <name>] [--add-eco]
+  ws clone --url <git-url> [--name <name>] [--add-to-ecosystem]
                                                 Clone an arbitrary repo
-    --name     Override the component directory name (default: derived from URL)
-    --add-eco  Add the component to ecosystem.local.yaml as trusted
+    --name               Override the component directory name (default: derived from URL)
+    --add-to-ecosystem   Add the component to ecosystem.local.yaml as trusted
+    --add-eco            Compatibility alias for --add-to-ecosystem
 
 Components are cloned into components/<component-name>/ as independent
 Git repos. If the directory already exists, it is skipped.
@@ -221,7 +223,7 @@ clone_url() {
     else
         echo ""
         echo "NOTE: $name is not in the ecosystem config."
-        echo "  Use 'ws clone --url <url> --add-eco' to add it, or add manually."
+        echo "  Use 'ws clone --url <url> --add-to-ecosystem' to add it, or add manually."
         echo "  Without ecosystem config, ws commands won't recognize this component."
     fi
 }
@@ -246,14 +248,14 @@ if [[ "${1:-}" == "--url" ]]; then
                     exit 1
                 fi
                 ;;
-            --add-eco) ADD_ECO="true" ;;
+            --add-to-ecosystem|--add-eco) ADD_ECO="true" ;;
             *) echo "ERROR: Unknown option '$1'" >&2; exit 1 ;;
         esac
         shift
     done
 
     if [[ -z "$URL" ]]; then
-        echo "Usage: ws-clone.sh --url <git-url> [--name <name>] [--add-eco]" >&2
+        echo "Usage: ws-clone.sh --url <git-url> [--name <name>] [--add-to-ecosystem]" >&2
         exit 1
     fi
 
@@ -278,6 +280,6 @@ elif [[ -n "${1:-}" ]]; then
     fi
     clone_component "$1" "$ECO"
 else
-    echo "Usage: ws-clone.sh <component> | --all | --url <git-url> [--name <name>] [--add-eco]" >&2
+    echo "Usage: ws-clone.sh <component> | --all | --url <git-url> [--name <name>] [--add-to-ecosystem]" >&2
     exit 1
 fi
