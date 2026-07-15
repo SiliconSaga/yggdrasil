@@ -849,6 +849,9 @@ case "$cmd" in
     *'$'*)
         ask "Shell parameter expansion requires human approval because expansions such as \${IFS} can hide command boundaries from permission matching. Resolve the value separately and pass a literal argument when possible."
         ;;
+    *"\\"*)
+        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. Pass the intended token literally when possible."
+        ;;
     *"{"*|*"}"*)
         ask "Brace expansion requires human approval because one visible token can expand into multiple command arguments before execution. Pass the intended arguments literally instead."
         ;;
@@ -947,11 +950,6 @@ normalize_for_match() {
     # collapse harmless whitespace so quoting cannot hide an ask-tier action.
     s="${s//\"/}"
     s="${s//\'/}"
-    # A shell backslash escape can split a policy keyword without changing the
-    # token Bash executes (`--add\-eco` becomes `--add-eco`). Remove escapes in
-    # the conservative match copy only; the literal command and audit log stay
-    # untouched. False-positive matches remain ask/deny decisions, never allows.
-    s="${s//\\/}"
     s="${s//$'\t'/ }"
     while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done
     s="${s# }"

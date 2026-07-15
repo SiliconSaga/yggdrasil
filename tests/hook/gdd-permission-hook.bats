@@ -476,6 +476,16 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+@test "security: a quoted literal backslash cannot become an allowlisted command" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(ws status)'
+
+    run_hook "'w\\s' status"
+
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
 @test "ask: brace expansion cannot synthesize unreviewed command arguments" {
     seed_real_project_config
 
