@@ -9,10 +9,10 @@ Compare with the [pre-housekeeping snapshot](thalamus-primary.md) to see what ch
 ```
 last_session: 2026-03-24
 last_audit: 2026-03-24
-mode: zen           # zen, quick, mentoring, autonomous — or null for "ask me"
-role: developer     # developer, designer, reviewer — or null for "ask me"
 staleness_days: 14  # suggest housekeeping after this many days without audit
 ```
+
+Stance and role are established per session with `ws session`; they are not Thalamus frontmatter.
 
 # Thalamus
 
@@ -22,7 +22,7 @@ it is local to this workspace instance.
 
 ## Preferences
 
-- Default mode: zen (deep work sessions are the norm so far)
+- Preferred stance: zen (deep work sessions are the norm so far)
 - User prefers terse agent responses with context, not trailing summaries
 - ws CLI is the shared interface — agent should use it, not raw git/cd
 
