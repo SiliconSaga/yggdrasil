@@ -10,7 +10,16 @@ setup() {
 #!/usr/bin/env bash
 echo "KUBECTL_ARGS: $*" >> "$ROOT_DIR/kubectl.log"
 case "$*" in
+    *"get namespace prod --ignore-not-found -o name"*)
+        echo "Warning: server returned an informational header" >&2
+        exit 0
+        ;;
     *"get namespace prod"*) exit 1 ;;
+    *"get namespace unreachable"*)
+        echo "Unable to connect to the server: DNS resolution failed" >&2
+        exit 1
+        ;;
+    *"get namespace "*) echo "namespace/alice-sandbox" ;;
     *) exit 0 ;;
 esac
 EOF
@@ -69,12 +78,31 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
 @test "scope set on a not-yet-existing namespace warns but arms (pre-create workflow)" {
-    # The stub reports 'prod' as not found (get namespace prod → exit 1).
+    # --ignore-not-found reports a genuinely absent namespace as success with no output.
     run_ws k8s scope set --context kind-practice --namespace prod
     [ "$status" -eq 0 ]
     [[ "$output" == *"not found"* ]]
+    [[ "$output" != *"verification failed"* ]]
     run_ws k8s scope show
     [[ "$output" == *"prod"* ]]
+}
+@test "scope set on an existing namespace does not warn" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"not found"* ]]
+    [[ "$output" != *"verification failed"* ]]
+}
+@test "scope set reports a namespace probe failure without claiming the namespace is missing" {
+    run_ws k8s scope set --context kind-practice --namespace unreachable
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"verification failed"* ]]
+    [[ "$output" == *"arming anyway"* ]]
+    [[ "$output" == *"DNS resolution failed"* ]]
+    [[ "$output" == *"live cluster access"* ]]
+    [[ "$output" == *"outside the sandbox"* ]]
+    [[ "$output" != *"not found"* ]]
+    run_ws k8s scope show
+    [[ "$output" == *"unreachable"* ]]
 }
 @test "scope set with a mix of existing and not-yet-existing namespaces arms all, warns on the missing" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox,prod
