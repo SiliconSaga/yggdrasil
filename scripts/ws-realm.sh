@@ -190,8 +190,12 @@ ws_detect_realm() {
 # Hash the semantic realm trust inputs rather than the realm Git revision.
 # Canonical JSON ignores YAML comments, formatting, and mapping order while
 # retaining every ecosystem/adapter value that the workspace may consume.
+# Existing realm-owned files referenced as adapter command tokens join the
+# fingerprint because they are executable continuations of those values.
 ws_realm_trust_fingerprint() {
-    local name="$1" realm_dir realm_file canonical adapter_file relative fingerprint
+    local name="$1" realm_dir realm_file realm_real canonical adapter_file relative fingerprint
+    local commands target_name target_dir command word candidate candidate_path
+    local candidate_parent_real referenced_path referenced_relative content_hash
     local LC_ALL=C
     local -a records=()
     if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
@@ -199,6 +203,10 @@ ws_realm_trust_fingerprint() {
         return 1
     fi
     realm_dir="$REALMS_DIR/$name"
+    realm_real="$(cd "$realm_dir" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: Cannot resolve realm directory for trust fingerprinting: $realm_dir" >&2
+        return 1
+    }
     realm_file="$realm_dir/ecosystem.yaml"
     if [[ ! -f "$realm_file" || -L "$realm_file" ]]; then
         echo "ERROR: Realm '$name' has no regular ecosystem.yaml trust input." >&2
@@ -221,8 +229,65 @@ ws_realm_trust_fingerprint() {
             return 1
         fi
         records+=("$relative"$'\t'"$canonical")
+
+        # Adapter commands execute from the target directory. Resolve existing
+        # path-shaped tokens from that same cwd and bind only regular files
+        # canonically contained by this realm. Unrelated realm files remain
+        # outside the trust surface, preserving documentation-only pulls.
+        target_name="$(basename "$adapter_file" .yaml)"
+        case "$target_name" in
+            yggdrasil) target_dir="$ROOT_DIR" ;;
+            *)
+                if [[ "$target_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$REALMS_DIR/$target_name/.git" ]]; then
+                    target_dir="$REALMS_DIR/$target_name"
+                elif [[ "$target_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$HOARDS_DIR/$target_name/.git" ]]; then
+                    target_dir="$HOARDS_DIR/$target_name"
+                else
+                    target_dir="$COMPONENTS_DIR/$target_name"
+                fi
+                ;;
+        esac
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[].value | select(tag == "!!str")' "$adapter_file" 2>/dev/null)"; then
+            echo "ERROR: Cannot inspect adapter commands in $adapter_file for referenced trust inputs." >&2
+            return 1
+        fi
+        while IFS= read -r command; do
+            [[ -n "$command" ]] || continue
+            local -a command_words=()
+            read -r -a command_words <<< "$command"
+            for word in "${command_words[@]}"; do
+                candidate="$word"
+                [[ "$candidate" == *=* ]] && candidate="${candidate#*=}"
+                case "$candidate" in
+                    \"*\") candidate="${candidate#\"}"; candidate="${candidate%\"}" ;;
+                    \'*\') candidate="${candidate#\'}"; candidate="${candidate%\'}" ;;
+                esac
+                case "$candidate" in
+                    /*) candidate_path="$candidate" ;;
+                    *) candidate_path="$target_dir/$candidate" ;;
+                esac
+                [[ -e "$candidate_path" || -L "$candidate_path" ]] || continue
+                candidate_parent_real="$(cd "$(dirname "$candidate_path")" 2>/dev/null && pwd -P)" || continue
+                referenced_path="$candidate_parent_real/$(basename "$candidate_path")"
+                case "$referenced_path" in
+                    "$realm_real"/*) ;;
+                    *) continue ;;
+                esac
+                if [[ -L "$candidate_path" ]]; then
+                    echo "ERROR: Adapter-referenced realm trust input must not be a symlink: $referenced_path" >&2
+                    return 1
+                fi
+                [[ -f "$referenced_path" ]] || continue
+                if ! content_hash="$(git hash-object "$referenced_path" 2>/dev/null)"; then
+                    echo "ERROR: Cannot hash adapter-referenced realm trust input: $referenced_path" >&2
+                    return 1
+                fi
+                referenced_relative="${referenced_path#"$realm_real"/}"
+                records+=("referenced/$referenced_relative"$'\t'"$content_hash")
+            done
+        done <<< "$commands"
     done
-    if ! fingerprint="$(printf '%s\n' "${records[@]}" | git hash-object --stdin 2>/dev/null)"; then
+    if ! fingerprint="$(printf '%s\n' "${records[@]}" | sort -u | git hash-object --stdin 2>/dev/null)"; then
         echo "ERROR: Cannot calculate the trust fingerprint for realm '$name'." >&2
         return 1
     fi

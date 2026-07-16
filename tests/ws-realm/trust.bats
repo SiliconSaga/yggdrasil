@@ -12,7 +12,7 @@ setup() {
     export HOARDS_DIR="$WORK/hoards"
     export ECOSYSTEM="$WORK/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml"
-    mkdir -p "$REALMS_DIR/realm.test/adapters" "$COMPONENTS_DIR" "$HOARDS_DIR"
+    mkdir -p "$REALMS_DIR/realm.test/adapters" "$REALMS_DIR/realm.test/tools" "$COMPONENTS_DIR/app" "$HOARDS_DIR"
     printf 'components: {}\n' > "$ECOSYSTEM"
     printf 'notes: keep\n' > "$ECOSYSTEM_LOCAL"
     cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
@@ -103,6 +103,44 @@ YAML
 
     [ "$status" -eq 0 ]
     [ "$output" = "stale" ]
+}
+
+@test "realm trust becomes stale when an adapter-referenced realm file changes" {
+    printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    ADAPTER_TEST='bash "../../realms/realm.test/tools/run-tests.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    approve_realm
+
+    printf '#!/usr/bin/env bash\necho changed\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "stale" ]
+}
+
+@test "realm trust ignores unrelated documentation changes" {
+    printf 'first\n' > "$REALMS_DIR/realm.test/README.md"
+    approve_realm
+
+    printf 'second\n' > "$REALMS_DIR/realm.test/README.md"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "current" ]
+}
+
+@test "realm approval rejects adapter-referenced symlinks" {
+    printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    ln -s run-tests.sh "$REALMS_DIR/realm.test/tools/run-tests-link.sh"
+    ADAPTER_TEST='bash "../../realms/realm.test/tools/run-tests-link.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"referenced realm trust input must not be a symlink"* ]]
 }
 
 @test "realm trust distinguishes missing and malformed approval state" {
