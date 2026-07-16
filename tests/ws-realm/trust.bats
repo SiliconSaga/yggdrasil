@@ -165,6 +165,20 @@ YAML
     [[ "$output" == *"referenced realm trust input must not be a symlink"* ]]
 }
 
+@test "realm approval rejects adapter helper paths that escape through an intermediate symlink" {
+    mkdir -p "$WORK/external-tools"
+    printf '#!/usr/bin/env bash\necho external\n' > "$WORK/external-tools/run-tests.sh"
+    ln -s "$WORK/external-tools" "$REALMS_DIR/realm.test/linked-tools"
+    ADAPTER_TEST='bash "../../realms/realm.test/linked-tools/run-tests.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"escapes the reviewed realm through a symlink"* ]]
+}
+
 @test "realm trust distinguishes missing and malformed approval state" {
     REALM_NAME="realm.test" yq -i '.realm = strenv(REALM_NAME)' "$ECOSYSTEM_LOCAL"
 

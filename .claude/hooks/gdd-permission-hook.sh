@@ -1123,7 +1123,7 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
             fi
         done
     done
-    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
+    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--exec-path($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi
     if [[ "$match_cmd" =~ (^|[[:space:]])grep([[:space:]]|$) ]] \

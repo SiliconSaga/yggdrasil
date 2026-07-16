@@ -212,10 +212,26 @@ ws_detect_realm() {
 # retaining every ecosystem/adapter value that the workspace may consume.
 # Existing realm-owned files referenced as adapter command tokens join the
 # fingerprint because they are executable continuations of those values.
+_ws_lexical_absolute_path() {
+    local path="$1" segment result=""
+    local IFS='/'
+    local -a segments=()
+    [[ "$path" == /* ]] || return 1
+    read -r -a segments <<< "${path#/}"
+    for segment in "${segments[@]}"; do
+        case "$segment" in
+            ""|.) ;;
+            ..) result="${result%/*}" ;;
+            *) result="$result/$segment" ;;
+        esac
+    done
+    printf '%s' "${result:-/}"
+}
+
 ws_realm_trust_fingerprint() {
-    local name="$1" realm_dir realm_file realm_real canonical adapter_file relative fingerprint
+    local name="$1" realm_dir realm_file realm_real realm_lexical canonical adapter_file relative fingerprint
     local commands target_name target_dir command word candidate candidate_path
-    local candidate_parent_real referenced_path referenced_relative content_hash
+    local candidate_lexical lexical_in_realm candidate_parent_real referenced_path referenced_relative content_hash
     local LC_ALL=C
     local -a records=()
     if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
@@ -225,6 +241,10 @@ ws_realm_trust_fingerprint() {
     realm_dir="$REALMS_DIR/$name"
     realm_real="$(cd "$realm_dir" 2>/dev/null && pwd -P)" || {
         echo "ERROR: Cannot resolve realm directory for trust fingerprinting: $realm_dir" >&2
+        return 1
+    }
+    realm_lexical="$(_ws_lexical_absolute_path "$realm_dir")" || {
+        echo "ERROR: Cannot normalize realm directory for trust fingerprinting: $realm_dir" >&2
         return 1
     }
     realm_file="$realm_dir/ecosystem.yaml"
@@ -287,11 +307,28 @@ ws_realm_trust_fingerprint() {
                     *) candidate_path="$target_dir/$candidate" ;;
                 esac
                 [[ -e "$candidate_path" || -L "$candidate_path" ]] || continue
-                candidate_parent_real="$(cd "$(dirname "$candidate_path")" 2>/dev/null && pwd -P)" || continue
+                candidate_lexical="$(_ws_lexical_absolute_path "$candidate_path")" || continue
+                lexical_in_realm=0
+                case "$candidate_lexical" in
+                    "$realm_lexical"/*) lexical_in_realm=1 ;;
+                esac
+                if ! candidate_parent_real="$(cd "$(dirname "$candidate_path")" 2>/dev/null && pwd -P)"; then
+                    if [[ "$lexical_in_realm" -eq 1 ]]; then
+                        echo "ERROR: Cannot resolve adapter-referenced realm trust input: $candidate_lexical" >&2
+                        return 1
+                    fi
+                    continue
+                fi
                 referenced_path="$candidate_parent_real/$(basename "$candidate_path")"
                 case "$referenced_path" in
                     "$realm_real"/*) ;;
-                    *) continue ;;
+                    *)
+                        if [[ "$lexical_in_realm" -eq 1 ]]; then
+                            echo "ERROR: Adapter-referenced trust input escapes the reviewed realm through a symlink: $candidate_lexical" >&2
+                            return 1
+                        fi
+                        continue
+                        ;;
                 esac
                 if [[ -L "$candidate_path" ]]; then
                     echo "ERROR: Adapter-referenced realm trust input must not be a symlink: $referenced_path" >&2

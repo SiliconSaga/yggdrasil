@@ -486,6 +486,17 @@ JSON
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
 }
 
+@test "security: Git global exec-path denies before a broad allow" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git *)'
+
+    run_hook "git --exec-path=.tmp/git-review-probe review-probe"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
 @test "security: git executable diff helper denies before a diff allow" {
     write_project_hook_rules ""
     write_project_settings 'Bash(git diff:*)'
