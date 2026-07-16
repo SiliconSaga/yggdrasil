@@ -31,6 +31,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - **Shared Git remote validation** — clone/realm/hoard URL sinks reject option injection, executable remote-helper syntax (`ext::`), control characters, unsupported schemes, and filesystem paths (including Windows drive-letter forms) outside explicit local flows; provider-API-returned clone URLs are pinned to the configured source host (#129).
 - **Kustomize local-only preflight** — the k8s guard validates a `-k` target's whole reference graph (resources, bases, patches incl. legacy JSON6902, generators) as local, non-symlinked, and root-contained before rendering (#129).
 - MCP endpoint validation at `ws mcp-setup` time: absolute HTTP(S) shape required, plain-HTTP-on-nonlocal-host and embedded-credential warnings (#129).
+- **`ws docker` wrapper** — a scoped passthrough that sets `MSYS_NO_PATHCONV=1` for a single docker invocation on Git Bash, replacing the global env toggle that broke every `yq`/`gh` path; `ws` file-path arguments to native CLIs route through `cygpath`, so ws commands survive either MSYS conversion state (#131).
 - Optional shellcheck linting for the workspace's own scripts (#98).
 
 ### Changed
@@ -48,6 +49,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - The permission hook anchors all policy (rules files, allowlists, scratch and sensitive paths) to the workspace root instead of walking up from the command cwd; `Edit`/`Write` route through the hook, and security-sensitive state (`.claude/`, `.env`, `ecosystem.local.yaml`, hook-bypass markers, agent session files) asks instead of inheriting the scratch auto-allow (#129).
 - Hoard templates require an immutable full-SHA `pin` (checked out detached), and hoard-upgrade manifests are validated against traversal and symlink escapes before any file operation (#129).
 - `ws session set` accepts only the public stance/role/mentoring keys — guard and identity keys route through `ws k8s scope` and `ws whoami` (#129).
+- `ws realm use` renders component repository routes with adapter verbs nested per component; explicit `(none declared)` rows stay visible as evidence on the trust surface (#131).
+- `ws clone --add-to-ecosystem` is the canonical adoption spelling (`--add-eco` remains a compatibility alias), and adopted local source paths record in a pinned native form rather than whatever MSYS environment conversion produced (#131, #133).
+- The hook's backslash fail-closed ask normalizes unambiguous drive-letter path tokens (`D:\dir\file`) to forward slashes before classification, so Windows path-bearing commands reach the allowlist instead of always asking; every ambiguous escape shape still asks (#133).
+- Session env files under `.tmp/gdd-agent-sessions/`: a sub-agent creating its new `<name>.env` identity file, or a session writing its own `<sid>.env`, rides the scratch auto-allow when no guard-scope key is introduced; overwriting another session's existing file still asks (#133).
 
 ### Removed
 
@@ -64,6 +69,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `ws clone-fork` works against GitHub sources: provider-aware fork lookup/creation (`gh repo fork`, org-vs-user aware) and a GitHub fork-helper URL instead of the GitLab-only API/UI path; token resolution falls back to the provider default (`GH_TOKEN`/`GITLAB_TOKEN`) on the canonical hosts like `ws push` does; provider-token names gain `GITHUB_*`/`GH_*` namespacing to match `GITLAB_*` (#122).
 - `ws gitlab-auth --help` prints help even when `GITLAB_HOST` is unset (#122).
 - `ws status` / `ws pull` / `ws vscode` no longer surface a yq `cannot get keys of !!null` error on a workspace with no components declared — the first-run papercut from the fresh-Win11 dogfood runs.
+- Hoard rollback selects the newest pre-upgrade snapshot by timestamp across mixed legacy/sequenced backup formats — a same-second legacy suffix no longer shadows a newer sequenced snapshot on the restore path (#131).
+- `ws k8s` distinguishes a failed live namespace verification from a verified-absent namespace when arming a scope (#131).
+- The full bats suite passes on Windows Git Bash — dropped a ripgrep test dependency and pinned platform-dependent path forms; first fully-green Windows run (#133).
+- The Kubernetes write floor no longer asks on `bash -n` syntax checks of kubectl-bearing scripts — parse-only invocations are not script runs (#133).
 
 ### Security
 
@@ -73,6 +82,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `.env` loading refuses Git execution and configuration variables (`GIT_CONFIG*`, `GIT_SSH*`, askpass/editor/pager vars, the `GIT_DIR` family) plus `HOME`/`CDPATH` (#129).
 - Git execution modifiers (`-c`, `--ext-diff`, `--upload-pack`, remote-helper transports) deny ahead of permission matching, and `ws audit-permissions` flags allowlist entries that would cover them as high severity (#129).
 - Hook path comparisons normalize Windows path forms (via `cygpath` on Git Bash) before matching — previously an anchored prefix check could silently never match payload paths on Windows, failing open to passthrough (#129).
+- Realm approval binds to a semantic fingerprint of the realm's executable surfaces (ecosystem routing + adapter commands) and fails closed when approved semantics change — reapproval prompts show what changed; adding a clone to the trusted ecosystem is human-gated (#130).
+- Provider credentials stay scoped to their matching authority; explicit credential rejection is distinguished from transport and indeterminate failures, with redacted diagnostics (#130).
+- `.env` parsing hardened — inline comments read literally, reserved-variable protection extended to the workspace-path globals — and hoard-upgrade state and review-history timestamps are validated against malformed or attacker-controlled input (#130).
+- Escape sequences are excluded from allow-pattern matching so a transformed command cannot reach the wrong permission tier; sensitive-path, scratch-state, and multiline/compound matching tightened, and unsafe cross-host fork PR creation is blocked (#131).
 
 ## Pre-1.0 archaeology
 
