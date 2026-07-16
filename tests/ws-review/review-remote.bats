@@ -63,13 +63,13 @@ case "$path" in
         echo '{"title":"Upstream MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/upstream","target_branch":"main","web_url":"https://gitlab.com/upstream-group/project/-/merge_requests/1"}'
         ;;
     projects/example-group%2Fforked-project/merge_requests/1)
-        echo '{"title":"Fork MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/source-project","target_branch":"main","web_url":"https://gitlab.com/example-group/forked-project/-/merge_requests/1"}'
+        echo '{"title":"Fork\u0007 MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/source-project","target_branch":"main","web_url":"https://gitlab.com/example-group/forked-project/-/merge_requests/1"}'
         ;;
     */merge_requests/1/approvals)
         echo '{"approved_by":[]}'
         ;;
     */merge_requests/1/discussions)
-        echo '[{"notes":[{"system":false,"author":{"username":"a.b"},"body":"literal reviewer note","created_at":"2026-01-01T00:00:00Z","position":null},{"system":false,"author":{"username":"aXb"},"body":"regex wildcard note","created_at":"2026-01-01T00:00:00Z","position":null}]}]'
+        echo '[{"notes":[{"system":false,"author":{"username":"a.b"},"body":"literal\u001b\u0007 reviewer note","created_at":"2026-01-01T00:00:00Z","position":null},{"system":false,"author":{"username":"aXb"},"body":"regex wildcard note","created_at":"2026-01-01T00:00:00Z","position":null}]}]'
         ;;
     *)
         echo "unexpected glab api path: $path" >&2
@@ -133,4 +133,14 @@ run_ws_review() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"literal reviewer note"* ]]
     [[ "$output" != *"regex wildcard note"* ]]
+}
+
+@test "review strips terminal control bytes from provider text" {
+    run_ws_review app 1 --remote fork --reviewer a.b
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Title: Fork MR"* ]]
+    [[ "$output" == *"literal reviewer note"* ]]
+    [[ "$output" != *$'\033'* ]]
+    [[ "$output" != *$'\007'* ]]
 }
