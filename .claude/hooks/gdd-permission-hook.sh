@@ -1103,6 +1103,26 @@ esac
 # before/under otherwise read-looking subcommands. They are never safe to
 # inherit from a broad `git diff`/`git show` allow pattern.
 if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
+    # Git accepts unambiguous prefixes of long options. Match each visible
+    # option token as a prefix of the dangerous spelling, not just the full
+    # spelling, so e.g. --uplo= cannot inherit a broad git-fetch allow as an
+    # abbreviated --upload-pack=. The bare `--` end-of-options marker is not a
+    # candidate. Tokens longer than or unrelated to these names do not match.
+    _git_dangerous_long_options=(
+        --config-env --upload-pack --exec --extcmd --ext-diff --output
+        --output-directory --open-files-in-pager
+    )
+    _git_words=()
+    read -r -a _git_words <<< "$match_cmd"
+    for _git_word in "${_git_words[@]}"; do
+        _git_option="${_git_word%%=*}"
+        [[ "$_git_option" == --?* ]] || continue
+        for _git_dangerous_option in "${_git_dangerous_long_options[@]}"; do
+            if [[ "$_git_dangerous_option" == "$_git_option"* ]]; then
+                deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
+            fi
+        done
+    done
     if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi

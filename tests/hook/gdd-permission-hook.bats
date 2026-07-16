@@ -455,6 +455,37 @@ JSON
     [[ "$output" == *"Git execution modifier"* ]]
 }
 
+@test "security: abbreviated dangerous Git long options deny before broad allows" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git *)'
+
+    local command
+    for command in \
+        "git fetch --uplo=sh ." \
+        "git --config-e=alias.status=!id status" \
+        "git fetch --exe=sh ." \
+        "git difftool --extc=sh HEAD" \
+        "git diff --ext-d HEAD" \
+        "git log --outp=.tmp/log" \
+        "git log --output-d=.tmp/logs" \
+        "git grep --open-f=cat needle"; do
+        run_hook "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *'"permissionDecision":"deny"'* ]]
+        [[ "$output" == *"Git execution modifier"* ]]
+    done
+}
+
+@test "security: unrelated complete Git long options remain eligible for normal matching" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git fetch *)'
+
+    run_hook "git fetch --update-head-ok origin"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
 @test "security: git executable diff helper denies before a diff allow" {
     write_project_hook_rules ""
     write_project_settings 'Bash(git diff:*)'
