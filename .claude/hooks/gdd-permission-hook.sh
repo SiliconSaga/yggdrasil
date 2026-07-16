@@ -673,37 +673,35 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
 
     # Session env-file carve-out. Sub-agents legitimately create their own
     # identity files here at birth (ws commit --co-author-file reads
-    # .tmp/gdd-agent-sessions/<name>.env), and a session updating its own
-    # <sid>.env is equivalent to the allowlisted `ws whoami --set` — so a
+    # .tmp/gdd-agent-sessions/<name>.env), and a session replacing its own
+    # complete <sid>.env is equivalent to the allowlisted `ws whoami --set` — so a
     # blanket ask converts every sub-agent dispatch into prompt noise.
     # Reclassify as non-sensitive (falling through to the scratch tier)
     # only when ALL of these hold:
     #   - both the requested and resolved parents ARE the sessions dir
     #     itself (a symlinked ancestor cannot smuggle the write elsewhere)
     #   - the target is a single-segment <name>.env
-    #   - the introduced content carries no guard-scope key (GDD_K8S_*):
+    #   - this is a full-file Write, not a partial Edit whose surrounding
+    #     guard-key context is absent from the hook payload
+    #   - the complete content carries no guard-scope key (GDD_K8S_*):
     #     arming a kubectl scope must remain a `ws k8s` ceremony
     #   - it is this session's own <sid>.env, or a Write CREATING a file
     #     that does not exist yet (the sub-agent birth case). Overwriting
     #     another session's existing file — identity forgery on a live
-    #     session — still asks, as does Edit on a missing file.
-    if [[ "$sensitive_path" -eq 1 && "$sensitive_sessions_only" -eq 1 ]]; then
+    #     session — still asks, as does every partial Edit.
+    if [[ "$sensitive_path" -eq 1 && "$sensitive_sessions_only" -eq 1 && "$tool_name" == "Write" ]]; then
         _sess_basename="${abs_path##*/}"
         _sess_ok=0
         if [[ "$(_policy_path_fold "${abs_path%/*}")" == "$project_dir_fold/.tmp/gdd-agent-sessions" ]] \
             && [[ "$(_policy_path_fold "${resolved_abs_path%/*}")" == "$real_project_fold/.tmp/gdd-agent-sessions" ]] \
             && [[ "$_sess_basename" =~ ^[A-Za-z0-9._-]+\.env$ ]]; then
-            if [[ "$tool_name" == "Write" ]]; then
-                _sess_new_content=$(echo "$input" | jq -r '.tool_input.content // ""')
-            else
-                _sess_new_content=$(echo "$input" | jq -r '.tool_input.new_string // ""')
-            fi
+            _sess_new_content=$(echo "$input" | jq -r '.tool_input.content // ""')
             if [[ "$_sess_new_content" != *GDD_K8S_* ]]; then
                 _sess_sid=$(echo "$input" | jq -r '.session_id // ""')
                 _sess_sid_safe="${_sess_sid//[^A-Za-z0-9._-]/_}"
                 if [[ -n "$_sess_sid" && "$_sess_basename" == "$_sess_sid_safe.env" ]]; then
                     _sess_ok=1
-                elif [[ "$tool_name" == "Write" && ! -e "$abs_path" && ! -e "$resolved_abs_path" ]]; then
+                elif [[ ! -e "$abs_path" && ! -e "$resolved_abs_path" ]]; then
                     _sess_ok=1
                 fi
             fi
@@ -863,8 +861,8 @@ fi
 # fires on every such command BEFORE the allowlist is consulted,
 # turning the hook into near-always-ask on path-bearing commands and
 # training humans to rubber-stamp (#133). A backslash inside a
-# drive-letter-rooted token is unambiguous path data under any bash
-# quoting state, so those tokens — and only those — rewrite to
+# fully quoted drive-letter-rooted token is preserved as path data by
+# Bash, so those tokens — and only those — rewrite to
 # forward slashes before classification. Ambiguous shapes (escaped
 # quotes, trailing or doubled backslashes, non-path tokens, mixed
 # separators) stay intact and still reach the ask arm.
@@ -904,7 +902,7 @@ _normalize_windows_path_tokens() {
             elif [[ ${#w} -ge 2 && "$w" == '"'*'"' ]]; then
                 quote='"' core="${w:1:${#w}-2}"
             fi
-            if _backslash_token_is_path "$core"; then
+            if [[ -n "$quote" ]] && _backslash_token_is_path "$core"; then
                 core="${core//\\//}"
                 w="${quote}${core}${quote}"
                 changed=1
@@ -969,9 +967,6 @@ case "$cmd" in
     *'$'*)
         ask "Shell parameter expansion requires human approval because expansions such as \${IFS} can hide command boundaries from permission matching. Resolve the value separately and pass a literal argument when possible."
         ;;
-    *"\\"*)
-        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. Pass the intended token literally when possible."
-        ;;
     *"{"*|*"}"*)
         ask "Brace expansion requires human approval because one visible token can expand into multiple command arguments before execution. Pass the intended arguments literally instead."
         ;;
@@ -992,6 +987,11 @@ case "$cmd" in
         ;;
     *">"*|*"<"*)
         deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file."
+        ;;
+    *"\\"*)
+        # Redirect operators are checked first so an otherwise ambiguous bare
+        # Windows path cannot downgrade a real shell redirect from deny to ask.
+        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. Pass the intended token literally when possible."
         ;;
     *"&"*)
         # Background / command-list separator. By this point `&&` is

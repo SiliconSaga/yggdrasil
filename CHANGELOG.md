@@ -49,10 +49,10 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - The permission hook anchors all policy (rules files, allowlists, scratch and sensitive paths) to the workspace root instead of walking up from the command cwd; `Edit`/`Write` route through the hook, and security-sensitive state (`.claude/`, `.env`, `ecosystem.local.yaml`, hook-bypass markers, agent session files) asks instead of inheriting the scratch auto-allow (#129).
 - Hoard templates require an immutable full-SHA `pin` (checked out detached), and hoard-upgrade manifests are validated against traversal and symlink escapes before any file operation (#129).
 - `ws session set` accepts only the public stance/role/mentoring keys — guard and identity keys route through `ws k8s scope` and `ws whoami` (#129).
-- `ws realm use` renders component repository routes with adapter verbs nested per component; explicit `(none declared)` rows stay visible as evidence on the trust surface (#131).
+- `ws realm use` labels component repository routes and indents adapter verbs more clearly; explicit `(none declared)` rows stay visible as evidence on the trust surface (#131).
 - `ws clone --add-to-ecosystem` is the canonical adoption spelling (`--add-eco` remains a compatibility alias), and adopted local source paths record in a pinned native form rather than whatever MSYS environment conversion produced (#131, #133).
-- The hook's backslash fail-closed ask normalizes unambiguous drive-letter path tokens (`D:\dir\file`) to forward slashes before classification, so Windows path-bearing commands reach the allowlist instead of always asking; every ambiguous escape shape still asks (#133).
-- Session env files under `.tmp/gdd-agent-sessions/`: a sub-agent creating its new `<name>.env` identity file, or a session writing its own `<sid>.env`, rides the scratch auto-allow when no guard-scope key is introduced; overwriting another session's existing file still asks (#133).
+- The hook's backslash fail-closed ask normalizes fully quoted drive-letter path tokens (`"D:\dir\file"`) to forward slashes before classification, so valid Windows path-bearing commands reach the allowlist instead of always asking; bare and otherwise ambiguous escape shapes still ask (#133).
+- Session env files under `.tmp/gdd-agent-sessions/`: a full-file `Write` creating a new `<name>.env` identity file, or replacing the current session's own `<sid>.env`, rides the scratch auto-allow when no guard-scope key is introduced; partial edits and overwrites of another session's existing file still ask (#133).
 
 ### Removed
 

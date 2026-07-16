@@ -389,6 +389,19 @@ JSON
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
 }
 
+@test "ask: a partial edit of the current session env file cannot bypass guard-key review" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=prod\n' > "$WORK/.tmp/gdd-agent-sessions/sess-123.env"
+
+    run_hook_write_content "Edit" "$WORK/.tmp/gdd-agent-sessions/sess-123.env" \
+        'dev' "sess-123"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "ask: overwriting another session's existing env file still asks" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp/gdd-agent-sessions"
@@ -578,14 +591,15 @@ JSON
 # and later Tier 1 arms (redirect, newline) must still fire after a
 # token is normalized.
 
-@test "allow: backslashed drive path as git -C argument matches the allowlist" {
+@test "ask: bare backslashed drive path remains shell-escape ambiguous" {
     write_project_hook_rules ""
     write_project_settings 'Bash(git -C * status)'
 
     run_hook 'git -C D:\Dev\GitWS\yggdrasil status'
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
 }
 
 @test "allow: single-quoted backslash drive path matches the allowlist" {
@@ -593,6 +607,16 @@ JSON
     write_project_settings 'Bash(git -C * status)'
 
     run_hook "git -C 'D:\\Dev\\GitWS\\yggdrasil' status"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "allow: double-quoted backslash drive path matches the allowlist" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -C * status)'
+
+    run_hook 'git -C "D:\Dev\GitWS\yggdrasil" status'
 
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
