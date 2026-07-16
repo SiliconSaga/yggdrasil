@@ -154,7 +154,8 @@ YAML
 
 @test "realm approval rejects adapter-referenced symlinks" {
     printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
-    ln -s run-tests.sh "$REALMS_DIR/realm.test/tools/run-tests-link.sh"
+    ln -s run-tests.sh "$REALMS_DIR/realm.test/tools/run-tests-link.sh" 2>/dev/null || true
+    [[ -L "$REALMS_DIR/realm.test/tools/run-tests-link.sh" ]] || skip "real symlinks not supported on this platform"
     ADAPTER_TEST='bash "../../realms/realm.test/tools/run-tests-link.sh"' yq -i \
         '.commands.test = strenv(ADAPTER_TEST)' \
         "$REALMS_DIR/realm.test/adapters/app.yaml"
@@ -168,7 +169,8 @@ YAML
 @test "realm approval rejects adapter helper paths that escape through an intermediate symlink" {
     mkdir -p "$WORK/external-tools"
     printf '#!/usr/bin/env bash\necho external\n' > "$WORK/external-tools/run-tests.sh"
-    ln -s "$WORK/external-tools" "$REALMS_DIR/realm.test/linked-tools"
+    ln -s "$WORK/external-tools" "$REALMS_DIR/realm.test/linked-tools" 2>/dev/null || true
+    [[ -L "$REALMS_DIR/realm.test/linked-tools" ]] || skip "real symlinks not supported on this platform"
     ADAPTER_TEST='bash "../../realms/realm.test/linked-tools/run-tests.sh"' yq -i \
         '.commands.test = strenv(ADAPTER_TEST)' \
         "$REALMS_DIR/realm.test/adapters/app.yaml"
