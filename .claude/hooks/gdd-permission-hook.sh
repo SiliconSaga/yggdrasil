@@ -1238,8 +1238,12 @@ _k8s_bypass_active() {
 # the human confirmation.
 _k8s_floor_enabled=0
 _k8s_match_cmd="$match_cmd"
+_k8s_literal_direct=0
 _k8s_script_file=""
 _k8s_inline_shell=0
+case "$match_cmd" in
+    kubectl|kubectl\ *|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *) _k8s_literal_direct=1 ;;
+esac
 for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
     [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
 done
@@ -1342,7 +1346,11 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
         case "$_sr_kverdict" in
-            READ_IN_SCOPE) allow "raw kubectl in-scope read (guard)" ;;
+            READ_IN_SCOPE)
+                if [[ "$_k8s_literal_direct" == "1" ]]; then
+                    allow "raw kubectl in-scope read (guard)"
+                fi
+                ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_kverdict" "$_sr_ctx" "$_sr_slug")" ;;
             *) : ;;  # WRITE_IN_SCOPE → fall through to (b) redirect
         esac

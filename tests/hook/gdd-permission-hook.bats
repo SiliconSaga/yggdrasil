@@ -2131,6 +2131,20 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
+@test "scoped-redirect: normalized kubectl aliases cannot inherit the raw-read auto-allow" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+
+    local command
+    for command in \
+        '/usr/bin/kubectl get pods -n kube-system' \
+        'components/evil/kubectl get pods -n kube-system' \
+        'KUBECONFIG=.tmp/config kubectl get pods -n kube-system'; do
+        run_hook_with_session "$command" "sk8s"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    done
+}
 @test "scoped-redirect: raw in-scope kubectl WRITE still redirects to ws k8s (context injection)" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
