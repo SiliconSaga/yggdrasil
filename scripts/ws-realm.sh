@@ -286,6 +286,16 @@ ws_require_realm_trust() {
     return 1
 }
 
+# Require the selected realm's current trust record before an executable
+# adapter surface is read. The optional name lets callers reuse an already
+# detected realm; without one, detection remains centralized here.
+ws_require_active_realm_trust() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || name="$(ws_detect_realm)"
+    [[ -n "$name" ]] || return 0
+    ws_require_realm_trust "$name"
+}
+
 # Persist exactly the trust inputs the human reviewed. Recompute immediately
 # before writing so a concurrent pull/edit cannot turn the approval prompt into
 # authorization for different realm content.

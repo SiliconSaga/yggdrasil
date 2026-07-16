@@ -12,6 +12,19 @@ setup() {
     setup_synthetic_realm
 }
 
+@test "adapter execution refuses stale active-realm trust for workspace targets" {
+    write_adapter_test "./pytest"
+    ADAPTER_TEST="./pytest -q" yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml"
+
+    run_ws_test yggdrasil
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"trust reapproval is required"* ]]
+    [[ "$output" != *"ARGS:"* ]]
+}
+
 @test "pytest adapter: an existing path filter is passed positionally" {
     write_adapter_test "./pytest"
     touch "$ROOT_DIR/tests/foo.py"
