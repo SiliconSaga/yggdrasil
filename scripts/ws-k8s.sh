@@ -82,6 +82,7 @@ _k8s_scope() {
                     for ((i=0; i<${#_unverified[@]}; i++)); do
                         _detail="${_diagnostics[$i]%%$'\n'*}"
                         _detail="${_detail%$'\r'}"
+                        _detail="$(printf '%s' "$_detail" | tr -d '\000-\010\013-\037\177')"
                         [[ -n "$_detail" ]] || _detail="kubectl exited without a diagnostic"
                         printf '  %s: %s\n' "${_unverified[$i]}" "${_detail:0:500}" >&2
                     done

@@ -60,3 +60,12 @@ run_docker_wrapper() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: ws docker"* ]]
 }
+
+@test "docker help with a subcommand passes through" {
+    run_docker_wrapper Darwin help run
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'ARG=help\n'* ]]
+    [[ "$output" == *"ARG=run"* ]]
+    [[ "$output" != *"Usage: ws docker"* ]]
+}

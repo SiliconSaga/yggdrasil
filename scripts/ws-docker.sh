@@ -8,7 +8,7 @@ set -euo pipefail
 
 DOCKER="${DOCKER:-docker}"
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || ( "${1:-}" == "help" && $# -eq 1 ) ]]; then
     cat <<'HELP'
 Usage: ws docker <docker args...>
 

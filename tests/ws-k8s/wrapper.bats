@@ -16,7 +16,7 @@ case "$*" in
         ;;
     *"get namespace prod"*) exit 1 ;;
     *"get namespace unreachable"*)
-        echo "Unable to connect to the server: DNS resolution failed" >&2
+        printf 'Unable to connect to the server: \033[31mDNS resolution failed\033[0m\n' >&2
         exit 1
         ;;
     *"get namespace "*) echo "namespace/alice-sandbox" ;;
@@ -100,6 +100,7 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" == *"DNS resolution failed"* ]]
     [[ "$output" == *"live cluster access"* ]]
     [[ "$output" == *"outside the sandbox"* ]]
+    [[ "$output" != *$'\033'* ]]
     [[ "$output" != *"not found"* ]]
     run_ws k8s scope show
     [[ "$output" == *"unreachable"* ]]
