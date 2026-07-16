@@ -357,6 +357,72 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+# ─── Session env-file carve-out (sub-agent birth friction, #129 UX) ─
+#
+# Sub-agents legitimately create their own identity files under
+# .tmp/gdd-agent-sessions/ (ws commit --co-author-file), and a session
+# updating its own <sid>.env is equivalent to the allowlisted
+# `ws whoami --set`. Creating a NEW .env file, or writing your OWN
+# session file, auto-allows via the scratch tier — but guard-scope
+# keys (GDD_K8S_*) in the content, overwrites of another session's
+# existing file, and non-env names all still ask.
+
+@test "allow: creating a new sub-agent identity env file rides the scratch allow" {
+    seed_real_project_config
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess--sub.env" \
+        'GDD_CO_AUTHOR=Claude Fable 5 <noreply@anthropic.com>'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "allow: a session writing its own session env file rides the scratch allow" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR=old\n' > "$WORK/.tmp/gdd-agent-sessions/sess-123.env"
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess-123.env" \
+        'GDD_CO_AUTHOR=Claude Fable 5 <noreply@anthropic.com>' "sess-123"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "ask: overwriting another session's existing env file still asks" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR=other\n' > "$WORK/.tmp/gdd-agent-sessions/sess-other.env"
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess-other.env" \
+        'GDD_CO_AUTHOR=forged' "sess-123"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "ask: guard-scope keys in a new session env file still ask" {
+    seed_real_project_config
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess--sub.env" \
+        $'GDD_CO_AUTHOR=x\nGDD_K8S_CONTEXT=gke_prod'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "ask: a non-env name under the sessions dir still asks" {
+    seed_real_project_config
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/notes.txt" 'hello'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "security: committed settings install Edit and Write hook matchers" {
     run jq -e '
         [.hooks.PreToolUse[].matcher] as $m |

@@ -113,6 +113,8 @@ This isn't enabled by default because (a) `PermissionRequest` is a different thr
 
 It still includes the sometimes more severe blocks that GDD implements to teach the agent not to let commands be chained at all, favoring deterministic scripts and temporary files that are more auditable than massive commands dumping to a simple point-in-time approve prompt.
 
+**Security-sensitive paths never inherit the scratch allow.** Guard state and configuration inside the scratch tree (`.tmp/hook-bypass/`, `.tmp/gdd-agent-sessions/`), `.claude/`, `.env`, `ecosystem.local.yaml`, and the shared Kubernetes guard helper ask instead of auto-allowing. One carve-out keeps sub-agent dispatch usable: creating a new `<name>.env` under `.tmp/gdd-agent-sessions/` (the sub-agent identity-file birth), or a session writing its own `<sid>.env`, rides the scratch allow so long as the introduced content carries no guard-scope key (`GDD_K8S_*` stays a `ws k8s` ceremony). Overwriting another session's existing file, guard keys, and non-`.env` names all still ask.
+
 ### Enabling
 
 Add this block to your `.claude/settings.local.json` (per-user, gitignored) alongside any existing `permissions` / `enabledMcpjsonServers` entries:

@@ -133,6 +133,30 @@ run_hook_write() {
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
 
+# Build an Edit/Write payload carrying introduced content and an
+# optional session_id, and pipe it into the hook. Write sends the
+# content as tool_input.content; Edit sends it as tool_input.new_string
+# — mirroring the harness payload shapes the session-file carve-out
+# inspects.
+#
+# Args: $1 = tool (Edit|Write), $2 = file_path, $3 = content,
+#       $4 = session_id (optional), $5 = cwd (default $WORK)
+run_hook_write_content() {
+    local tool="$1"
+    local file_path="$2"
+    local content="$3"
+    local sid="${4:-}"
+    local cwd="${5:-$WORK}"
+    local field="content"
+    [[ "$tool" == "Edit" ]] && field="new_string"
+    local payload
+    payload=$(jq -nc --arg t "$tool" --arg fp "$file_path" --arg c "$content" \
+        --arg f "$field" --arg sid "$sid" --arg cwd "$cwd" \
+        '{tool_name:$t, tool_input:({file_path:$fp} + {($f):$c}), cwd:$cwd}
+         + (if $sid != "" then {session_id:$sid} else {} end)')
+    run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
+}
+
 # Build the JSON tool-call payload and pipe it into the hook. The
 # entire pipeline runs inside the bats subshell, away from the
 # harness's PreToolUse watch.

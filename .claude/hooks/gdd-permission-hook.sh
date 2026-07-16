@@ -645,24 +645,74 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     resolved_abs_path_fold="$(_policy_path_fold "$resolved_abs_path")"
     real_project_fold="$(_policy_path_fold "$real_project")"
     sensitive_path=0
+    sensitive_sessions_only=1
     case "$abs_path_fold" in
+        "$project_dir_fold/.tmp/gdd-agent-sessions"|"$project_dir_fold/.tmp/gdd-agent-sessions/"*)
+            sensitive_path=1
+            ;;
         "$project_dir_fold/.tmp/hook-bypass"|"$project_dir_fold/.tmp/hook-bypass/"*|\
-        "$project_dir_fold/.tmp/gdd-agent-sessions"|"$project_dir_fold/.tmp/gdd-agent-sessions/"*|\
         "$project_dir_fold/.claude"|"$project_dir_fold/.claude/"*|\
         "$project_dir_fold/.env"|"$project_dir_fold/ecosystem.local.yaml"|\
         "$project_dir_fold/scripts/ws-k8s-guard.sh")
             sensitive_path=1
+            sensitive_sessions_only=0
             ;;
     esac
     case "$resolved_abs_path_fold" in
+        "$real_project_fold/.tmp/gdd-agent-sessions"|"$real_project_fold/.tmp/gdd-agent-sessions/"*)
+            sensitive_path=1
+            ;;
         "$real_project_fold/.tmp/hook-bypass"|"$real_project_fold/.tmp/hook-bypass/"*|\
-        "$real_project_fold/.tmp/gdd-agent-sessions"|"$real_project_fold/.tmp/gdd-agent-sessions/"*|\
         "$real_project_fold/.claude"|"$real_project_fold/.claude/"*|\
         "$real_project_fold/.env"|"$real_project_fold/ecosystem.local.yaml"|\
         "$real_project_fold/scripts/ws-k8s-guard.sh")
             sensitive_path=1
+            sensitive_sessions_only=0
             ;;
     esac
+
+    # Session env-file carve-out. Sub-agents legitimately create their own
+    # identity files here at birth (ws commit --co-author-file reads
+    # .tmp/gdd-agent-sessions/<name>.env), and a session updating its own
+    # <sid>.env is equivalent to the allowlisted `ws whoami --set` — so a
+    # blanket ask converts every sub-agent dispatch into prompt noise.
+    # Reclassify as non-sensitive (falling through to the scratch tier)
+    # only when ALL of these hold:
+    #   - both the requested and resolved parents ARE the sessions dir
+    #     itself (a symlinked ancestor cannot smuggle the write elsewhere)
+    #   - the target is a single-segment <name>.env
+    #   - the introduced content carries no guard-scope key (GDD_K8S_*):
+    #     arming a kubectl scope must remain a `ws k8s` ceremony
+    #   - it is this session's own <sid>.env, or a Write CREATING a file
+    #     that does not exist yet (the sub-agent birth case). Overwriting
+    #     another session's existing file — identity forgery on a live
+    #     session — still asks, as does Edit on a missing file.
+    if [[ "$sensitive_path" -eq 1 && "$sensitive_sessions_only" -eq 1 ]]; then
+        _sess_basename="${abs_path##*/}"
+        _sess_ok=0
+        if [[ "$(_policy_path_fold "${abs_path%/*}")" == "$project_dir_fold/.tmp/gdd-agent-sessions" ]] \
+            && [[ "$(_policy_path_fold "${resolved_abs_path%/*}")" == "$real_project_fold/.tmp/gdd-agent-sessions" ]] \
+            && [[ "$_sess_basename" =~ ^[A-Za-z0-9._-]+\.env$ ]]; then
+            if [[ "$tool_name" == "Write" ]]; then
+                _sess_new_content=$(echo "$input" | jq -r '.tool_input.content // ""')
+            else
+                _sess_new_content=$(echo "$input" | jq -r '.tool_input.new_string // ""')
+            fi
+            if [[ "$_sess_new_content" != *GDD_K8S_* ]]; then
+                _sess_sid=$(echo "$input" | jq -r '.session_id // ""')
+                _sess_sid_safe="${_sess_sid//[^A-Za-z0-9._-]/_}"
+                if [[ -n "$_sess_sid" && "$_sess_basename" == "$_sess_sid_safe.env" ]]; then
+                    _sess_ok=1
+                elif [[ "$tool_name" == "Write" && ! -e "$abs_path" && ! -e "$resolved_abs_path" ]]; then
+                    _sess_ok=1
+                fi
+            fi
+        fi
+        if [[ "$_sess_ok" -eq 1 ]]; then
+            sensitive_path=0
+        fi
+    fi
+
     if [[ "$sensitive_path" -eq 1 ]]; then
         cmd="$tool_name $file_path"
         ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
