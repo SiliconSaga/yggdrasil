@@ -805,6 +805,76 @@ if [[ "$tool_name" == "PowerShell" ]]; then
     deny "PowerShell is blocked by default in this workspace — use the Bash tool with the \`ws\` wrappers (see AGENTS.md Reflex Contract). Exception: component kuttl wrappers run without a prompt as \`./test.ps1 [suite]\`, optionally preceded by one \`Set-Location <dir>;\`. For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
 fi
 
+# ─── Windows path-token separator normalization ─────────────────────
+#
+# Agents on Windows routinely echo harness-surfaced native paths
+# (D:\Dev\...) into Bash commands — git and the MSYS userland accept
+# either separator. Without normalization the backslash ask-arm below
+# fires on every such command BEFORE the allowlist is consulted,
+# turning the hook into near-always-ask on path-bearing commands and
+# training humans to rubber-stamp (#133). A backslash inside a
+# drive-letter-rooted token is unambiguous path data under any bash
+# quoting state, so those tokens — and only those — rewrite to
+# forward slashes before classification. Ambiguous shapes (escaped
+# quotes, trailing or doubled backslashes, non-path tokens, mixed
+# separators) stay intact and still reach the ask arm.
+#
+# The rewrite happens BEFORE Tier 1 rather than inside the backslash
+# arm: a case statement stops at its first matching arm, so skipping
+# the ask from within that arm would let `cat D:\x > out` bypass the
+# later redirect deny.
+_backslash_token_is_path() {
+    local t="$1"
+    case "$t" in
+        [A-Za-z]:\\*) ;;
+        *) return 1 ;;
+    esac
+    [[ "$t" == *'\' ]] && return 1     # trailing backslash — escape-ambiguous
+    [[ "$t" == *'\\'* ]] && return 1   # doubled backslash — quoting-dependent
+    [[ "$t" == *'"'* || "$t" == *"'"* ]] && return 1  # embedded quote
+    return 0
+}
+
+_normalize_windows_path_tokens() {
+    local raw="$1"
+    # Multi-line input must reach the newline deny untouched — `read`
+    # below would silently drop everything past the first line.
+    if [[ "$raw" != *'\'* || "$raw" == *$'\n'* || "$raw" == *$'\r'* ]]; then
+        printf '%s' "$raw"
+        return
+    fi
+    local -a words=()
+    read -r -a words <<< "$raw"
+    local rebuilt="" w core quote changed=0
+    for w in "${words[@]}"; do
+        if [[ "$w" == *'\'* ]]; then
+            core="$w" quote=""
+            if [[ ${#w} -ge 2 && "$w" == "'"*"'" ]]; then
+                quote="'" core="${w:1:${#w}-2}"
+            elif [[ ${#w} -ge 2 && "$w" == '"'*'"' ]]; then
+                quote='"' core="${w:1:${#w}-2}"
+            fi
+            if _backslash_token_is_path "$core"; then
+                core="${core//\\//}"
+                w="${quote}${core}${quote}"
+                changed=1
+            fi
+        fi
+        rebuilt+="${rebuilt:+ }${w}"
+    done
+    # Adopt the rebuilt string only when a token was actually
+    # rewritten — reconstruction collapses whitespace runs, and that
+    # side effect is only justified by a real normalization. The
+    # audit log records the normalized form; it names the same
+    # filesystem locations as the original spelling.
+    if [[ "$changed" == "1" ]]; then
+        printf '%s' "$rebuilt"
+    else
+        printf '%s' "$raw"
+    fi
+}
+cmd="$(_normalize_windows_path_tokens "$cmd")"
+
 # ─── Tier 1: Deny shell composition with corrective messages ────────
 #
 # Order of arms matters in this case statement: the first arm whose

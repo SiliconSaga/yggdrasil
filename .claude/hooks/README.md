@@ -28,6 +28,12 @@ The hook can classify only tool events registered in `.claude/settings.json`. Th
 
 That boundary does not create a shell escape hatch. `TaskStop` addresses a background task created by the current harness session; raw process-control commands such as `kill` or `taskkill` still arrive through the registered shell tool and receive the normal composition, ask, allow, or passthrough classification.
 
+### Windows paths and backslashes
+
+Forward-slash paths are the workspace convention in shell commands — git and the MSYS userland accept them everywhere, and they never collide with escape syntax. Backslash paths are tolerated, not preferred: a backslash inside a drive-letter-rooted token (`D:\Dev\file`, bare or wrapped in single or double quotes) is unambiguous path data, so the hook normalizes those tokens to forward slashes before classification and the command reaches the allowlist normally instead of forcing an ask.
+
+Every ambiguous backslash still requires human approval: escaped quotes (`\"`), trailing backslashes, doubled backslashes, backslash-escaped spaces, and backslashes in tokens that are not drive-letter-rooted. Quoting changes whether those backslashes are syntax or data, and a transformed match could otherwise reach the wrong permission tier. The audit log records the normalized (forward-slash) command form.
+
 ### Rules configuration
 
 Two files drive the hook's allow/ask/deny decisions beyond the committed `settings.json`:

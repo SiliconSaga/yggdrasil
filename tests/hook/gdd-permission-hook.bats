@@ -503,6 +503,81 @@ JSON
     [[ "$output" == *"Brace expansion"* ]]
 }
 
+# ─── Windows path-token backslash normalization (#133) ──────────────
+#
+# A backslash inside a drive-letter-rooted token (D:\dir\file) is
+# unambiguous path data, not escape syntax — those tokens normalize to
+# forward slashes before Tier 1 so the allowlist stays reachable on
+# Windows. Every ambiguous backslash shape must still land on a human,
+# and later Tier 1 arms (redirect, newline) must still fire after a
+# token is normalized.
+
+@test "allow: backslashed drive path as git -C argument matches the allowlist" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -C * status)'
+
+    run_hook 'git -C D:\Dev\GitWS\yggdrasil status'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "allow: single-quoted backslash drive path matches the allowlist" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -C * status)'
+
+    run_hook "git -C 'D:\\Dev\\GitWS\\yggdrasil' status"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "ask: escaped double quotes still require approval" {
+    seed_real_project_config
+
+    run_hook 'echo \"hi\"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "ask: trailing backslash still requires approval" {
+    seed_real_project_config
+
+    run_hook "ls D:\\Dev\\"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "ask: doubled backslash in a drive path still requires approval" {
+    seed_real_project_config
+
+    run_hook 'ls D:\\Dev'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "deny: redirect after a normalized Windows path still denies" {
+    run_hook 'cat D:\Dev\notes.txt > out.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"redirection"* ]]
+}
+
+@test "deny: newline list with a Windows path still denies" {
+    run_hook $'ls D:\\Dev\npwd'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Newline-separated"* ]]
+}
+
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
 
 @test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {
