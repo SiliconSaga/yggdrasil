@@ -85,6 +85,12 @@ k8s_guard_script_path() {
                 if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
                     return 1
                 fi
+                # -n (noexec) anywhere in a short-flag cluster means the
+                # shell parses the file without executing anything — a
+                # syntax check is not a script invocation.
+                if [[ "$token" == -[^-]* && "$token" == *n* ]]; then
+                    return 1
+                fi
                 case "$token" in
                     --) i=$((i + 1)); [[ $i -lt ${#words[@]} ]] && path="${words[$i]}"; break ;;
                     -o|--rcfile|--init-file) i=$((i + 2)) ;;
