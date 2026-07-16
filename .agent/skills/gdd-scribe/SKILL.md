@@ -11,11 +11,8 @@ processing, and PARA conventions.
 
 ## When to Load
 
-- **Path A — `role: scribe` in Thalamus frontmatter** — orientation
-  loads this skill automatically per the standard role-default flow
-- **Path B — orientation discovers a vault, role is null** — orientation
-  surfaces the vault and offers scribe role; if the user accepts, this
-  skill loads
+- **Path A — the active session role is `scribe`** — orientation establishes it with `ws session set GDD_ROLE scribe` and loads this skill per the standard role flow
+- **Path B — orientation is establishing an unset session role and discovers a vault** — orientation surfaces the vault alongside the role choices and offers scribe role; if the user accepts, this skill loads
 - **Path C — mid-session keyword dip-in** — user says something matching
   capture intent (*"jot this in my inbox"*, *"add a daily note"*,
   *"capture this idea"*) while in another role; load this skill ad-hoc
@@ -414,8 +411,7 @@ frequently dip into capture from multi-vault workspaces should set
 
 ## What This Skill Does NOT Do
 
-- Set `role: scribe` in Thalamus permanently — only the user can do
-  that
+- Persist scribe as a cross-session role — stance and role belong to the active `ws session`; Thalamus stores durable preferences and context, not session state
 - Auto-commit the vault — vault hoards are independent git repos;
   the user commits when they want
 - Modify the sparse-numbered folder prefixes (`00`, `10`, `20`, `30`, `40`, `50`, `60`) — those are PARA structural invariants

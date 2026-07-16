@@ -84,6 +84,14 @@ script_path="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
 inline_shell=0
 k8s_guard_inline_shell_contains_kubectl "$match_cmd" && inline_shell=1
 
+if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
+    if [[ "$match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
+        || [[ "$match_cmd" == *"ws k8s"* || "$match_cmd" == *"scripts/ws k8s"* ]]; then
+        deny "Kubernetes commands must be issued as one composition-free command. This compound or multiline form cannot be evaluated safely."
+    fi
+    exit 0
+fi
+
 case "$k8s_match_cmd" in
     ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) exit 0 ;;
 esac

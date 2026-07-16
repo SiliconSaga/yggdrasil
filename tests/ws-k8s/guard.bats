@@ -26,6 +26,20 @@ EOF
     [ "$output" = "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh" ]
 }
 
+@test "command normalization fails closed on multiline and compound forms" {
+    local command
+    for command in \
+        $'echo safe\nkubectl delete namespace prod' \
+        $'echo safe\rkubectl delete namespace prod' \
+        'echo safe; kubectl delete namespace prod' \
+        'echo safe && kubectl delete namespace prod' \
+        'echo "$(kubectl delete namespace prod)"'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+    done
+}
+
 @test "non-kubectl command is NOT_K8S" {
     run_guard "kind-practice" "alice-sandbox" ls -la
     [ "$output" = "NOT_K8S" ]
@@ -69,6 +83,20 @@ EOF
 @test "write to out-of-scope namespace BLOCKs" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete pod foo -n prod
     [[ "$output" == BLOCK:* ]]
+}
+@test "write with a separate --raw API path is unbounded" {
+    run_guard "kind-practice" "alice-sandbox" kubectl create --raw /apis/rbac.authorization.k8s.io/v1/clusterrolebindings -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+    [[ "$output" == *"--raw"* ]]
+}
+@test "write with an attached --raw API path is unbounded" {
+    run_guard "kind-practice" "alice-sandbox" kubectl create --raw=/apis/rbac.authorization.k8s.io/v1/clusterrolebindings -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+    [[ "$output" == *"--raw"* ]]
+}
+@test "read with --raw remains a read" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get --raw=/apis
+    [ "$output" = "READ_IN_SCOPE" ]
 }
 @test "conflicting --context BLOCKs absolutely" {
     run_guard "kind-practice" "alice-sandbox" kubectl get pods --context other-cluster

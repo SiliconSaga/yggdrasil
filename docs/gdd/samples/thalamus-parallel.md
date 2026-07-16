@@ -7,10 +7,10 @@ Snapshot of the Thalamus file from the parallel workspace at the end of the revi
 ```
 last_session: 2026-03-23
 last_audit: null
-mode: zen
-role: developer
 staleness_days: 14
 ```
+
+Stance and role are established per session with `ws session`; they are not Thalamus frontmatter.
 
 # Thalamus
 
@@ -19,8 +19,8 @@ Created from `.agent/secondbrain-template.md`. This file is gitignored —
 it is local to this workspace instance.
 
 ## Preferences
-<!-- Mode defaults, interaction style, session habits -->
-- Zen mode / Developer role as default
+<!-- Stance preferences, interaction style, session habits -->
+- Zen stance is preferred; this historical session used the Developer role
 - Checking in occasionally throughout the day — async-friendly pacing
 
 ## Observations

@@ -56,6 +56,33 @@ assert_denied() {
     [ -z "$output" ]
 }
 
+@test "unsafe multiline Kubernetes command is denied instead of reading only line one" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook $'echo safe\nkubectl delete namespace prod'
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
+}
+
+@test "unsafe compound Kubernetes command is denied before partial evaluation" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook 'echo safe; kubectl delete namespace prod'
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
+}
+
+@test "unrelated multiline command still defers to normal Codex routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook $'printf first\nprintf second'
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "non-Bash tool defers to normal Codex routing" {
     seed_scope codex-test kind-practice alice-sandbox
     run_codex_hook 'kubectl delete pod foo -n prod' codex-test apply_patch

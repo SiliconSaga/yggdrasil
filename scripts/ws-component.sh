@@ -300,7 +300,7 @@ ws_component_init() {
 # during direct execution, so no second `set -euo pipefail` needed.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && return 0
 
-if ! command -v yq &>/dev/null; then
+if ! type -P yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
     exit 1
 fi

@@ -22,6 +22,12 @@ Logs allow/deny/ask decisions to `~/.claude/hook-audit.log` with timestamps so y
 
 The tool-permission hook also understands the `PermissionRequest` event and the `Edit` / `Write` tools — those code paths are dormant under the default registration and activate only when you wire them up. See [Optional: PermissionRequest hook](#optional-permissionrequest-hook) below.
 
+### Visibility boundary
+
+The hook can classify only tool events registered in `.claude/settings.json`. The default configuration sends `Bash`, `PowerShell`, `Edit`, and `Write` through `PreToolUse`; the optional configuration below can also send selected permission requests through the same evaluator. Harness-native task lifecycle tools such as `TaskCreate`, `TaskOutput`, and `TaskStop` never enter this hook, so their absence from the audit log is expected rather than an allow decision.
+
+That boundary does not create a shell escape hatch. `TaskStop` addresses a background task created by the current harness session; raw process-control commands such as `kill` or `taskkill` still arrive through the registered shell tool and receive the normal composition, ask, allow, or passthrough classification.
+
 ### Rules configuration
 
 Two files drive the hook's allow/ask/deny decisions beyond the committed `settings.json`:

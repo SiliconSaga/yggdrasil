@@ -106,6 +106,44 @@ EOF
     # status != 0 already means commit wasn't reached.
 }
 
+@test "--dry-run rejects an add path beginning with a Git option prefix" {
+    printf 'content\n' > "$REPO_DIR/-n"
+    cat > "$BATS_TEST_TMPDIR/body.md" <<'EOF'
+---
+message: "test: reject option-like add path"
+add:
+  - -n
+---
+
+Body.
+EOF
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"path must not begin with '-'"* ]]
+}
+
+@test "--dry-run rejects a remove path beginning with a Git option prefix" {
+    echo "modified" >> "$REPO_DIR/test.md"
+    cat > "$BATS_TEST_TMPDIR/body.md" <<'EOF'
+---
+message: "test: reject option-like remove path"
+add:
+  - test.md
+remove:
+  - --cached
+---
+
+Body.
+EOF
+
+    run_ws_commit yggdrasil --dry-run "$BATS_TEST_TMPDIR/body.md"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"path must not begin with '-'"* ]]
+}
+
 @test "--dry-run still works when there are no pre-staged changes" {
     # No modifications to test.md, no pre-staging. The real-commit path
     # would error with "no staged changes"; --dry-run must skip that

@@ -206,6 +206,19 @@ _normalize_host_path() {
     printf '%s' "$p"
 }
 
+# Security-sensitive workspace names and configured scratch roots must compare
+# consistently on case-insensitive filesystems. Apply an ASCII-only fold for
+# policy matching while preserving the original path for filesystem access and
+# audit output. ASCII covers every reserved workspace path and avoids locale-
+# dependent surprises in `tr`.
+_policy_path_fold() {
+    if [[ "${_policy_case_insensitive_paths:-0}" == "1" ]]; then
+        LC_ALL=C printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
+        return
+    fi
+    printf '%s' "$1"
+}
+
 # Fall back to the script's own pwd if the harness didn't supply
 # a cwd field — better than aborting on a missing key.
 cwd=$(echo "$input" | jq -r '.cwd // empty')
@@ -233,6 +246,16 @@ _hook_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 _trusted_root="$(_normalize_host_path "${CLAUDE_PROJECT_DIR:-$_hook_root}")"
 if [[ ! -d "$_trusted_root" ]]; then
     _trusted_root="$_hook_root"
+fi
+
+# Detect the project filesystem's case behavior without creating a probe file.
+# The committed `.claude` directory is always present; `-ef` proves that its
+# upper-case spelling resolves to the same inode rather than a distinct Linux
+# path. Only case-fold scratch roots when the filesystem requires it, so a
+# separate `.TMP` directory on a case-sensitive host never gains scratch trust.
+_policy_case_insensitive_paths=0
+if [[ -e "$_trusted_root/.claude" && "$_trusted_root/.claude" -ef "$_trusted_root/.CLAUDE" ]]; then
+    _policy_case_insensitive_paths=1
 fi
 
 # ─── Opt-out escape hatch ───────────────────────────────────────────
@@ -617,20 +640,26 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     # scratch-directory auto-allow. Check both the requested path and its
     # resolved ancestor so a scratch symlink alias cannot hide a sensitive
     # destination inside the workspace.
+    abs_path_fold="$(_policy_path_fold "$abs_path")"
+    project_dir_fold="$(_policy_path_fold "$project_dir")"
+    resolved_abs_path_fold="$(_policy_path_fold "$resolved_abs_path")"
+    real_project_fold="$(_policy_path_fold "$real_project")"
     sensitive_path=0
-    case "$abs_path" in
-        "$project_dir/.tmp/hook-bypass"|"$project_dir/.tmp/hook-bypass/"*|\
-        "$project_dir/.tmp/gdd-agent-sessions"|"$project_dir/.tmp/gdd-agent-sessions/"*|\
-        "$project_dir/.claude"|"$project_dir/.claude/"*|\
-        "$project_dir/.env"|"$project_dir/ecosystem.local.yaml")
+    case "$abs_path_fold" in
+        "$project_dir_fold/.tmp/hook-bypass"|"$project_dir_fold/.tmp/hook-bypass/"*|\
+        "$project_dir_fold/.tmp/gdd-agent-sessions"|"$project_dir_fold/.tmp/gdd-agent-sessions/"*|\
+        "$project_dir_fold/.claude"|"$project_dir_fold/.claude/"*|\
+        "$project_dir_fold/.env"|"$project_dir_fold/ecosystem.local.yaml"|\
+        "$project_dir_fold/scripts/ws-k8s-guard.sh")
             sensitive_path=1
             ;;
     esac
-    case "$resolved_abs_path" in
-        "$real_project/.tmp/hook-bypass"|"$real_project/.tmp/hook-bypass/"*|\
-        "$real_project/.tmp/gdd-agent-sessions"|"$real_project/.tmp/gdd-agent-sessions/"*|\
-        "$real_project/.claude"|"$real_project/.claude/"*|\
-        "$real_project/.env"|"$real_project/ecosystem.local.yaml")
+    case "$resolved_abs_path_fold" in
+        "$real_project_fold/.tmp/hook-bypass"|"$real_project_fold/.tmp/hook-bypass/"*|\
+        "$real_project_fold/.tmp/gdd-agent-sessions"|"$real_project_fold/.tmp/gdd-agent-sessions/"*|\
+        "$real_project_fold/.claude"|"$real_project_fold/.claude/"*|\
+        "$real_project_fold/.env"|"$real_project_fold/ecosystem.local.yaml"|\
+        "$real_project_fold/scripts/ws-k8s-guard.sh")
             sensitive_path=1
             ;;
     esac
@@ -645,7 +674,8 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     # hook-rules.local may add more. If no hook-rules file was found,
     # scratch_dirs is empty and every Edit/Write passes through.
     for prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
-        if [[ "$abs_path" == "$project_dir/$prefix"* ]]; then
+        prefix_fold="$(_policy_path_fold "$prefix")"
+        if [[ "$abs_path_fold" == "$project_dir_fold/$prefix_fold"* ]]; then
             # cmd is empty for Edit/Write — re-purpose it so the
             # audit-log entry names the tool + path instead of
             # silently logging a blank command.
@@ -728,14 +758,17 @@ if [[ "$tool_name" == "PowerShell" ]]; then
                 if _ps_resolved_root="$(cd "$_trusted_root" 2>/dev/null && pwd -P)"; then
                     _ps_project_root="$(_normalize_host_path "$_ps_resolved_root")"
                 fi
+                _ps_effective_dir_fold="$(_policy_path_fold "$_ps_effective_dir")"
+                _ps_project_root_fold="$(_policy_path_fold "$_ps_project_root")"
                 _ps_scratch=0
                 case "$_ps_effective_dir" in
                     ..|../*|*/..|*/../*) _ps_scratch=1 ;;
                 esac
                 for _ps_prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
-                    _ps_scratch_root="$_ps_project_root/${_ps_prefix%/}"
-                    case "$_ps_effective_dir/" in
-                        "$_ps_scratch_root/"*) _ps_scratch=1; break ;;
+                    _ps_prefix_fold="$(_policy_path_fold "${_ps_prefix%/}")"
+                    _ps_scratch_root_fold="$_ps_project_root_fold/$_ps_prefix_fold"
+                    case "$_ps_effective_dir_fold/" in
+                        "$_ps_scratch_root_fold/"*) _ps_scratch=1; break ;;
                     esac
                 done
                 [[ "$_ps_scratch" -eq 1 ]] || allow "powershell test-wrapper carve-out"
@@ -815,6 +848,12 @@ case "$cmd" in
         ;;
     *'$'*)
         ask "Shell parameter expansion requires human approval because expansions such as \${IFS} can hide command boundaries from permission matching. Resolve the value separately and pass a literal argument when possible."
+        ;;
+    *"\\"*)
+        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. Pass the intended token literally when possible."
+        ;;
+    *"{"*|*"}"*)
+        ask "Brace expansion requires human approval because one visible token can expand into multiple command arguments before execution. Pass the intended arguments literally instead."
         ;;
     *">&"[0-9]*|*"<&"[0-9]*)
         # File-descriptor merges like `2>&1` (stderr → stdout) and
@@ -945,6 +984,10 @@ esac
 # inherit from a broad `git diff`/`git show` allow pattern.
 if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
     if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
+        deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
+    fi
+    if [[ "$match_cmd" =~ (^|[[:space:]])grep([[:space:]]|$) ]] \
+        && [[ "$match_cmd" =~ (^|[[:space:]])(-O[^[:space:]]*|--open-files-in-pager($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi
     if [[ "$match_cmd" =~ (^|[[:space:]])(ext|fd):: ]]; then

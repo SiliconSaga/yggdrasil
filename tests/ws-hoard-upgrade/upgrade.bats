@@ -100,6 +100,107 @@ plugins:
     [ ! -e "$HOARDS_DIR/h1/.upgrade-backup" ]
 }
 
+@test "plugin download rejects a symlinked per-plugin destination" {
+    make_template thalami "version: 2
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\""
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins" "$BATS_TEST_TMPDIR/outside-plugin"
+    printf 'preserve\n' > "$BATS_TEST_TMPDIR/outside-plugin/marker.txt"
+    ln -s "$BATS_TEST_TMPDIR/outside-plugin" "$HOARDS_DIR/h1/.obsidian/plugins/dataview" 2>/dev/null || true
+    [[ -L "$HOARDS_DIR/h1/.obsidian/plugins/dataview" ]] || skip "real symlinks not supported on this platform"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$BATS_TEST_TMPDIR/outside-plugin/marker.txt")" = "preserve" ]
+    [ ! -e "$BATS_TEST_TMPDIR/outside-plugin/main.js" ]
+}
+
+@test "plugin download rejects a symlinked release asset" {
+    make_template thalami "version: 2
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\""
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview"
+    local outside_asset="$BATS_TEST_TMPDIR/outside-main.js"
+    printf 'preserve\n' > "$outside_asset"
+    ln -s "$outside_asset" "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js" 2>/dev/null || true
+    [[ -L "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js" ]] || skip "real symlinks not supported on this platform"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$outside_asset")" = "preserve" ]
+}
+
+@test "plugin data overlay rejects a symlinked destination" {
+    make_template thalami "version: 2
+plugins: []"
+    make_hoard h1
+    mkdir -p "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview"
+    printf '{\"safe\":true}\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json"
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins" "$BATS_TEST_TMPDIR/outside-data"
+    printf 'preserve\n' > "$BATS_TEST_TMPDIR/outside-data/marker.txt"
+    ln -s "$BATS_TEST_TMPDIR/outside-data" "$HOARDS_DIR/h1/.obsidian/plugins/dataview" 2>/dev/null || true
+    [[ -L "$HOARDS_DIR/h1/.obsidian/plugins/dataview" ]] || skip "real symlinks not supported on this platform"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$BATS_TEST_TMPDIR/outside-data/marker.txt")" = "preserve" ]
+    [ ! -e "$BATS_TEST_TMPDIR/outside-data/data.json" ]
+}
+
+@test "plugin data overlay rejects a symlinked data file" {
+    make_template thalami "version: 2
+plugins: []"
+    make_hoard h1
+    mkdir -p "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview"
+    printf '{\"safe\":true}\n' > "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json"
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview"
+    local outside_data="$BATS_TEST_TMPDIR/outside-data.json"
+    printf 'preserve\n' > "$outside_data"
+    ln -s "$outside_data" "$HOARDS_DIR/h1/.obsidian/plugins/dataview/data.json" 2>/dev/null || true
+    [[ -L "$HOARDS_DIR/h1/.obsidian/plugins/dataview/data.json" ]] || skip "real symlinks not supported on this platform"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$outside_data")" = "preserve" ]
+}
+
+@test "plugin data overlay rejects a symlinked template source" {
+    make_template thalami "version: 2
+plugins: []"
+    make_hoard h1
+    mkdir -p "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview"
+    local outside_source="$BATS_TEST_TMPDIR/outside-template-data.json"
+    printf '{"outside":true}\n' > "$outside_source"
+    ln -s "$outside_source" "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json" 2>/dev/null || true
+    [[ -L "$TEMPLATES_DIR/hoards/thalami/.upgrade/data/dataview/data.json" ]] || skip "real symlinks not supported on this platform"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlink target"* ]]
+    [ "$(cat "$outside_source")" = '{"outside":true}' ]
+    [ ! -e "$HOARDS_DIR/h1/.obsidian/plugins/dataview/data.json" ]
+}
+
 @test "managed region destination traversal is rejected before splice" {
     make_template thalami "version: 2
 plugins: []
@@ -286,19 +387,7 @@ plugins:
 #!/usr/bin/env bash
 printf '20260713-120000\n'
 SH
-    cat > "$stub_dir/mktemp" <<'SH'
-#!/usr/bin/env bash
-count=0
-[[ -f "$MKTEMP_STATE" ]] && count="$(<"$MKTEMP_STATE")"
-if [[ "$count" -eq 0 ]]; then suffix="ZZZZZZ"; else suffix="AAAAAA"; fi
-printf '%s\n' "$((count + 1))" > "$MKTEMP_STATE"
-template="${!#}"
-path="${template%XXXXXX}${suffix}"
-mkdir -p "$path"
-printf '%s\n' "$path"
-SH
-    chmod +x "$stub_dir/date" "$stub_dir/mktemp"
-    export MKTEMP_STATE="$BATS_TEST_TMPDIR/mktemp-state"
+    chmod +x "$stub_dir/date"
     PATH="$stub_dir:$PATH"
 
     printf 'first\n' > "$HOARDS_DIR/h1/note.md"
@@ -311,6 +400,21 @@ SH
 
     [ "$status" -eq 0 ]
     [ "$(cat "$HOARDS_DIR/h1/note.md")" = "second" ]
+}
+
+@test "rollback: sequenced snapshot wins over same-second legacy random suffix" {
+    make_hoard h1
+    local backups="$HOARDS_DIR/h1/.upgrade-backup"
+    mkdir -p "$backups/20260713-120000-ZZZZZZ"
+    mkdir -p "$backups/20260713-120000-000001"
+    printf 'legacy\n' > "$backups/20260713-120000-ZZZZZZ/note.md"
+    printf 'sequenced\n' > "$backups/20260713-120000-000001/note.md"
+    printf 'current\n' > "$HOARDS_DIR/h1/note.md"
+
+    run _ws_hoard_rollback "$HOARDS_DIR/h1"
+
+    [ "$status" -eq 0 ]
+    [ "$(cat "$HOARDS_DIR/h1/note.md")" = "sequenced" ]
 }
 
 @test "rollback: errors when no snapshot exists" {

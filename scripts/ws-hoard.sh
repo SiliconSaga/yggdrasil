@@ -64,7 +64,7 @@ ws_resolve_machine_name() {
     # `machine:` override only if the file exists AND yq is
     # available. Fresh-machine `ws hoard thalamus-path` flows here
     # and must not abort if yq isn't installed yet.
-    if [[ -f "$local_file" ]] && command -v yq &>/dev/null; then
+    if [[ -f "$local_file" ]] && type -P yq &>/dev/null; then
         raw="$(yq '.machine // ""' "$local_file" 2>/dev/null)" || raw=""
         [[ "$raw" == "null" ]] && raw=""
     fi
@@ -107,7 +107,7 @@ ws_detect_thalami_hoard() {
     # work on fresh machines; this function gets called by those
     # paths and must not fail when yq is absent. Without yq we just
     # skip the selector lookup and rely on the disk-walk below.
-    if [[ -f "$local_file" ]] && command -v yq &>/dev/null; then
+    if [[ -f "$local_file" ]] && type -P yq &>/dev/null; then
         local selector
         selector="$(yq '.hoards.thalami // ""' "$local_file" 2>/dev/null)" || selector=""
         if [[ -n "$selector" && "$selector" != "null" ]]; then
@@ -503,7 +503,7 @@ ws_hoard_init_from_yaml() {
     # The top-level dispatch already enforces yq for any subcommand that
     # could land here, but keep a defensive check — ws_hoard_init() can
     # also be called from sourced contexts that bypassed the dispatcher.
-    if ! command -v yq &>/dev/null; then
+    if ! type -P yq &>/dev/null; then
         echo "ERROR: yq (v4+) is required for yaml-driven hoard templates." >&2
         echo "  Install: https://github.com/mikefarah/yq" >&2
         exit 1
@@ -978,7 +978,7 @@ shift 2>/dev/null || true
 case "$SUBCMD" in
     ""|help|--help|-h|thalamus-path|scan) ;;
     *)
-        if ! command -v yq &>/dev/null; then
+        if ! type -P yq &>/dev/null; then
             echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
             exit 1
         fi

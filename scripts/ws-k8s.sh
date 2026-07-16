@@ -46,18 +46,47 @@ _k8s_scope() {
             # guard). A namespace, though, may legitimately not exist yet: arming
             # a scope on namespaces you intend to create (across one or more
             # environments) is a supported workflow — in-scope 'ws k8s create
-            # namespace <ns>' can then create them. So a missing namespace WARNS
-            # (surfacing a likely typo) but does not block the arm. Context-only
-            # (ns='*') has no per-namespace list to check, so this is skipped.
+            # namespace <ns>' can then create them. So a successful empty lookup
+            # WARNS (surfacing a likely typo) but does not block the arm. A failed
+            # lookup is reported separately rather than misclassifying DNS, auth,
+            # or RBAC errors as absence. Context-only (ns='*') has no per-namespace
+            # list to check, so this is skipped.
             if [[ "$ns" != "*" ]]; then
                 local one; local -a _ns; IFS=',' read -ra _ns <<< "$ns"
-                local _missing=()
-                for one in "${_ns[@]}"; do
-                    "$KUBECTL" --context "$ctx" get namespace "$one" >/dev/null 2>&1 || _missing+=("$one")
-                done
+                local _probe_output _probe_stderr _probe_stderr_file _detail
+                local -a _missing=() _unverified=() _diagnostics=()
+                if _probe_stderr_file="$(mktemp "${TMPDIR:-/tmp}/ws-k8s-scope-stderr.XXXXXX" 2>/dev/null)"; then
+                    for one in "${_ns[@]}"; do
+                        if _probe_output="$("$KUBECTL" --context "$ctx" get namespace "$one" --ignore-not-found -o name 2>"$_probe_stderr_file")"; then
+                            [[ -n "$_probe_output" ]] || _missing+=("$one")
+                        else
+                            _probe_stderr="$(<"$_probe_stderr_file")"
+                            _unverified+=("$one")
+                            _diagnostics+=("$_probe_stderr")
+                        fi
+                    done
+                    rm -f "$_probe_stderr_file"
+                else
+                    for one in "${_ns[@]}"; do
+                        _unverified+=("$one")
+                        _diagnostics+=("could not create a temporary file for the kubectl diagnostic")
+                    done
+                fi
                 if [[ ${#_missing[@]} -gt 0 ]]; then
                     echo "NOTE: namespace(s) not found on context '$ctx' — arming anyway: ${_missing[*]}" >&2
                     echo "  In-scope 'ws k8s create namespace <ns>' can create them. If one is a typo, re-run scope set with the correct name." >&2
+                fi
+                if [[ ${#_unverified[@]} -gt 0 ]]; then
+                    echo "NOTE: namespace verification failed on context '$ctx' — arming anyway: ${_unverified[*]}" >&2
+                    local i
+                    for ((i=0; i<${#_unverified[@]}; i++)); do
+                        _detail="${_diagnostics[$i]%%$'\n'*}"
+                        _detail="${_detail%$'\r'}"
+                        _detail="$(printf '%s' "$_detail" | tr -d '\000-\010\013-\037\177')"
+                        [[ -n "$_detail" ]] || _detail="kubectl exited without a diagnostic"
+                        printf '  %s: %s\n' "${_unverified[$i]}" "${_detail:0:500}" >&2
+                    done
+                    echo "  Namespace verification requires live cluster access. If networking is restricted, re-run this command outside the sandbox." >&2
                 fi
             fi
             ws_session_set GDD_K8S_CONTEXT "$ctx"

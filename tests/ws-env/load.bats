@@ -113,6 +113,14 @@ EOF
         GIT_EXEC_PATH \
         GIT_EXTERNAL_DIFF \
         GIT_PROXY_COMMAND \
+        GIT_TEMPLATE_DIR \
+        GIT_COMMON_DIR \
+        GIT_TRACE \
+        GIT_TRACE_CURL \
+        GIT_TRACE_REDACT \
+        GIT_TRACE2_PERF \
+        GIT_CURL_VERBOSE \
+        GIT_ALLOW_PROTOCOL \
         GIT_DIR \
         GIT_WORK_TREE \
         GIT_INDEX_FILE \
@@ -122,6 +130,14 @@ EOF
         GIT_EDITOR \
         GIT_SEQUENCE_EDITOR \
         GIT_PAGER \
+        PAGER \
+        EDITOR \
+        VISUAL \
+        LESSOPEN \
+        LESSCLOSE \
+        GH_PAGER \
+        GLAB_PAGER \
+        GH_DEBUG \
         HOME \
         CDPATH; do
         local env_file="$BATS_TEST_TMPDIR/$key.env"

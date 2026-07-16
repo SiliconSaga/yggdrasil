@@ -245,6 +245,24 @@ if [[ -n "$bodyfile" ]]; then
             # Parse remove: list (for deleted files)
             remove_files="$(echo "$frontmatter" | yq -r '.remove // [] | .[]' 2>/dev/null)"
 
+            # Bodyfile paths are data, never Git options. Reject option-shaped
+            # entries before staging anything, then still use `--` at every Git
+            # path sink as defense in depth.
+            invalid_path=0
+            while IFS= read -r f; do
+                [[ -z "$f" ]] && continue
+                case "$f" in
+                    -*) echo "ERROR: add path must not begin with '-': $f" >&2; invalid_path=1 ;;
+                esac
+            done <<< "$add_files"
+            while IFS= read -r f; do
+                [[ -z "$f" ]] && continue
+                case "$f" in
+                    -*) echo "ERROR: remove path must not begin with '-': $f" >&2; invalid_path=1 ;;
+                esac
+            done <<< "$remove_files"
+            [[ "$invalid_path" -eq 0 ]] || exit 1
+
             # Track whether ANY add: or remove: entry would actually
             # change the index. Dry-run uses this to surface the
             # "no staged changes" case the real-commit path already
@@ -266,7 +284,7 @@ if [[ -n "$bodyfile" ]]; then
                     # whose file has been deleted (git add -A stages such
                     # deletions). Only reject when both conditions fail —
                     # that's the real misspelled-path / phantom-entry case.
-                    if [[ ! -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+                    if [[ ! -e "$f" ]] && ! git ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
                         echo "ERROR: file not found: $f (from bodyfile add: list)" >&2
                         add_fail=1
                     fi
@@ -290,11 +308,11 @@ if [[ -n "$bodyfile" ]]; then
                         # can both display it AND detect whether any
                         # actual staging would occur — `git add
                         # --dry-run` is silent for unchanged paths.
-                        add_output=$(git add --dry-run -A "$f")
+                        add_output=$(git add --dry-run -A -- "$f")
                         [[ -n "$add_output" ]] && printf '%s\n' "$add_output"
                         [[ -n "$add_output" ]] && would_stage_any=1
                     else
-                        git add -A "$f"
+                        git add -A -- "$f"
                         would_stage_any=1
                     fi
                 done <<< "$add_files"
@@ -323,7 +341,7 @@ if [[ -n "$bodyfile" ]]; then
                     # index or working tree.
                     rm_args=()
                     $dry_run && rm_args+=("--dry-run")
-                    if ! git rm "${rm_args[@]}" "$f"; then
+                    if ! git rm "${rm_args[@]}" -- "$f"; then
                         if $dry_run; then
                             # Promote to ERROR in dry-run mode — dry-run's
                             # whole point is "would this commit succeed?"

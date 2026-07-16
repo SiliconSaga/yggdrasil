@@ -33,8 +33,8 @@ find*-exec*
 find*-execdir*
 ws exec *
 ws hook-bypass [a-z]*
-# Adding an arbitrary URL to ecosystem.local.yaml is the component adoption
-# trust gate. The ordinary clone remains automatic; --add-eco requires a human.
+# Adding an arbitrary URL to ecosystem.local.yaml is the component adoption trust gate. The ordinary clone remains automatic; either supported spelling requires a human.
+ws clone *--add-to-ecosystem*
 ws clone *--add-eco*
 # Writing agent tool endpoints changes the workspace trust surface. Preview and
 # status forms remain allowlisted; the bare mutating form requires a human.
