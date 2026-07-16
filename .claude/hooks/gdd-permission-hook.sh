@@ -991,7 +991,7 @@ case "$cmd" in
     *"\\"*)
         # Redirect operators are checked first so an otherwise ambiguous bare
         # Windows path cannot downgrade a real shell redirect from deny to ask.
-        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. Pass the intended token literally when possible."
+        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. For Windows paths, use forward slashes (D:/Dev/...) or wrap the complete drive-letter path in quotes."
         ;;
     *"&"*)
         # Background / command-list separator. By this point `&&` is
@@ -1109,8 +1109,8 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
     # abbreviated --upload-pack=. The bare `--` end-of-options marker is not a
     # candidate. Tokens longer than or unrelated to these names do not match.
     _git_dangerous_long_options=(
-        --config-env --upload-pack --exec --extcmd --ext-diff --output
-        --output-directory --open-files-in-pager
+        --config-env --upload-pack --exec --exec-path --extcmd --ext-diff
+        --output --output-directory --open-files-in-pager
     )
     _git_words=()
     read -r -a _git_words <<< "$match_cmd"

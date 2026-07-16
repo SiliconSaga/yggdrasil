@@ -464,6 +464,7 @@ JSON
         "git fetch --uplo=sh ." \
         "git --config-e=alias.status=!id status" \
         "git fetch --exe=sh ." \
+        "git --exec-p=/tmp/evil log" \
         "git difftool --extc=sh HEAD" \
         "git diff --ext-d HEAD" \
         "git log --outp=.tmp/log" \
