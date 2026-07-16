@@ -96,6 +96,18 @@ assert_denied() {
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"No Kubernetes guard scope is active"* ]]
 }
 
+@test "quoted escaped and exe kubectl command words still reach the deny floor" {
+    local command
+    for command in \
+        '"kubectl" delete pod foo -n prod' \
+        '\kubectl delete pod foo -n prod' \
+        'kubectl.exe delete pod foo -n prod'; do
+        run_codex_hook "$command" no-scope
+        assert_denied
+        [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"No Kubernetes guard scope is active"* ]]
+    done
+}
+
 @test "guarded ws k8s write is denied when no scope is active" {
     run_codex_hook 'ws k8s apply -k overlays/plain' no-scope
     assert_denied
