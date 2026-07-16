@@ -65,7 +65,6 @@ run_docker_wrapper() {
     run_docker_wrapper Darwin help run
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *$'ARG=help\n'* ]]
-    [[ "$output" == *"ARG=run"* ]]
+    [[ "$output" == *$'ARG=help\nARG=run'* ]]
     [[ "$output" != *"Usage: ws docker"* ]]
 }
