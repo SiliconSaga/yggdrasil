@@ -55,3 +55,17 @@ YAML
     [[ "$output" != *"cannot get keys"* ]]
     [[ "$output" != *"Error:"* ]]
 }
+
+@test "ws status rejects a traversal-shaped component key" {
+    cat > "$ECOSYSTEM" <<'YAML'
+components:
+  ../outside:
+    repo: https://example.test/outside.git
+YAML
+
+    run bash "$REPO_ROOT/scripts/ws-status.sh"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *"../outside"* ]]
+}

@@ -89,3 +89,17 @@ push_realm_change() {
     [[ "$output" == *"reapproval"* ]]
     [[ "$output" == *"ws realm use realm.test"* ]]
 }
+
+@test "pull rejects a traversal-shaped component key before path construction" {
+    cat > "$ECOSYSTEM" <<'YAML'
+components:
+  ../outside:
+    repo: https://example.test/outside.git
+YAML
+
+    run bash "$PULL_BIN"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *"../outside"* ]]
+}

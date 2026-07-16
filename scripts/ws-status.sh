@@ -24,6 +24,7 @@ if ! type -P yq &>/dev/null; then
 fi
 
 ECO="$(ws_resolve_ecosystem)"
+ws_validate_component_keys "$ECO" || exit 1
 
 # Print status for a repo at the given path.
 # Outputs: branch line + (if dirty) up to $DEFAULT_LIMIT file lines (or all with --verbose).

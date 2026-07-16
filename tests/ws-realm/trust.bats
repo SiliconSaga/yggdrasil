@@ -63,6 +63,28 @@ run_trust_state() {
     [ "$output" = "current" ]
 }
 
+@test "realm trust summary identifies each component repository route" {
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"app"*"git.example.com"*"https://git.example.com/team/app.git"* ]]
+}
+
+@test "realm approval rejects invalid component keys without rendering them" {
+    cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
+components:
+  ../outside:
+    repo: https://example.test/outside.git
+YAML
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *"../outside"* ]]
+    [ "$(yq '.realm // ""' "$ECOSYSTEM_LOCAL")" = "" ]
+}
+
 @test "realm fingerprint ignores YAML comments formatting and mapping order" {
     approve_realm
     cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'

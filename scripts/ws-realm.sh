@@ -98,6 +98,26 @@ export -f ws_native_path yq
 # Shared functions (used by ws-clone.sh, ws-list.sh, ws, etc.)
 # ---------------------------------------------------------------------------
 
+WS_COMPONENT_NAME_REGEX='^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$'
+
+ws_component_name_is_valid() {
+    [[ "${1:-}" =~ $WS_COMPONENT_NAME_REGEX ]]
+}
+
+# Validate the complete key set inside yq so embedded newlines cannot turn one
+# invalid mapping key into multiple apparently valid shell input lines.
+ws_validate_component_keys() {
+    local eco="$1" invalid_count
+    if ! invalid_count="$(WS_COMPONENT_NAME_REGEX="$WS_COMPONENT_NAME_REGEX" yq -r '[.components // {} | keys | .[] | select(test(strenv(WS_COMPONENT_NAME_REGEX)) | not)] | length' "$eco" 2>/dev/null)"; then
+        echo "ERROR: Cannot validate component names in ecosystem config." >&2
+        return 1
+    fi
+    if [[ ! "$invalid_count" =~ ^[0-9]+$ ]] || [[ "$invalid_count" -ne 0 ]]; then
+        echo "ERROR: Invalid component name in ecosystem config; expected lowercase alphanumeric segments with hyphens or dots." >&2
+        return 1
+    fi
+}
+
 # Resolve a workspace target name to its directory.
 # Usage: ws_resolve_target <name>
 # Sets: COMPONENT_DIR to the resolved path.
@@ -129,7 +149,7 @@ ws_resolve_target() {
     # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "mimir\nevil" (CVE-style bypass).
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$name"; then
         echo "ERROR: Invalid target name '$name'. Components must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots); no realm or hoard dir matched it either." >&2
         exit 1
     fi
@@ -596,23 +616,34 @@ _ws_realm_summary_text() {
     printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
 }
 
+_ws_realm_summary_inline_text() {
+    printf '%s' "$1" | tr -d '\000-\037\177'
+}
+
 ws_realm_trust_summary() {
     local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
+    ws_validate_component_keys "$realm_file" || return 1
     echo "Realm trust summary: $name"
     echo "  Component repository routes:"
-    local found=0 repo host adapter_file commands repos
-    if ! repos="$(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)"; then
+    local found=0 component repo host route adapter_file commands routes
+    if ! routes="$(yq -o=json -I=0 '.components // {} | to_entries | .[] | {"component": .key, "repo": (.value.repo // "")}' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
         return 1
     fi
-    while IFS= read -r repo; do
+    while IFS= read -r route; do
+        [[ -n "$route" ]] || continue
+        if ! component="$(ROUTE_JSON="$route" yq -n -r 'strenv(ROUTE_JSON) | from_json | .component' 2>/dev/null)" ||
+           ! repo="$(ROUTE_JSON="$route" yq -n -r 'strenv(ROUTE_JSON) | from_json | .repo' 2>/dev/null)"; then
+            echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
+            return 1
+        fi
         [[ -n "$repo" ]] || continue
         host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"
         # Redact any embedded credential before display — the summary must
         # never be the thing that leaks a token into terminal scrollback.
-        echo "    $(_ws_realm_summary_text "$host")  ←  $(_ws_realm_summary_text "$(git_remote_display_value "$repo")")"
+        echo "    $(_ws_realm_summary_inline_text "$component")  $(_ws_realm_summary_inline_text "$host")  ←  $(_ws_realm_summary_inline_text "$(git_remote_display_value "$repo")")"
         found=1
-    done <<< "$repos"
+    done <<< "$routes"
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
     echo "  Adapter commands:"
@@ -830,7 +861,7 @@ HELP
     local comp="$1"
 
     # Validate component name (safe pattern, exists in config)
-    if [[ ! "$comp" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$comp"; then
         echo "ERROR: Invalid component name '$comp'." >&2
         exit 1
     fi
