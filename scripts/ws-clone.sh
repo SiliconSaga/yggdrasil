@@ -210,6 +210,12 @@ clone_url() {
             else
                 stored_url=$(cd "$(dirname "$url")" && pwd)/$(basename "$url")
             fi
+            # Pin the stored form on Git Bash: MSYS env conversion rewrites a
+            # POSIX /c/… value when the native yq spawns, so without an
+            # explicit choice the recorded form is platform-accidental.
+            # ws_native_path yields the C:/… mixed form both git and native
+            # tools accept; on POSIX hosts it is a no-op.
+            stored_url=$(ws_native_path "$stored_url")
         fi
 
         # Add component entry with repo URL for future re-cloning (use strenv for safe interpolation)

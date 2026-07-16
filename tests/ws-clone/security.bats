@@ -77,6 +77,11 @@ YAML
     else
         expected_repo="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
     fi
+    # The stored form is pinned to the native mixed form on Git Bash
+    # (cygpath -m via ws_native_path); elsewhere it stays POSIX.
+    if command -v cygpath >/dev/null 2>&1; then
+        expected_repo="$(cygpath -m "$expected_repo")"
+    fi
     [ "$(yq -r '.components."adopted-source".repo' "$WORK/ecosystem.local.yaml")" = "$expected_repo" ]
 }
 
@@ -95,6 +100,11 @@ YAML
         expected_repo="$(realpath "$source")"
     else
         expected_repo="$(cd "$(dirname "$source")" && pwd)/$(basename "$source")"
+    fi
+    # The stored form is pinned to the native mixed form on Git Bash
+    # (cygpath -m via ws_native_path); elsewhere it stays POSIX.
+    if command -v cygpath >/dev/null 2>&1; then
+        expected_repo="$(cygpath -m "$expected_repo")"
     fi
     [ "$(yq -r '.components."adopted-alias".repo' "$WORK/ecosystem.local.yaml")" = "$expected_repo" ]
 }
