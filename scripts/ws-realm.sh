@@ -293,7 +293,14 @@ ws_realm_trust_fingerprint() {
         fi
         while IFS= read -r command; do
             [[ -n "$command" ]] || continue
-            local -a command_words=()
+            # Candidate extraction must not under-collect relative to what the
+            # shell will execute: whitespace words alone lose quoted spans
+            # (spaced helper paths run as ONE argument but split here), and an
+            # operator glued to a token (helper.sh;) hides the real path from
+            # the existence probe. Collect plain words (quote/assignment
+            # stripped, trailing operators trimmed) AND every quoted span.
+            local -a command_words=() candidate_tokens=()
+            local quoted_scan quoted_regex="\"([^\"]+)\"|'([^']+)'"
             read -r -a command_words <<< "$command"
             for word in "${command_words[@]}"; do
                 candidate="$word"
@@ -302,6 +309,16 @@ ws_realm_trust_fingerprint() {
                     \"*\") candidate="${candidate#\"}"; candidate="${candidate%\"}" ;;
                     \'*\') candidate="${candidate#\'}"; candidate="${candidate%\'}" ;;
                 esac
+                candidate="${candidate%%[\;\&\|\<\>\)]*}"
+                candidate_tokens+=("$candidate")
+            done
+            quoted_scan="$command"
+            while [[ "$quoted_scan" =~ $quoted_regex ]]; do
+                candidate_tokens+=("${BASH_REMATCH[1]:-${BASH_REMATCH[2]}}")
+                quoted_scan="${quoted_scan#*"${BASH_REMATCH[0]}"}"
+            done
+            for candidate in "${candidate_tokens[@]}"; do
+                [[ -n "$candidate" ]] || continue
                 case "$candidate" in
                     /*) candidate_path="$candidate" ;;
                     *) candidate_path="$target_dir/$candidate" ;;

@@ -30,6 +30,8 @@ YAML
     # so a test can prove which project the selected remote actually queried —
     # not merely that the rendered header slug changed. POSTed note bodies are
     # logged so the reply test can assert the message reached the API verbatim.
+    # Control characters in fixture bodies use JSON \u escapes exclusively —
+    # raw bytes in this source would be invalid JSON and invisible to review.
     cat > "$BIN_DIR/glab" <<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -63,13 +65,25 @@ case "$path" in
         echo '{"title":"Upstream MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/upstream","target_branch":"main","web_url":"https://gitlab.com/upstream-group/project/-/merge_requests/1"}'
         ;;
     projects/example-group%2Fforked-project/merge_requests/1)
-        echo '{"title":"Fork\u0007 MR","state":"opened","author":{"username":"review-bot"},"source_branch":"feature/source-project","target_branch":"main","web_url":"https://gitlab.com/example-group/forked-project/-/merge_requests/1"}'
+        # Control bytes are built at runtime (printf octal) and JSON-encoded
+        # by jq, so this source stays pure ASCII yet the provider payload
+        # carries real ESC/BEL/C1-CSI content for the sanitizer to strip.
+        jq -cn --arg t "$(printf 'Fork\007 MR')" '{title:$t, state:"opened", author:{username:"review-bot"}, source_branch:"feature/source-project", target_branch:"main", web_url:"https://gitlab.com/example-group/forked-project/-/merge_requests/1"}'
         ;;
     */merge_requests/1/approvals)
         echo '{"approved_by":[]}'
         ;;
     */merge_requests/1/discussions)
-        echo '[{"notes":[{"system":false,"author":{"username":"a.b"},"body":"literal\u001b\u0007 reviewer note","created_at":"2026-01-01T00:00:00Z","position":null},{"system":false,"author":{"username":"aXb"},"body":"regex wildcard note","created_at":"2026-01-01T00:00:00Z","position":null}]}]'
+        jq -cn \
+            --arg b1 "$(printf 'literal\033\007\302\233 reviewer note')" \
+            --arg b2 "$(printf 'open\033\302\233 thread body')" \
+            '[
+              {notes: [
+                {system:false, author:{username:"a.b"}, body:$b1, created_at:"2026-01-01T00:00:00Z", position:null},
+                {system:false, author:{username:"aXb"}, body:"regex wildcard note", created_at:"2026-01-01T00:00:00Z", position:null}]},
+              {id:"thr1", notes: [
+                {system:false, resolvable:true, resolved:false, author:{username:"a.b"}, body:$b2, created_at:"2026-01-01T00:00:00Z", position:null}]}
+            ]'
         ;;
     *)
         echo "unexpected glab api path: $path" >&2
@@ -93,6 +107,13 @@ run_ws_review() {
         "GLAB_BODY_LOG=$BODY_LOG" \
         bash "$WS_BIN" review "$@"
 }
+
+# Runtime-built control-byte probes: ESC, BEL, and the UTF-8 encoding of the
+# C1 CSI control U+009B. Built via printf so this source file itself never
+# carries a raw control byte.
+probe_esc() { printf '\033'; }
+probe_bel() { printf '\007'; }
+probe_csi() { printf '\302\233'; }
 
 @test "review errors actionably when a CR number exists on multiple remotes" {
     run_ws_review app 1 --compact
@@ -140,7 +161,27 @@ run_ws_review() {
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Title: Fork MR"* ]]
-    [[ "$output" == *"literal reviewer note"* ]]
-    [[ "$output" != *$'\033'* ]]
-    [[ "$output" != *$'\007'* ]]
+    [[ "$output" == *"literal"*"reviewer note"* ]]
+    [[ "$output" != *"$(probe_esc)"* ]]
+    [[ "$output" != *"$(probe_bel)"* ]]
+    [[ "$output" != *"$(probe_csi)"* ]]
+}
+
+@test "notes strips terminal control bytes from provider text" {
+    run_ws_review app notes 1 --remote fork
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"literal"*"reviewer note"* ]]
+    [[ "$output" != *"$(probe_esc)"* ]]
+    [[ "$output" != *"$(probe_bel)"* ]]
+    [[ "$output" != *"$(probe_csi)"* ]]
+}
+
+@test "threads listing strips terminal control bytes from provider text" {
+    run_ws_review app threads 1 --remote fork
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"open"*"thread body"* ]]
+    [[ "$output" != *"$(probe_esc)"* ]]
+    [[ "$output" != *"$(probe_csi)"* ]]
 }

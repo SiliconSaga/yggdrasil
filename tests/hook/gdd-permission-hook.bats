@@ -720,7 +720,15 @@ JSON
     [[ "$output" == *"Backslash escapes"* ]]
 }
 
-@test "deny: redirect after a normalized Windows path still denies" {
+@test "deny: redirect after a normalized quoted Windows path still denies" {
+    run_hook 'cat "D:\Dev\notes.txt" > out.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"redirection"* ]]
+}
+
+@test "deny: redirect with a bare backslash path still denies (not downgraded to ask)" {
     run_hook 'cat D:\Dev\notes.txt > out.txt'
 
     [ "$status" -eq 0 ]
@@ -2111,6 +2119,17 @@ BASH
     run_hook_with_session "bash $WORK/danger.sh" "no-scope-sess"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "k8s safety floor: the ws dispatcher via bash scripts/ws is not an opaque kubectl script" {
+    # The dispatcher mentions kubectl for its `ws k8s` verb; a non-k8s ws
+    # command through the pre-PATH `bash scripts/ws` form must not trip the
+    # unscoped-script ask (it did — every newcomer ws call prompted).
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\n# k8s verb dispatches to kubectl via the guard\n' > "$WORK/scripts/ws"
+    run_hook_with_session "bash scripts/ws review yggdrasil 134" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Kubernetes"* ]]
 }
 @test "k8s safety floor: slash-relative script containing kubectl force-asks" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"

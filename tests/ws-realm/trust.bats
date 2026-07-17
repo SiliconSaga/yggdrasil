@@ -152,6 +152,35 @@ YAML
     [ "$output" = "current" ]
 }
 
+@test "realm trust binds a quoted spaced helper path referenced by an adapter" {
+    mkdir -p "$REALMS_DIR/realm.test/tools/test helpers"
+    printf '#!/usr/bin/env bash\necho spaced\n' > "$REALMS_DIR/realm.test/tools/test helpers/run-tests.sh"
+    ADAPTER_TEST='bash "../../realms/realm.test/tools/test helpers/run-tests.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    approve_realm
+
+    printf '#!/usr/bin/env bash\necho changed\n' > "$REALMS_DIR/realm.test/tools/test helpers/run-tests.sh"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "stale" ]
+}
+
+@test "realm trust binds an operator-adjacent helper token" {
+    printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    ADAPTER_TEST='bash ../../realms/realm.test/tools/run-tests.sh; echo done' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    approve_realm
+
+    printf '#!/usr/bin/env bash\necho changed\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "stale" ]
+}
+
 @test "realm approval rejects adapter-referenced symlinks" {
     printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
     ln -s run-tests.sh "$REALMS_DIR/realm.test/tools/run-tests-link.sh" 2>/dev/null || true

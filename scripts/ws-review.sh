@@ -109,7 +109,11 @@ review_reviewer_filter() {
 # tabs, and newlines intact while removing C0 controls that could ring bells,
 # rewrite the current line, or introduce terminal escape sequences.
 review_sanitize_provider_text() {
-    LC_ALL=C tr -d '\000-\010\013-\037\177'
+    # C0 controls and DEL drop byte-wise; UTF-8-encoded C1 controls
+    # (U+0080–U+009F, e.g. the one-byte CSI U+009B) are the 0xC2 0x80–0x9F
+    # sequences — strip those as pairs so legit multibyte text (whose
+    # continuation bytes share the 0x80–0x9F range) is untouched.
+    LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
 }
 
 review_comments() {
