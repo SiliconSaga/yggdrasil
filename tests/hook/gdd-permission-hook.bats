@@ -436,6 +436,31 @@ JSON
     [[ "$output" == *"security-sensitive workspace state"* ]]
 }
 
+@test "allow: a backslash-spelled Write path to a new sub-agent env file rides the scratch allow" {
+    command -v cygpath >/dev/null 2>&1 || skip "cygpath not available to spell a Windows path"
+    seed_real_project_config
+    local win_path
+    win_path="$(cygpath -w "$WORK/.tmp/gdd-agent-sessions/smoke-sub.env")"
+
+    run_hook_write_content "Write" "$win_path" 'GDD_CO_AUTHOR=Smoke Sub <probe@example.com>'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "ask: a backslash-spelled Write path cannot disguise guard-key session content" {
+    command -v cygpath >/dev/null 2>&1 || skip "cygpath not available to spell a Windows path"
+    seed_real_project_config
+    local win_path
+    win_path="$(cygpath -w "$WORK/.tmp/gdd-agent-sessions/smoke-sub2.env")"
+
+    run_hook_write_content "Write" "$win_path" 'GDD_K8S_CONTEXT=nope'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "security: committed settings install Edit and Write hook matchers" {
     run jq -e '
         [.hooks.PreToolUse[].matcher] as $m |
