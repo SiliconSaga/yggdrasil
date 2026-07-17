@@ -118,7 +118,7 @@ arcs:
     status: active                 # active | review | parked | closed | promoted
     started: 2026-05-07
     last_touched: 2026-05-07
-    next: "<one-line next step>"
+    next: "<one-line next step — keep under ~10-20 words; extended context belongs in a body section this points at>"
     # optional:
     # issue: https://github.com/<org>/<repo>/issues/<n>
     # impact: high | medium | low          # Eisenhower-lite priority axis

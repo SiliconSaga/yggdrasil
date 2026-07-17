@@ -109,6 +109,10 @@ moving on:
   `arcs:` entry, or `arcs:` entries with no body context, should be
   flagged for the human. Don't auto-resolve — ambiguous cases are
   judgment calls.
+- **Overgrown `next:` fields.** An arc's `next:` should stay under
+  ~10-20 words so the ArcDashboard reads at a glance. Move extended
+  context into a body section (the `Arc next-notes` pattern) and leave
+  a one-liner pointing at it.
 
 Beyond triage, the arcs walk also surfaces prioritization moves when arcs carry the optional `impact:` / `urgency:` / `project:` fields:
 
