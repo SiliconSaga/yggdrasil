@@ -135,7 +135,7 @@ ws_component_init() {
     # Match the regex used by ws_resolve_target in ws-realm.sh — allows
     # dotted segments (e.g. some.component) for parity with names already
     # accepted by the rest of the workspace's component handling.
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$name"; then
         echo "ERROR: Invalid component name '$name'." >&2
         echo "  Must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots)." >&2
         exit 1

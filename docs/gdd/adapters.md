@@ -47,7 +47,7 @@ ting
 
 If you can't audit what `ws test` will actually run from `ws orient` output, the wrapper is hiding the executable-config surface — that's the regression the `runs:` form prevents.
 
-The orientation skill runs a **risk scan** on every realm activation, flagging adapter commands that contain `curl | sh` / `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network calls in test/lint runners, or `eval`. Rigor scales by realm provenance — light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+The orientation skill runs a **risk scan** on every realm activation, flagging adapter commands that contain `curl | sh` / `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network calls in test/lint runners, or `eval`. Rigor scales by realm provenance — light for your own / team realms, heavy for community / wild realms. Realm approval fingerprints each adapter and any realm-owned regular file its command strings reference, so changing an executable wrapper makes trust stale while editing unrelated realm documentation does not. Final symlinks and intermediate symlinks that escape the realm are rejected rather than followed across the reviewed boundary. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
 
 ---
 

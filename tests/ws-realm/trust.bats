@@ -12,7 +12,7 @@ setup() {
     export HOARDS_DIR="$WORK/hoards"
     export ECOSYSTEM="$WORK/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml"
-    mkdir -p "$REALMS_DIR/realm.test/adapters" "$COMPONENTS_DIR" "$HOARDS_DIR"
+    mkdir -p "$REALMS_DIR/realm.test/adapters" "$REALMS_DIR/realm.test/tools" "$COMPONENTS_DIR/app" "$HOARDS_DIR"
     printf 'components: {}\n' > "$ECOSYSTEM"
     printf 'notes: keep\n' > "$ECOSYSTEM_LOCAL"
     cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
@@ -63,6 +63,28 @@ run_trust_state() {
     [ "$output" = "current" ]
 }
 
+@test "realm trust summary identifies each component repository route" {
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"app"*"git.example.com"*"https://git.example.com/team/app.git"* ]]
+}
+
+@test "realm approval rejects invalid component keys without rendering them" {
+    cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
+components:
+  ../outside:
+    repo: https://example.test/outside.git
+YAML
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *"../outside"* ]]
+    [ "$(yq '.realm // ""' "$ECOSYSTEM_LOCAL")" = "" ]
+}
+
 @test "realm fingerprint ignores YAML comments formatting and mapping order" {
     approve_realm
     cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
@@ -103,6 +125,89 @@ YAML
 
     [ "$status" -eq 0 ]
     [ "$output" = "stale" ]
+}
+
+@test "realm trust becomes stale when an adapter-referenced realm file changes" {
+    printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    ADAPTER_TEST='bash "../../realms/realm.test/tools/run-tests.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    approve_realm
+
+    printf '#!/usr/bin/env bash\necho changed\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "stale" ]
+}
+
+@test "realm trust ignores unrelated documentation changes" {
+    printf 'first\n' > "$REALMS_DIR/realm.test/README.md"
+    approve_realm
+
+    printf 'second\n' > "$REALMS_DIR/realm.test/README.md"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "current" ]
+}
+
+@test "realm trust binds a quoted spaced helper path referenced by an adapter" {
+    mkdir -p "$REALMS_DIR/realm.test/tools/test helpers"
+    printf '#!/usr/bin/env bash\necho spaced\n' > "$REALMS_DIR/realm.test/tools/test helpers/run-tests.sh"
+    ADAPTER_TEST='bash "../../realms/realm.test/tools/test helpers/run-tests.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    approve_realm
+
+    printf '#!/usr/bin/env bash\necho changed\n' > "$REALMS_DIR/realm.test/tools/test helpers/run-tests.sh"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "stale" ]
+}
+
+@test "realm trust binds an operator-adjacent helper token" {
+    printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    ADAPTER_TEST='bash ../../realms/realm.test/tools/run-tests.sh; echo done' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    approve_realm
+
+    printf '#!/usr/bin/env bash\necho changed\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    run_trust_state
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "stale" ]
+}
+
+@test "realm approval rejects adapter-referenced symlinks" {
+    printf '#!/usr/bin/env bash\necho original\n' > "$REALMS_DIR/realm.test/tools/run-tests.sh"
+    ln -s run-tests.sh "$REALMS_DIR/realm.test/tools/run-tests-link.sh" 2>/dev/null || true
+    [[ -L "$REALMS_DIR/realm.test/tools/run-tests-link.sh" ]] || skip "real symlinks not supported on this platform"
+    ADAPTER_TEST='bash "../../realms/realm.test/tools/run-tests-link.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"referenced realm trust input must not be a symlink"* ]]
+}
+
+@test "realm approval rejects adapter helper paths that escape through an intermediate symlink" {
+    mkdir -p "$WORK/external-tools"
+    printf '#!/usr/bin/env bash\necho external\n' > "$WORK/external-tools/run-tests.sh"
+    ln -s "$WORK/external-tools" "$REALMS_DIR/realm.test/linked-tools" 2>/dev/null || true
+    [[ -L "$REALMS_DIR/realm.test/linked-tools" ]] || skip "real symlinks not supported on this platform"
+    ADAPTER_TEST='bash "../../realms/realm.test/linked-tools/run-tests.sh"' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"escapes the reviewed realm through a symlink"* ]]
 }
 
 @test "realm trust distinguishes missing and malformed approval state" {

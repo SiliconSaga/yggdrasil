@@ -645,24 +645,72 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     resolved_abs_path_fold="$(_policy_path_fold "$resolved_abs_path")"
     real_project_fold="$(_policy_path_fold "$real_project")"
     sensitive_path=0
+    sensitive_sessions_only=1
     case "$abs_path_fold" in
+        "$project_dir_fold/.tmp/gdd-agent-sessions"|"$project_dir_fold/.tmp/gdd-agent-sessions/"*)
+            sensitive_path=1
+            ;;
         "$project_dir_fold/.tmp/hook-bypass"|"$project_dir_fold/.tmp/hook-bypass/"*|\
-        "$project_dir_fold/.tmp/gdd-agent-sessions"|"$project_dir_fold/.tmp/gdd-agent-sessions/"*|\
         "$project_dir_fold/.claude"|"$project_dir_fold/.claude/"*|\
         "$project_dir_fold/.env"|"$project_dir_fold/ecosystem.local.yaml"|\
         "$project_dir_fold/scripts/ws-k8s-guard.sh")
             sensitive_path=1
+            sensitive_sessions_only=0
             ;;
     esac
     case "$resolved_abs_path_fold" in
+        "$real_project_fold/.tmp/gdd-agent-sessions"|"$real_project_fold/.tmp/gdd-agent-sessions/"*)
+            sensitive_path=1
+            ;;
         "$real_project_fold/.tmp/hook-bypass"|"$real_project_fold/.tmp/hook-bypass/"*|\
-        "$real_project_fold/.tmp/gdd-agent-sessions"|"$real_project_fold/.tmp/gdd-agent-sessions/"*|\
         "$real_project_fold/.claude"|"$real_project_fold/.claude/"*|\
         "$real_project_fold/.env"|"$real_project_fold/ecosystem.local.yaml"|\
         "$real_project_fold/scripts/ws-k8s-guard.sh")
             sensitive_path=1
+            sensitive_sessions_only=0
             ;;
     esac
+
+    # Session env-file carve-out. Sub-agents legitimately create their own
+    # identity files here at birth (ws commit --co-author-file reads
+    # .tmp/gdd-agent-sessions/<name>.env), and a session replacing its own
+    # complete <sid>.env is equivalent to the allowlisted `ws whoami --set` — so a
+    # blanket ask converts every sub-agent dispatch into prompt noise.
+    # Reclassify as non-sensitive (falling through to the scratch tier)
+    # only when ALL of these hold:
+    #   - both the requested and resolved parents ARE the sessions dir
+    #     itself (a symlinked ancestor cannot smuggle the write elsewhere)
+    #   - the target is a single-segment <name>.env
+    #   - this is a full-file Write, not a partial Edit whose surrounding
+    #     guard-key context is absent from the hook payload
+    #   - the complete content carries no guard-scope key (GDD_K8S_*):
+    #     arming a kubectl scope must remain a `ws k8s` ceremony
+    #   - it is this session's own <sid>.env, or a Write CREATING a file
+    #     that does not exist yet (the sub-agent birth case). Overwriting
+    #     another session's existing file — identity forgery on a live
+    #     session — still asks, as does every partial Edit.
+    if [[ "$sensitive_path" -eq 1 && "$sensitive_sessions_only" -eq 1 && "$tool_name" == "Write" ]]; then
+        _sess_basename="${abs_path##*/}"
+        _sess_ok=0
+        if [[ "$(_policy_path_fold "${abs_path%/*}")" == "$project_dir_fold/.tmp/gdd-agent-sessions" ]] \
+            && [[ "$(_policy_path_fold "${resolved_abs_path%/*}")" == "$real_project_fold/.tmp/gdd-agent-sessions" ]] \
+            && [[ "$_sess_basename" =~ ^[A-Za-z0-9._-]+\.env$ ]]; then
+            _sess_new_content=$(echo "$input" | jq -r '.tool_input.content // ""')
+            if [[ "$_sess_new_content" != *GDD_K8S_* ]]; then
+                _sess_sid=$(echo "$input" | jq -r '.session_id // ""')
+                _sess_sid_safe="${_sess_sid//[^A-Za-z0-9._-]/_}"
+                if [[ -n "$_sess_sid" && "$_sess_basename" == "$_sess_sid_safe.env" ]]; then
+                    _sess_ok=1
+                elif [[ ! -e "$abs_path" && ! -e "$resolved_abs_path" ]]; then
+                    _sess_ok=1
+                fi
+            fi
+        fi
+        if [[ "$_sess_ok" -eq 1 ]]; then
+            sensitive_path=0
+        fi
+    fi
+
     if [[ "$sensitive_path" -eq 1 ]]; then
         cmd="$tool_name $file_path"
         ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
@@ -805,6 +853,76 @@ if [[ "$tool_name" == "PowerShell" ]]; then
     deny "PowerShell is blocked by default in this workspace — use the Bash tool with the \`ws\` wrappers (see AGENTS.md Reflex Contract). Exception: component kuttl wrappers run without a prompt as \`./test.ps1 [suite]\`, optionally preceded by one \`Set-Location <dir>;\`. For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
 fi
 
+# ─── Windows path-token separator normalization ─────────────────────
+#
+# Agents on Windows routinely echo harness-surfaced native paths
+# (D:\Dev\...) into Bash commands — git and the MSYS userland accept
+# either separator. Without normalization the backslash ask-arm below
+# fires on every such command BEFORE the allowlist is consulted,
+# turning the hook into near-always-ask on path-bearing commands and
+# training humans to rubber-stamp (#133). A backslash inside a
+# fully quoted drive-letter-rooted token is preserved as path data by
+# Bash, so those tokens — and only those — rewrite to
+# forward slashes before classification. Ambiguous shapes (escaped
+# quotes, trailing or doubled backslashes, non-path tokens, mixed
+# separators) stay intact and still reach the ask arm.
+#
+# The rewrite happens BEFORE Tier 1 rather than inside the backslash
+# arm: a case statement stops at its first matching arm, so skipping
+# the ask from within that arm would let `cat D:\x > out` bypass the
+# later redirect deny.
+_backslash_token_is_path() {
+    local t="$1"
+    case "$t" in
+        [A-Za-z]:\\*) ;;
+        *) return 1 ;;
+    esac
+    [[ "$t" == *'\' ]] && return 1     # trailing backslash — escape-ambiguous
+    [[ "$t" == *'\\'* ]] && return 1   # doubled backslash — quoting-dependent
+    [[ "$t" == *'"'* || "$t" == *"'"* ]] && return 1  # embedded quote
+    return 0
+}
+
+_normalize_windows_path_tokens() {
+    local raw="$1"
+    # Multi-line input must reach the newline deny untouched — `read`
+    # below would silently drop everything past the first line.
+    if [[ "$raw" != *'\'* || "$raw" == *$'\n'* || "$raw" == *$'\r'* ]]; then
+        printf '%s' "$raw"
+        return
+    fi
+    local -a words=()
+    read -r -a words <<< "$raw"
+    local rebuilt="" w core quote changed=0
+    for w in "${words[@]}"; do
+        if [[ "$w" == *'\'* ]]; then
+            core="$w" quote=""
+            if [[ ${#w} -ge 2 && "$w" == "'"*"'" ]]; then
+                quote="'" core="${w:1:${#w}-2}"
+            elif [[ ${#w} -ge 2 && "$w" == '"'*'"' ]]; then
+                quote='"' core="${w:1:${#w}-2}"
+            fi
+            if [[ -n "$quote" ]] && _backslash_token_is_path "$core"; then
+                core="${core//\\//}"
+                w="${quote}${core}${quote}"
+                changed=1
+            fi
+        fi
+        rebuilt+="${rebuilt:+ }${w}"
+    done
+    # Adopt the rebuilt string only when a token was actually
+    # rewritten — reconstruction collapses whitespace runs, and that
+    # side effect is only justified by a real normalization. The
+    # audit log records the normalized form; it names the same
+    # filesystem locations as the original spelling.
+    if [[ "$changed" == "1" ]]; then
+        printf '%s' "$rebuilt"
+    else
+        printf '%s' "$raw"
+    fi
+}
+cmd="$(_normalize_windows_path_tokens "$cmd")"
+
 # ─── Tier 1: Deny shell composition with corrective messages ────────
 #
 # Order of arms matters in this case statement: the first arm whose
@@ -849,9 +967,6 @@ case "$cmd" in
     *'$'*)
         ask "Shell parameter expansion requires human approval because expansions such as \${IFS} can hide command boundaries from permission matching. Resolve the value separately and pass a literal argument when possible."
         ;;
-    *"\\"*)
-        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. Pass the intended token literally when possible."
-        ;;
     *"{"*|*"}"*)
         ask "Brace expansion requires human approval because one visible token can expand into multiple command arguments before execution. Pass the intended arguments literally instead."
         ;;
@@ -872,6 +987,11 @@ case "$cmd" in
         ;;
     *">"*|*"<"*)
         deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file."
+        ;;
+    *"\\"*)
+        # Redirect operators are checked first so an otherwise ambiguous bare
+        # Windows path cannot downgrade a real shell redirect from deny to ask.
+        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. For Windows paths, use forward slashes (D:/Dev/...) or wrap the complete drive-letter path in quotes."
         ;;
     *"&"*)
         # Background / command-list separator. By this point `&&` is
@@ -983,7 +1103,27 @@ esac
 # before/under otherwise read-looking subcommands. They are never safe to
 # inherit from a broad `git diff`/`git show` allow pattern.
 if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
-    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
+    # Git accepts unambiguous prefixes of long options. Match each visible
+    # option token as a prefix of the dangerous spelling, not just the full
+    # spelling, so e.g. --uplo= cannot inherit a broad git-fetch allow as an
+    # abbreviated --upload-pack=. The bare `--` end-of-options marker is not a
+    # candidate. Tokens longer than or unrelated to these names do not match.
+    _git_dangerous_long_options=(
+        --config-env --upload-pack --exec --exec-path --extcmd --ext-diff
+        --output --output-directory --open-files-in-pager
+    )
+    _git_words=()
+    read -r -a _git_words <<< "$match_cmd"
+    for _git_word in "${_git_words[@]}"; do
+        _git_option="${_git_word%%=*}"
+        [[ "$_git_option" == --?* ]] || continue
+        for _git_dangerous_option in "${_git_dangerous_long_options[@]}"; do
+            if [[ "$_git_dangerous_option" == "$_git_option"* ]]; then
+                deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
+            fi
+        done
+    done
+    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--exec-path($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi
     if [[ "$match_cmd" =~ (^|[[:space:]])grep([[:space:]]|$) ]] \
@@ -1098,8 +1238,12 @@ _k8s_bypass_active() {
 # the human confirmation.
 _k8s_floor_enabled=0
 _k8s_match_cmd="$match_cmd"
+_k8s_literal_direct=0
 _k8s_script_file=""
 _k8s_inline_shell=0
+case "$match_cmd" in
+    kubectl|kubectl\ *|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *) _k8s_literal_direct=1 ;;
+esac
 for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
     [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
 done
@@ -1113,6 +1257,15 @@ fi
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
+    # The reviewed ws dispatcher mentions kubectl for its `ws k8s` verb, so a
+    # pre-PATH `bash scripts/ws <verb>` invocation would otherwise read as an
+    # opaque kubectl-bearing script and force-ask on every newcomer ws call.
+    # Its k8s flows are classified by the explicit `ws k8s` arms above; only
+    # the dispatcher itself (same inode) is exempt — any other script keeps
+    # the content inspection.
+    if [[ -n "$_k8s_script_file" && "$_k8s_script_file" -ef "$_trusted_root/scripts/ws" ]]; then
+        _k8s_script_file=""
+    fi
     k8s_guard_inline_shell_contains_kubectl "$match_cmd" && _k8s_inline_shell=1
     _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
     if [[ -z "$_k8s_floor_ctx" ]]; then
@@ -1202,7 +1355,11 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
         case "$_sr_kverdict" in
-            READ_IN_SCOPE) allow "raw kubectl in-scope read (guard)" ;;
+            READ_IN_SCOPE)
+                if [[ "$_k8s_literal_direct" == "1" ]]; then
+                    allow "raw kubectl in-scope read (guard)"
+                fi
+                ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_kverdict" "$_sr_ctx" "$_sr_slug")" ;;
             *) : ;;  # WRITE_IN_SCOPE → fall through to (b) redirect
         esac

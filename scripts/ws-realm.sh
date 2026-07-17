@@ -98,6 +98,26 @@ export -f ws_native_path yq
 # Shared functions (used by ws-clone.sh, ws-list.sh, ws, etc.)
 # ---------------------------------------------------------------------------
 
+WS_COMPONENT_NAME_REGEX='^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$'
+
+ws_component_name_is_valid() {
+    [[ "${1:-}" =~ $WS_COMPONENT_NAME_REGEX ]]
+}
+
+# Validate the complete key set inside yq so embedded newlines cannot turn one
+# invalid mapping key into multiple apparently valid shell input lines.
+ws_validate_component_keys() {
+    local eco="$1" invalid_count
+    if ! invalid_count="$(WS_COMPONENT_NAME_REGEX="$WS_COMPONENT_NAME_REGEX" yq -r '[.components // {} | keys | .[] | select(test(strenv(WS_COMPONENT_NAME_REGEX)) | not)] | length' "$eco" 2>/dev/null)"; then
+        echo "ERROR: Cannot validate component names in ecosystem config." >&2
+        return 1
+    fi
+    if [[ ! "$invalid_count" =~ ^[0-9]+$ ]] || [[ "$invalid_count" -ne 0 ]]; then
+        echo "ERROR: Invalid component name in ecosystem config; expected lowercase alphanumeric segments with hyphens or dots." >&2
+        return 1
+    fi
+}
+
 # Resolve a workspace target name to its directory.
 # Usage: ws_resolve_target <name>
 # Sets: COMPONENT_DIR to the resolved path.
@@ -129,7 +149,7 @@ ws_resolve_target() {
     # Reject component names that don't match safe pattern.
     # Use bash regex directly — grep matches per-line and would pass
     # newline-injected names like "mimir\nevil" (CVE-style bypass).
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$name"; then
         echo "ERROR: Invalid target name '$name'. Components must be lowercase alphanumeric with hyphens/dots (no trailing dots or consecutive dots); no realm or hoard dir matched it either." >&2
         exit 1
     fi
@@ -190,8 +210,28 @@ ws_detect_realm() {
 # Hash the semantic realm trust inputs rather than the realm Git revision.
 # Canonical JSON ignores YAML comments, formatting, and mapping order while
 # retaining every ecosystem/adapter value that the workspace may consume.
+# Existing realm-owned files referenced as adapter command tokens join the
+# fingerprint because they are executable continuations of those values.
+_ws_lexical_absolute_path() {
+    local path="$1" segment result=""
+    local IFS='/'
+    local -a segments=()
+    [[ "$path" == /* ]] || return 1
+    read -r -a segments <<< "${path#/}"
+    for segment in "${segments[@]}"; do
+        case "$segment" in
+            ""|.) ;;
+            ..) result="${result%/*}" ;;
+            *) result="$result/$segment" ;;
+        esac
+    done
+    printf '%s' "${result:-/}"
+}
+
 ws_realm_trust_fingerprint() {
-    local name="$1" realm_dir realm_file canonical adapter_file relative fingerprint
+    local name="$1" realm_dir realm_file realm_real realm_lexical canonical adapter_file relative fingerprint
+    local commands target_name target_dir command word candidate candidate_path
+    local candidate_lexical lexical_in_realm candidate_parent_real referenced_path referenced_relative content_hash
     local LC_ALL=C
     local -a records=()
     if [[ ! "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
@@ -199,6 +239,14 @@ ws_realm_trust_fingerprint() {
         return 1
     fi
     realm_dir="$REALMS_DIR/$name"
+    realm_real="$(cd "$realm_dir" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: Cannot resolve realm directory for trust fingerprinting: $realm_dir" >&2
+        return 1
+    }
+    realm_lexical="$(_ws_lexical_absolute_path "$realm_dir")" || {
+        echo "ERROR: Cannot normalize realm directory for trust fingerprinting: $realm_dir" >&2
+        return 1
+    }
     realm_file="$realm_dir/ecosystem.yaml"
     if [[ ! -f "$realm_file" || -L "$realm_file" ]]; then
         echo "ERROR: Realm '$name' has no regular ecosystem.yaml trust input." >&2
@@ -221,8 +269,99 @@ ws_realm_trust_fingerprint() {
             return 1
         fi
         records+=("$relative"$'\t'"$canonical")
+
+        # Adapter commands execute from the target directory. Resolve existing
+        # path-shaped tokens from that same cwd and bind only regular files
+        # canonically contained by this realm. Unrelated realm files remain
+        # outside the trust surface, preserving documentation-only pulls.
+        target_name="$(basename "$adapter_file" .yaml)"
+        case "$target_name" in
+            yggdrasil) target_dir="$ROOT_DIR" ;;
+            *)
+                if [[ "$target_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$REALMS_DIR/$target_name/.git" ]]; then
+                    target_dir="$REALMS_DIR/$target_name"
+                elif [[ "$target_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$HOARDS_DIR/$target_name/.git" ]]; then
+                    target_dir="$HOARDS_DIR/$target_name"
+                else
+                    target_dir="$COMPONENTS_DIR/$target_name"
+                fi
+                ;;
+        esac
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[].value | select(tag == "!!str")' "$adapter_file" 2>/dev/null)"; then
+            echo "ERROR: Cannot inspect adapter commands in $adapter_file for referenced trust inputs." >&2
+            return 1
+        fi
+        while IFS= read -r command; do
+            [[ -n "$command" ]] || continue
+            # Candidate extraction must not under-collect relative to what the
+            # shell will execute: whitespace words alone lose quoted spans
+            # (spaced helper paths run as ONE argument but split here), and an
+            # operator glued to a token (helper.sh;) hides the real path from
+            # the existence probe. Collect plain words (quote/assignment
+            # stripped, trailing operators trimmed) AND every quoted span.
+            local -a command_words=() candidate_tokens=()
+            local quoted_scan quoted_regex="\"([^\"]+)\"|'([^']+)'"
+            read -r -a command_words <<< "$command"
+            for word in "${command_words[@]}"; do
+                candidate="$word"
+                [[ "$candidate" == *=* ]] && candidate="${candidate#*=}"
+                case "$candidate" in
+                    \"*\") candidate="${candidate#\"}"; candidate="${candidate%\"}" ;;
+                    \'*\') candidate="${candidate#\'}"; candidate="${candidate%\'}" ;;
+                esac
+                candidate="${candidate%%[\;\&\|\<\>\)]*}"
+                candidate_tokens+=("$candidate")
+            done
+            quoted_scan="$command"
+            while [[ "$quoted_scan" =~ $quoted_regex ]]; do
+                candidate_tokens+=("${BASH_REMATCH[1]:-${BASH_REMATCH[2]}}")
+                quoted_scan="${quoted_scan#*"${BASH_REMATCH[0]}"}"
+            done
+            for candidate in "${candidate_tokens[@]}"; do
+                [[ -n "$candidate" ]] || continue
+                case "$candidate" in
+                    /*) candidate_path="$candidate" ;;
+                    *) candidate_path="$target_dir/$candidate" ;;
+                esac
+                [[ -e "$candidate_path" || -L "$candidate_path" ]] || continue
+                candidate_lexical="$(_ws_lexical_absolute_path "$candidate_path")" || continue
+                lexical_in_realm=0
+                case "$candidate_lexical" in
+                    "$realm_lexical"/*) lexical_in_realm=1 ;;
+                esac
+                if ! candidate_parent_real="$(cd "$(dirname "$candidate_path")" 2>/dev/null && pwd -P)"; then
+                    if [[ "$lexical_in_realm" -eq 1 ]]; then
+                        echo "ERROR: Cannot resolve adapter-referenced realm trust input: $candidate_lexical" >&2
+                        return 1
+                    fi
+                    continue
+                fi
+                referenced_path="$candidate_parent_real/$(basename "$candidate_path")"
+                case "$referenced_path" in
+                    "$realm_real"/*) ;;
+                    *)
+                        if [[ "$lexical_in_realm" -eq 1 ]]; then
+                            echo "ERROR: Adapter-referenced trust input escapes the reviewed realm through a symlink: $candidate_lexical" >&2
+                            return 1
+                        fi
+                        continue
+                        ;;
+                esac
+                if [[ -L "$candidate_path" ]]; then
+                    echo "ERROR: Adapter-referenced realm trust input must not be a symlink: $referenced_path" >&2
+                    return 1
+                fi
+                [[ -f "$referenced_path" ]] || continue
+                if ! content_hash="$(git hash-object "$referenced_path" 2>/dev/null)"; then
+                    echo "ERROR: Cannot hash adapter-referenced realm trust input: $referenced_path" >&2
+                    return 1
+                fi
+                referenced_relative="${referenced_path#"$realm_real"/}"
+                records+=("referenced/$referenced_relative"$'\t'"$content_hash")
+            done
+        done <<< "$commands"
     done
-    if ! fingerprint="$(printf '%s\n' "${records[@]}" | git hash-object --stdin 2>/dev/null)"; then
+    if ! fingerprint="$(printf '%s\n' "${records[@]}" | sort -u | git hash-object --stdin 2>/dev/null)"; then
         echo "ERROR: Cannot calculate the trust fingerprint for realm '$name'." >&2
         return 1
     fi
@@ -284,6 +423,16 @@ ws_require_realm_trust() {
     echo "ERROR: Realm '$name' trust reapproval is required (state: $state)." >&2
     echo "  Review the current trust summary, then run: ws realm use $name" >&2
     return 1
+}
+
+# Require the selected realm's current trust record before an executable
+# adapter surface is read. The optional name lets callers reuse an already
+# detected realm; without one, detection remains centralized here.
+ws_require_active_realm_trust() {
+    local name="${1:-}"
+    [[ -n "$name" ]] || name="$(ws_detect_realm)"
+    [[ -n "$name" ]] || return 0
+    ws_require_realm_trust "$name"
 }
 
 # Persist exactly the trust inputs the human reviewed. Recompute immediately
@@ -521,23 +670,34 @@ _ws_realm_summary_text() {
     printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
 }
 
+_ws_realm_summary_inline_text() {
+    printf '%s' "$1" | tr -d '\000-\037\177'
+}
+
 ws_realm_trust_summary() {
     local name="$1" realm_dir="$REALMS_DIR/$1" realm_file="$REALMS_DIR/$1/ecosystem.yaml"
+    ws_validate_component_keys "$realm_file" || return 1
     echo "Realm trust summary: $name"
     echo "  Component repository routes:"
-    local found=0 repo host adapter_file commands repos
-    if ! repos="$(yq -r '.components // {} | to_entries | .[] | .value.repo // ""' "$realm_file" 2>/dev/null)"; then
+    local found=0 component repo host route adapter_file commands routes
+    if ! routes="$(yq -o=json -I=0 '.components // {} | to_entries | .[] | {"component": .key, "repo": (.value.repo // "")}' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
         return 1
     fi
-    while IFS= read -r repo; do
+    while IFS= read -r route; do
+        [[ -n "$route" ]] || continue
+        if ! component="$(ROUTE_JSON="$route" yq -n -r 'strenv(ROUTE_JSON) | from_json | .component' 2>/dev/null)" ||
+           ! repo="$(ROUTE_JSON="$route" yq -n -r 'strenv(ROUTE_JSON) | from_json | .repo' 2>/dev/null)"; then
+            echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
+            return 1
+        fi
         [[ -n "$repo" ]] || continue
         host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"
         # Redact any embedded credential before display — the summary must
         # never be the thing that leaks a token into terminal scrollback.
-        echo "    $(_ws_realm_summary_text "$host")  ←  $(_ws_realm_summary_text "$(git_remote_display_value "$repo")")"
+        echo "    $(_ws_realm_summary_inline_text "$component")  $(_ws_realm_summary_inline_text "$host")  ←  $(_ws_realm_summary_inline_text "$(git_remote_display_value "$repo")")"
         found=1
-    done <<< "$repos"
+    done <<< "$routes"
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
     echo "  Adapter commands:"
@@ -755,7 +915,7 @@ HELP
     local comp="$1"
 
     # Validate component name (safe pattern, exists in config)
-    if [[ ! "$comp" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$comp"; then
         echo "ERROR: Invalid component name '$comp'." >&2
         exit 1
     fi

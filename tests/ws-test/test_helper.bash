@@ -11,6 +11,7 @@
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_TEST_BIN="$REPO_ROOT/scripts/ws-test.sh"
+REALM_LIB="$REPO_ROOT/scripts/ws-realm.sh"
 
 setup_synthetic_realm() {
     export ROOT_DIR="$BATS_TEST_TMPDIR/root"
@@ -19,6 +20,8 @@ setup_synthetic_realm() {
 
     mkdir -p "$REALMS_DIR/realm-test/adapters"
     mkdir -p "$ROOT_DIR/tests"
+    printf 'components: {}\n' > "$ROOT_DIR/ecosystem.yaml"
+    printf 'components: {}\n' > "$REALMS_DIR/realm-test/ecosystem.yaml"
     printf 'realm: realm-test\n' > "$ECOSYSTEM_LOCAL"
 
     # Stub `pytest` that echoes the args it received.
@@ -36,6 +39,19 @@ printf '[%q]' "$@"
 printf '\n'
 EOF
     chmod +x "$ROOT_DIR/python"
+
+    approve_synthetic_realm
+}
+
+approve_synthetic_realm() {
+    local fingerprint
+    fingerprint="$(bash -c 'source "$1"; ws_realm_trust_fingerprint realm-test' _ "$REALM_LIB")"
+    REALM_FINGERPRINT="$fingerprint" yq -i '
+        ._gdd.realmTrust = {
+          "realm": "realm-test",
+          "fingerprint": strenv(REALM_FINGERPRINT)
+        }
+    ' "$ECOSYSTEM_LOCAL"
 }
 
 # Write the realm adapter's commands.test for the synthetic component.
@@ -45,6 +61,7 @@ write_adapter_test() {
 commands:
   test: "$cmd"
 EOF
+    approve_synthetic_realm
 }
 
 run_ws_test() {

@@ -13,7 +13,7 @@ setup() {
     export HOARDS_DIR="$WORK/hoards"
     export ECOSYSTEM="$WORK/ecosystem.yaml"
     export ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml"
-    mkdir -p "$WORK/scripts" "$REALMS_DIR" "$COMPONENTS_DIR" "$HOARDS_DIR"
+    mkdir -p "$WORK/scripts" "$REALMS_DIR" "$COMPONENTS_DIR/app" "$HOARDS_DIR"
     cp "$REPO_ROOT/scripts/ws-pull.sh" "$WORK/scripts/"
     cp "$REPO_ROOT/scripts/ws-realm.sh" "$WORK/scripts/"
     cp "$REPO_ROOT/scripts/ws-env.sh" "$WORK/scripts/"
@@ -26,11 +26,12 @@ setup() {
     git init -q "$AUTHOR"
     git -C "$AUTHOR" config user.name "Test Author"
     git -C "$AUTHOR" config user.email "author@example.test"
-    mkdir -p "$AUTHOR/adapters"
+    mkdir -p "$AUTHOR/adapters" "$AUTHOR/tools"
     printf 'components: {}\n' > "$AUTHOR/ecosystem.yaml"
-    printf 'commands:\n  test: uv run pytest\n' > "$AUTHOR/adapters/app.yaml"
+    printf 'commands:\n  test: bash "../../realms/realm.test/tools/run-tests.sh"\n' > "$AUTHOR/adapters/app.yaml"
+    printf '#!/usr/bin/env bash\necho original\n' > "$AUTHOR/tools/run-tests.sh"
     printf 'realm documentation\n' > "$AUTHOR/README.md"
-    git -C "$AUTHOR" add ecosystem.yaml adapters/app.yaml README.md
+    git -C "$AUTHOR" add ecosystem.yaml adapters/app.yaml tools/run-tests.sh README.md
     git -C "$AUTHOR" commit -q -m "seed realm"
     git clone -q --bare "$AUTHOR" "$REMOTE"
     git -C "$AUTHOR" remote add origin "$REMOTE"
@@ -76,4 +77,29 @@ push_realm_change() {
 
     [ "$status" -eq 0 ]
     [[ "$output" != *"reapproval"* ]]
+}
+
+@test "pull reports when an adapter-referenced realm file changes" {
+    printf '#!/usr/bin/env bash\necho changed\n' > "$AUTHOR/tools/run-tests.sh"
+    push_realm_change tools/run-tests.sh
+
+    run bash "$PULL_BIN" realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"reapproval"* ]]
+    [[ "$output" == *"ws realm use realm.test"* ]]
+}
+
+@test "pull rejects a traversal-shaped component key before path construction" {
+    cat > "$ECOSYSTEM" <<'YAML'
+components:
+  ../outside:
+    repo: https://example.test/outside.git
+YAML
+
+    run bash "$PULL_BIN"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *"../outside"* ]]
 }

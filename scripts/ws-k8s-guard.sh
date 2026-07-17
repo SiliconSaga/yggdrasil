@@ -80,18 +80,32 @@ k8s_guard_script_path() {
     local i=1
     case "$runner" in
         bash|sh)
+            local noexec=0
             while [[ $i -lt ${#words[@]} ]]; do
                 token="${words[$i]}"
                 if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
                     return 1
                 fi
+                # -n (noexec) makes the shell parse the file without
+                # executing anything — but a later +n on the same invocation
+                # turns execution back on, so track the toggle across the
+                # whole option list instead of trusting first sight.
+                if [[ "$token" == -[^-]* && "$token" == *n* ]]; then
+                    noexec=1
+                elif [[ "$token" == +[^+]* && "$token" == *n* ]]; then
+                    noexec=0
+                fi
                 case "$token" in
                     --) i=$((i + 1)); [[ $i -lt ${#words[@]} ]] && path="${words[$i]}"; break ;;
-                    -o|--rcfile|--init-file) i=$((i + 2)) ;;
-                    -*) i=$((i + 1)) ;;
+                    -o|+o|--rcfile|--init-file) i=$((i + 2)) ;;
+                    -*|+*) i=$((i + 1)) ;;
                     *) path="$token"; break ;;
                 esac
-            done ;;
+            done
+            if [[ "$noexec" -eq 1 ]]; then
+                return 1
+            fi
+            ;;
         source|.)
             [[ ${#words[@]} -gt 1 ]] && path="${words[1]}" ;;
         *)

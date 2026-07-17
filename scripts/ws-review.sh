@@ -105,6 +105,17 @@ review_reviewer_filter() {
     printf 'select(((.user.login // .author.username // "") | ascii_downcase) == (%s | ascii_downcase))' "$reviewer_literal"
 }
 
+# Provider titles and bodies are untrusted terminal input. Keep ordinary text,
+# tabs, and newlines intact while removing C0 controls that could ring bells,
+# rewrite the current line, or introduce terminal escape sequences.
+review_sanitize_provider_text() {
+    # C0 controls and DEL drop byte-wise; UTF-8-encoded C1 controls
+    # (U+0080–U+009F, e.g. the one-byte CSI U+009B) are the 0xC2 0x80–0x9F
+    # sequences — strip those as pairs so legit multibyte text (whose
+    # continuation bytes share the 0x80–0x9F range) is untouched.
+    LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
+}
+
 review_comments() {
     if [[ $# -lt 1 ]]; then
         echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]" >&2
@@ -432,11 +443,13 @@ review_comments() {
 
     # Fetch CR summary
     echo "=== CR #$pr_num ($REPO_SLUG) ==="
-    gp_review_summary "$REPO_SLUG" "$pr_num" || {
+    local summary=""
+    summary=$(gp_review_summary "$REPO_SLUG" "$pr_num") || {
         echo "ERROR: Could not fetch CR #$pr_num from $REPO_SLUG." >&2
         echo "  Check the CR number and repo name." >&2
         exit 1
     }
+    printf '%s\n' "$summary" | review_sanitize_provider_text
     echo ""
 
     # === Phase 1: Fetch all three sections ===
@@ -451,12 +464,15 @@ review_comments() {
     # decision to the print phase.
     local reviews="" reviews_rc=0
     reviews=$(gp_review_list_reviews "$REPO_SLUG" "$pr_num" "$review_filter") || reviews_rc=$?
+    reviews=$(printf '%s' "$reviews" | review_sanitize_provider_text)
 
     local comments="" comments_rc=0
     comments=$(gp_review_list_comments "$REPO_SLUG" "$pr_num" "$comment_filter") || comments_rc=$?
+    comments=$(printf '%s' "$comments" | review_sanitize_provider_text)
 
     local notes="" notes_rc=0
     notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || notes_rc=$?
+    notes=$(printf '%s' "$notes" | review_sanitize_provider_text)
 
     # === Phase 2: Lead with an Index ===
     #
@@ -630,6 +646,7 @@ review_notes() {
     echo "=== Notes: CR #$pr_num ($REPO_SLUG) ==="
     local notes="" _rc=0
     notes=$(gp_review_list_notes "$REPO_SLUG" "$pr_num" "$comment_filter") || _rc=$?
+    notes=$(printf '%s' "$notes" | review_sanitize_provider_text)
     # Failure marker on stdout (not stderr) — section status, not
     # script error. Consistent with review_comments. If --output
     # ever extends to this subcommand, the marker will land in
@@ -689,6 +706,7 @@ review_threads() {
                 echo "ERROR: Could not fetch threads for CR #$pr_num from $REPO_SLUG." >&2
                 exit 1
             }
+            threads=$(printf '%s' "$threads" | review_sanitize_provider_text)
             if [[ -z "$threads" ]]; then
                 echo "No unresolved threads on CR #$pr_num ($REPO_SLUG)."
             else

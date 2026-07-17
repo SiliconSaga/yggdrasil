@@ -102,7 +102,7 @@ clone_component() {
     local eco="$2"
 
     # Validate component name (same pattern as ws_resolve_target)
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$name"; then
         echo "SKIP: $name (invalid component name)"
         return 0
     fi
@@ -165,7 +165,7 @@ clone_url() {
         echo "  Use --name <name> to specify one." >&2
         exit 1
     fi
-    if [[ ! "$name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]]; then
+    if ! ws_component_name_is_valid "$name"; then
         echo "ERROR: Derived name '$name' is not a valid component name." >&2
         echo "  Use --name <name> to specify a valid one (lowercase, alphanumeric, hyphens, dots)." >&2
         exit 1
@@ -210,6 +210,12 @@ clone_url() {
             else
                 stored_url=$(cd "$(dirname "$url")" && pwd)/$(basename "$url")
             fi
+            # Pin the stored form on Git Bash: MSYS env conversion rewrites a
+            # POSIX /c/… value when the native yq spawns, so without an
+            # explicit choice the recorded form is platform-accidental.
+            # ws_native_path yields the C:/… mixed form both git and native
+            # tools accept; on POSIX hosts it is a no-op.
+            stored_url=$(ws_native_path "$stored_url")
         fi
 
         # Add component entry with repo URL for future re-cloning (use strenv for safe interpolation)
@@ -262,6 +268,7 @@ if [[ "${1:-}" == "--url" ]]; then
     clone_url "$URL" "$NAME" "$ADD_ECO"
 elif [[ "${1:-}" == "--all" ]]; then
     ECO="$(ws_resolve_ecosystem)"
+    ws_validate_component_keys "$ECO" || exit 1
     comp_count=$(yq '.components | length' "$ECO" 2>/dev/null || echo 0)
     if [[ "$comp_count" -eq 0 ]]; then
         echo "No components declared." >&2

@@ -70,12 +70,25 @@ namespaces="$(ws_session_get GDD_K8S_NAMESPACES "$session_path")"
 normalize_for_match() {
     local value="$1"
     case "$value" in
-        "bash ./scripts/"*) printf '%s' "${value#bash ./scripts/}" ;;
-        "bash scripts/"*) printf '%s' "${value#bash scripts/}" ;;
-        "./scripts/"*) printf '%s' "${value#./scripts/}" ;;
-        "scripts/"*) printf '%s' "${value#scripts/}" ;;
-        *) printf '%s' "$value" ;;
+        "bash ./scripts/"*) value="${value#bash ./scripts/}" ;;
+        "bash scripts/"*) value="${value#bash scripts/}" ;;
+        "./scripts/"*) value="${value#./scripts/}" ;;
+        "scripts/"*) value="${value#scripts/}" ;;
     esac
+
+    # Candidate detection must follow Bash command-word equivalence closely
+    # enough that harmless respellings cannot drop the Kubernetes deny floor.
+    # This normalized value is classification-only; audit output keeps $cmd.
+    value="${value//\"/}"
+    value="${value//\'/}"
+    if [[ "$value" == '\kubectl' || "$value" == '\kubectl '* ]]; then
+        value="${value#\\}"
+    fi
+    case "$value" in
+        kubectl.exe) value="kubectl" ;;
+        kubectl.exe\ *) value="kubectl ${value#kubectl.exe }" ;;
+    esac
+    printf '%s' "$value"
 }
 
 match_cmd="$(normalize_for_match "$cmd")"

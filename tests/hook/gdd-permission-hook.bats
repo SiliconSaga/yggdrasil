@@ -357,6 +357,110 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+# ─── Session env-file carve-out (sub-agent birth friction, #129 UX) ─
+#
+# Sub-agents legitimately create their own identity files under
+# .tmp/gdd-agent-sessions/ (ws commit --co-author-file), and a session
+# updating its own <sid>.env is equivalent to the allowlisted
+# `ws whoami --set`. Creating a NEW .env file, or writing your OWN
+# session file, auto-allows via the scratch tier — but guard-scope
+# keys (GDD_K8S_*) in the content, overwrites of another session's
+# existing file, and non-env names all still ask.
+
+@test "allow: creating a new sub-agent identity env file rides the scratch allow" {
+    seed_real_project_config
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess--sub.env" \
+        'GDD_CO_AUTHOR=Claude Fable 5 <noreply@anthropic.com>'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "allow: a session writing its own session env file rides the scratch allow" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR=old\n' > "$WORK/.tmp/gdd-agent-sessions/sess-123.env"
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess-123.env" \
+        'GDD_CO_AUTHOR=Claude Fable 5 <noreply@anthropic.com>' "sess-123"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "ask: a partial edit of the current session env file cannot bypass guard-key review" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=prod\n' > "$WORK/.tmp/gdd-agent-sessions/sess-123.env"
+
+    run_hook_write_content "Edit" "$WORK/.tmp/gdd-agent-sessions/sess-123.env" \
+        'dev' "sess-123"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "ask: overwriting another session's existing env file still asks" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_CO_AUTHOR=other\n' > "$WORK/.tmp/gdd-agent-sessions/sess-other.env"
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess-other.env" \
+        'GDD_CO_AUTHOR=forged' "sess-123"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "ask: guard-scope keys in a new session env file still ask" {
+    seed_real_project_config
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/sess--sub.env" \
+        $'GDD_CO_AUTHOR=x\nGDD_K8S_CONTEXT=gke_prod'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "ask: a non-env name under the sessions dir still asks" {
+    seed_real_project_config
+
+    run_hook_write_content "Write" "$WORK/.tmp/gdd-agent-sessions/notes.txt" 'hello'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "allow: a backslash-spelled Write path to a new sub-agent env file rides the scratch allow" {
+    command -v cygpath >/dev/null 2>&1 || skip "cygpath not available to spell a Windows path"
+    seed_real_project_config
+    local win_path
+    win_path="$(cygpath -w "$WORK/.tmp/gdd-agent-sessions/smoke-sub.env")"
+
+    run_hook_write_content "Write" "$win_path" 'GDD_CO_AUTHOR=Smoke Sub <probe@example.com>'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "ask: a backslash-spelled Write path cannot disguise guard-key session content" {
+    command -v cygpath >/dev/null 2>&1 || skip "cygpath not available to spell a Windows path"
+    seed_real_project_config
+    local win_path
+    win_path="$(cygpath -w "$WORK/.tmp/gdd-agent-sessions/smoke-sub2.env")"
+
+    run_hook_write_content "Write" "$win_path" 'GDD_K8S_CONTEXT=nope'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "security: committed settings install Edit and Write hook matchers" {
     run jq -e '
         [.hooks.PreToolUse[].matcher] as $m |
@@ -372,6 +476,49 @@ JSON
 
     run_hook "git -c alias.diff=!id diff"
 
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "security: abbreviated dangerous Git long options deny before broad allows" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git *)'
+
+    local command
+    for command in \
+        "git fetch --uplo=sh ." \
+        "git --config-e=alias.status=!id status" \
+        "git fetch --exe=sh ." \
+        "git --exec-p=/tmp/evil log" \
+        "git difftool --extc=sh HEAD" \
+        "git diff --ext-d HEAD" \
+        "git log --outp=.tmp/log" \
+        "git log --output-d=.tmp/logs" \
+        "git grep --open-f=cat needle"; do
+        run_hook "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *'"permissionDecision":"deny"'* ]]
+        [[ "$output" == *"Git execution modifier"* ]]
+    done
+}
+
+@test "security: unrelated complete Git long options remain eligible for normal matching" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git fetch *)'
+
+    run_hook "git fetch --update-head-ok origin"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: Git global exec-path denies before a broad allow" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git *)'
+
+    run_hook "git --exec-path=.tmp/git-review-probe review-probe"
+
+    [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     [[ "$output" == *"Git execution modifier"* ]]
 }
@@ -501,6 +648,100 @@ JSON
 
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
     [[ "$output" == *"Brace expansion"* ]]
+}
+
+# ─── Windows path-token backslash normalization (#133) ──────────────
+#
+# A backslash inside a drive-letter-rooted token (D:\dir\file) is
+# unambiguous path data, not escape syntax — those tokens normalize to
+# forward slashes before Tier 1 so the allowlist stays reachable on
+# Windows. Every ambiguous backslash shape must still land on a human,
+# and later Tier 1 arms (redirect, newline) must still fire after a
+# token is normalized.
+
+@test "ask: bare backslashed drive path remains shell-escape ambiguous" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -C * status)'
+
+    run_hook 'git -C D:\Dev\GitWS\yggdrasil status'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "allow: single-quoted backslash drive path matches the allowlist" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -C * status)'
+
+    run_hook "git -C 'D:\\Dev\\GitWS\\yggdrasil' status"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "allow: double-quoted backslash drive path matches the allowlist" {
+    write_project_hook_rules ""
+    write_project_settings 'Bash(git -C * status)'
+
+    run_hook 'git -C "D:\Dev\GitWS\yggdrasil" status'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "ask: escaped double quotes still require approval" {
+    seed_real_project_config
+
+    run_hook 'echo \"hi\"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "ask: trailing backslash still requires approval" {
+    seed_real_project_config
+
+    run_hook "ls D:\\Dev\\"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "ask: doubled backslash in a drive path still requires approval" {
+    seed_real_project_config
+
+    run_hook 'ls D:\\Dev'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "deny: redirect after a normalized quoted Windows path still denies" {
+    run_hook 'cat "D:\Dev\notes.txt" > out.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"redirection"* ]]
+}
+
+@test "deny: redirect with a bare backslash path still denies (not downgraded to ask)" {
+    run_hook 'cat D:\Dev\notes.txt > out.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"redirection"* ]]
+}
+
+@test "deny: newline list with a Windows path still denies" {
+    run_hook $'ls D:\\Dev\npwd'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Newline-separated"* ]]
 }
 
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
@@ -1879,6 +2120,17 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
+@test "k8s safety floor: the ws dispatcher via bash scripts/ws is not an opaque kubectl script" {
+    # The dispatcher mentions kubectl for its `ws k8s` verb; a non-k8s ws
+    # command through the pre-PATH `bash scripts/ws` form must not trip the
+    # unscoped-script ask (it did — every newcomer ws call prompted).
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\n# k8s verb dispatches to kubectl via the guard\n' > "$WORK/scripts/ws"
+    run_hook_with_session "bash scripts/ws review yggdrasil 134" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Kubernetes"* ]]
+}
 @test "k8s safety floor: slash-relative script containing kubectl force-asks" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     mkdir -p "$WORK/scripts"
@@ -1934,6 +2186,20 @@ BASH
     run_hook_with_session 'kubectl get pods -n kube-system' "sk8s"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: normalized kubectl aliases cannot inherit the raw-read auto-allow" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+
+    local command
+    for command in \
+        '/usr/bin/kubectl get pods -n kube-system' \
+        'components/evil/kubectl get pods -n kube-system' \
+        'KUBECONFIG=.tmp/config kubectl get pods -n kube-system'; do
+        run_hook_with_session "$command" "sk8s"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    done
 }
 @test "scoped-redirect: raw in-scope kubectl WRITE still redirects to ws k8s (context injection)" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"

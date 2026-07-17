@@ -21,6 +21,7 @@ if ! type -P yq &>/dev/null; then
 fi
 
 ECO="$(ws_resolve_ecosystem)"
+ws_validate_component_keys "$ECO" || exit 1
 
 # Show active realm
 active_realm="$(ws_detect_realm)"

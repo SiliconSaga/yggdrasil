@@ -10,6 +10,19 @@ setup() {
     setup_synthetic_realm
 }
 
+@test "lint refuses stale active-realm trust for workspace targets" {
+    write_adapter_lint "./lintstub"
+    LINT_CMD="./lintstub --changed" yq -i \
+        '.commands.lint = strenv(LINT_CMD)' \
+        "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml"
+
+    run_ws_lint yggdrasil
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"trust reapproval is required"* ]]
+    [ ! -f "$ROOT_DIR/lint_ran.marker" ]
+}
+
 @test "lint runs the adapter's commands.lint" {
     write_adapter_lint "./lintstub"
     run_ws_lint yggdrasil
@@ -38,19 +51,18 @@ setup() {
 commands:
   test: "true"
 EOF
+    approve_synthetic_realm
     run_ws_lint yggdrasil
     [ "$status" -ne 0 ]
     [[ "$output" == *"No lint command configured"* ]]
 }
 
-@test "lint falls through gracefully when the adapter YAML is malformed" {
-    # An unterminated flow mapping makes yq exit non-zero. Without the
-    # guarded substitution, `set -euo pipefail` would abort here before the
-    # "No lint command configured" guidance — regression test for that.
+@test "lint rejects malformed adapter YAML as stale trust" {
+    # An unterminated flow mapping cannot match the content that was approved.
     printf 'commands: {\n' > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml"
     run_ws_lint yggdrasil
     [ "$status" -ne 0 ]
-    [[ "$output" == *"No lint command configured"* ]]
+    [[ "$output" == *"trust reapproval is required"* ]]
 }
 
 @test "lint --help prints usage and exits 0" {

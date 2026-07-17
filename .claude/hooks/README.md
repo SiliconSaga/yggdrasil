@@ -28,6 +28,12 @@ The hook can classify only tool events registered in `.claude/settings.json`. Th
 
 That boundary does not create a shell escape hatch. `TaskStop` addresses a background task created by the current harness session; raw process-control commands such as `kill` or `taskkill` still arrive through the registered shell tool and receive the normal composition, ask, allow, or passthrough classification.
 
+### Windows paths and backslashes
+
+Forward-slash paths are the workspace convention in shell commands — git and the MSYS userland accept them everywhere, and they never collide with escape syntax. Backslash paths are tolerated, not preferred, when the complete drive-letter-rooted token is wrapped in single or double quotes (`"D:\Dev\file"`). The quotes make the backslashes path data through Bash parsing, so the hook can normalize that token to forward slashes for classification and let the command reach the allowlist normally instead of forcing an ask.
+
+Every ambiguous backslash still requires human approval: bare backslash paths, escaped quotes (`\"`), trailing backslashes, doubled backslashes, backslash-escaped spaces, and backslashes in tokens that are not drive-letter-rooted. A quoted path containing spaces also still asks — the classifier deliberately word-splits before inspecting tokens rather than re-implementing shell quoting, so a spaced path never reaches the rewrite; spell such paths with forward slashes instead. Quoting changes whether those backslashes are syntax or data, and a transformed match could otherwise reach the wrong permission tier. The audit log records the normalized (forward-slash) command form used for classification.
+
 ### Rules configuration
 
 Two files drive the hook's allow/ask/deny decisions beyond the committed `settings.json`:
@@ -106,6 +112,8 @@ This isn't enabled by default because (a) `PermissionRequest` is a different thr
 **Interaction with the redirect bypass.** When this optional hook is enabled, `.tmp/` is among the auto-allowed scratch dirs — so an agent could in principle write a bypass marker (`.tmp/hook-bypass/<slug>.bypass`) with the Write tool directly, skipping `ws hook-bypass` and therefore the ask-prompt. That sidesteps the human gate for the Tier 2 redirect deny. This is consistent with the redirect tier's stated threat model (agent *drift*, not an adversarial agent deliberately crafting marker files) — and an agent in `acceptEdits` can already write into `.tmp/` regardless of this hook — but operators who enable the PermissionRequest extension and want the bypass to remain strictly human-gated should be aware of it.
 
 It still includes the sometimes more severe blocks that GDD implements to teach the agent not to let commands be chained at all, favoring deterministic scripts and temporary files that are more auditable than massive commands dumping to a simple point-in-time approve prompt.
+
+**Security-sensitive paths never inherit the scratch allow.** Guard state and configuration inside the scratch tree (`.tmp/hook-bypass/`, `.tmp/gdd-agent-sessions/`), `.claude/`, `.env`, `ecosystem.local.yaml`, and the shared Kubernetes guard helper ask instead of auto-allowing. One carve-out keeps sub-agent dispatch usable: a full-file `Write` that creates a new `<name>.env` under `.tmp/gdd-agent-sessions/` (the sub-agent identity-file birth), or replaces the current session's own `<sid>.env`, rides the scratch allow so long as the complete content carries no guard-scope key (`GDD_K8S_*` stays a `ws k8s` ceremony). Partial `Edit` operations, overwriting another session's existing file, guard keys, and non-`.env` names all still ask.
 
 ### Enabling
 

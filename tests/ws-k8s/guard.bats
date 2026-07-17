@@ -26,6 +26,25 @@ EOF
     [ "$output" = "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh" ]
 }
 
+@test "script resolver skips parse-only bash -n invocations" {
+    mkdir -p "$BATS_TEST_TMPDIR/work/scripts"
+    printf '#!/bin/bash\nkubectl get pods\n' > "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh"
+    local flags
+    for flags in "-n" "-nv"; do
+        run bash -c 'source "$1"; k8s_guard_script_path "$2" "bash '"$flags"' scripts/direct-danger.sh"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/work"
+        [ "$status" -eq 1 ]
+        [ -z "$output" ]
+    done
+}
+
+@test "script resolver treats bash -n +n as executable (noexec cancelled)" {
+    mkdir -p "$BATS_TEST_TMPDIR/work/scripts"
+    printf '#!/bin/bash\nkubectl get pods\n' > "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh"
+    run bash -c 'source "$1"; k8s_guard_script_path "$2" "bash -n +n scripts/direct-danger.sh"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/work"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh" ]
+}
+
 @test "command normalization fails closed on multiline and compound forms" {
     local command
     for command in \

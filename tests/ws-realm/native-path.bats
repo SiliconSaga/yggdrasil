@@ -46,7 +46,9 @@ EOF
 }
 
 @test "scripts probe the real yq binary instead of the exported wrapper function" {
-    run rg -n 'command -v yq' "$REPO_ROOT/scripts"
+    # grep rather than rg — ripgrep isn't a workspace prerequisite, and
+    # grep -r returns the same status 1 on no-match.
+    run grep -rn 'command -v yq' "$REPO_ROOT/scripts"
 
     [ "$status" -eq 1 ]
     [ -z "$output" ]

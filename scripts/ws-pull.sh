@@ -99,6 +99,7 @@ else
     # (any directory with a .git/ subfolder). Mirrors ws-status.sh.
     # `// {}` guards the fresh-workspace case (null/missing components map).
     ECO="$(ws_resolve_ecosystem)"
+    ws_validate_component_keys "$ECO" || exit 1
     while IFS= read -r name; do
         pull_repo "$name" "$COMPONENTS_DIR/$name"
     done < <(yq -r '.components // {} | keys | .[]' "$ECO")

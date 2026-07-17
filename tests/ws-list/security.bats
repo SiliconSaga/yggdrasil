@@ -11,7 +11,7 @@ setup() {
     cp "$REPO_ROOT/scripts/git-remote.sh" "$WORK/scripts/"
 }
 
-@test "ws list preserves a complete component key without word splitting" {
+@test "ws list rejects component keys outside the shared name grammar" {
     cat > "$WORK/ecosystem.yaml" <<'YAML'
 components:
   "odd key":
@@ -21,11 +21,12 @@ YAML
 
     run bash "$WORK/scripts/ws-list.sh"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"odd key"*"supporting"*"1.2.3"* ]]
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *"odd key"* ]]
 }
 
-@test "ws list treats yq-shaped component keys as literal data" {
+@test "ws list rejects yq-shaped component keys without exposing unrelated values" {
     cat > "$WORK/ecosystem.yaml" <<'YAML'
 defaults:
   secret: must-not-be-selected
@@ -37,9 +38,9 @@ YAML
 
     run bash "$WORK/scripts/ws-list.sh"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *'probe"] | .defaults.secret | ["x'* ]]
-    [[ "$output" == *"literal-tier"*"literal-chart"* ]]
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid component name"* ]]
+    [[ "$output" != *'probe"] | .defaults.secret | ["x'* ]]
     [[ "$output" != *"must-not-be-selected"* ]]
 }
 
