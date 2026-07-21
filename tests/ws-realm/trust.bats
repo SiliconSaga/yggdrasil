@@ -232,6 +232,15 @@ YAML
     [ "$status" -eq 0 ]
 }
 
+@test "realm use without --trust frames the review as step one of the designed flow" {
+    run bash "$WS_BIN" realm use realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no realm activated yet"* ]]
+    [[ "$output" == *"by design"* ]]
+    [[ "$output" == *"ws realm use --trust realm.test"* ]]
+}
+
 @test "explicitly selected realm without approval fails with activation guidance" {
     REALM_NAME="realm.test" yq -i '.realm = strenv(REALM_NAME)' "$ECOSYSTEM_LOCAL"
 
