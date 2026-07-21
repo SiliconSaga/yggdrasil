@@ -32,6 +32,8 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - **Kustomize local-only preflight** — the k8s guard validates a `-k` target's whole reference graph (resources, bases, patches incl. legacy JSON6902, generators) as local, non-symlinked, and root-contained before rendering (#129).
 - MCP endpoint validation at `ws mcp-setup` time: absolute HTTP(S) shape required, plain-HTTP-on-nonlocal-host and embedded-credential warnings (#129).
 - **`ws docker` wrapper** — a scoped passthrough that sets `MSYS_NO_PATHCONV=1` for a single docker invocation on Git Bash, replacing the global env toggle that broke every `yq`/`gh` path; `ws` file-path arguments to native CLIs route through `cygpath`, so ws commands survive either MSYS conversion state (#131).
+- `ws cr` accepts an explicitly selected non-HEAD source branch — a pushed branch from a linked worktree can open a CR without disturbing the canonical checkout. The local and selected remote-tracking tips must match before any provider call, so a stale same-named remote branch cannot open a review of code other than what the operator selected.
+- The published post-1.0 roadmap grew dedicated tracks for assisted access and support (PR previews + visual diffs, chat-channel agents, sanitized release/support records, `ws share` handoffs, guided onboarding) and sandboxed workspaces (containerized, trust-scaled execution).
 - Optional shellcheck linting for the workspace's own scripts (#98).
 
 ### Changed
@@ -78,6 +80,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - The Kubernetes write floor no longer asks on `bash -n` syntax checks of kubectl-bearing scripts — parse-only invocations are not script runs (#133).
 - Bare `ws <subcommand> --help` / `-h` invocations no longer trip the hook's ask-list — help-only forms print and exit before any subcommand logic, so they allow; a `--help` passed through to a wrapped command keeps its ask.
 - The gh-pages template's title placeholder no longer disappears in rendered HTML — browsers swallowed the angle-bracket form as an unknown tag, leaving a bare `'s page` in the tab; the scaffold now ships a visible `Your Name's page`.
+- GitLab default-branch lookups during CR creation surface API failures as errors instead of continuing with a `null` or guessed target branch.
 
 ### Security
 
