@@ -42,9 +42,13 @@ MD
     git -C "$WORK" checkout -q -b feature/cr-remote-override
     git -C "$WORK" remote add fork https://github.com/example/fork.git
     git -C "$WORK" remote add alt https://github.com/alt/project.git
+    BASE_COMMIT="$(git -C "$WORK" rev-parse HEAD)"
+    git -C "$WORK" commit --allow-empty -q -m "advance branch fixtures"
     git -C "$WORK" branch feature/from-linked-worktree
     git -C "$WORK" branch feature/local-only
+    git -C "$WORK" branch feature/diverged
     git -C "$WORK" update-ref refs/remotes/alt/feature/from-linked-worktree refs/heads/feature/from-linked-worktree
+    git -C "$WORK" update-ref refs/remotes/alt/feature/diverged "$BASE_COMMIT"
 
     GH_STUB_DIR="$BATS_TEST_TMPDIR/gh-stub"
     GH_LOG="$BATS_TEST_TMPDIR/gh.log"
@@ -132,6 +136,14 @@ SH
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"source branch 'feature/local-only' is not known on remote 'alt'"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "git-cr.sh --source-branch rejects a stale remote-tracking branch" {
+    run bash -c 'cd "$1" || exit 1; bash "$2" --remote alt --source-branch feature/diverged "test: diverged branch" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"source branch 'feature/diverged' does not match remote 'alt'"* ]]
     [[ ! -f "$GH_LOG" ]]
 }
 

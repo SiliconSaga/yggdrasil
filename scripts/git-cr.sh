@@ -248,6 +248,15 @@ if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]] && ! git show-ref --verify --quiet "refs/r
   echo "  Push the branch to '$FORK_REMOTE' or fetch that remote before creating the CR." >&2
   exit 1
 fi
+if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
+  LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
+  REMOTE_BRANCH_TIP=$(git rev-parse "refs/remotes/$FORK_REMOTE/$BRANCH")
+  if [[ "$LOCAL_BRANCH_TIP" != "$REMOTE_BRANCH_TIP" ]]; then
+    echo "ERROR: source branch '$BRANCH' does not match remote '$FORK_REMOTE'." >&2
+    echo "  Push the local branch or fetch and reconcile the remote branch before creating the CR." >&2
+    exit 1
+  fi
+fi
 
 # Detect provider and load implementation; set token before auth check
 gp_detect_and_load "$FORK_URL" "$_ECO"
