@@ -11,7 +11,7 @@ After cloning, run `bash scripts/ws preflight` from the workspace root — it ch
 **Required:**
 
 - **Bash** — On Windows, use Git Bash (bundled with Git for Windows). Run all `ws` commands from a Git Bash shell, not cmd or PowerShell.
-- **Git** itself.
+- **Git ≥ 2.31.** The version floor is load-bearing, not cosmetic: `ws` injects HTTPS tokens through environment-based git config (`GIT_CONFIG_COUNT`), which older git *silently ignores* — auth would invisibly fall through to your OS credential manager instead of the workspace `.env` token. `ws preflight` checks the floor.
 - **[yq v4+](https://github.com/mikefarah/yq)** — Mike Farah's Go-based YAML processor. *Not* the Python `yq` from PyPI; that's a different tool with incompatible syntax.
 - **[jq](https://jqlang.github.io/jq/)** — JSON processor (used by `ws review` and several internal scripts).
 

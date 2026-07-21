@@ -151,7 +151,14 @@ echo ""
 
 echo "Required:"
 check_tool bash required
-check_tool git  required
+# git must be ≥ 2.31: the token-injected HTTPS auth path (ws push/clone/
+# clone-fork/pull) rides GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n environment
+# entries, which older git silently ignores — auth then falls through to
+# whatever OS credential manager holds, invisibly breaking the "no
+# credential-manager fallthrough" posture. Found live on a git 2.28 host
+# during the GA clone-fork e2e. The regex accepts 2.31+ minors (incl. a
+# hypothetical 3-digit minor) and any major ≥ 3.
+check_tool git  required 'git --version 2>&1 | grep -qE "git version (2\.(3[1-9]|[4-9][0-9]|[0-9]{3,})|([3-9]|[1-9][0-9]+)\.)"'
 # yq must be Mike Farah's Go-based yq v4+. The Python yq prints
 # usage lines that don't include "mikefarah" and uses different
 # syntax — we'd misbehave silently if pointed at it.
