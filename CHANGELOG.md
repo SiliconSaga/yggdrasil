@@ -45,6 +45,8 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `docs/dev-setup.md` renamed to `docs/workspace-setup.md` with an onboarding front-door polish pass (#109).
 - Hard-wrapped prose de-wrapped workspace-wide per the single-line-paragraph convention (#104).
 - Methodology docs consistency pass — the "good-enough" posture named as a first-class design statement, hook-doc altitude dedup, skills-reference taxonomy fix, link-shape cleanups (#120).
+- `ws realm use` without `--trust` now presents the review as step one of the designed two-step activation flow — summary shown, nothing activated, exact re-run command named — instead of a bare error.
+- Newcomer-language pass from fresh-laptop GA testing: the canonical Guardian Driven Development expansion + mutual-guardianship framing at agent eye-level (AGENTS.md, docs index, orientation greeting), Newcomer language rules in the orientation skill (primer before plumbing, "we" not "you", realms introduced as the augment layer, narrow diagrams, roles equip the session), the adapter-in-realm rationale, and a sharpened Thalamus pitch; six further findings recorded as roadmap entries.
 - **Realm auto-detection removed** — with no `realm:` selector in `ecosystem.local.yaml`, no realm is active, including the upstream `realm-template`. Existing workspaces that relied on an implicitly selected realm should run `ws realm use <name>` once (#129, #130).
 - The permission hook anchors all policy (rules files, allowlists, scratch and sensitive paths) to the workspace root instead of walking up from the command cwd; `Edit`/`Write` route through the hook, and security-sensitive state (`.claude/`, `.env`, `ecosystem.local.yaml`, hook-bypass markers, agent session files) asks instead of inheriting the scratch auto-allow (#129).
 - Hoard templates require an immutable full-SHA `pin` (checked out detached), and hoard-upgrade manifests are validated against traversal and symlink escapes before any file operation (#129).
@@ -57,6 +59,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 ### Removed
 
 - The unused `ws resolve` ArgoCD manifest generator — deploy trees belong to stacks/realms, not the GDD framework (#105).
+- The initial-commit `roadmap-schema.yaml` fossil at the workspace root — a pre-ecosystem phase sketch nothing referenced; the real roadmap is `docs/gdd/roadmap.md`.
 
 ### Fixed
 
@@ -73,6 +76,8 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `ws k8s` distinguishes a failed live namespace verification from a verified-absent namespace when arming a scope (#131).
 - The full bats suite passes on Windows Git Bash — dropped a ripgrep test dependency and pinned platform-dependent path forms; first fully-green Windows run (#133).
 - The Kubernetes write floor no longer asks on `bash -n` syntax checks of kubectl-bearing scripts — parse-only invocations are not script runs (#133).
+- Bare `ws <subcommand> --help` / `-h` invocations no longer trip the hook's ask-list — help-only forms print and exit before any subcommand logic, so they allow; a `--help` passed through to a wrapped command keeps its ask.
+- The gh-pages template's title placeholder no longer disappears in rendered HTML — browsers swallowed the angle-bracket form as an unknown tag, leaving a bare `'s page` in the tab; the scaffold now ships a visible `Your Name's page`.
 
 ### Security
 
