@@ -241,16 +241,30 @@ if [[ -z "$FORK_REMOTE" ]]; then
   fi
   exit 1
 fi
-FORK_URL=$(git remote get-url "$FORK_REMOTE" 2>/dev/null)
+# Read the remote's RAW configured URL (not `git remote get-url`, which
+# applies url.insteadOf rewrites): every consumer below is logical — provider
+# detection, token mapping, slug/host extraction — and should see the
+# canonical URL the operator configured. Transport operations address the
+# remote by NAME, so git still applies any insteadOf rewrite where it belongs.
+FORK_URL=$(git config --get "remote.$FORK_REMOTE.url" 2>/dev/null)
 
-if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]] && ! git show-ref --verify --quiet "refs/remotes/$FORK_REMOTE/$BRANCH"; then
-  echo "ERROR: source branch '$BRANCH' is not known on remote '$FORK_REMOTE'." >&2
-  echo "  Push the branch to '$FORK_REMOTE' or fetch that remote before creating the CR." >&2
-  exit 1
-fi
 if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
-  REMOTE_BRANCH_TIP=$(git rev-parse "refs/remotes/$FORK_REMOTE/$BRANCH")
+  # Live-verify the selected branch against the remote it will be reviewed
+  # from. Comparing against the last-fetched tracking ref is not enough — a
+  # stale fetch could equal the local tip while the real remote branch has
+  # moved, opening a review for code other than what the operator selected.
+  # Auth-env injection mirrors git-push.sh so private forks resolve without
+  # a credential-helper prompt.
+  declare -a GIT_AUTH_ENV=()
+  GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+  git_auth_env_for_url "$FORK_URL"
+  if ! REMOTE_LS_OUTPUT=$(env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git ls-remote --exit-code "$FORK_REMOTE" "refs/heads/$BRANCH" 2>/dev/null); then
+    echo "ERROR: source branch '$BRANCH' is not known on remote '$FORK_REMOTE'." >&2
+    echo "  Push the branch to '$FORK_REMOTE' (or check connectivity) before creating the CR." >&2
+    exit 1
+  fi
+  REMOTE_BRANCH_TIP="${REMOTE_LS_OUTPUT%%[[:space:]]*}"
   if [[ "$LOCAL_BRANCH_TIP" != "$REMOTE_BRANCH_TIP" ]]; then
     echo "ERROR: source branch '$BRANCH' does not match remote '$FORK_REMOTE'." >&2
     echo "  Push the local branch or fetch and reconcile the remote branch before creating the CR." >&2
