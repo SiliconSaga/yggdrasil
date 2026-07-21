@@ -38,8 +38,10 @@ Running an always-on agent *for* someone — or simply isolating your own parall
 
 The [Guarded Kubernetes tutorial](../tutorials/guarded-kubernetes.md) and the gh-pages scaffold set the two shapes (docs-page and scaffold). Planned growth:
 
+- **A multi-phase newcomer arc** — describe GDD and its basics first, then a local-only starter tutorial (plain HTML edited and previewed in a browser — no credentials, no remote, no custom tooling), and only then "graduate" into realms, adapters, and remote workflows. The same phasing naturally starts newcomers on a single-machine local Thalamus and introduces the thalami hoard when they actually go multi-machine. GA testing showed the current intro reaches realm setup before a newcomer knows what GDD *is*.
 - **More component template flavors** — local frontend (vanilla JS), local backend (per-language where adapters exist), a full-stack mini, and an MCP server template. Multiple flavors also let learners exercise the multi-machine thalami sync by switching projects across sessions.
 - **A refreshed end-to-end onboarding pass** — re-testing the newcomer path on clean machines and folding the friction findings back in (this is continuous — see the [case studies](case-studies.md) for how a real dogfood run feeds the framework).
+- **Progress checklists that graduate into task lists** — GA testing confirmed a simple checkbox progress view lands well early; wiring it into a formal tracked task list once a learner starts something concrete (like the gh-pages tutorial) is the natural next step.
 - **Richer scaffolding** (further out) — backing `ws component init` with a real templating system rather than a copy, connecting to the template-upgrade machinery hoards already have.
 
 ## Team collaboration — Team Thalami
@@ -63,6 +65,10 @@ Designed-but-deferred `ws` growth, each picked up when real usage demands it:
 - **Shared lint config** — ship `.markdownlint.yaml` / `.shellcheckrc` / `.editorconfig` so local tools and review bots read the same rules.
 - `ws repo-config sync` — reconcile trackable repo settings (issue-label taxonomy, branch protection) from realm config as the single source of truth: additive by default, opt-in destructive prune behind a dry-run and confirmation, mirroring the read-audit / write-apply split of the k8s guard. Worth naming once two or three such reconcilers exist.
 - **Remote-homes routing** — generalize the fork/internal/external homes model across `ws push` / `ws cr` / `ws diagnose`, plus the "automate detection, craft the URL, human does only the click only they can" pattern for human-authority gates.
+- **`ws realm init` rename-on-init** — the template currently clones into a literal `realm-template/` directory; offering the user's own realm name at init (clone + rename + adjust in one step) beats circling back for a rename later.
+- **Adapter-suggestion nudge** — when tests run raw in a component with no adapter wired, a conditional one-line nudge to consider adding a `commands.test` mapping (today the hook only redirects where an adapter already exists).
+- **Streamlined repo setup with an admin-scoped PAT** — collaborator invites and repo toggles currently need the human in the provider web UI when using a bot token; a user who supplies a personal admin PAT should get the agent driving those steps end-to-end.
+- **Permission-hook performance profiling** — the PreToolUse hook measured ~3s typical / ~9.5s worst-case per invocation on a slow laptop; profile and trim once the feature surface settles (correctness first, then speed).
 
 ## Not (yet) on the roadmap
 
