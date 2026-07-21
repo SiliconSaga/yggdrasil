@@ -51,9 +51,9 @@ Rolling our own also removes three of the four glue burdens those tools impose (
 
 ## Architecture
 
-Two units. Neither contains a model or any secret beyond the workflow's built-in token; both run for **any** PR, whatever opened it.
+Two units. Neither contains a model or any secret beyond the workflow's built-in token; both run for **same-repository** PRs, whoever opened them. (Fork PRs are unsupported by design — a fork's token cannot write `gh-pages`.)
 
-```
+```text
 push: main ──► build (baseurl=/<component>) ──► deploy to gh-pages:/   (preserving pr-preview/)
 
 PR opened/sync

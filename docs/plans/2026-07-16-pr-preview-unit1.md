@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Every pull request to `ken-site` gets a live preview of its build at a URL, posted as a sticky comment, and removed when the PR closes.
+**Goal:** Every same-repository pull request to `ken-site` gets a live preview of its build at a URL, posted as a sticky comment, and removed when the PR closes. (Fork PRs are unsupported by design — see Scope.)
 
-**Architecture:** GitHub Pages serves one site per repo, so previews live *inside* the production site's tree on a `gh-pages` branch: production at `/`, previews at `/pr-preview/pr-<N>/`. `main` becomes source-only; workflows build it. All publishing is plain `git` against a worktree on the runner — no third-party actions, no PAT, no secrets beyond the built-in `GITHUB_TOKEN`.
+**Architecture:** GitHub Pages serves one site per repo, so previews live *inside* the production site's tree on a `gh-pages` branch: production at `/`, previews at `/pr-preview/pr-<N>/`. `main` becomes source-only; workflows build it. All publishing is plain `git` on the runner — no third-party *publishing* actions or services, no PAT, no secrets beyond the built-in `GITHUB_TOKEN`. (Toolchain setup uses the GitHub-maintained `actions/*` and `ruby/setup-ruby` actions; the restriction is about who holds publish credentials, not about setup helpers.)
 
 **Tech Stack:** GitHub Actions, Ruby 3.3 + Jekyll (`github-pages` gem), `gh` CLI (preinstalled on runners), plain `git`.
 
@@ -20,6 +20,7 @@
 - Component path in the workspace: `components/ken-site/` (its own git repo).
 - Commit via `ws commit ken-site <bodyfile>`; push via `ws push ken-site <branch>`; PRs via `ws cr ken-site "<title>" <bodyfile>`.
 - `<N>` in verification commands means the real PR number — substitute it.
+- Raw `git -C components/ken-site …` appears only where `ws` deliberately has no wrapper (branch creation, fetch/ls-tree inspection); commits, pushes, and CRs go through `ws` per the workspace convention.
 
 ## Scope
 
@@ -73,7 +74,7 @@ ws exec ken-site bundle install
 
 Edit `components/ken-site/.gitignore` — delete the `Gemfile.lock` line so the Bundler block reads exactly:
 
-```
+```gitignore
 # Bundler artifacts (only present if you decide to run Jekyll locally)
 .bundle/
 vendor/
@@ -210,8 +211,10 @@ ws cr ken-site "ci: build and publish the site to gh-pages" .crs/ken-deploy.md
 After merging the PR:
 
 ```bash
-ws gh api repos/SiliconSaga/ken-site/actions/runs --jq '.workflow_runs[0] | .name + " " + .status + " " + .conclusion'
+ws gh api "repos/SiliconSaga/ken-site/actions/runs?branch=main" --jq '[.workflow_runs[] | select(.name == "Deploy site")][0] | .name + " " + .status + " " + .conclusion'
 ```
+
+(The name+branch filter matters — bare `workflow_runs[0]` is the newest run repository-wide and can belong to a different workflow or event.)
 
 Expected: `Deploy site completed success`
 
@@ -275,22 +278,28 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# Build and publish are separate jobs BY DESIGN: `jekyll build` executes
+# PR-controlled code (Gemfile, plugins), so the build job runs with a
+# read-only token and no persisted git credentials. Only the publish job
+# — which executes nothing from the PR, it just moves the built artifact
+# — holds write permissions. A malicious build step therefore has no
+# credential capable of touching gh-pages.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: gh-pages-write
   cancel-in-progress: false
 
 jobs:
-  preview:
+  build:
     runs-on: ubuntu-latest
     env:
       PR: ${{ github.event.number }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -300,17 +309,39 @@ jobs:
       - name: Build with the preview baseurl
         run: bundle exec jekyll build --baseurl "/ken-site/pr-preview/pr-${PR}"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-site
+          path: _site/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR: ${{ github.event.number }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: preview-site
+          path: _site
+
       - name: Publish the preview
         run: |
           set -euo pipefail
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin gh-pages:refs/remotes/origin/gh-pages
-          git worktree add -B gh-pages ../ghp origin/gh-pages
-          rm -rf "../ghp/pr-preview/pr-${PR}"
-          mkdir -p "../ghp/pr-preview/pr-${PR}"
-          cp -r _site/. "../ghp/pr-preview/pr-${PR}/"
-          cd ../ghp
+          rm -rf "pr-preview/pr-${PR}"
+          mkdir -p "pr-preview/pr-${PR}"
+          cp -r _site/. "pr-preview/pr-${PR}/"
+          rm -rf _site
           git add -A -- "pr-preview/pr-${PR}"
           git commit -m "preview: PR #${PR} (${GITHUB_SHA::7})" || { echo "No preview changes."; exit 0; }
           for i in 1 2 3; do
@@ -353,7 +384,9 @@ add:
 ---
 Builds each PR with a preview baseurl and publishes it under
 pr-preview/pr-<N>/ on gh-pages, then upserts a sticky comment linking to
-it. Uses the built-in GITHUB_TOKEN only — no PAT, no third-party action.
+it. Uses the built-in GITHUB_TOKEN only — no PAT, no third-party
+publishing action — and the PR-controlled build runs in a separate
+read-only job from the write-capable publish job.
 ```
 
 ```bash
@@ -389,7 +422,7 @@ ws cr ken-site "ci: publish a preview site for every pull request" .crs/ken-prev
 - [ ] **Step 4: Verify the run succeeded**
 
 ```bash
-ws gh api repos/SiliconSaga/ken-site/actions/runs --jq '.workflow_runs[0] | .name + " " + .status + " " + .conclusion'
+ws gh api "repos/SiliconSaga/ken-site/actions/runs?branch=test/preview-smoke&event=pull_request" --jq '[.workflow_runs[] | select(.name == "PR preview")][0] | .name + " " + .status + " " + .conclusion'
 ```
 
 Expected: `PR preview completed success`
@@ -456,13 +489,13 @@ to:
     types: [opened, synchronize, reopened, closed]
 ```
 
-- [ ] **Step 2: Guard the publish job so it skips on close**
+- [ ] **Step 2: Guard the build job so it skips on close**
 
-Add an `if` to the `preview` job, directly above `runs-on`:
+Add an `if` to the `build` job, directly above `runs-on` (the `publish` job follows automatically — its `needs: build` skips it when `build` skips):
 
 ```yaml
 jobs:
-  preview:
+  build:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
 ```
@@ -475,6 +508,9 @@ Append to `pr-preview.yml`:
   cleanup:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     env:
       PR: ${{ github.event.number }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -490,19 +526,24 @@ Append to `pr-preview.yml`:
           set -euo pipefail
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ ! -d "pr-preview/pr-${PR}" ]; then
-            echo "No preview to remove."
-            exit 0
+          # No early exit when the directory is absent — the sticky-comment
+          # update below must ALWAYS run, or a manually-removed preview
+          # leaves the comment pointing at a dead link forever.
+          if [ -d "pr-preview/pr-${PR}" ]; then
+            rm -rf "pr-preview/pr-${PR}"
+            git add -A -- "pr-preview/pr-${PR}"
+            git commit -m "preview: remove PR #${PR}"
+            for i in 1 2 3; do
+              git push origin gh-pages && break
+              if [ "$i" = 3 ]; then
+                echo "Failed to push after 3 attempts." >&2
+                exit 1
+              fi
+              git pull --rebase origin gh-pages
+            done
+          else
+            echo "No preview directory to remove; continuing to the comment update."
           fi
-          rm -rf "pr-preview/pr-${PR}"
-          git add -A -- "pr-preview/pr-${PR}"
-          git commit -m "preview: remove PR #${PR}"
-          for i in 1 2 3; do
-            git push origin gh-pages && exit 0
-            git pull --rebase origin gh-pages
-          done
-          echo "Failed to push after 3 attempts." >&2
-          exit 1
 
       - name: Update the sticky comment
         run: |
@@ -544,7 +585,7 @@ ws push ken-site test/preview-smoke
 - [ ] **Step 5: Verify the guard didn't break the happy path**
 
 ```bash
-ws gh api repos/SiliconSaga/ken-site/actions/runs --jq '.workflow_runs[0] | .name + " " + .conclusion'
+ws gh api "repos/SiliconSaga/ken-site/actions/runs?branch=test/preview-smoke&event=pull_request" --jq '[.workflow_runs[] | select(.name == "PR preview")][0] | .name + " " + .conclusion'
 curl -s -o /dev/null -w "%{http_code}\n" https://siliconsaga.github.io/ken-site/pr-preview/pr-<N>/
 ```
 
@@ -555,10 +596,10 @@ Expected: `PR preview success`, then `200`.
 After merging:
 
 ```bash
-ws gh api repos/SiliconSaga/ken-site/actions/runs --jq '.workflow_runs[0] | .name + " " + .conclusion'
+ws gh api "repos/SiliconSaga/ken-site/actions/runs?branch=test/preview-smoke&event=pull_request" --jq '[.workflow_runs[] | select(.name == "PR preview")][0] | .name + " " + .conclusion'
 ```
 
-Expected: `PR preview success`
+Expected: `PR preview success` (the closed-event cleanup run is the newest match on this branch).
 
 ```bash
 git -C components/ken-site fetch SiliconSaga gh-pages

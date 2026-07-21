@@ -137,7 +137,9 @@ Two coherence gaps that read as "unfinished" to a public reader.
 
 **Approach:** Sweep every `ws` verb for uniform `--help` handling (treat `--help`/`-h` as a help request at every level, never as a malformed invocation). Separately, grep docs + skills for "see <X> above/below" style internal references and reconcile each against its actual current heading.
 
-### B5 — Tutorial + newcomer front door + adoption section — 🟡 Mostly done
+### B5 — Tutorial + newcomer front door + adoption section — ✅ Done
+
+**Status update (2026-07-21):** the last open item — the one-shot fresh-clone tutorial re-test — rode the clean-Windows newcomer run (see B2); its findings were fixed or roadmapped the same week and the `tutorial-next-pass` arc closed. Mermaid diagrams and additional template flavors were always roadmap, not gate.
 
 **Status update (2026-07-09):** the doc-side gaps below closed via #109 (workspace-setup front-door polish), #119 (onboarding hardening: PAT-creation links, realm fork-and-rename guidance, `.env` token docs), and #120 (consistency pass): `docs/getting-started/index.md` now uses the full `bash scripts/ws` form deliberately in the pre-PATH steps and says so; the "Bringing GDD to Your Own Community" / "How adoption works" section describes the three-layer bootstrap as implemented (the *"details will evolve"* caveat is gone); and the gh-pages production path has published proof (`docs/gdd/case-studies.md`, "Local political site for a non-technical owner"). **Remaining:** the end-to-end fresh-clone tutorial re-test validating the ~15-min scaffold-to-live claim — this rides the `B2` second-Windows-machine run. Mermaid diagrams and additional template flavors stay roadmap.
 

@@ -124,12 +124,7 @@ propose, merge — on a tiny target. The walkthrough below stays in
 the yggdrasil workspace root throughout (no `cd`-juggling), since
 `ws` operates on components by name from there.
 
-The scaffold ships with a few literal placeholders that are
-**visible on the live site immediately** — clean these up in your
-first edit so the deployed page doesn't say `Your Name's page` in
-the browser tab. (The title placeholder deliberately avoids angle
-brackets: browsers swallow `<like this>` as an unknown HTML tag,
-which used to leave a silly-looking bare `'s page`.)
+The scaffold ships with a few literal placeholders that are **visible on the live site immediately** — clean these up in your first edit so the deployed page doesn't say `Your Name's page` in the browser tab. (The title placeholder deliberately avoids angle brackets: browsers swallow `<like this>` as an unknown HTML tag, which used to leave a silly-looking bare `'s page`.)
 
 **1. Create your topic branch:**
 
@@ -139,9 +134,7 @@ git -C components/<name> checkout -b first-post
 
 (Branch creation is git's job; `ws` doesn't wrap it.)
 
-**2. Edit the home page and replace placeholders.** Open the
-following files in your editor and replace the `<...>` placeholders
-with real values:
+**2. Edit the home page and replace placeholders.** Open the following files in your editor and replace each placeholder with a real value — that's the literal `Your Name's page` title (a scaffold default, not your actual name!) as well as the `<...>` forms:
 
 | File | Placeholder | Replace with |
 |------|-------------|--------------|
