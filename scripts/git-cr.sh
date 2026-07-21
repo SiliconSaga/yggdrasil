@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # git-cr.sh — open a change request (PR/MR) from the current branch
 #
-# Usage: git-cr.sh [--remote REMOTE] [--upstream] TITLE BODYFILE
+# Usage: git-cr.sh [--remote REMOTE] [--source-branch BRANCH] [--upstream] TITLE BODYFILE
 #   --remote REMOTE — use this git remote as the fork/head remote.
 #                     Defaults to GIT_CR_REMOTE, then identity.forkRemote.
+#   --source-branch BRANCH — submit this local, remote-tracked branch instead
+#                            of deriving the source branch from current HEAD.
 #   --upstream — target the upstream (non-fork) remote instead of the fork.
 #                Creates a cross-fork CR: fork:branch → upstream:base.
 #   TITLE     — CR title
@@ -77,6 +79,7 @@ _create_pr_with_prominent_url() {
 # Parse flags
 UPSTREAM=""
 CR_REMOTE="${GIT_CR_REMOTE:-}"
+SOURCE_BRANCH="${GIT_CR_SOURCE_BRANCH:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --upstream)
@@ -99,6 +102,22 @@ while [[ $# -gt 0 ]]; do
       fi
       shift
       ;;
+    --source-branch)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "ERROR: --source-branch requires a branch name" >&2
+        exit 1
+      fi
+      SOURCE_BRANCH="$2"
+      shift 2
+      ;;
+    --source-branch=*)
+      SOURCE_BRANCH="${1#--source-branch=}"
+      if [[ -z "$SOURCE_BRANCH" || "$SOURCE_BRANCH" == -* ]]; then
+        echo "ERROR: --source-branch requires a branch name" >&2
+        exit 1
+      fi
+      shift
+      ;;
     --)
       shift
       break
@@ -116,16 +135,31 @@ done
 TITLE="${1:-}"
 BODYFILE="${2:-}"
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Ensure .crs/ clearinghouse exists
 mkdir -p "$REPO_ROOT/.crs"
 
 if [[ -z "$TITLE" || -z "$BODYFILE" || $# -ne 2 ]]; then
-  echo "Usage: $0 [--remote REMOTE] [--upstream] TITLE BODYFILE" >&2
+  echo "Usage: $0 [--remote REMOTE] [--source-branch BRANCH] [--upstream] TITLE BODYFILE" >&2
   echo "  See templates/change.md for a ready-to-copy bodyfile template. CR bodyfiles conventionally live in .crs/." >&2
   exit 1
+fi
+
+EXPLICIT_SOURCE_BRANCH=""
+if [[ -n "$SOURCE_BRANCH" ]]; then
+  if ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null 2>&1; then
+    echo "ERROR: invalid source branch '$SOURCE_BRANCH'." >&2
+    exit 1
+  fi
+  if ! git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
+    echo "ERROR: source branch '$SOURCE_BRANCH' does not exist locally." >&2
+    exit 1
+  fi
+  BRANCH="$SOURCE_BRANCH"
+  EXPLICIT_SOURCE_BRANCH="1"
+else
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
 fi
 
 if [[ ! -f "$BODYFILE" ]]; then
@@ -208,6 +242,12 @@ if [[ -z "$FORK_REMOTE" ]]; then
   exit 1
 fi
 FORK_URL=$(git remote get-url "$FORK_REMOTE" 2>/dev/null)
+
+if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]] && ! git show-ref --verify --quiet "refs/remotes/$FORK_REMOTE/$BRANCH"; then
+  echo "ERROR: source branch '$BRANCH' is not known on remote '$FORK_REMOTE'." >&2
+  echo "  Push the branch to '$FORK_REMOTE' or fetch that remote before creating the CR." >&2
+  exit 1
+fi
 
 # Detect provider and load implementation; set token before auth check
 gp_detect_and_load "$FORK_URL" "$_ECO"

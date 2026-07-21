@@ -42,6 +42,9 @@ MD
     git -C "$WORK" checkout -q -b feature/cr-remote-override
     git -C "$WORK" remote add fork https://github.com/example/fork.git
     git -C "$WORK" remote add alt https://github.com/alt/project.git
+    git -C "$WORK" branch feature/from-linked-worktree
+    git -C "$WORK" branch feature/local-only
+    git -C "$WORK" update-ref refs/remotes/alt/feature/from-linked-worktree refs/heads/feature/from-linked-worktree
 
     GH_STUB_DIR="$BATS_TEST_TMPDIR/gh-stub"
     GH_LOG="$BATS_TEST_TMPDIR/gh.log"
@@ -90,6 +93,46 @@ SH
     [[ "$output" == *"Opening CR for alt/project/feature/cr-remote-override"* ]]
     [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
     [[ "$(cat "$GH_LOG")" == *"--head feature/cr-remote-override"* ]]
+}
+
+@test "ws cr --source-branch submits a non-HEAD remote-tracked branch" {
+    run bash "$WS_BIN" cr yggdrasil --remote alt --source-branch feature/from-linked-worktree "test: branch override" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Opening CR for alt/project/feature/from-linked-worktree"* ]]
+    [[ "$(cat "$GH_LOG")" == *"--head feature/from-linked-worktree"* ]]
+}
+
+@test "ws cr --source-branch rejects a following option as the branch name" {
+    run bash "$WS_BIN" cr yggdrasil --source-branch --upstream "test: invalid branch" .crs/body.md
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--source-branch requires a branch name"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "git-cr.sh --source-branch rejects an invalid branch name" {
+    run bash -c 'cd "$1" || exit 1; bash "$2" --remote alt --source-branch "bad..branch" "test: invalid branch" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"invalid source branch 'bad..branch'"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "git-cr.sh --source-branch rejects a branch missing locally" {
+    run bash -c 'cd "$1" || exit 1; bash "$2" --remote alt --source-branch feature/missing-local "test: missing branch" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"source branch 'feature/missing-local' does not exist locally"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "git-cr.sh --source-branch rejects a branch absent from the selected remote" {
+    run bash -c 'cd "$1" || exit 1; bash "$2" --remote alt --source-branch feature/local-only "test: unpushed branch" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"source branch 'feature/local-only' is not known on remote 'alt'"* ]]
+    [[ ! -f "$GH_LOG" ]]
 }
 
 @test "ws cr --remote rejects a following option as the remote name" {
