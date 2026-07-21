@@ -2,7 +2,7 @@
 
 *Named after the brain's relay station — it receives input, processes it, and routes it to the right destination. Like the thalamus, this file doesn't store things permanently; it processes and forwards.*
 
-Between "private AI memory" (invisible to humans) and "committed project instructions" (formal, policy-level) there's a gap: where do observations, half-formed ideas, and session-to-session context live?
+Between "private AI memory" (invisible to humans — and also *local and agent-specific*: it doesn't travel to your other machines, and a different agent product can't read it) and "committed project instructions" (formal, policy-level) there's a gap: where do observations, half-formed ideas, and session-to-session context live? The Thalamus fills it as plain markdown the human can read and edit, any agent can load, and git can carry anywhere.
 
 ## What It Is
 
@@ -49,7 +49,7 @@ This enables session continuity — the AI knows when you last worked and whethe
 
 ## Cross-machine sync — the thalami hoard
 
-A single gitignored `Thalamus.md` works for one machine. Once you use yggdrasil on more than one — a desktop, a laptop, an old Mac — the preferences, observations, and in-flight work threads you want to carry across them need a home that isn't tied to a single checkout. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See [Hoards](hoards.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
+A single gitignored `Thalamus.md` works for one machine — and if that's your whole setup, stop there; the hoard adds nothing you need. Once you use yggdrasil on more than one machine — a desktop, a laptop, an old Mac — the shared-memory advantage compounds: everything your agent products' private memories *can't* do (cross machines, survive reinstalls, transfer between agent vendors, stay human-editable) is exactly what a git-synced Thalamus does. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See [Hoards](hoards.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
 
 When a hoard is active, the orientation skill resolves the active per-machine file (via `ws hoard thalamus-path`) and writes there instead of the workspace-root `Thalamus.md`. A root `Thalamus.md` can still exist as a non-synced scratch file alongside the hoard.
 

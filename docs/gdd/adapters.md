@@ -4,6 +4,8 @@ An **adapter file** declares per-component commands the workspace can list and (
 
 Components without an adapter file fall back to auto-detection (Gradle, Make, Go, Python, npm) for `ws test`. Adapters are optional; add one when you want to override the test runner, document project-specific commands, or pin a different default for your community.
 
+Why does adapter config live in the *realm* rather than the component? Because on its own it makes no sense — an adapter is purely added scaffolding for GDD to work a given component better, worthless to anyone not running GDD. Improvements that would help *everybody* (a better Makefile target, a CI fix, clearer docs) belong in the component itself as native changes; the adapter is the GDD-specific overlay a community maintains without asking upstream for anything.
+
 ---
 
 ## File shape
