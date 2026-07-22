@@ -6,7 +6,9 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
-This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd-ga-readiness-design.md` is ✅ and the tag is cut.
+## [1.0.0] - 2026-07-21
+
+**Guardian Driven Development reaches General Availability.** This first release versions the reference implementation — the yggdrasil workspace, the `ws` CLI, the skills, and the methodology docs — as one coherent snapshot: Claude-first, with a [published roadmap](docs/gdd/roadmap.md) for cross-harness support and beyond. The gate it cleared is recorded in `docs/plans/2026-06-08-gdd-ga-readiness-design.md`.
 
 ### Added
 
@@ -99,4 +101,5 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 
 The workspace evolved through roughly five waves, each anchored by design docs in `docs/plans/`: (1) the `ws` CLI extraction and provider abstraction (PRs ≤ #42); (2) realms, hoards, and component templates (#43–#46); (3) permissions, hook tiers, and skill hygiene (#47–#52, #61, #64, #71–#72); (4) the scribe role, vaults, organization stack, and hoard-upgrade machinery (#53–#76); (5) orientation, attribution, and the GA-readiness push (#83–#96).
 
-[Unreleased]: https://github.com/SiliconSaga/yggdrasil/commits/main
+[Unreleased]: https://github.com/SiliconSaga/yggdrasil/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/SiliconSaga/yggdrasil/releases/tag/v1.0.0

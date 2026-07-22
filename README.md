@@ -6,6 +6,8 @@
 
 **Yggdrasil** is the meta-workspace where [Guardian Driven Development (GDD)](docs/gdd/index.md) lives. It isn't just a wrapper around the ecosystem's repos — it's the home of the methodology itself: the `ws` workspace CLI, the GDD skills, the shared-thinking Thalamus, the components/realms/hoards model, and the documentation, commit, and branch conventions that bind everything together. Components, realms, and hoards are what Yggdrasil *orchestrates*; GDD is what Yggdrasil *is*.
 
+**Status: v1.0.0 — General Availability.** See the [release](https://github.com/SiliconSaga/yggdrasil/releases/tag/v1.0.0), the [CHANGELOG](CHANGELOG.md), and the [roadmap](docs/gdd/roadmap.md) for where it goes next.
+
 **How you actually work here:** you direct an AI coding agent to get real work done in the ecosystem's components, and GDD is the methodology that keeps that work safe, attributable, and legible. The `ws` CLI and the git / commit / branch conventions are mostly **guardrails the agent operates within** — attribution, auth, safe git and review flows — rather than commands you run by hand. Day to day you mostly steer and review; the agent drives `ws`. New to the idea? Start with [Guardian Driven Development](docs/gdd/index.md).
 
 ## Start here
