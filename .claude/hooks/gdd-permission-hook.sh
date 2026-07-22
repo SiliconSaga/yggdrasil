@@ -1513,6 +1513,16 @@ done
 # once the human approves. The ask-list is a safety FLOOR — it is
 # checked before the Tier 5/6 allow logic, so a destructive command
 # prompts even if some allowlist entry would otherwise pass it.
+#
+# Help-only carve-out: `ws <sub> --help` / `ws <sub> -h` with NOTHING
+# else prints help and exits before any subcommand logic runs (help
+# handling is unified at every level), so asking on it just teaches
+# humans to rubber-stamp. Exactly three tokens — a --help appearing
+# after further arguments (e.g. `ws exec <comp> <cmd> --help`) is an
+# argument to the wrapped command and keeps its ask.
+if [[ "$match_cmd" =~ ^ws\ [a-z][a-z0-9-]*\ (--help|-h)$ ]]; then
+    allow "help-only invocation"
+fi
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     _ask_match="$(normalize_for_match "$_ask")"
     # shellcheck disable=SC2053

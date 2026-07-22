@@ -1,0 +1,27 @@
+# Categories for GitHub's auto-generated release notes — used as the
+# "what merged" appendix under the curated CHANGELOG section in each
+# Release body (see docs/gdd/versioning.md § Change-note tooling).
+# Most PRs here carry no labels, so the catch-all does the heavy
+# lifting; label a PR when you want it sorted or excluded.
+#
+# These category labels are part of the repo's label taxonomy — when the
+# planned declarative label overhaul lands (roadmap: ws repo-config sync;
+# issue #124 for bodyfile label validation), maintain this file and the
+# label set together so they can't drift apart.
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Highlights
+      labels:
+        - release-highlight
+    - title: Security and trust
+      labels:
+        - security
+    - title: Enhancements
+      labels:
+        - enhancement
+    - title: Everything else
+      labels:
+        - "*"

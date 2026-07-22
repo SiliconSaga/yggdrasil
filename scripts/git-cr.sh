@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # git-cr.sh — open a change request (PR/MR) from the current branch
 #
-# Usage: git-cr.sh [--remote REMOTE] [--upstream] TITLE BODYFILE
+# Usage: git-cr.sh [--remote REMOTE] [--source-branch BRANCH] [--upstream] TITLE BODYFILE
 #   --remote REMOTE — use this git remote as the fork/head remote.
 #                     Defaults to GIT_CR_REMOTE, then identity.forkRemote.
+#   --source-branch BRANCH — submit this local, remote-tracked branch instead
+#                            of deriving the source branch from current HEAD.
 #   --upstream — target the upstream (non-fork) remote instead of the fork.
 #                Creates a cross-fork CR: fork:branch → upstream:base.
 #   TITLE     — CR title
@@ -77,6 +79,7 @@ _create_pr_with_prominent_url() {
 # Parse flags
 UPSTREAM=""
 CR_REMOTE="${GIT_CR_REMOTE:-}"
+SOURCE_BRANCH="${GIT_CR_SOURCE_BRANCH:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --upstream)
@@ -99,6 +102,22 @@ while [[ $# -gt 0 ]]; do
       fi
       shift
       ;;
+    --source-branch)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "ERROR: --source-branch requires a branch name" >&2
+        exit 1
+      fi
+      SOURCE_BRANCH="$2"
+      shift 2
+      ;;
+    --source-branch=*)
+      SOURCE_BRANCH="${1#--source-branch=}"
+      if [[ -z "$SOURCE_BRANCH" || "$SOURCE_BRANCH" == -* ]]; then
+        echo "ERROR: --source-branch requires a branch name" >&2
+        exit 1
+      fi
+      shift
+      ;;
     --)
       shift
       break
@@ -116,16 +135,31 @@ done
 TITLE="${1:-}"
 BODYFILE="${2:-}"
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Ensure .crs/ clearinghouse exists
 mkdir -p "$REPO_ROOT/.crs"
 
 if [[ -z "$TITLE" || -z "$BODYFILE" || $# -ne 2 ]]; then
-  echo "Usage: $0 [--remote REMOTE] [--upstream] TITLE BODYFILE" >&2
+  echo "Usage: $0 [--remote REMOTE] [--source-branch BRANCH] [--upstream] TITLE BODYFILE" >&2
   echo "  See templates/change.md for a ready-to-copy bodyfile template. CR bodyfiles conventionally live in .crs/." >&2
   exit 1
+fi
+
+EXPLICIT_SOURCE_BRANCH=""
+if [[ -n "$SOURCE_BRANCH" ]]; then
+  if ! git check-ref-format --branch "$SOURCE_BRANCH" >/dev/null 2>&1; then
+    echo "ERROR: invalid source branch '$SOURCE_BRANCH'." >&2
+    exit 1
+  fi
+  if ! git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
+    echo "ERROR: source branch '$SOURCE_BRANCH' does not exist locally." >&2
+    exit 1
+  fi
+  BRANCH="$SOURCE_BRANCH"
+  EXPLICIT_SOURCE_BRANCH="1"
+else
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
 fi
 
 if [[ ! -f "$BODYFILE" ]]; then
@@ -207,7 +241,52 @@ if [[ -z "$FORK_REMOTE" ]]; then
   fi
   exit 1
 fi
-FORK_URL=$(git remote get-url "$FORK_REMOTE" 2>/dev/null)
+# Read the remote's RAW configured URL (not `git remote get-url`, which
+# applies url.insteadOf rewrites): every consumer below is logical — provider
+# detection, token mapping, slug/host extraction — and should see the
+# canonical URL the operator configured. Transport operations address the
+# remote by NAME, so git still applies any insteadOf rewrite where it belongs.
+# Take the FIRST url entry (--get-all | head): that is the URL git fetches
+# from on a multi-URL remote, while --get would return the LAST — letting
+# provider detection disagree with the remote git actually talks to.
+FORK_URL=$(git config --get-all "remote.$FORK_REMOTE.url" 2>/dev/null | head -n1) || true
+if [[ -z "$FORK_URL" ]]; then
+  echo "ERROR: remote '$FORK_REMOTE' has no configured URL." >&2
+  exit 1
+fi
+
+if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
+  LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
+  # Live-verify the selected branch against the remote it will be reviewed
+  # from. Comparing against the last-fetched tracking ref is not enough — a
+  # stale fetch could equal the local tip while the real remote branch has
+  # moved, opening a review for code other than what the operator selected.
+  # Auth-env injection mirrors git-push.sh so private forks resolve without
+  # a credential-helper prompt.
+  declare -a GIT_AUTH_ENV=()
+  GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+  git_auth_env_for_url "$FORK_URL"
+  # Let ls-remote's stderr flow through and branch on its exit code — 2 means
+  # the remote answered and the ref is absent, anything else is a transport or
+  # auth failure. Collapsing both into "push the branch" would send an operator
+  # with an expired token off to debug the wrong problem.
+  _LS_STATUS=0
+  REMOTE_LS_OUTPUT=$(env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git ls-remote --exit-code "$FORK_REMOTE" "refs/heads/$BRANCH") || _LS_STATUS=$?
+  if [[ "$_LS_STATUS" -eq 2 ]]; then
+    echo "ERROR: source branch '$BRANCH' is not known on remote '$FORK_REMOTE'." >&2
+    echo "  Push the branch to '$FORK_REMOTE' before creating the CR." >&2
+    exit 1
+  elif [[ "$_LS_STATUS" -ne 0 ]]; then
+    echo "ERROR: could not verify '$BRANCH' against remote '$FORK_REMOTE' — git ls-remote failed (see above); check connectivity and auth." >&2
+    exit 1
+  fi
+  REMOTE_BRANCH_TIP="${REMOTE_LS_OUTPUT%%[[:space:]]*}"
+  if [[ "$LOCAL_BRANCH_TIP" != "$REMOTE_BRANCH_TIP" ]]; then
+    echo "ERROR: source branch '$BRANCH' does not match remote '$FORK_REMOTE'." >&2
+    echo "  Push the local branch or fetch and reconcile the remote branch before creating the CR." >&2
+    exit 1
+  fi
+fi
 
 # Detect provider and load implementation; set token before auth check
 gp_detect_and_load "$FORK_URL" "$_ECO"

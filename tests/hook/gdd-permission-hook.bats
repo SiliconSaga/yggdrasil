@@ -1028,6 +1028,30 @@ ws exec *"
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
 
+@test "allow: bare ws exec --help is a help-only invocation, not an ask" {
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    run_hook "ws exec --help"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow: wrapper-form ws exec -h help invocation skips the ask-list" {
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    run_hook "bash scripts/ws exec -h"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "ask: --help passed through a wrapped ws exec command still asks" {
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    run_hook "ws exec yggdrasil somecmd --help"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
 @test "ask: bare ws mcp-setup is human-gated by the shipped policy" {
     seed_real_project_config
     run_hook "ws mcp-setup"

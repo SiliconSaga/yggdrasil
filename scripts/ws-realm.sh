@@ -816,7 +816,9 @@ ws_realm_use() {
             read -r -p "Trust and activate this realm? [y/N] " confirm
             [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Aborted."; return 0; }
         else
-            echo "ERROR: Non-interactive realm selection requires --trust after reviewing the summary." >&2
+            echo "Review step complete — no realm activated yet. This two-step flow is by design:" >&2
+            echo "the trust summary above is what you are approving. When it looks right, re-run:" >&2
+            echo "  ws realm use --trust $name" >&2
             exit 1
         fi
     fi

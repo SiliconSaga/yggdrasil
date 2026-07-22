@@ -13,7 +13,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - **The `ws` CLI** — unified workspace verbs (`commit`, `push`, `cr`, `issue`, `review`, `test`, `lint`, `log`, `clone`, `clone-fork`, `pull`, `status`, `exec`, `clean`, `diagnose`, `preflight`, `orient`, and friends) with bodyfile-driven commit/CR/issue flows, Co-Authored-By attribution, fork-aware remote selection, and multi-kind target resolution (components, realms, hoards, the workspace itself) via `ws_resolve_target` (#40, #44, #62, #92, #94).
 - **Session-scoped identity and configuration** — commit attribution resolves per session (`ws whoami --set` at orientation, `--co-author-file` for sub-agents, `--human` for humans, hard error over silent mis-attribution), and stance/role/mentoring are established per session via `ws session` instead of Thalamus frontmatter (#100, #103, #107, #111).
 - **The `ws k8s` guard** — a kubectl safety scope: arm a context + namespaces and out-of-scope writes are rejected before kubectl runs, with class-aware messages (scope / unbounded / precondition); the hook extends the guard to raw agent `kubectl`, and ambient aggregation covers plain human terminals (#111, #112).
-- **Token-injected remote git auth** — `ws push` / `clone` / `clone-fork` / `pull` inject the matching `.env` token per process so HTTPS operations never fall through to OS credential managers; `ws push` pushes tags; `ws gh` / `ws glab` run one-off provider commands with the right token loaded (#100, #106, #112, #116).
+- **Token-injected remote git auth** — `ws push` / `clone` / `clone-fork` / `pull` inject the matching `.env` token per process so HTTPS operations never fall through to OS credential managers; `ws push` pushes tags; `ws gh` / `ws glab` run one-off provider commands with the right token loaded (#100, #106, #112, #116). Requires git ≥ 2.31, now enforced by `ws preflight` — older git silently ignores the env-config injection mechanism and falls through to the OS credential manager after all (caught live on a git 2.28 host during the GA clone-fork e2e).
 - **Realms and hoards** — community config layer (`realms/`, three-layer ecosystem merge, per-component adapters) and personal containers (`hoards/`, thalami + Obsidian-vault flavors, `ws hoard init/list/scan/cadence/upgrade`) with provenance-tracked, plan/apply/rollback template upgrades (#43, #59, #63, #74–#76).
 - **The PreToolUse permission hook** — tiered Bash governance: shell-composition deny, raw-command redirect-to-`ws` with session-scoped human-gated bypass, adapter-aware test/lint redirect, guarded-kubectl tier, destructive-command ask-tier, settings-allow and per-machine allow-extras; PowerShell matcher coverage (#47, #61, #64, #71, #91, #95, #111, #114).
 - **`ws audit-permissions`** — startup allowlist breadth audit with watchlist severities, ws-wrapper normalization scoped to in-repo paths, and per-machine `[audit-acknowledged]` allowances (#94, #96).
@@ -32,6 +32,8 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - **Kustomize local-only preflight** — the k8s guard validates a `-k` target's whole reference graph (resources, bases, patches incl. legacy JSON6902, generators) as local, non-symlinked, and root-contained before rendering (#129).
 - MCP endpoint validation at `ws mcp-setup` time: absolute HTTP(S) shape required, plain-HTTP-on-nonlocal-host and embedded-credential warnings (#129).
 - **`ws docker` wrapper** — a scoped passthrough that sets `MSYS_NO_PATHCONV=1` for a single docker invocation on Git Bash, replacing the global env toggle that broke every `yq`/`gh` path; `ws` file-path arguments to native CLIs route through `cygpath`, so ws commands survive either MSYS conversion state (#131).
+- `ws cr` accepts an explicitly selected non-HEAD source branch — a pushed branch from a linked worktree can open a CR without disturbing the canonical checkout. The local and selected remote-tracking tips must match before any provider call, so a stale same-named remote branch cannot open a review of code other than what the operator selected.
+- The published post-1.0 roadmap grew dedicated tracks for assisted access and support (PR previews + visual diffs, chat-channel agents, sanitized release/support records, `ws share` handoffs, guided onboarding) and sandboxed workspaces (containerized, trust-scaled execution).
 - Optional shellcheck linting for the workspace's own scripts (#98).
 
 ### Changed
@@ -45,6 +47,8 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `docs/dev-setup.md` renamed to `docs/workspace-setup.md` with an onboarding front-door polish pass (#109).
 - Hard-wrapped prose de-wrapped workspace-wide per the single-line-paragraph convention (#104).
 - Methodology docs consistency pass — the "good-enough" posture named as a first-class design statement, hook-doc altitude dedup, skills-reference taxonomy fix, link-shape cleanups (#120).
+- `ws realm use` without `--trust` now presents the review as step one of the designed two-step activation flow — summary shown, nothing activated, exact re-run command named — instead of a bare error.
+- Newcomer-language pass from fresh-laptop GA testing: the canonical Guardian Driven Development expansion + mutual-guardianship framing at agent eye-level (AGENTS.md, docs index, orientation greeting), Newcomer language rules in the orientation skill (primer before plumbing, "we" not "you", realms introduced as the augment layer, narrow diagrams, roles equip the session), the adapter-in-realm rationale, and a sharpened Thalamus pitch; six further findings recorded as roadmap entries.
 - **Realm auto-detection removed** — with no `realm:` selector in `ecosystem.local.yaml`, no realm is active, including the upstream `realm-template`. Existing workspaces that relied on an implicitly selected realm should run `ws realm use <name>` once (#129, #130).
 - The permission hook anchors all policy (rules files, allowlists, scratch and sensitive paths) to the workspace root instead of walking up from the command cwd; `Edit`/`Write` route through the hook, and security-sensitive state (`.claude/`, `.env`, `ecosystem.local.yaml`, hook-bypass markers, agent session files) asks instead of inheriting the scratch auto-allow (#129).
 - Hoard templates require an immutable full-SHA `pin` (checked out detached), and hoard-upgrade manifests are validated against traversal and symlink escapes before any file operation (#129).
@@ -57,6 +61,7 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 ### Removed
 
 - The unused `ws resolve` ArgoCD manifest generator — deploy trees belong to stacks/realms, not the GDD framework (#105).
+- The initial-commit `roadmap-schema.yaml` fossil at the workspace root — a pre-ecosystem phase sketch nothing referenced; the real roadmap is `docs/gdd/roadmap.md`.
 
 ### Fixed
 
@@ -73,6 +78,9 @@ This section becomes `1.0.0` when every GA blocker in `docs/plans/2026-06-08-gdd
 - `ws k8s` distinguishes a failed live namespace verification from a verified-absent namespace when arming a scope (#131).
 - The full bats suite passes on Windows Git Bash — dropped a ripgrep test dependency and pinned platform-dependent path forms; first fully-green Windows run (#133).
 - The Kubernetes write floor no longer asks on `bash -n` syntax checks of kubectl-bearing scripts — parse-only invocations are not script runs (#133).
+- Bare `ws <subcommand> --help` / `-h` invocations no longer trip the hook's ask-list — help-only forms print and exit before any subcommand logic, so they allow; a `--help` passed through to a wrapped command keeps its ask.
+- The gh-pages template's title placeholder no longer disappears in rendered HTML — browsers swallowed the angle-bracket form as an unknown tag, leaving a bare `'s page` in the tab; the scaffold now ships a visible `Your Name's page`.
+- GitLab default-branch lookups during CR creation surface API failures as errors instead of continuing with a `null` or guessed target branch.
 
 ### Security
 

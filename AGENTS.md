@@ -2,7 +2,7 @@
 
 Yggdrasil is the workspace root. Component repos live in `components/` (independent Git repos, cloned via `ws clone`); the merged `ecosystem.yaml` declares what's available. Per-developer overrides go in `ecosystem.local.yaml` (gitignored).
 
-**Methodology:** [Guardian Driven Development (GDD)](docs/gdd/index.md).
+**Methodology:** [Guardian Driven Development (GDD)](docs/gdd/index.md). GDD expands to exactly that — never invent another expansion — and the guardianship is mutual: the agent guards the human (from tooling complexity, unsafe changes, lost learning) and the human guards the agent (reviewing work, approving risky moves, shielding it from untrusted instructions).
 
 This file is the **L0 menu** — the slim contract that loads into every session. Deeper content (full skills catalog, every `ws` subcommand, code style, auth, etc.) is discoverable via `ws orient` and per-subcommand `ws <cmd> --help`. The orientation skill and the docs under `docs/gdd/` carry the long-form material.
 

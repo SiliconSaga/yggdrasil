@@ -1,4 +1,7 @@
-title: <your name>'s page
+# Replace "Your Name" below — angle-bracket placeholders would vanish in
+# rendered HTML (browsers treat them as unknown tags), so this ships as a
+# visible, silly-proof default until you personalize it.
+title: Your Name's page
 description: Built with the GDD GitHub Pages template
 theme: jekyll-theme-cayman
 

@@ -225,28 +225,32 @@ ws_cr() {
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>
+Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] <title> <bodyfile>
 
   component   Component, realm, or hoard to open the CR against
   --remote    Use this git remote as the fork/head remote for this CR
+  --source-branch
+              Submit this local, remote-tracked branch instead of current HEAD
   --upstream  Target the upstream repo instead of the fork remote
   title       CR (PR / MR) title
   bodyfile    Path (relative to workspace root) to a change bodyfile
               — see templates/change.md
 
-Opens a code-review request on the current branch via git-cr.sh.
+Opens a code-review request via git-cr.sh. The current branch is used unless
+--source-branch selects another pushed branch from the same repository.
 HELP
             return 0
         fi
     done
-    if [[ $# -lt 3 || $# -gt 6 ]]; then
-        echo "Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>" >&2
+    if [[ $# -lt 3 || $# -gt 8 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
     shift
     ws_resolve_target "$comp"
     local cr_remote=""
+    local source_branch=""
     local args=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -266,6 +270,22 @@ HELP
                 fi
                 shift
                 ;;
+            --source-branch)
+                if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+                    echo "ERROR: --source-branch requires a branch name" >&2
+                    exit 1
+                fi
+                source_branch="$2"
+                shift 2
+                ;;
+            --source-branch=*)
+                source_branch="${1#--source-branch=}"
+                if [[ -z "$source_branch" || "$source_branch" == -* ]]; then
+                    echo "ERROR: --source-branch requires a branch name" >&2
+                    exit 1
+                fi
+                shift
+                ;;
             *)
                 args+=("$1")
                 shift
@@ -273,7 +293,7 @@ HELP
         esac
     done
     if [[ ${#args[@]} -lt 2 || ${#args[@]} -gt 3 ]]; then
-        echo "Usage: ws cr <component> [--remote <remote>] [--upstream] <title> <bodyfile>" >&2
+        echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] <title> <bodyfile>" >&2
         exit 1
     fi
     # Resolve bodyfile path before cd (last arg is always the bodyfile)
@@ -283,6 +303,9 @@ HELP
     fi
     if [[ -n "$cr_remote" ]]; then
         export GIT_CR_REMOTE="$cr_remote"
+    fi
+    if [[ -n "$source_branch" ]]; then
+        export GIT_CR_SOURCE_BRANCH="$source_branch"
     fi
     cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr.sh" "${args[@]}"
 }

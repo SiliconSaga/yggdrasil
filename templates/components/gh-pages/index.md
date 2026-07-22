@@ -1,6 +1,6 @@
 ---
 layout: default
-title: <your name>'s page
+title: Your Name's page
 ---
 
 # Hello — this is your new GitHub Pages site

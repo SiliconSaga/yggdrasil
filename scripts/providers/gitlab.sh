@@ -50,7 +50,16 @@ gp_extract_slug() {
 # Usage: gp_default_branch SLUG
 gp_default_branch() {
     local slug="$1"
-    glab api "projects/$(echo "$slug" | sed 's|/|%2F|g')" 2>/dev/null | jq -r '.default_branch' 2>/dev/null || echo "main"
+    local response default_branch
+    if ! response=$(glab api "projects/$(echo "$slug" | sed 's|/|%2F|g')"); then
+        echo "ERROR: Cannot determine the default branch for GitLab project '$slug'." >&2
+        return 1
+    fi
+    if ! default_branch=$(printf '%s' "$response" | jq -er '.default_branch | select(type == "string" and length > 0)'); then
+        echo "ERROR: Cannot determine the default branch for GitLab project '$slug'." >&2
+        return 1
+    fi
+    printf '%s\n' "$default_branch"
 }
 
 # Create a merge request.

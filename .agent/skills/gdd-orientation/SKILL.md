@@ -56,9 +56,20 @@ Never dive silently into a shell — even one auto-approved command at session s
 
 Newcomer greeting template:
 
-> "Hi — first time here? Quick heads-up on what I'm about to do: I'll run `ws orient`. It's a read-only probe that surveys what `ws` commands are wired, what skills are available, which realm is active, and how each component is set up for tests/lint. It doesn't change anything — just reads. Then I'll know enough to actually help."
+> "Hi — first time here? This workspace runs **Guardian Driven Development (GDD)**: you and I collaborate with some guardrails, and the guardianship runs both ways — I help protect you from tooling complexity and risky changes, and you review my work and approve anything consequential. Quick heads-up on what I'm about to do: I'll run `ws orient`. It's a read-only probe that surveys what `ws` commands are wired, what skills are available, which realm is active, and how each component is set up for tests/lint. It doesn't change anything — just reads. Then I'll know enough to actually help."
 
 Then run `ws orient`.
+
+### Newcomer language rules
+
+These apply to every newcomer-facing explanation in this skill and beyond:
+
+- **Primer before plumbing.** Offer the short "what GDD is" picture before any setup step — a newcomer asked to configure a realm before knowing what GDD does is lost by design. The greeting above is the seed; expand it on request before continuing setup.
+- **The name is exact.** GDD = Guardian Driven Development, mutual guardianship (agent guards human, human guards agent). Never expand the acronym any other way.
+- **"We", not "you".** Most `ws` invocations and edits are collaborative — say "we'll commit this" unless the step genuinely requires the human alone (approving a prompt, clicking a web UI, minting a token).
+- **Introduce realms as the augment layer**, not through their trust machinery: "a realm lets a community wire extras — test commands, skills, AI context — onto components *without modifying them*." Run the adapter risk scan as the skill requires, but narrate it to newcomers in one plain line ("I checked the wired commands and they look routine") instead of leading with the mechanism.
+- **Keep diagrams narrow.** ASCII layouts wrap terribly in narrow clients — stay under ~60 columns or use a short list instead.
+- **Roles equip the session more than they label the human.** When explaining roles, say the role signals the human's intent and configures what the *agent* leads with — not merely "what hat you're wearing."
 
 **Bootstrap (fresh machine).** On a bare machine `ws orient` self-diagnoses: when yq/jq are missing it runs `ws preflight` for you and prints the per-OS install hints. When you see that, help the human install the missing required tools, have them restart the shell so PATH updates apply, then re-run `ws orient`. Required tools (bash/git/yq/jq) are the local tier; a provider token isn't needed until the first remote action, so don't gate the session on it.
 
@@ -224,7 +235,7 @@ Already `GDD_ROLE=scribe` → skip; the scribe skill runs its own binding sub-fl
 
 Brief the human based on stance, role, active concerns, and post-orient signals:
 
-- **Newcomer (post-orient signals strong):** walk through what orient surfaced. Name the wired verbs, name the active realm if any, ask what they're trying to learn or build. If the active realm is the shared `realm-template` starter, prompt them to make it their own — fork it on GitHub and rename to `realm-<their-community>`, then adopt the fork with `ws realm <fork-url>` — rather than living long-term inside `realm-template`. Point first-timers at the light `ws component init gh-pages` loop before the heavier example-project clones (`ws clone --all`).
+- **Newcomer (post-orient signals strong):** lead with the GDD primer (per the Newcomer language rules) before any setup, then walk through what orient surfaced. Name the wired verbs, name the active realm if any, ask what they're trying to learn or build. If the active realm is the shared `realm-template` starter, prompt them to make it their own — fork it on GitHub and rename to `realm-<their-community>`, then adopt the fork with `ws realm <fork-url>` — rather than living long-term inside `realm-template`. Point first-timers at the light `ws component init gh-pages` loop before the heavier example-project clones (`ws clone --all`).
 - **Mid-session pickup:** *"Picking up in Developer/Zen stance. Last session noted X. Open concerns: Y. What's the session about?"*
 
 ### Active arcs (when a thalami hoard is active)
