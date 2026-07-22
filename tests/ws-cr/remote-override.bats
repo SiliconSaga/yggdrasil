@@ -50,6 +50,11 @@ MD
     ALT_BARE="$BATS_TEST_TMPDIR/alt-project.git"
     git init -q --bare "$ALT_BARE"
     git -C "$WORK" config url."$ALT_BARE".insteadOf https://github.com/alt/project.git
+    # A second URL on the remote (git pushes to all, fetches from the FIRST)
+    # pins that provider detection and slug extraction read the first entry —
+    # every test in this file fails on host/slug mismatch if the last-entry
+    # form regresses.
+    git -C "$WORK" remote set-url --add alt https://second.invalid/other/wrong.git
 
     BASE_COMMIT="$(git -C "$WORK" rev-parse HEAD)"
     git -C "$WORK" commit --allow-empty -q -m "advance branch fixtures"
@@ -193,7 +198,10 @@ SH
 }
 
 @test "git-cr.sh --upstream refuses a same-provider cross-host token route" {
-    git -C "$WORK" remote set-url alt https://github.enterprise.test/upstream/project.git
+    # Re-create rather than set-url: the shared fixture gives alt a second URL,
+    # and set-url refuses to modify a multi-valued remote.<name>.url.
+    git -C "$WORK" remote remove alt
+    git -C "$WORK" remote add alt https://github.enterprise.test/upstream/project.git
     cat > "$ECOSYSTEM" <<'YAML'
 identity:
   human_account: testuser

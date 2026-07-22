@@ -246,7 +246,14 @@ fi
 # detection, token mapping, slug/host extraction — and should see the
 # canonical URL the operator configured. Transport operations address the
 # remote by NAME, so git still applies any insteadOf rewrite where it belongs.
-FORK_URL=$(git config --get "remote.$FORK_REMOTE.url" 2>/dev/null)
+# Take the FIRST url entry (--get-all | head): that is the URL git fetches
+# from on a multi-URL remote, while --get would return the LAST — letting
+# provider detection disagree with the remote git actually talks to.
+FORK_URL=$(git config --get-all "remote.$FORK_REMOTE.url" 2>/dev/null | head -n1) || true
+if [[ -z "$FORK_URL" ]]; then
+  echo "ERROR: remote '$FORK_REMOTE' has no configured URL." >&2
+  exit 1
+fi
 
 if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
