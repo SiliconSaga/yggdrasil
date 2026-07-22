@@ -171,6 +171,19 @@ SH
     [[ ! -f "$GH_LOG" ]]
 }
 
+@test "git-cr.sh --source-branch surfaces a transport failure distinctly from a missing branch" {
+    # A remote whose transport target doesn't exist: the guard must say
+    # verification FAILED (connectivity/auth), not "push the branch".
+    git -C "$WORK" remote add dead https://github.com/dead/project.git
+    git -C "$WORK" config url."$BATS_TEST_TMPDIR/missing.git".insteadOf https://github.com/dead/project.git
+    run bash -c 'cd "$1" || exit 1; bash "$2" --remote dead --source-branch feature/diverged "test: transport failure" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"could not verify"* ]]
+    [[ "$output" != *"is not known on remote"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
 @test "git-cr.sh --source-branch rejects a moved remote hidden by a stale tracking ref" {
     # The tracking ref equals the local tip (looks fresh), but the remote's
     # real branch has different content — only a live remote query catches it.
