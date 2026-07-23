@@ -368,3 +368,64 @@ YAML
     [[ "$output" == *"https://github.com/source-org/widget/fork"* ]]
     [[ "$output" != *"/-/forks/new"* ]]
 }
+
+@test "gitlab forkRepo override passes a renamed project to the fork API" {
+    local glab_log="$BATS_TEST_TMPDIR/glab.log"
+    local fork_marker="$BATS_TEST_TMPDIR/gitlab-fork-created"
+    export glab_log fork_marker
+    cat > "$TEST_BIN/glab" <<'SH'
+#!/usr/bin/env bash
+{ printf 'glab:'; printf ' %q' "$@"; printf '\n'; } >> "$glab_log"
+
+case "$*" in
+    *"projects/explicit%2Fforks%2Fwidget-cfr"*)
+        if [[ -f "$fork_marker" ]]; then
+            printf '{"id":2,"import_status":"failed","import_error":"stop after request capture"}\n'
+            exit 0
+        fi
+        echo "404 Project Not Found" >&2
+        exit 1
+        ;;
+    *"projects/source%2Fteam%2Fwidget"*)
+        printf '{"id":1,"default_branch":"main"}\n'
+        exit 0
+        ;;
+    *"projects/1/fork"*)
+        touch "$fork_marker"
+        printf '{"id":2,"import_status":"scheduled"}\n'
+        exit 0
+        ;;
+esac
+
+echo "unexpected glab call: $*" >&2
+exit 1
+SH
+    chmod +x "$TEST_BIN/glab"
+
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: alice-fork-group
+defaults:
+  gitProviders:
+    gitlab.example.com: gitlab
+  gitTokens:
+    gitlab.example.com/source/team/widget: GITLAB_SOURCE_TOKEN
+    gitlab.example.com/explicit/forks/widget-cfr: GITLAB_FORK_TOKEN
+components:
+  widget:
+    tier: supporting
+    repo: https://gitlab.example.com/source/team/widget.git
+    forkRepo: https://gitlab.example.com/explicit/forks/widget-cfr.git
+YAML
+    export GITLAB_SOURCE_TOKEN="source-token"
+    export GITLAB_FORK_TOKEN="fork-token"
+
+    run bash "$CLONE_FORK_BIN" widget
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Fork import failed"* ]]
+    grep -Fq "projects/1/fork" "$glab_log"
+    grep -Fq "namespace_path=explicit/forks" "$glab_log"
+    grep -Fq "name=widget-cfr" "$glab_log"
+    grep -Fq "path=widget-cfr" "$glab_log"
+}
