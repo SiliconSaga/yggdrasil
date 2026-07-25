@@ -71,13 +71,15 @@ nav:
     - Access: gdd/access.md
     - Permissions: gdd/permissions.md
     - Self-Improving Loop: gdd/self-improving-loop.md
-    - Samples:
-      - gdd/samples/index.md
-      - "Session 1: GDD Pilot": gdd/samples/session-1-gdd-pilot.md
-      - "Session 2: Review Threads": gdd/samples/session-2-review-threads.md
-      - "Thalamus: Primary": gdd/samples/thalamus-primary.md
-      - "Thalamus: Primary Processed": gdd/samples/thalamus-processed.md
-      - "Thalamus: Parallel": gdd/samples/thalamus-parallel.md
+    - Case Studies:
+      - gdd/case-studies/index.md
+      - "Contributor PR Review (v1.0)": gdd/case-studies/terasology-contributor-review.md
+      - "Early GDD: First Sessions": gdd/case-studies/early-gdd.md
+      - "Session 1: GDD Pilot": gdd/case-studies/session-1-gdd-pilot.md
+      - "Session 2: Review Threads": gdd/case-studies/session-2-review-threads.md
+      - "Thalamus: Primary": gdd/case-studies/thalamus-primary.md
+      - "Thalamus: Primary Processed": gdd/case-studies/thalamus-processed.md
+      - "Thalamus: Parallel": gdd/case-studies/thalamus-parallel.md
   - Getting Started:
     - getting-started/index.md
   - Tutorials:

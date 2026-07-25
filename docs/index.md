@@ -15,5 +15,5 @@ A methodology for human-AI collaboration in software projects. GDD wraps existin
 ### [Getting Started](getting-started/index.md)
 How to get set up — whether you're here to contribute to SiliconSaga components or to try GDD in your own projects.
 
-### [GDD Case Studies](gdd/case-studies.md)
-GDD on real work — a non-technical owner's campaign site, parallel-workspace development, a greenfield platform component end to end. The historical [samples](gdd/samples/index.md) preserve transcripts from GDD's first sessions.
+### [GDD Case Studies](gdd/case-studies/index.md)
+GDD on real work — [reviewing a contributor's PR one-handed from a phone](gdd/case-studies/terasology-contributor-review.md), a non-technical owner's campaign site, parallel-workspace development, a greenfield platform component end to end. [Early GDD](gdd/case-studies/early-gdd.md) preserves transcripts from GDD's first sessions.

@@ -91,8 +91,8 @@ The [Getting Started walkthrough](../getting-started/index.md) covers setup step
 **Where it's going and where it's been:**
 
 - [Roadmap](roadmap.md) — what's next after 1.0: more agents (Codex in progress; Gemini/Antigravity on deck), more tutorials, team collaboration
-- [Case Studies](case-studies.md) — GDD on real work: a non-technical owner's campaign site, parallel-workspace development, and more
-- [Samples](samples/index.md) — early session transcripts and Thalamus snapshots, preserved from GDD's first sessions
+- [Case Studies](case-studies/index.md) — GDD on real work: reviewing a contributor's PR from a phone, a non-technical owner's campaign site, parallel-workspace development, and more
+- [Early GDD](case-studies/early-gdd.md) — session transcripts and Thalamus snapshots preserved from GDD's first sessions
 
 **Design archive** (historical — the original design documents, kept as the record of how GDD took shape; the docs above describe the current system):
 

@@ -139,7 +139,7 @@ When you're comfortable, try other stances:
 - **Quick** for 15-minute sessions between other responsibilities
 - **Zen** for deep work sessions where you want full ceremony
 
-See the [GDD overview](../gdd/index.md) for the full methodology, or the [case studies](../gdd/case-studies.md) for what GDD looks like on real work.
+See the [GDD overview](../gdd/index.md) for the full methodology, or the [case studies](../gdd/case-studies/index.md) for what GDD looks like on real work.
 
 ## Explore a community's components
 

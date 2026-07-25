@@ -1,16 +1,29 @@
 # Case Studies
 
-GDD applied to real work — recent, concrete, and messier than a tutorial. Each entry is a short vignette of an actual effort run through the methodology, with a note on what it demonstrates. Longer writeups of several of these are planned (see the [roadmap](roadmap.md)); the vignettes stand on their own.
+GDD applied to real work — recent, concrete, and messier than a tutorial. Most entries here are short vignettes of an actual effort run through the methodology, with a note on what each demonstrates. Longer writeups of several of these are planned (see the [roadmap](../roadmap.md)); the vignettes stand on their own.
 
-For the historical origin material — verbatim transcripts of GDD's first-ever sessions — see [Samples](samples/index.md).
+Two efforts are written up at length, and together they bracket the project's life so far:
+
+- **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)** — a full session from the week of the 1.0 release: an outside contributor's bug fix reviewed, an engine root cause found underneath it, fixes proposed back, and an issue filed — conducted almost entirely from a phone, one-handed, around childcare. The clearest picture of what the finished system feels like in use.
+- **[Early GDD — the first sessions](early-gdd.md)** — verbatim (if condensed) transcripts and Thalamus files from GDD's first two sessions ever, back in March. They predate most of today's system, so read them as origin material rather than current mechanics.
+
+Reading one after the other is the fastest way to see how far the methodology travelled: the early sessions are GDD *being built*, the v1.0 study is GDD *being used* on someone else's codebase without the human having a desk.
 
 ---
+
+## Reviewing a contributor's PR, from a phone
+
+An outside contributor opened a bug fix on a Terasology module and asked for review. Over roughly three hours — spent mostly on childcare, with a toddler on lap and later from a phone — the agent brought a months-old workspace current, checked out the PR, verified the fix against the engine source, ran the game, and found that the bug the PR patched at module level had an engine-level root cause the PR never named. It turned out to be the same root cause as a *second*, apparently unrelated PR from the same contributor. Fixes went back to both branches as PRs from forks, one leftover finding became an issue, and the contributor merged.
+
+Full writeup: **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)**.
+
+**What it shows:** the found-time thesis at full stretch. Also the trust boundaries holding under pressure — the agent's token deliberately lacked push access to the upstream orgs, and the fork-and-PR path was the correct answer rather than an obstacle.
 
 ## Local political site for a non-technical owner
 
 A local town-council candidate's campaign site was built by a third party as a compiled single-page app: the news articles had no working links, the contact and volunteer forms posted to a backend only the original developer controlled, and the owner couldn't change a word of it himself.
 
-Over one GDD session the site was rebuilt fresh as a `gh-pages` component — the same Jekyll scaffold the [Getting Started](../getting-started/index.md) tutorial uses. Content was recovered faithfully (with several look-and-feel passes reviewed live by a human), each news article became its own page by construction, and the captive forms were replaced with channels the candidate owns. The result deployed straight through the standard GDD loop — topic branch, PR, bot review, merge, live — and now carries per-page "edit on GitHub" links plus a maintainer guide, so the owner can keep it current by asking his own agent.
+Over one GDD session the site was rebuilt fresh as a `gh-pages` component — the same Jekyll scaffold the [Getting Started](../../getting-started/index.md) tutorial uses. Content was recovered faithfully (with several look-and-feel passes reviewed live by a human), each news article became its own page by construction, and the captive forms were replaced with channels the candidate owns. The result deployed straight through the standard GDD loop — topic branch, PR, bot review, merge, live — and now carries per-page "edit on GitHub" links plus a maintainer guide, so the owner can keep it current by asking his own agent.
 
 The maintenance loop has since been proven for real: the owner sent a Word document revising his entire policy platform, and the agent read it, applied the restructuring site-wide over several human-reviewed passes, and shipped it to production — a non-technical owner's document edits reaching his live site with no third-party developer in the path.
 
@@ -38,4 +51,10 @@ On a long-running open-source voxel game, a years-old dependency-injection overh
 
 GDD's own multi-agent groundwork was built by two different agents in two workspaces: Claude Code on one machine and Codex on another, each committing through `ws commit` with per-session identity so every commit's attribution names the agent that actually made it. The Codex side dogfooded the review cycle on the shared PR and surfaced real cross-harness fixes (token-injected pushes that avoid OS credential prompts, review probes that distinguish "no such PR" from "network blocked") that merged back into the workspace.
 
-**What it shows:** the `ws` CLI and the portable layers (AGENTS.md, `ws orient`, skills-as-markdown) are the agent-neutral core — the [roadmap](roadmap.md)'s cross-harness track is an extension of something already exercised, not a hope.
+**What it shows:** the `ws` CLI and the portable layers (AGENTS.md, `ws orient`, skills-as-markdown) are the agent-neutral core — the [roadmap](../roadmap.md)'s cross-harness track is an extension of something already exercised, not a hope.
+
+---
+
+Another good example is summarized in [this GDD PR comment](https://github.com/SiliconSaga/yggdrasil/pull/38#issuecomment-4313480965).
+
+Honestly though: write-ups do not do the process justice when condensed, and cannot convey the sense of flow experienced. Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started/index.md)** — clone the workspace, turn on mentoring, and see what happens.
