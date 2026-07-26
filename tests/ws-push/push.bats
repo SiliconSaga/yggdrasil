@@ -81,11 +81,11 @@ setup() {
 }
 
 @test "GitLab HTTPS push uses mapped gitTokens value without credential helper prompts" {
-    git -C "$REPO_DIR" remote set-url fork https://gitlab-master.nvidia.com/gni-cis/gdd/rpraestholm-fork-group/yggdrasil.git
+    git -C "$REPO_DIR" remote set-url fork https://gitlab.example.com/acme/forks/alice/yggdrasil.git
     cat > "$BATS_TEST_TMPDIR/ecosystem.yaml" <<'YAML'
 defaults:
   gitTokens:
-    gitlab-master.nvidia.com/gni-cis/gdd/rpraestholm-fork-group: GITLAB_FORK_TOKEN
+    gitlab.example.com/acme/forks/alice: GITLAB_FORK_TOKEN
 identity: {}
 components: {}
 YAML
@@ -104,7 +104,7 @@ YAML
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_TERMINAL_PROMPT=0"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_KEY_0=credential.helper"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_0="* ]]
-    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_KEY_1=http.https://gitlab-master.nvidia.com/.extraheader"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_KEY_1=http.https://gitlab.example.com/.extraheader"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_1=Authorization: Basic $expected"* ]]
 }
 
