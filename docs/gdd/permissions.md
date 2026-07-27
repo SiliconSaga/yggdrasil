@@ -28,13 +28,13 @@ Both are merged at startup. Where they conflict on a single key, local wins. The
 
 ### Managed-config layer (corporate / enterprise environments)
 
-Some environments layer additional permission rules on top of the workspace's `.claude/settings.json` via enterprise managed config — typically pushed via the OS-level managed-preferences mechanism (MDM, Group Policy, etc.) and sitting at the top of the precedence stack. These overrides can change which rules apply in either direction: auto-approving things the workspace would prompt on, or forcing prompts the workspace would auto-approve.
+Some environments layer additional permission rules on top of the workspace's `.claude/settings.json` via enterprise managed config — typically pushed via the OS-level managed-preferences mechanism (MDM, Group Policy, etc.) and sitting at the top of the precedence stack. These overrides can change which rules apply in either direction: auto-approving things the workspace would prompt on, or forcing prompts on things it would auto-approve.
 
 If you see a permission behavior that doesn't match what `.claude/settings.json` declares — same workspace, same git tree, different outcome between machines — suspect a managed config in your environment.
 
 ### Claude Hook Options
 
-The hook script at `.claude/hooks/gdd-permission-hook.sh` was designed to encourage the agent to align with good practices in using the GDD `ws` CLI and making for clearer shorter commands that are easier for a human to digest. It will block chained commands and some kinds of redirection, which forces the agent into friendlier more auditable variants.
+The hook script at `.claude/hooks/gdd-permission-hook.sh` encourages the agent toward good practices with the GDD `ws` CLI and clearer, shorter commands that are easier for a human to digest. It blocks chained commands and some kinds of redirection, forcing the agent into friendlier, more auditable variants.
 
 The hook produces three possible decisions for a Bash command:
 
@@ -42,21 +42,21 @@ The hook produces three possible decisions for a Bash command:
 - **ask** — the command matches the `[ask-commands]` glob list in `hook-rules` (or `hook-rules.local`). The hook emits `permissionDecision: "ask"`, forcing a human-facing permission prompt regardless of the session permission mode. This overrides `acceptEdits` and `bypassPermissions` — the prompt always surfaces. The command is NOT blocked; once the human approves, it runs normally. Destructive commands like `rm -rf` and `git reset --hard` live here, as do arbitrary-execution escape hatches like `ws exec`.
 - **allow** — the command matches a `permissions.allow` pattern in `settings.json` (Tier 5) or an `[allow-extras]` glob in `hook-rules.local` (Tier 6). It proceeds without a prompt.
 
-A secondary effect of the hook is that it can sometimes re-map GDD's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts. This can actually be safer than giant multi-line monster commands the human is likely to just button-mash through if overly repeated.
+A secondary effect: the hook can re-map GDD's "auto-approve this declared-safe pattern" behavior on machines where other config causes conflicts — safer than giant multi-line monster commands a human is likely to button-mash through if overly repeated.
 
-See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into the `Workspace-local scratch` directories and a `hook-rules.local` you can use for simple trusted patterns on specific machines when combined with GDD's chain blocking.
+See [`.claude/hooks/README.md`](../../.claude/hooks/README.md) for the full hook spec — including an optional extension some workspaces may enable in `settings.local.json` to suppress prompts for writes into `Workspace-local scratch` directories, and a `hook-rules.local` for simple trusted patterns on specific machines when combined with GDD's chain blocking.
 
-`hook-rules` patterns are Bash globs matched against the hook's normalized command string, not Claude Code `Bash(...)` matcher entries. For example, the committed ask-list entry `ws exec *` matches `ws exec yggdrasil git status` and `ws exec yggdrasil printf %s a b c d e f g h` alike, because the `*` spans the remaining command tail. The hook also normalizes `bash scripts/ws exec ...` to `ws exec ...` before this match, so one bare pattern covers both invocation styles. This is distinct from the spaced `*` forms in `.claude/settings.json`, which are Claude matcher syntax and are documented under [Pattern shapes](#pattern-shapes).
+`hook-rules` patterns are Bash globs matched against the hook's normalized command string, not Claude Code `Bash(...)` matcher entries. For example, the committed ask-list entry `ws exec *` matches `ws exec yggdrasil git status` and `ws exec yggdrasil printf %s a b c d e f g h` alike, because the `*` spans the remaining command tail. The hook also normalizes `bash scripts/ws exec ...` to `ws exec ...` before this match, so one bare pattern covers both invocation styles — distinct from the spaced `*` forms in `.claude/settings.json`, which are Claude matcher syntax documented under [Pattern shapes](#pattern-shapes).
 
 ### Kubernetes write safety floor
 
-Kubernetes operation classification is independent of whether a `GDD_K8S_CONTEXT` scope exists. An unscoped read passes to normal routing; an unscoped write emits Claude's `ask` decision before `settings.json` and `hook-rules.local` allowances are consulted. Consequently, even an accidental blanket `Bash(kubectl:*)` entry cannot silently approve a write. When a scope is armed, the stronger context-and-namespace redirect policy applies. Local `-k` and `--kustomize` directories are rendered and every resulting resource is checked; an unreadable or unsuccessful render fails closed.
+Kubernetes operation classification is independent of whether a `GDD_K8S_CONTEXT` scope exists. An unscoped read passes to normal routing; an unscoped write emits Claude's `ask` decision before `settings.json` and `hook-rules.local` allowances are consulted, so even an accidental blanket `Bash(kubectl:*)` entry cannot silently approve a write. When a scope is armed, the stronger context-and-namespace redirect policy applies. Local `-k` and `--kustomize` directories are rendered and every resulting resource is checked; an unreadable or unsuccessful render fails closed.
 
-The Codex bridge maps the same platform-neutral classification differently because its focused `PreToolUse` policy supports deny-or-defer rather than Claude's force-ask decision: unscoped writes are denied with guidance to arm a scope or explicitly authorize the audited session bypass. This remains an accident-prevention layer rather than an authorization boundary; server-side RBAC is authoritative.
+The Codex bridge maps the same platform-neutral classification differently because its focused `PreToolUse` policy supports deny-or-defer rather than Claude's force-ask decision: unscoped writes are denied with guidance to arm a scope or explicitly authorize the audited session bypass. This remains an accident-prevention layer, not an authorization boundary; server-side RBAC is authoritative.
 
 ### Redirect tier and bypass
 
-Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`, `git mv`) with a corrective message pointing at the friendlier equivalent — a training layer, not a safety floor. The session-scoped escape hatch is `ws hook-bypass <slug>`, itself ask-gated so every bypass force-prompts the human. Mechanics and the full redirect list: [`.claude/hooks/README.md`](../../.claude/hooks/README.md) § Redirect tier and bypass; the human-facing walkthrough is [Agent Training](agent-training.md#what-happens-when-you-reach-for-git-commit--git-push--gh-pr-create).
+Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit`, `git push`, `gh pr create`, `git mv`) with a corrective message pointing at the friendlier equivalent — a training layer, not a safety floor. The session-scoped escape hatch is `ws hook-bypass <slug>`, itself ask-gated so every bypass force-prompts the human. Mechanics and the full redirect list: [`.claude/hooks/README.md`](../../.claude/hooks/README.md) § Redirect tier and bypass; human-facing walkthrough: [Agent Training](agent-training.md#what-happens-when-you-reach-for-git-commit--git-push--gh-pr-create).
 
 Codex consumes the same `[redirect-commands]` rows through a focused deny-or-defer bridge. A match returns the same `ws` guidance. A valid session-scoped bypass removes the redirect decision but does not auto-allow the command; Codex still applies its sandbox, network, and approval routing.
 
@@ -69,25 +69,25 @@ Bash(ws commit:*)
 Bash(bash scripts/ws commit:*)
 ```
 
-The `:*` suffix here is Claude Code's *prefix* form — it matches the command plus any argument tail, not a single argument slot (see [Pattern shapes → Colon-prefix](#colon-prefix-cmd) below). Both the `ws commit` and `bash scripts/ws commit` bare forms are listed because that prefix match is anchored at the start of the string, so neither covers the other dispatch form; listing both keeps the command auto-approving under Claude Code's native matcher too — i.e. when this hook is disabled or passes through and only the literal settings patterns apply.
+The `:*` suffix here is Claude Code's *prefix* form — it matches the command plus any argument tail, not a single argument slot (see [Pattern shapes → Colon-prefix](#colon-prefix-cmd) below). Both the `ws commit` and `bash scripts/ws commit` bare forms are listed because the prefix match is anchored at the start of the string, so neither covers the other dispatch form; listing both keeps the command auto-approving under Claude Code's native matcher too — i.e. when the hook is disabled or passes through and only the literal settings patterns apply.
 
 Because the patterns are start-anchored *prefixes*, every `ws commit` flag — `--dry-run`, `--human`, `--co-author-file <name>` — auto-approves with no extra entry. The sub-agent attribution path `ws commit --co-author-file <name> …` passes only a bare file name (no env-assignment prefix, no angle brackets), so it clears the Tier 1 redirect check and matches `Bash(ws commit:*)` directly. There is no env-prefix stripping: an env-assignment prefix (`LD_PRELOAD=…`, or any `VAR=…`) stays in the match string and fails every allow glob, so it cannot auto-approve. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
 #### `ws test` / `ws lint` under the realm trust model
 
-`ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They are allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and is surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
+`ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They're allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
 
-The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `realms/<r>/adapters/*.yaml`'s `commands.{test,lint,build}` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor (light for your own / team realms, heavy for community / wild realms). See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `realms/<r>/adapters/*.yaml`'s `commands.{test,lint,build}` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor: light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
 
 #### Tier 3 adapter-redirect (allow-with-nudge / deny-with-bypass)
 
 The PreToolUse hook has a separate **Tier 3 adapter-redirect** for raw test/lint runners (`pytest`, `python -m pytest`, `gradle test`, `ruff`, `black`, `mypy` — see `.claude/hooks/hook-rules` `[adapter-redirect-commands]`). When the raw command matches a pattern AND `$cwd` resolves to a component under `components/<comp>/`:
 
-- **Wired** (`realms/<r>/adapters/<comp>.yaml` has `commands.<verb>`): hook denies with `Use \`ws <verb> <comp>\`` plus a `ws hook-bypass <slug>` pointer. Reuses the existing bypass-marker machinery — every bypass creation force-prompts the human via the ask-tier.
+- **Wired** (`realms/<r>/adapters/<comp>.yaml` has `commands.<verb>`): hook denies with `Use \`ws <verb> <comp>\`` plus a `ws hook-bypass <slug>` pointer, reusing the existing bypass-marker machinery — every bypass creation force-prompts the human via the ask-tier.
 - **Unwired** (adapter file missing OR no `commands.<verb>`): hook emits a one-line stderr nudge (`↪ No \`ws test\` adapter for <comp> yet. Wire one at realms/<r>/adapters/<comp>.yaml…`) and falls through to normal allow/ask evaluation. The raw command runs; the nudge is the audit-log breadcrumb.
 - **Outside a component dir** OR **bare `components/` root**: rule doesn't fire. Raw `pytest` at the workspace root is legitimate (workspace-level test runs); the resolver rejects the bare-components edge case to avoid blank-component nudges.
 
-Tier 3 is a separate classification from Tier 2 ([redirect-commands]) because the unwired-adapter state is a legitimate intermediate. Conflating would either over-deny (force every component to wire an adapter first) or under-deny (defeat the wrapper-first reflex contract).
+Tier 3 is a separate classification from Tier 2 ([redirect-commands]) because the unwired-adapter state is a legitimate intermediate — conflating would either over-deny (force every component to wire an adapter first) or under-deny (defeat the wrapper-first reflex contract).
 
 ## Pattern shapes
 
@@ -101,7 +101,7 @@ Bash(ws status --verbose)
 Bash(git -C * branch --show-current)
 ```
 
-The literal string after the command name must match exactly. The `*` inside `git -C * branch --show-current` is a wildcard for the path slot only; the trailing `branch --show-current` is a literal. A command of `git -C . branch --list` does NOT match — `--list` ≠ `--show-current`. The matcher is honest about this; non-matches produce a permission prompt.
+The literal string after the command name must match exactly. The `*` inside `git -C * branch --show-current` is a wildcard for the path slot only; the trailing `branch --show-current` is a literal. A command of `git -C . branch --list` does NOT match — `--list` ≠ `--show-current`. Non-matches produce a permission prompt.
 
 ### Prefix wildcards
 
@@ -112,7 +112,7 @@ Bash(bash scripts/ws clone *)
 Bash(bash tests/vendor/bats-core/bin/bats tests/*)
 ```
 
-Each `*` is a wildcard slot. The matcher binds each slot to a single argument-shaped sequence. The space before `*` matters: `Bash(foo*)` without the space matches `foo` followed by anything (including `foobar`); `Bash(foo *)` requires a space, then any single argument. For prefix matching of arguments, always include the space.
+Each `*` is a wildcard slot; the matcher binds each slot to a single argument-shaped sequence. The space before `*` matters: `Bash(foo*)` without the space matches `foo` followed by anything (including `foobar`); `Bash(foo *)` requires a space, then any single argument. For prefix matching of arguments, always include the space.
 
 ### Colon-prefix (`cmd:*`)
 
@@ -122,9 +122,9 @@ Bash(ws test:*)
 Bash(bash scripts/ws commit:*)
 ```
 
-The `:*` suffix is Claude Code's *prefix* form: the rule matches the literal text before the `:` followed by **anything at all** — any number of arguments, spaces included — in a single entry. `Bash(ws test:*)` matches `ws test`, `ws test knarr`, and `ws test knarr -k foo --verbose` alike. This differs from the spaced `*` wildcard above, where each `*` binds exactly one argument-shaped token (so `Bash(ws test *)` matches only `ws test <one-arg>`, and covering two args needs `Bash(ws test * *)`). Because the prefix match is anchored at the start of the command string, each dispatch form needs its own entry — `Bash(ws test:*)` does not cover `bash scripts/ws test …`, hence the separate `Bash(bash scripts/ws test:*)`. Reach for `:*` on always-trusted subcommands where any argument tail is safe; use the tighter spaced-`*` or exact forms when you need to bound *which* arguments are allowed (e.g. a subcommand with a mutating flag-form).
+The `:*` suffix is Claude Code's *prefix* form: the rule matches the literal text before the `:` followed by **anything at all** — any number of arguments, spaces included — in a single entry. `Bash(ws test:*)` matches `ws test`, `ws test knarr`, and `ws test knarr -k foo --verbose` alike. This differs from the spaced `*` wildcard above, where each `*` binds exactly one argument-shaped token (so `Bash(ws test *)` matches only `ws test <one-arg>`, and covering two args needs `Bash(ws test * *)`). Because the prefix match is anchored at the start of the command string, each dispatch form needs its own entry — `Bash(ws test:*)` does not cover `bash scripts/ws test …`, hence the separate `Bash(bash scripts/ws test:*)`. Reach for `:*` on always-trusted subcommands where any argument tail is safe; use the tighter spaced-`*` or exact forms to bound *which* arguments are allowed (e.g. a subcommand with a mutating flag-form).
 
-A third option covers subcommands that are mostly read-only with a few side-effect forms: grant the broad `:*` allow and pin the side-effect forms on the hook's `[ask-commands]` list, which evaluates BEFORE the allow tier. `ws review` is the worked example — reads are frictionless under `Bash(ws review:*)`, while `reply` (posts to the PR) and `threads … --resolve*` (mutates thread state) force a human prompt via the committed ask entries. Note this gate lives in the hook: with the hook disabled, only the settings allowlist applies and the side-effect forms would auto-approve.
+A third option covers subcommands that are mostly read-only with a few side-effect forms: grant the broad `:*` allow and pin the side-effect forms on the hook's `[ask-commands]` list, which evaluates BEFORE the allow tier. `ws review` is the worked example — reads are frictionless under `Bash(ws review:*)`, while `reply` (posts to the PR) and `threads … --resolve*` (mutates thread state) force a human prompt via the committed ask entries. This gate lives in the hook: with the hook disabled, only the settings allowlist applies and the side-effect forms would auto-approve.
 
 ### MCP tool names
 
@@ -143,7 +143,7 @@ Every allow pattern in `.claude/settings.json` should be safe even if a single l
 
 ### Layer 1: subcommand-level
 
-The chosen subcommand for each pattern is read-only at the porcelain level. `git show`, `git log`, `git diff`, `git status`, `git ls-tree`, `git grep` — all read-only. There is no flag combination that mutates state. We deliberately don't grant a wildcard pattern to subcommands that DO have mutating flag-forms — `git branch -d` (deletes branches), `git remote add` (adds a remote), `git push` (writes to a remote). For those, we either pin to an exact safe form (`git -C * branch --show-current`, `git -C * remote -v`) or don't grant at all.
+The chosen subcommand for each pattern is read-only at the porcelain level. `git show`, `git log`, `git diff`, `git status`, `git ls-tree`, `git grep` — all read-only, with no flag combination that mutates state. We deliberately don't grant a wildcard pattern to subcommands that DO have mutating flag-forms — `git branch -d` (deletes branches), `git remote add` (adds a remote), `git push` (writes to a remote). For those, we either pin to an exact safe form (`git -C * branch --show-current`, `git -C * remote -v`) or don't grant at all.
 
 ### Layer 2: matcher-level
 
@@ -152,7 +152,7 @@ The matcher scopes wildcards correctly:
 - **Compound commands** (`|`, `&&`, `||`, `;`) are validated per-segment. `git -C . show HEAD | xxd` is two segments: the left matches `Bash(git -C * show *)` and is allowed; the right is `xxd` alone and prompts. The wildcards in the left side don't extend across the pipe.
 - **Command substitution** (`$(...)` and backticks) is rejected by the matcher. `git -C $(echo .) show HEAD --stat` does NOT match `Bash(git -C * show *)` — the matcher prompts and offers no "don't ask again" option. Substitution is too dynamic for any static pattern to safely allowlist.
 - **Exact-form pinning is literal.** `git -C . branch --list` does not match `Bash(git -C * branch --show-current)` because the trailing literals differ.
-- **Stdout-redirect-to-file (`> file`, `>> file`) prompts regardless of the LHS.** Even when the producing command is read-only and individually auto-allowed, the redirect-to-file is treated as a side-effect operation because the destination path is opaque to static analysis (could be `/tmp/foo`, `~/.bashrc`, `/etc/...`). The right design path for "save output for later grep" is a wrapper-side `--output <phrase>` flag that validates the destination against a workspace-internal scratch dir like `.outputs/` — see `ws review --output` for the reference implementation.
+- **Stdout-redirect-to-file (`> file`, `>> file`) prompts regardless of the LHS.** Even when the producing command is read-only and individually auto-allowed, the redirect-to-file is treated as a side-effect operation because the destination path is opaque to static analysis (could be `/tmp/foo`, `~/.bashrc`, `/etc/...`). The right design path for "save output for later grep" is a wrapper-side `--output <phrase>` flag validating the destination against a workspace-internal scratch dir like `.outputs/` — see `ws review --output` for the reference implementation.
 
 Both layers must hold. If Claude Code's matcher behavior changes — for instance, if compound commands stopped being per-segment validated — a "safe" pattern could become unsafe. That's the case for automated regression testing tracked at issue #46.
 
@@ -212,7 +212,7 @@ A decision tree for adding a new `Bash(...)` pattern:
 3. **Is the command an arbitrary-execution shell?** (`bash *`, `python *`, `node *`, `npx *`, `bunx *`, `uvx *`, `make *`, `npm run *`, `bun run *`, `gh api *`.) Never widen these. An exact `Bash(bash -n some-specific-script.sh)` is fine; wildcards aren't.
 4. **Does the command write to a shared system?** (push, deploy, publish, send). These are Side-effect tier in `docs/ws-cli-guide.md` — never auto-allow; let the user decide case-by-case.
 
-When in doubt, narrower wins. You can always widen later. Narrowing post-hoc is harder (you've already trained yourself to expect the wide form).
+When in doubt, narrower wins — you can always widen later. Narrowing post-hoc is harder, since you've already trained yourself to expect the wide form.
 
 `ws exec` is intentionally ask-gated rather than allowlisted. If a `ws exec` shape becomes common enough that you want it to run without a human prompt, treat that as a design signal: promote the behavior into an adapter-backed `ws test` / `ws lint` / `ws build` path, a focused `ws` subcommand, or a reviewed component-local script behind a narrower wrapper.
 
@@ -228,16 +228,16 @@ The two artifacts are paired:
 
 Drift between them is a real bug — humans trust the doc, agents trust the doc, and a stale doc gives false confidence. PR review for `.claude/settings.json` changes should call out a missing doc update as blocking.
 
-The `gdd-permissions` skill enforces this rule operationally: when an agent adds a pattern, the skill includes the doc update as part of the same change.
+The `gdd-permissions` skill enforces this operationally: when an agent adds a pattern, the skill includes the doc update as part of the same change.
 
-When you modify `.claude/hooks/hook-rules`, update this doc or [Agent Training](agent-training.md) if the user-facing policy changes, and add focused hook tests in `tests/hook/gdd-permission-hook.bats`. Hook-rule globs are not Claude matcher entries, so they need test coverage rather than rows in the empirical Claude matcher table unless `.claude/settings.json` also changes.
+When you modify `.claude/hooks/hook-rules`, update this doc or [Agent Training](agent-training.md) if the user-facing policy changes, and add focused hook tests in `tests/hook/gdd-permission-hook.bats`. Hook-rule globs are not Claude matcher entries, so they need test coverage rather than rows in the empirical matcher table unless `.claude/settings.json` also changes.
 
 ---
 
 ## Future Directions
 
-- **Cross-framework porting.** Other agent frameworks (Codex, Gemini CLI, Cursor, etc.) have their own permission-style configs. The semantics differ — some are tool-name-only, some have richer per-tool argument matching, some have no analogue to the `permissions.deny` override layer. Mapping Claude Code's allowlist to each framework's equivalent is a future arc; the skill points at this thread but doesn't carry the porting guidance in v1.
+- **Cross-framework porting.** Other agent frameworks (Codex, Gemini CLI, Cursor, etc.) have their own permission-style configs. The semantics differ — some are tool-name-only, some have richer per-tool argument matching, some have no analogue to the `permissions.deny` override layer. Mapping Claude Code's allowlist to each framework's equivalent is a future arc; the skill points at this thread but doesn't carry porting guidance in v1.
 
 - **Automated regression testing** (issue #46). Today the empirical findings table in **Empirical matcher findings** is the source of truth, but there's no test harness that re-asserts those findings against new Claude Code versions. The future regression suite will execute each (pattern, command, expected) triple and flag matcher-behavior changes.
 
-- **Sandboxing tooling.** Personal exploration of AI-tooling sandboxing patterns lives in `realms/realm-siliconsaga/docs/agent-security/` (relocated from this repo's `docs/` in the same hygiene PR that introduced this doc). That research could inform a future GDD security category that sits next to permissions.
+- **Sandboxing tooling.** Personal exploration of AI-tooling sandboxing patterns lives in `realms/realm-siliconsaga/docs/agent-security/`. That research could inform a future GDD security category that sits next to permissions.

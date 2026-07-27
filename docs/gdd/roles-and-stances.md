@@ -1,6 +1,6 @@
 # Roles and Stances
 
-GDD defines three independent axes that shape how a session works: **roles** (what kind of work you are doing), **stances** (how the framework adapts its pace and ceremony), and **mentoring** (a composable boolean overlay that teaches as it works). These are set per session in the session file (`ws session set …`) and are not stored in Thalamus frontmatter.
+GDD defines three independent axes that shape how a session works: **roles** (what kind of work you're doing), **stances** (how the framework adapts its pace and ceremony), and **mentoring** (a composable boolean overlay that teaches as it works). These are set per session in the session file (`ws session set …`), not stored in Thalamus frontmatter.
 
 ## Roles
 
@@ -11,7 +11,7 @@ GDD defines three independent axes that shape how a session works: **roles** (wh
 | **Reviewer** | Quality and safety |
 | **Scribe** | Note-taking and vault work — PARA layout, frontmatter, daily notes, capture-process-organize loop |
 
-Roles aren't skill levels. A first-time contributor and a 20-year veteran can both be in the Developer role — they'll just have different stances active. The role describes the session's kind of work for both the human and the agent; the agent operates within it bounded by the [permission](permissions.md) and [access](access.md) systems.
+Roles aren't skill levels. A first-time contributor and a 20-year veteran can both be in the Developer role — they'll just have different stances active. The role describes the session's kind of work for both human and agent; the agent operates within it, bounded by the [permission](permissions.md) and [access](access.md) systems.
 
 Today only the **Scribe** role has a dedicated skill file; the other roles are the assumed default and rely on stance and practice skills rather than a single role file.
 
@@ -21,18 +21,18 @@ Stances modify the ceremony level and pace of a session. They compose freely wit
 
 ### Quick
 
-Minimal ceremony for short time windows. You have 15 minutes on your phone between responsibilities? Quick stance suggests appropriately-sized tasks, recovers context fast, and skips questions it can infer.
+Minimal ceremony for short time windows. 15 minutes on your phone between responsibilities? Quick stance suggests appropriately-sized tasks, recovers context fast, and skips questions it can infer.
 
 Session sizing examples:
 - **15 min:** Write one BDD scenario, review one PR comment, fix one small bug
 - **30 min:** Implement step definitions, triage review findings, write a skill stub
 - **45 min:** End-to-end small feature with PR
 
-Stance philosophy: quick = minimize ceremony for small rapid interactions. A deferred future idea (not built now): quick could one day relax scoped guardrails behind loud disclaimers ("YOLO-lite") — explicitly deferred and out of scope for current GDD.
+Stance philosophy: quick = minimize ceremony for small rapid interactions. A deferred future idea: quick could one day relax scoped guardrails behind loud disclaimers ("YOLO-lite") — out of scope for current GDD.
 
 ### Zen
 
-Full ceremony for deep focus sessions. Saturday morning deep dive? Zen stance leans into thorough brainstorming, comprehensive reviews, auditing accumulated concerns, and completing large chunks of work end-to-end.
+Full ceremony for deep focus sessions. Saturday morning deep dive? Zen stance leans into thorough brainstorming, comprehensive reviews, auditing accumulated concerns, and completing large chunks of work end to end.
 
 Zen stance may proactively suggest housekeeping if observations have accumulated in the Thalamus.
 
@@ -48,11 +48,11 @@ Stance philosophy: flow = allow meandering but nudge back toward the core object
 
 Mentoring is a **boolean overlay**, not a stance. It composes with any stance (Quick + Mentoring, Zen + Mentoring, Flow + Mentoring) and with any role.
 
-When mentoring is on, the AI explains decisions, teaches practices in context, and offers more scaffolding. Not tied to seniority; anyone can activate it. First time touching BDD? Turn on mentoring, even if you've been coding for a decade.
+When mentoring is on, the AI explains decisions, teaches practices in context, and offers more scaffolding. Not tied to seniority; anyone can activate it. First time touching BDD? Turn on mentoring, even after a decade of coding.
 
-The AI's job with mentoring active is to **grow the human**, not just ship the code. Every interaction is an opportunity to transfer understanding.
+The AI's job with mentoring active is to **grow the human**, not just ship the code — every interaction is an opportunity to transfer understanding.
 
-Mentoring is also the overlay that arms tool-practice workflows. For example, `gdd-k8s` (the guarded-Kubernetes practice skill) activates when mentoring is on and the session involves Kubernetes — it guides the contributor through safe, explained cluster interactions rather than handing them raw `kubectl` commands to run without context.
+Mentoring is also the overlay that arms tool-practice workflows. For example, `gdd-k8s` (the guarded-Kubernetes practice skill) activates when mentoring is on and the session involves Kubernetes — guiding the contributor through safe, explained cluster interactions rather than handing them raw `kubectl` commands to run without context.
 
 ## See also
 

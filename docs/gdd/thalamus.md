@@ -2,11 +2,11 @@
 
 *Named after the brain's relay station — it receives input, processes it, and routes it to the right destination. Like the thalamus, this file doesn't store things permanently; it processes and forwards.*
 
-Between "private AI memory" (invisible to humans — and also *local and agent-specific*: it doesn't travel to your other machines, and a different agent product can't read it) and "committed project instructions" (formal, policy-level) there's a gap: where do observations, half-formed ideas, and session-to-session context live? The Thalamus fills it as plain markdown the human can read and edit, any agent can load, and git can carry anywhere.
+Between "private AI memory" (invisible to humans — and also *local and agent-specific*: it doesn't travel to your other machines, and a different agent product can't read it) and "committed project instructions" (formal, policy-level) there's a gap: where do observations, half-formed ideas, and session-to-session context live? The Thalamus fills it, as plain markdown the human can read and edit, any agent can load, and git can carry anywhere.
 
 ## What It Is
 
-The Thalamus is a shared, gitignored markdown file — a thinking space co-authored by one human and one local AI agent (at a time). It's not a knowledge base, not a project management tool, and not a replacement for committed instructions. It's the place where things live while they're being figured out.
+The Thalamus is a shared, gitignored markdown file — a thinking space co-authored by one human and one local AI agent (at a time). It's not a knowledge base, a project management tool, or a replacement for committed instructions. It's where things live while they're being figured out.
 
 ## Where It Sits
 
@@ -33,7 +33,7 @@ Content flows through the Thalamus, not into it permanently:
 3. **Graduate** — actionable items move to permanent homes (issues, skills, instructions, `ws` subcommands)
 4. **Prune** — resolved or stale items are removed
 
-The file is workspace-local and gitignored — accepted risk of loss, mitigated by the fact that highest-value content should have been promoted elsewhere.
+The file is workspace-local and gitignored — accepted risk of loss, mitigated by the fact that high-value content should already be promoted elsewhere.
 
 ## Frontmatter
 
@@ -49,15 +49,15 @@ This enables session continuity — the AI knows when you last worked and whethe
 
 ## Cross-machine sync — the thalami hoard
 
-A single gitignored `Thalamus.md` works for one machine — and if that's your whole setup, stop there; the hoard adds nothing you need. Once you use yggdrasil on more than one machine — a desktop, a laptop, an old Mac — the shared-memory advantage compounds: everything your agent products' private memories *can't* do (cross machines, survive reinstalls, transfer between agent vendors, stay human-editable) is exactly what a git-synced Thalamus does. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See [Hoards](hoards.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
+A single gitignored `Thalamus.md` works for one machine — if that's your whole setup, stop there; the hoard adds nothing you need. Once you use yggdrasil on more than one machine — a desktop, a laptop, an old Mac — the shared-memory advantage compounds: everything your agent products' private memories *can't* do (cross machines, survive reinstalls, transfer between agent vendors, stay human-editable) is exactly what a git-synced Thalamus does. That home is the **thalami hoard**: an optional personal git repo (under `hoards/thalami-<username>/`, gitignored from the workspace like all hoards) holding one `<machine>-thalamus.md` file per machine. Each machine writes only its own file; git history syncs them across hosts. See [Hoards](hoards.md) for how hoards are scaffolded (`ws hoard init`) and discovered at session start.
 
 When a hoard is active, the orientation skill resolves the active per-machine file (via `ws hoard thalamus-path`) and writes there instead of the workspace-root `Thalamus.md`. A root `Thalamus.md` can still exist as a non-synced scratch file alongside the hoard.
 
 ### Arcs and the cross-host dashboard
 
-Per-machine thalamus files carry an `arcs:` list in their frontmatter — one entry per in-flight work thread (a feature, an investigation, a parked idea), each with a `status`, a one-line `next`, and optional `impact` / `urgency` / `issue` / `tags`. Arcs are the shared cross-reference todos: an arc that spans machines uses the same kebab-case `id` slug on each host, so picking up yesterday's laptop work on the desktop is just continuing the same slug.
+Per-machine thalamus files carry an `arcs:` list in their frontmatter — one entry per in-flight work thread (a feature, an investigation, a parked idea), each with a `status`, a one-line `next`, and optional `impact` / `urgency` / `issue` / `tags`. Arcs are the shared cross-reference todos: an arc spanning machines uses the same kebab-case `id` slug on each host, so picking up yesterday's laptop work on the desktop is just continuing the same slug.
 
-The hoard ships an `ArcDashboard.md` that — when the hoard is opened as an Obsidian vault with the Dataview plugin — renders a live table of every arc across every machine's frontmatter, sorted by status and freshness (with vibe icons that decay as an arc goes stale, nudging you to either move it forward or close it). The dashboard projects **only** frontmatter; the body sections (Observations, Concerns, Audit Log) sync via git like any other content but never surface in the table. The orientation skill reads the same `arcs:` frontmatter at session start to surface active arcs and offer cross-host pickups, and the housekeeping skill walks arcs through their lifecycle (active → review → closed/promoted → pruned).
+The hoard ships an `ArcDashboard.md` that — when the hoard is opened as an Obsidian vault with the Dataview plugin — renders a live table of every arc across every machine's frontmatter, sorted by status and freshness (with vibe icons that decay as an arc goes stale, nudging you to move it forward or close it). The dashboard projects **only** frontmatter; the body sections (Observations, Concerns, Audit Log) sync via git like any other content but never surface in the table. The orientation skill reads the same `arcs:` frontmatter at session start to surface active arcs and offer cross-host pickups, and the housekeeping skill walks arcs through their lifecycle (active → review → closed/promoted → pruned).
 
 See the [Arc Dashboard design doc](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the full arc lifecycle, schema, and skill integration, and the hoard's own `README.md` for the one-time Obsidian + Dataview setup.
 

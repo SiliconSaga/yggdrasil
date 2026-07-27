@@ -1,12 +1,12 @@
 # Agent Training — Hooks, Discipline, and Why It's Not Expensive
 
-A user-facing companion to the technical reference at [`.claude/hooks/README.md`](../../.claude/hooks/README.md) and [`permissions.md`](permissions.md). If you've just started a session and noticed the agent getting a stream of **scary red error messages** in its first few tool calls — this doc is for you. Some errors are working as intended; they're how the workspace teaches the agent where its rails are.
+A user-facing companion to the technical reference at [`.claude/hooks/README.md`](../../.claude/hooks/README.md) and [`permissions.md`](permissions.md). If you've just started a session and noticed the agent getting a stream of **scary red error messages** in its first few tool calls, some errors are working as intended; they're how the workspace teaches the agent where its rails are.
 
 ---
 
 ## The progressive-disclosure buffet (L0 / L1 / L2)
 
-The workspace trains agents through three concentric layers, each loaded only when needed. The shape is "buffet, not banquet" — agents take what's relevant when it's relevant rather than swallowing everything up front.
+The workspace trains agents through three concentric layers, each loaded only when needed — "buffet, not banquet."
 
 | Layer | Surface | Purpose |
 |---|---|---|
@@ -24,11 +24,11 @@ Every successful `ws` subcommand prints a dim one-line nudge to stderr:
 ↪ switching tasks? `ws orient` lists available tools.
 ```
 
-Suppressed for `orient` itself, `--help` variants, and under bats (so test output stays clean). Opt out per-session with `WS_FOOTER_DISABLE=1`. The footer is the mid-session reminder that L1 exists — without it, agents tend to discover `ws orient` once at session start and forget the surface mid-task.
+Suppressed for `orient` itself, `--help` variants, and under bats (so test output stays clean). Opt out per-session with `WS_FOOTER_DISABLE=1`. The footer is the mid-session reminder that L1 exists — without it, agents tend to discover `ws orient` once at session start and forget it mid-task.
 
 ### The hook as a Claude-only backstop
 
-The broad PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) is Claude-specific — it is not a portable agent contract. Codex has deliberately narrower bridges for guarded Kubernetes and the shared raw-command redirects; it does not inherit Claude's allowlist, shell-composition, adapter, or generic ask semantics. For Gemini CLI, Cursor, and other agents, and for every behavior not yet bridged to Codex, the load-bearing layers remain the portable ones: `AGENTS.md`'s reflex contract (read at session start), `ws orient`'s discovery menu, and the per-command footer (all `ws`-wrapped, all portable). Treat harness hooks as training and enforcement helpers rather than the workspace's safety floor.
+The broad PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) is Claude-specific, not a portable agent contract. Codex has deliberately narrower bridges for guarded Kubernetes and the shared raw-command redirects; it does not inherit Claude's allowlist, shell-composition, adapter, or generic ask semantics. For Gemini CLI, Cursor, and other agents, and for every behavior not yet bridged to Codex, the load-bearing layers remain the portable ones: `AGENTS.md`'s reflex contract (read at session start), `ws orient`'s discovery menu, and the per-command footer (all `ws`-wrapped, all portable). Treat harness hooks as training and enforcement helpers, not the workspace's safety floor.
 
 ---
 
@@ -43,7 +43,7 @@ Remove the merge; both streams will still be visible in the tool
 output.
 ```
 
-That **looks** like an error your terminal would emit when something crashed. It isn't. It's the hook telling the agent: *don't do that — here's why and what to do instead*. The agent reads the message on its next turn and retries with a different approach. Two or three denies in a row is normal at the start of a session. After that the agent has the local conventions cached and the noise should drop off.
+That **looks** like an error your terminal would emit when something crashed. It isn't — it's the hook telling the agent: *don't do that, here's why and what to do instead*. The agent reads the message on its next turn and retries with a different approach. Two or three denies in a row is normal at the start of a session; after that the local conventions are cached and the noise drops off.
 
 Two things to know:
 
@@ -56,7 +56,7 @@ If you're new and the deny stream worries you, watch what happens on the next ag
 
 ## What the hook does
 
-The PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs before every Bash tool call. It rejects shell composition (`&&`, `||`, `;`, `|`, backticks, `$(...)`, `>`, `<`, FD merges like `2>&1`) with command-specific corrective messages. It denies raw `git commit` / `git push` / `gh pr create` (Tier 2 redirect) with a message pointing at the matching `ws` wrapper, with a session-scoped `ws hook-bypass` escape hatch. It forces a permission prompt (ask-tier) for destructive commands like `rm -rf` and `git reset --hard`, plus arbitrary-execution escape hatches like `ws exec`, even in `acceptEdits` mode. It allows commands matching `.claude/settings.json` patterns or the `[allow-extras]` section of the per-machine `hook-rules.local` file. Everything else passes through to the normal Claude Code prompt. The audit log at `~/.claude/hook-audit.log` records every ALLOW / ASK / DENY decision (passthroughs are intentionally not logged — they'd balloon the log under normal use).
+The PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs before every Bash tool call. It rejects shell composition (`&&`, `||`, `;`, `|`, backticks, `$(...)`, `>`, `<`, FD merges like `2>&1`) with command-specific corrective messages. It denies raw `git commit` / `git push` / `gh pr create` (Tier 2 redirect) with a message pointing at the matching `ws` wrapper, with a session-scoped `ws hook-bypass` escape hatch. It forces a permission prompt (ask-tier) for destructive commands like `rm -rf` and `git reset --hard`, plus arbitrary-execution escape hatches like `ws exec`, even in `acceptEdits` mode. It allows commands matching `.claude/settings.json` patterns or the `[allow-extras]` section of the per-machine `hook-rules.local` file. Everything else passes through to the normal Claude Code prompt. The audit log at `~/.claude/hook-audit.log` records every ALLOW / ASK / DENY decision (passthroughs aren't logged — they'd balloon the log under normal use).
 
 For the deny taxonomy, allow-pattern shape, opt-out, and the malformed-JSON / Windows-path edge cases, read the [hook README](../../.claude/hooks/README.md). The rest of this doc is about *why* the hook exists and what it costs.
 
@@ -66,7 +66,7 @@ For the deny taxonomy, allow-pattern shape, opt-out, and the malformed-JSON / Wi
 
 Some commands — `rm -rf`, `git reset --hard`, `git clean -f`, `ws exec`, and similar — are on the hook's ask-list. When the agent tries to run one of these, the hook doesn't deny it; instead it forces a permission prompt that surfaces to you regardless of what permission mode the session is in. That includes `acceptEdits`, which would otherwise auto-approve some Bash mutations on workspace paths without showing you anything.
 
-This is deliberate: the hook is acting as a confirmation checkpoint, not a gatekeeper. The pattern is: agent proposes → human reviews → human approves → command runs. If you approve, the command executes normally. If you decline, the agent is told to find another approach.
+This is deliberate: the hook acts as a confirmation checkpoint, not a gatekeeper. The pattern is: agent proposes → human reviews → human approves → command runs. Decline and the agent is told to find another approach.
 
 What you'll see when an ask-tier command fires:
 
@@ -90,7 +90,7 @@ The deny is corrective, not punitive — when you see it, retry through the name
 
 **When you genuinely need the raw command** (e.g., `git commit --amend` and `ws commit` doesn't support amend yet): run `ws hook-bypass <slug> --reason "<why>"`. The human gets a permission prompt; on approval, a session-scoped marker is written and the next matching raw command runs through. The bypass is per-slug — bypassing `git-commit` doesn't extend to `gh-pr-create`.
 
-**Don't loop on the deny.** If your first instinct hits a Tier 2 deny twice in the same session, that's the moment to either (a) figure out the `ws` form, (b) request a bypass with a clear `--reason`, or (c) ask the human directly. Three identical denies is not the right shape.
+**Don't loop on the deny.** If your first instinct hits a Tier 2 deny twice in the same session, either (a) figure out the `ws` form, (b) request a bypass with a clear `--reason`, or (c) ask the human directly.
 
 ---
 
@@ -114,9 +114,9 @@ Forcing a separate tool call for each step gives the harness one auditable verb 
 
 ## Why this isn't more expensive
 
-The first time someone sees the hook deny a `cmd | head 20` and nudge the agent toward two separate calls (`cmd --output snap` then `ws output read snap --limit 20`, say), the natural worry is: *"We just doubled the API calls — that has to cost more."*
+The first time someone sees the hook deny a `cmd | head 20` and nudge the agent toward two separate calls (`cmd --output snap` then `ws output read snap --limit 20`, say), the natural worry is: *"We just doubled the API calls."*
 
-It does not double API calls. Here's the actual model:
+It doesn't. Here's the actual model:
 
 **One assistant turn = one API call to Claude.** That single response can emit multiple `tool_use` blocks. The harness executes each one, collects results, then sends them all back as `tool_result` blocks in a single follow-up. So:
 
@@ -133,9 +133,9 @@ Where the costs actually diverge:
 | Wall-clock latency | one local round-trip | two local round-trips |
 | Intermediate state on disk | none | a file in `.outputs/` |
 
-The interesting failure mode in the split form is if the agent reads the **whole** intermediate file back instead of using `--limit` or `Read` with an offset+limit. Then the full payload materializes in the context window and you've paid for it in tokens. That's exactly why the deny messages push toward native `--limit` / `--output` flags on `ws` subcommands rather than "redirect everything to a file and re-read it." The discipline isn't "split calls into pieces"; it's "let each step explicitly bound what it produces."
+The interesting failure mode in the split form is if the agent reads the **whole** intermediate file back instead of using `--limit` or `Read` with an offset+limit — then the full payload materializes in the context window and you've paid for it in tokens. That's why the deny messages push toward native `--limit` / `--output` flags on `ws` subcommands rather than "redirect everything to a file and re-read it." The discipline isn't "split calls into pieces"; it's "let each step explicitly bound what it produces."
 
-So the hook is roughly free in API-cost terms when the agent follows its guidance. Where it pays off is in:
+The hook is roughly free in API-cost terms when the agent follows its guidance. Where it pays off:
 
 - **Auditability** — one verb per call, one approval per verb.
 - **Context hygiene** — intermediate full outputs never enter the conversation unless someone asks them to.
@@ -160,9 +160,9 @@ When you find yourself reaching for a shell pipe inside a `ws` command and the h
 
 ## What to do when a legit command gets denied
 
-The hook is conservative on purpose, but it's not always right. When a command you genuinely want to run gets denied, you have three escalating options:
+The hook is conservative on purpose, but it's not always right. When a command you genuinely want to run gets denied, there are three escalating options:
 
-1. **Use the substitute the deny message suggests.** Most denies point at a specific better path (`Grep` tool, `--output` flag, `Read` with offset+limit). 90% of the time the substitute works and the friction goes away.
+1. **Use the substitute the deny message suggests.** Most denies point at a specific better path (`Grep` tool, `--output` flag, `Read` with offset+limit). Most of the time the substitute works and the friction goes away.
 2. **Add the command to `hook-rules.local`.** If the command is one you trust on this machine but doesn't belong in the committed `settings.json`, list it as a glob pattern in the `[allow-extras]` section of your per-machine `hook-rules.local`. A starter template ships at `.claude/hooks/hook-rules.local.example` — copy it to activate:
 
    ```bash
@@ -172,7 +172,7 @@ The hook is conservative on purpose, but it's not always right. When a command y
    The live `hook-rules.local` is gitignored and per-machine. Uncomment the entries you want, or add your own under `[allow-extras]` — each line is a bash glob matched against the full command string. See the [hook README](../../.claude/hooks/README.md) § "Rules configuration" for the full format spec.
 3. **Disable the hook.** Set `WS_HOOK_DISABLE=1` in your shell or `.env`. Use sparingly — you give up the audit log and the corrective feedback loop.
 
-The right escalation level depends on whether the deny is a single-session annoyance (option 1), a recurring pattern (option 2), or a fundamental disagreement with the hook's rules (option 3 — and probably file an issue too).
+The right escalation level depends on whether the deny is a single-session annoyance (1), a recurring pattern (2), or a fundamental disagreement with the hook's rules (3 — and probably file an issue too).
 
 ---
 
@@ -186,7 +186,7 @@ The right escalation level depends on whether the deny is a single-session annoy
 
 The hook doesn't rotate the log. Use `truncate -s 0 ~/.claude/hook-audit.log` to reset it after a review.
 
-The audit log captures the hook's *decisions* — it doesn't see commands that went to passthrough and then prompted you through the harness's own permission flow. If you find yourself clicking "yes, run it" on the same command session after session, that's the cue to add it to `hook-rules.local` under `[allow-extras]` (or to project `.claude/settings.json` for ones collaborators would also want auto-approved). The housekeeping skill prompts the agent to surface candidates during audit cycles — you don't have to track the count yourself.
+The audit log captures the hook's *decisions* — it doesn't see commands that went to passthrough and then prompted you through the harness's own permission flow. If you find yourself clicking "yes, run it" on the same command session after session, add it to `hook-rules.local` under `[allow-extras]` (or to project `.claude/settings.json` for ones collaborators would also want auto-approved). The housekeeping skill prompts the agent to surface candidates during audit cycles — you don't have to track the count yourself.
 
 ---
 
