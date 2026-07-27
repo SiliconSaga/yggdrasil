@@ -2,7 +2,7 @@
 
 ## Context
 
-[What system/repo this belongs to. What was being worked on when this was identified.]
+[What system/repo this belongs to. What was being worked on when this was identified. A sentence or two per section is the norm — style.changeNotes (see `ws orient`) tunes the budget here too.]
 
 ## Problem / Current State
 

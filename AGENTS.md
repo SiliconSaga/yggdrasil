@@ -111,3 +111,5 @@ The orientation skill is the right starting point; these pointers are here so a 
 - [`docs/plans/2026-04-25-component-templates-design.md`](docs/plans/2026-04-25-component-templates-design.md) — `ws component init` flavors.
 
 Issue / CR / commit draft templates live in `templates/`; gitignored draft clearinghouses live in `.issues/` `.crs/` `.commits/`. The `ws clean` subcommand purges them when stale.
+
+**Change-note brevity.** Commit, CR, and issue prose runs on a budget: subjects do the talking, and bodies carry only what the diff can't show — evidence, traps, significance. Never re-narrate the diff in a commit body, and never re-narrate the commits in a CR body (the provider renders them right below it). `style.changeNotes` in ecosystem config (`terse` | `standard` | `detailed`, default `standard`) tunes the budget — realms carry community norms, `ecosystem.local.yaml` personal ones, and `ws orient` surfaces the active value. Per-level budgets live in the `templates/` files themselves.

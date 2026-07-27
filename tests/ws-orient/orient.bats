@@ -496,3 +496,35 @@ MD
     [[ "$output" == *"sibling-skill"* ]]
     [[ "$output" == *"Should still appear"* ]]
 }
+
+# ─── change-note style ──────────────────────────────────────────────
+
+@test "ws orient: change-note style defaults to standard when unset" {
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Change-note style: standard"* ]]
+}
+
+@test "ws orient: change-note style honors style.changeNotes from ecosystem.local.yaml" {
+    printf 'style:\n  changeNotes: terse\n' > "$WORK/ecosystem.local.yaml"
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Change-note style: terse"* ]]
+}
+
+@test "ws orient: invalid style.changeNotes falls back to standard with a note" {
+    printf 'style:\n  changeNotes: rambling\n' > "$WORK/ecosystem.local.yaml"
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Change-note style: standard (ignoring invalid style.changeNotes: rambling)"* ]]
+}
+
+@test "ws orient: realm-set change-note style survives the merge (community norm path)" {
+    mkdir -p "$WORK/realms/realm-fixture"
+    printf 'components: {}\nstyle:\n  changeNotes: terse\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Change-note style: terse"* ]]
+}

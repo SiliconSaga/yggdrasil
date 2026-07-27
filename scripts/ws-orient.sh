@@ -243,6 +243,7 @@ _orient_find_use_when_func() {
 _ORIENT_REALM=""
 _ORIENT_REALM_STATUS="none"
 _ORIENT_REALM_ERROR=""
+_ORIENT_REALM_TRUST=""
 _resolve_orient_realm() {
     local rc=0 stderr_file
     stderr_file="$(mktemp 2>/dev/null || echo "/tmp/orient.stderr.$$")"
@@ -451,12 +452,52 @@ emit_active_realm() {
     fi
     local trust_state
     trust_state="$(ws_realm_trust_state "$_ORIENT_REALM")"
+    # Cache for emit_change_note_style so it can honor the realm config
+    # layer without recomputing the trust fingerprint.
+    _ORIENT_REALM_TRUST="$trust_state"
     if [[ "$trust_state" == "current" ]]; then
         echo "  Trust: approved"
     else
         echo "  Trust: reapproval required (state: $trust_state)"
         echo "  Review and approve with: ws realm use $_ORIENT_REALM"
     fi
+}
+
+# Change-note style — the prose budget for commit/CR/issue bodies, from
+# style.changeNotes in the ecosystem config (realm carries community
+# norms, ecosystem.local.yaml personal overrides). Surfaced here so the
+# agent honors it without a config read of its own.
+#
+# Reads the three merge layers directly (local > realm > upstream,
+# first hit wins) instead of calling ws_resolve_ecosystem: the full
+# merge recomputes the realm trust fingerprint and spawns several yq
+# processes, enough to push trusted-realm orient runs over the smoke
+# timeout on slow hosts. The realm layer only counts when its trust
+# state was resolved as current (cached by emit_active_realm),
+# matching ws_resolve_ecosystem's gate. Falls back to "standard".
+emit_change_note_style() {
+    local style="" f
+    local -a layers=()
+    local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    local base="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
+    [[ -f "$local_file" ]] && layers+=("$local_file")
+    if [[ "$_ORIENT_REALM_STATUS" == "ok" && "$_ORIENT_REALM_TRUST" == "current" && -f "$REALMS_DIR/$_ORIENT_REALM/ecosystem.yaml" ]]; then
+        layers+=("$REALMS_DIR/$_ORIENT_REALM/ecosystem.yaml")
+    fi
+    [[ -f "$base" ]] && layers+=("$base")
+    for f in ${layers[@]+"${layers[@]}"}; do
+        style="$(yq -r '.style.changeNotes // ""' "$f" 2>/dev/null)" || style=""
+        [[ "$style" == "null" ]] && style=""
+        [[ -n "$style" ]] && break
+    done
+    style="$(_ws_orient_display_text "$style")"
+    case "$style" in
+        terse|standard|detailed) ;;
+        "") style="standard" ;;
+        *) style="standard (ignoring invalid style.changeNotes: $style)" ;;
+    esac
+    printf '\nChange-note style: %s\n' "$style"
+    echo "  Prose budget for commit/CR/issue bodies — budgets in templates/*.md; set style.changeNotes (terse|standard|detailed) in ecosystem config."
 }
 
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats
@@ -471,6 +512,7 @@ _resolve_orient_realm
 
 emit_subcommand_survey
 emit_active_realm
+emit_change_note_style
 emit_component_adapters
 emit_workspace_selftest
 emit_skill_index

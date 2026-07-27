@@ -33,12 +33,21 @@ add:
 #   - path/to/still-on-disk-but-should-be-deleted.md
 ---
 
-[Extended commit body — the "why" behind the change.]
+[Extended commit body — the "why" behind the change. Explain motivation, not
+mechanics: the diff shows what changed. Reference related issues/PRs as #N.]
 
-[Use paragraphs or bullets. Explain motivation, not mechanics — the diff shows
-what changed, this explains why. Reference related issues/PRs as #N.]
+[Budget: ~4-8 lines for a typical single-concern commit; a bare subject is
+fine when the diff speaks for itself. Every line must earn its place —
+evidence (what proved the bug), traps (what a future reader would miss), and
+significance (why it matters) stay; a per-file tour of what the diff already
+shows never does.]
+
+[style.changeNotes in ecosystem config tunes the budget (`ws orient` shows
+the active value): terse = subject only, plus ≤3 body lines when something
+non-obvious needs recording; standard = the budget above; detailed = fuller
+narrative, reserved for teaching contexts or genuinely intricate changes.]
 
 [Common patterns:
- - Single-concern commits: one short paragraph is enough
+ - Single-concern commits: subject alone, or one short paragraph
  - Multi-file refactors: group the description by area/file
  - Review-fix commits: note which reviewer and which commit introduced the issue]
