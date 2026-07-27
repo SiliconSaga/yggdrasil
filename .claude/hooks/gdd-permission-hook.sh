@@ -923,6 +923,100 @@ _normalize_windows_path_tokens() {
 }
 cmd="$(_normalize_windows_path_tokens "$cmd")"
 
+# ─── Single-quote masking for Tier-1 classification ─────────────────
+#
+# Bash gives single-quoted content zero special meaning: a `\|` in a
+# grep pattern, a `;` in a commit message, a `&` in a URL cannot hide
+# a shell operator. Tier 1's substring matching over quoted content
+# was the workspace's dominant false-positive source (85 asks across
+# two sessions on 2026-07-26, most of them BRE alternation in
+# single-quoted grep patterns). Mask properly-terminated single-quoted
+# spans — content dropped, `''` kept as a token placeholder — and run
+# Tier 1 over the masked string so operator arms see the command the
+# way bash parses it. Every later tier still sees the full command.
+#
+# Conservative bail-outs (return the raw string, so Tier 1 behaves
+# exactly as before): an unquoted backslash anywhere (it escapes the
+# next character, making downstream quote boundaries untrustworthy),
+# or an unterminated quote at end of string. Double-quoted content is
+# preserved, not masked — `$(…)`, backticks, and `$var` stay active
+# there and must keep reaching their Tier-1 arms; `\"` inside double
+# quotes is consumed pairwise so an escaped quote cannot flip state.
+#
+# Posture note: this means quoted payloads to interpreters
+# (`bash -c 'anything'`) no longer trip Tier-1 substring denies. The
+# compensating control is the committed `bash -c *` / `sh -c *`
+# ask-list entries in hook-rules — the interpreter passthrough is the
+# risk there, not the quoting.
+_mask_single_quoted_spans() {
+    local raw="$1"
+    [[ "$raw" != *"'"* ]] && { printf '%s' "$raw"; return; }
+    local out="" c state="plain"
+    local -i i n=${#raw}
+    for ((i = 0; i < n; i++)); do
+        c="${raw:$i:1}"
+        case "$state" in
+            plain)
+                case "$c" in
+                    "'") state="single"; out+="''" ;;
+                    '"') state="double"; out+="$c" ;;
+                    "\\") printf '%s' "$raw"; return ;;
+                    *) out+="$c" ;;
+                esac
+                ;;
+            single)
+                [[ "$c" == "'" ]] && state="plain"
+                ;;
+            double)
+                case "$c" in
+                    "\\")
+                        out+="$c"
+                        i=$((i + 1))
+                        [[ $i -lt $n ]] && out+="${raw:$i:1}"
+                        ;;
+                    '"') state="plain"; out+="$c" ;;
+                    *) out+="$c" ;;
+                esac
+                ;;
+        esac
+    done
+    if [[ "$state" != "plain" ]]; then
+        printf '%s' "$raw"
+        return
+    fi
+    printf '%s' "$out"
+}
+tier1_cmd="$(_mask_single_quoted_spans "$cmd")"
+
+# A word containing an unquoted single-backslash drive-letter path is
+# KNOWN-BROKEN, not merely ambiguous: bash strips the backslashes
+# before the program runs (D:\Dev\x arrives as D:Devx), so approving
+# the ask would just run a command that acts on the wrong path and
+# confuses everyone downstream. Deny with the working respellings
+# instead. Doubled backslashes (D:\\Dev\\x) are excluded — bash
+# collapses them to single ones, so that spelling actually works and
+# stays on the generic ask arm.
+_bare_windows_path_word() {
+    local w="$1"
+    case "$w" in
+        *[A-Za-z]:\\*) ;;
+        *) return 1 ;;
+    esac
+    [[ "$w" == *'\\'* ]] && return 1   # doubled backslash — bash collapses it; that spelling works
+    [[ "$w" == *'\' ]] && return 1     # trailing backslash — line continuation, not path stripping
+    return 0
+}
+
+_has_bare_windows_path() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    local w
+    for w in ${words[@]+"${words[@]}"}; do
+        _bare_windows_path_word "$w" && return 0
+    done
+    return 1
+}
+
 # ─── Tier 1: Deny shell composition with corrective messages ────────
 #
 # Order of arms matters in this case statement: the first arm whose
@@ -948,14 +1042,16 @@ cmd="$(_normalize_windows_path_tokens "$cmd")"
 # fires when the ONLY Tier 1 violation is `|` (regex alternation or
 # a grep-pipeline), which is where the corrective message about the
 # Grep tool / pipe-free grep is the right substitute.
-case "$cmd" in
+case "$tier1_cmd" in
     *$'\n'*|*$'\r'*)
         # Embedded newline / CR — bash treats either as a command
         # separator (a literal newline in a string runs whatever
         # follows as a fresh command). Same threat as `;` / `&&`,
         # but easier to miss because it doesn't look like an
         # operator. Catch early so it can't sneak past the other
-        # arms via creative whitespace.
+        # arms via creative whitespace. (A newline masked away above
+        # was inside single quotes — data to the program, not a
+        # separator — and legitimately skips this arm.)
         deny "Newline-separated command lists are disallowed — each line after the first runs as a fresh command, hidden from per-call audit. Issue one command per tool call."
         ;;
     *"&&"*|*"||"*|*";"*)
@@ -991,7 +1087,15 @@ case "$cmd" in
     *"\\"*)
         # Redirect operators are checked first so an otherwise ambiguous bare
         # Windows path cannot downgrade a real shell redirect from deny to ask.
-        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. For Windows paths, use forward slashes (D:/Dev/...) or wrap the complete drive-letter path in quotes."
+        # Any backslash still visible here sits outside single quotes (masking
+        # above removed the safe ones). The known-broken shape — an unquoted
+        # single-backslash drive-letter path — denies with the working
+        # respellings; everything else keeps the generic ask.
+        if _has_bare_windows_path "$tier1_cmd"; then
+            deny "Unquoted Windows path detected: bash strips single backslashes before the command runs (D:\\Dev\\file arrives as D:Devfile), so this would act on the wrong path. Re-run with the full path quoted (\"D:\\Dev\\file\") or with forward slashes (D:/Dev/file)."
+        else
+            ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. For Windows paths, use forward slashes (D:/Dev/...) or wrap the complete drive-letter path in quotes."
+        fi
         ;;
     *"&"*)
         # Background / command-list separator. By this point `&&` is
@@ -1014,7 +1118,7 @@ case "$cmd" in
         # the corrective text is the more-specific one. Pure
         # `grep <pattern> <file>` (no operators) falls through to
         # Tier 2 — the bare invocation is fine.
-        case "$cmd" in
+        case "$tier1_cmd" in
             *"|"*)
                 deny "Prefer the Grep tool over \`grep ... | ...\` or \`grep -E 'a|b' ...\` when available — it handles regex alternation cleanly and bypasses this hook. If the Grep tool isn't exposed in this Claude Code setup, plain \`grep\` is fine — just avoid \`|\`: drop the pipe, narrow the source files, or use \`grep -E '<alt>'\` without a pipeline. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
         esac

@@ -31,6 +31,7 @@ for _arg in "$@"; do
     if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
         cat <<'HELP'
 Usage: ws clone-fork <component>
+       ws clone-fork --url <source-url> [--name <name>] --add-to-ecosystem
 
 Prepare a ready-to-work fork-based clone of <component>:
 
@@ -66,6 +67,16 @@ remote URLs come from the provider's project-details API response
 
 Idempotent: re-runs on an already-prepared clone simply re-sync main.
 
+The --url form covers a source project not yet declared in the
+ecosystem: it validates the URL, derives the component name from the
+repo slug (override with --name), writes the components.<name> entry
+to ecosystem.local.yaml (tier: supporting), then runs the normal
+clone-fork flow — no separate `ws clone --url … --add-to-ecosystem`
+step needed. --add-to-ecosystem is required with --url because a
+fork-clone the ecosystem doesn't know about would leave every later
+ws command unable to resolve the component. Declaring a component is
+a trust decision, so this form prompts for human approval.
+
 Cross-group forks (e.g. forking from one GitLab group into a fork
 home that lives in another group) require one caller identity with
 read access on the source project and project-create/fork rights on
@@ -84,13 +95,71 @@ HELP
     fi
 done
 
-if [[ $# -lt 1 ]]; then
+COMPONENT=""
+CF_URL=""
+CF_NAME=""
+CF_ADD_ECO="false"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --url)
+            shift
+            CF_URL="${1:-}"
+            if [[ -z "$CF_URL" ]]; then
+                echo "ERROR: --url requires a value." >&2
+                exit 1
+            fi
+            shift
+            ;;
+        --name)
+            shift
+            CF_NAME="${1:-}"
+            if [[ -z "$CF_NAME" ]]; then
+                echo "ERROR: --name requires a value." >&2
+                exit 1
+            fi
+            shift
+            ;;
+        --add-to-ecosystem|--add-eco)
+            CF_ADD_ECO="true"
+            shift
+            ;;
+        -*)
+            echo "ERROR: Unknown flag '$1' for ws clone-fork." >&2
+            echo "  Run 'ws clone-fork --help' for usage." >&2
+            exit 1
+            ;;
+        *)
+            if [[ -n "$COMPONENT" ]]; then
+                echo "ERROR: ws clone-fork takes a single component name (got '$COMPONENT' and '$1')." >&2
+                exit 1
+            fi
+            COMPONENT="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$COMPONENT" && -z "$CF_URL" ]]; then
     echo "Usage: ws clone-fork <component>" >&2
+    echo "       ws clone-fork --url <source-url> [--name <name>] --add-to-ecosystem" >&2
     echo "  Run 'ws clone-fork --help' for details." >&2
     exit 1
 fi
-
-COMPONENT="$1"
+if [[ -n "$COMPONENT" && -n "$CF_URL" ]]; then
+    echo "ERROR: Pass a component name OR --url, not both." >&2
+    exit 1
+fi
+if [[ -n "$CF_NAME" && -z "$CF_URL" ]]; then
+    echo "ERROR: --name only applies with --url." >&2
+    exit 1
+fi
+if [[ -n "$CF_URL" && "$CF_ADD_ECO" != "true" ]]; then
+    echo "ERROR: --url requires --add-to-ecosystem." >&2
+    echo "  A fork-clone the ecosystem doesn't declare would leave later ws commands" >&2
+    echo "  unable to resolve the component. Re-run with --add-to-ecosystem, or declare" >&2
+    echo "  the component in ecosystem config and use 'ws clone-fork <component>'." >&2
+    exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -114,6 +183,38 @@ for cmd in yq jq git; do
         exit 1
     fi
 done
+
+# --- URL mode: declare the component before the ecosystem resolves ----------
+# Mirrors ws-clone.sh's --add-to-ecosystem write (same yq shape, same
+# name derivation), then falls through to the normal component flow —
+# the merged-config read below picks up the entry just written.
+if [[ -n "$CF_URL" ]]; then
+    git_remote_validate "$CF_URL" remote
+    if [[ -z "$CF_NAME" ]]; then
+        CF_NAME=$(echo "$CF_URL" | sed 's|.*/||; s|\.git$||' | tr '[:upper:]' '[:lower:]')
+    fi
+    if [[ -z "$CF_NAME" ]] || ! ws_component_name_is_valid "$CF_NAME"; then
+        echo "ERROR: Cannot derive a valid component name from URL: $CF_URL" >&2
+        echo "  Use --name <name> (lowercase, alphanumeric, hyphens, dots)." >&2
+        exit 1
+    fi
+    LOCAL_CONFIG="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    if [[ ! -f "$LOCAL_CONFIG" ]]; then
+        # Deliberately NOT seeded from ecosystem.local.yaml.example (ws-clone
+        # does): the example's uncommented identity placeholders would
+        # deep-merge over the realm's real values and turn the clear
+        # "identity.forkRemote is not set" error below into a fork remote
+        # silently named after a placeholder.
+        printf '{}\n' > "$LOCAL_CONFIG"
+    fi
+    COMPONENT_NAME="$CF_NAME" REPO_URL="$CF_URL" \
+        yq -i '
+            .components[strenv(COMPONENT_NAME)].tier = "supporting" |
+            .components[strenv(COMPONENT_NAME)].repo = strenv(REPO_URL)
+        ' "$LOCAL_CONFIG"
+    echo "ADDED: $CF_NAME to ecosystem.local.yaml (tier: supporting, repo: $CF_URL)"
+    COMPONENT="$CF_NAME"
+fi
 
 ECO="$(ws_resolve_ecosystem)"
 

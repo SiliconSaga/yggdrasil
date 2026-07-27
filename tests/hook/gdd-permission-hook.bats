@@ -637,7 +637,11 @@ JSON
 
     run_hook "'w\\s' status"
 
-    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    # Single-quote masking removes the backslash from Tier-1's view, so
+    # this no longer lands on the backslash ask — but the security
+    # property is that the smuggled spelling must never AUTO-ALLOW.
+    # The raw string (quotes, backslash and all) is what the allowlist
+    # matcher sees, and it does not match `ws status`.
     [[ "$output" != *'"permissionDecision":"allow"'* ]]
 }
 
@@ -659,15 +663,19 @@ JSON
 # and later Tier 1 arms (redirect, newline) must still fire after a
 # token is normalized.
 
-@test "ask: bare backslashed drive path remains shell-escape ambiguous" {
+@test "deny: bare backslashed drive path is known-broken and teaches the fix" {
     write_project_hook_rules ""
     write_project_settings 'Bash(git -C * status)'
 
     run_hook 'git -C D:\Dev\GitWS\yggdrasil status'
 
+    # Bash strips the single backslashes before git runs (the -C target
+    # arrives as D:DevGitWSyggdrasil), so approving an ask would just run
+    # a command that acts on the wrong path. Deny with the working
+    # respellings instead of deferring the confusion to the human.
     [ "$status" -eq 0 ]
-    [[ "$output" == *'"permissionDecision":"ask"'* ]]
-    [[ "$output" == *"Backslash escapes"* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Unquoted Windows path"* ]]
 }
 
 @test "allow: single-quoted backslash drive path matches the allowlist" {
@@ -742,6 +750,150 @@ JSON
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     [[ "$output" == *"Newline-separated"* ]]
+}
+
+# ─── Single-quote masking (Tier 1 sees bash's parse) ────────────────
+#
+# Bash gives single-quoted content zero special meaning, so operator
+# substrings inside single quotes must not trip Tier-1 arms — that
+# false-positive class (BRE alternation in grep patterns, semicolons
+# in message strings, pipes in yq expressions) was the workspace's
+# dominant source of pointless prompts. Everything OUTSIDE single
+# quotes must keep exactly its old classification, and the bail-outs
+# (unquoted backslash, unterminated quote) must stay conservative.
+
+@test "masking: BRE alternation inside single quotes passes Tier 1" {
+    seed_real_project_config
+
+    run_hook "grep -rn 'samples/\\|case-studies' docs/"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+    [[ "$output" != *"Backslash escapes"* ]]
+}
+
+@test "masking: single-quoted semicolon is data, not composition" {
+    seed_real_project_config
+
+    run_hook "printf '%s' 'a; b'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "masking: single-quoted pipe is data, not a pipeline" {
+    seed_real_project_config
+
+    run_hook "printf 'a|b'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "masking: newline inside single quotes is data, not a separator" {
+    seed_real_project_config
+
+    run_hook $'printf \'a\nb\''
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Newline-separated"* ]]
+}
+
+@test "masking: unquoted operator after a masked span still denies" {
+    seed_real_project_config
+
+    run_hook "printf 'a' ; ls"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Shell composition"* ]]
+}
+
+@test "masking: double-quoted pipe still reaches the pipe arm" {
+    seed_real_project_config
+
+    run_hook 'grep -E "a|b" file.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "masking: unterminated single quote bails out to the ask" {
+    seed_real_project_config
+
+    run_hook "echo 'a\\"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "masking: backslash inside double quotes keeps the ask" {
+    seed_real_project_config
+
+    run_hook 'echo "a\b"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "ask: bash -c interpreter passthrough is human-gated" {
+    seed_real_project_config
+
+    run_hook "bash -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: sh -c interpreter passthrough is human-gated" {
+    seed_real_project_config
+
+    run_hook "sh -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+# ─── gh repo fork → ws clone-fork redirect ──────────────────────────
+
+@test "redirect: ws gh repo fork points at ws clone-fork" {
+    seed_real_project_config
+
+    run_hook 'ws gh repo fork Terasology/CoreWorlds --org SiliconSaga --clone=false'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws clone-fork"* ]]
+}
+
+@test "redirect: raw gh repo fork gets the clone-fork pointer, not the generic gh one" {
+    seed_real_project_config
+
+    run_hook 'gh repo fork Terasology/CoreWorlds --clone=false'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws clone-fork"* ]]
+}
+
+@test "ask: ws clone-fork --add-to-ecosystem is the component trust gate" {
+    seed_real_project_config
+
+    run_hook 'ws clone-fork --url https://github.com/x/y.git --add-to-ecosystem'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: ws clone-fork --add-eco alias is gated the same way" {
+    seed_real_project_config
+
+    run_hook 'ws clone-fork --url https://github.com/x/y.git --add-eco'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────

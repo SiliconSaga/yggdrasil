@@ -429,3 +429,45 @@ YAML
     grep -Fq "name=widget-cfr" "$glab_log"
     grep -Fq "path=widget-cfr" "$glab_log"
 }
+
+@test "--url without --add-to-ecosystem is refused with guidance" {
+    run bash "$CLONE_FORK_BIN" --url https://github.com/source-org/widget.git
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"--url requires --add-to-ecosystem"* ]]
+}
+
+@test "--url rejects a component name passed alongside it" {
+    run bash "$CLONE_FORK_BIN" widget --url https://github.com/source-org/widget.git --add-to-ecosystem
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"component name OR --url"* ]]
+}
+
+@test "--url --add-to-ecosystem declares the component and runs the normal flow" {
+    make_bare_pair
+    write_gh_stub
+    export GH_STUB_FORK_PATH="fork-org/widget"
+    export GH_STUB_FORK_EXISTS=1
+    export GH_STUB_SOURCE_PATH="source-org/widget"
+    export GH_TOKEN="gh-fallback-token"
+    map_github_clone_urls
+
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: forkhome
+  homes:
+    fork:
+      namespace: github.com/fork-org
+components: {}
+YAML
+
+    run bash "$CLONE_FORK_BIN" --url https://github.com/source-org/widget.git --add-to-ecosystem
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ADDED: widget to ecosystem.local.yaml"* ]]
+    [[ "$output" == *"Fork     : fork-org/widget"* ]]
+    grep -Fq "repo: https://github.com/source-org/widget.git" "$ECOSYSTEM_LOCAL"
+    git -C "$COMPONENTS_DIR/widget" remote get-url forkhome
+    git -C "$COMPONENTS_DIR/widget" remote get-url source-org
+}
