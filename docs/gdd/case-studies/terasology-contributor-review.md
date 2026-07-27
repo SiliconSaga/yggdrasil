@@ -4,8 +4,10 @@
 * **Workspace:** yggdrasil on `Dionysus` — an aging Win10 desktop
 * **Stance / Role:** flow / developer
 * **Subject:** [Terasology](https://github.com/MovingBlocks/Terasology), a 15-year-old open-source voxel game engine
-* **Contributor:** [@soloturn](https://github.com/soloturn), who reviewed this write-up and agreed to be named
+* **Contributor:** [@soloturn](https://github.com/soloturn), who reviewed this write-up and agreed to be named — thank you, soloturn, for the fixes and for being the first outside contributor to meet GDD in the wild!
 * **Duration:** ~3.5 hours wall clock. Very little of it at a desk.
+
+![Gooey's augmented workshop — Terasology's gelatinous-cube mascot, freshly fitted with cybernetic upgrades, running the Grand Terasology Improvement Engine alongside GDD's bee-bots](../../assets/images/GooeysAugmentedWorkshop.jpg)
 
 ## Overview
 

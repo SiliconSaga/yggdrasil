@@ -106,7 +106,6 @@ The orientation skill is the right starting point; these pointers are here so a 
 - [`docs/workspace-setup.md`](docs/workspace-setup.md) — prerequisites, PATH setup, workspace shape (components/realms/hoards), agent permissions.
 - [`docs/git-provider-setup.md`](docs/git-provider-setup.md) — auth, token scopes, `.env` setup.
 - [`docs/code-style.md`](docs/code-style.md) — commenting + documentation conventions.
-- [`docs/ide-setup.md`](docs/ide-setup.md) — VS Code, JetBrains, terminal editor setup.
 - [`.claude/hooks/README.md`](.claude/hooks/README.md) — PreToolUse hook tiers, redirect/bypass mechanics.
 - [`docs/plans/2026-04-24-realms-and-hoards-design.md`](docs/plans/2026-04-24-realms-and-hoards-design.md) — realms + hoards model.
 - [`docs/plans/2026-04-25-component-templates-design.md`](docs/plans/2026-04-25-component-templates-design.md) — `ws component init` flavors.

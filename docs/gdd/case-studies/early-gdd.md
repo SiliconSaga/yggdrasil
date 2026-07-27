@@ -44,4 +44,4 @@ Then notice what is *absent* compared to the v1.0 study: no realms or adapters, 
 
 Honestly though: transcripts do not do the process justice when condensed, and cannot convey the sense of flow experienced. And who would have time to read an entire session log spanning hours of work? Maybe if you fed it to a different agent and told it what sort of magic you'd be interested in hearing about :-)
 
-Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started/index.md)** — clone the workspace, turn on mentoring, and see what happens.
+Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started.md)** — clone the workspace, turn on mentoring, and see what happens.

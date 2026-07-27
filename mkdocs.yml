@@ -51,13 +51,13 @@ nav:
   - Yggdrasil:
     - Ecosystem Architecture: ecosystem-architecture.md
     - Workspace Setup: workspace-setup.md
-    - IDE Setup: ide-setup.md
     - WS CLI Guide: ws-cli-guide.md
     - Code Style: code-style.md
     - Git Provider Setup: git-provider-setup.md
     - MCP Setup: mcp-setup.md
   - Guardian Driven Development:
     - Overview: gdd/index.md
+    - Philosophy: gdd/philosophy.md
     - Cross-Fork CR Internals: gdd/cr-internals.md
     - Features Tour: gdd/features.md
     - Roles and Stances: gdd/roles-and-stances.md
@@ -80,8 +80,7 @@ nav:
       - "Thalamus: Primary": gdd/case-studies/thalamus-primary.md
       - "Thalamus: Primary Processed": gdd/case-studies/thalamus-processed.md
       - "Thalamus: Parallel": gdd/case-studies/thalamus-parallel.md
-  - Getting Started:
-    - getting-started/index.md
+  - Getting Started: getting-started.md
   - Tutorials:
     - tutorials/index.md
     - Guarded Kubernetes: tutorials/guarded-kubernetes.md

@@ -23,7 +23,7 @@ Full writeup: **[Reviewing a contributor's PR — GDD v1.0](terasology-contribut
 
 A local town-council candidate's campaign site was built by a third party as a compiled single-page app: the news articles had no working links, the contact and volunteer forms posted to a backend only the original developer controlled, and the owner couldn't change a word of it himself.
 
-Over one GDD session the site was rebuilt fresh as a `gh-pages` component — the same Jekyll scaffold the [Getting Started](../../getting-started/index.md) tutorial uses. Content was recovered faithfully (with several look-and-feel passes reviewed live by a human), each news article became its own page by construction, and the captive forms were replaced with channels the candidate owns. The result deployed straight through the standard GDD loop — topic branch, PR, bot review, merge, live — and now carries per-page "edit on GitHub" links plus a maintainer guide, so the owner can keep it current by asking his own agent.
+Over one GDD session the site was rebuilt fresh as a `gh-pages` component — the same Jekyll scaffold the [Getting Started](../../getting-started.md) tutorial uses. Content was recovered faithfully (with several look-and-feel passes reviewed live by a human), each news article became its own page by construction, and the captive forms were replaced with channels the candidate owns. The result deployed straight through the standard GDD loop — topic branch, PR, bot review, merge, live — and now carries per-page "edit on GitHub" links plus a maintainer guide, so the owner can keep it current by asking his own agent.
 
 The maintenance loop has since been proven for real: the owner sent a Word document revising his entire policy platform, and the agent read it, applied the restructuring site-wide over several human-reviewed passes, and shipped it to production — a non-technical owner's document edits reaching his live site with no third-party developer in the path.
 
@@ -57,4 +57,4 @@ GDD's own multi-agent groundwork was built by two different agents in two worksp
 
 Another good example is summarized in [this GDD PR comment](https://github.com/SiliconSaga/yggdrasil/pull/38#issuecomment-4313480965).
 
-Honestly though: write-ups do not do the process justice when condensed, and cannot convey the sense of flow experienced. Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started/index.md)** — clone the workspace, turn on mentoring, and see what happens.
+Honestly though: write-ups do not do the process justice when condensed, and cannot convey the sense of flow experienced. Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started.md)** — clone the workspace, turn on mentoring, and see what happens.

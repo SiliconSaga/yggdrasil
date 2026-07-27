@@ -2,7 +2,7 @@
 
 Hands-on, chaptered walkthroughs of individual GDD features. Each one is followable solo — just read and run the commands — or alongside your AI agent. Turn on the mentoring overlay for your first pass through any of them and the agent explains each command and decision as you go rather than just running it.
 
-These differ from the [Getting Started](../getting-started/index.md) walkthrough, which onboards you to the workspace as a whole. A tutorial here goes deep on one feature.
+These differ from the [Getting Started](../getting-started.md) walkthrough, which onboards you to the workspace as a whole. A tutorial here goes deep on one feature.
 
 ## Available tutorials
 
@@ -15,7 +15,7 @@ These differ from the [Getting Started](../getting-started/index.md) walkthrough
 
 Most tutorials here are **docs pages** like Guarded Kubernetes — read-and-run walkthroughs of a feature.
 
-The **GitHub Pages** one is a **scaffold** instead: run `ws component init gh-pages <name>` and the walkthrough is the generated `components/<name>/README.md` (the table links to the template version). It lives with its template rather than as a docs page because the thing you learn on is a real repo you create and deploy. See [Getting Started → Recommended first scaffold](../getting-started/index.md#recommended-first-scaffold) for where it fits in onboarding.
+The **GitHub Pages** one is a **scaffold** instead: run `ws component init gh-pages <name>` and the walkthrough is the generated `components/<name>/README.md` (the table links to the template version). It lives with its template rather than as a docs page because the thing you learn on is a real repo you create and deploy. See [Getting Started](../getting-started.md#setup) for where it fits in onboarding — it's the recommended first scaffold there.
 
 ## Three ways a newcomer meets GDD
 

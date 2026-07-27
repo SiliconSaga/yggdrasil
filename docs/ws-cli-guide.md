@@ -67,17 +67,20 @@ ws_mycommand() {
 
 ### 3. Classify its permission level
 
-Every subcommand falls into one of three tiers:
+Every subcommand falls into one of four tiers:
 
 | Tier | Auto-approve? | Committed prompt rule? | Representative examples |
 |------|---------------|------------|----------|
 | **Auto-approved wrapper** | Yes (allow) | No | `orient`, `status`, `clone`, `test`, `lint`, `commit`, `log`, `preflight` |
-| **Side-effect** | User's choice (ask) | No | `push`, `cr`, `issue`, `review reply/resolve`, `realm <url>`, `hoard <url>` |
+| **Side-effect** | User's choice (ask) | No | `push`, `cr`, `issue`, `realm <url>`, `hoard <url>` |
+| **Trust gate** | Always asks | Yes (`hook-rules` ask-list) | `realm use`, `mcp-setup`, `clone --add-to-ecosystem`, `review reply` / `--resolve`, `hook-bypass` |
 | **Arbitrary execution** | Always asks | Yes (`hook-rules` ask-list) | `exec` |
 
 **Auto-approved wrapper:** Read-only, wrapper-bounded local actions, or trusted adapter dispatches. Add to the `allow` list in `.claude/settings.json`.
 
 **Side-effect:** Modifies shared state or adopts external repositories. Prompts by default but users *can* whitelist common bulk operations. Do NOT add a deny rule — let users decide.
+
+**Trust gate:** Changes what the workspace trusts or speaks outward on the user's behalf — activating a realm's config surface, wiring MCP endpoints, adopting an arbitrary URL into the ecosystem, posting review replies or resolving threads, lifting a hook redirect. These carry committed ask entries in `.claude/hooks/hook-rules`; the ask tier runs before local allow patterns, so they cannot be silently auto-approved from `.claude/settings.local.json`.
 
 **Arbitrary execution:** Takes user-provided commands and runs them. Must have an ask-list entry in `.claude/hooks/hook-rules` and must not be allowlisted. Currently only `exec` is in this tier.
 
