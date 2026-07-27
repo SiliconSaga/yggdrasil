@@ -1,6 +1,6 @@
 # Obsidian vault hoard
 
-The `obsidian-vault` template is the primary PKM-flavored hoard. Init creates a PARA-laid-out Obsidian vault with a small curated plugin set installed and pre-configured for daily-note capture, project tracking, and dashboard-driven review. This is paired with the "Scribe" skill and role available for your GDD agent.
+The `obsidian-vault` template is the primary PKM-flavored hoard. Init creates a PARA-laid-out Obsidian vault with a small curated plugin set installed and pre-configured for daily-note capture, project tracking, and dashboard-driven review, paired with the "Scribe" skill and role for your GDD agent.
 
 ## Init
 
@@ -18,7 +18,7 @@ What this does for you:
 4. Disables the core daily-notes plugin (Periodic Notes supersedes it) and removes its now-redundant config file
 5. Initializes a git repo and creates the initial commit
 
-The first time you open the vault in Obsidian, you'll be prompted to trust the community plugins. Once trusted (and after one Obsidian restart to settle plugin-load timing), the full setup is live.
+The first time you open the vault in Obsidian, you'll be prompted to trust the community plugins. Once trusted, and after one Obsidian restart to settle plugin-load timing, the full setup is live.
 
 `00_Inbox/Welcome.md` walks first-time users through the Obsidian-side setup steps (binding a daily-note hotkey, finding the Calendar view, etc.) — process and archive when done.
 
@@ -36,7 +36,7 @@ Seven community plugins, all auto-installed on init and pinned to known-working 
 | **Dataview** | Query engine for live tables and dashboards. Powers `Dashboard.md`. |
 | **Tasks** | `- [ ]` query engine; supports due dates, recurring, filters. |
 
-Plugin code (`main.js`, `styles.css`) is *committed by default* in fresh hoards so all devices — including Android via the Obsidian Git plugin, which has no `ws hoard upgrade` — get the JS via `git pull`. `manifest.json` and `data.json` are also tracked. The vault's `.gitignore` documents the opt-in path back to a minimal repo (gitignore the JS, refetch via `ws hoard upgrade` on desktop only); pick whichever fits your sync model. The single always-ignored exception is `.obsidian/plugins/obsidian-git/` — its `data.json` holds the auth Personal Access Token for mobile sync and must not enter git history.
+Plugin code (`main.js`, `styles.css`) is *committed by default* in fresh hoards so all devices — including Android via the Obsidian Git plugin, which has no `ws hoard upgrade` — get the JS via `git pull`. `manifest.json` and `data.json` are also tracked. The vault's `.gitignore` documents the opt-in path back to a minimal repo (gitignore the JS, refetch via `ws hoard upgrade` on desktop only); pick whichever fits your sync model. The single always-ignored exception is `.obsidian/plugins/obsidian-git/` — its `data.json` holds the auth PAT for mobile sync and must not enter git history.
 
 ## PARA conventions
 
@@ -74,7 +74,7 @@ Some templates ship in `60_Metadata/Templates/`. Two different substitution synt
 
 When the `gdd-scribe` skill creates notes via Claude (not via Obsidian's UI), it substitutes literal dates — neither plugin runs from outside Obsidian.
 
-**Every template carries an `# H1` at the top mirroring its filename.** Filename Heading Sync (bundled, enabled) keeps filename and first heading in lockstep bidirectionally — renaming the file rewrites the H1 on save; changing the first heading renames the file on save. *Templates must therefore give FHS a matching H1 right after the frontmatter, before any body section headings*; without it, FHS picks the first body heading (e.g., `## Journal & Capture` in Daily Note) and renames the file to match. Custom framing for periodic reviews (e.g., "Weekly review for 2026-05-06 to 2026-05-12") goes in an italic body line below the H1, not in the H1 itself.
+**Every template carries an `# H1` at the top mirroring its filename.** Filename Heading Sync (bundled, enabled) keeps filename and first heading in lockstep bidirectionally — renaming the file rewrites the H1 on save; changing the first heading renames the file on save. *Templates must therefore give FHS a matching H1 right after the frontmatter, before any body section headings*; without it, FHS picks the first body heading (e.g., `## Journal & Capture` in Daily Note) and renames the file to match. Custom framing for periodic reviews (e.g., "Weekly review for 2026-05-06 to 2026-05-12") goes in an italic body line below the H1, not in the H1.
 
 The Project Note's `Untitled → prompted name` rename flow orders its prompts so the rename happens *last*, after the user answers all prompts. This closes a timing race where FHS's 1000ms post-rename debounce could fire mid-prompt, before Templater had finished writing the body, and insert a duplicate H1.
 
@@ -163,7 +163,7 @@ Cross-platform safe (Windows / Mac / Linux):
 ws hoard upgrade <your-vault-name>
 ```
 
-Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins. By default new vaults commit plugin code, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` needing to run first; upgrade is for *intentional* re-baselines.
+Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins. New vaults commit plugin code by default, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` running first; upgrade is for *intentional* re-baselines.
 
 What upgrade does:
 
@@ -190,21 +190,21 @@ The vault syncs to Android via the [Obsidian Git community plugin](https://githu
 
 ### Why git, not Obsidian Sync
 
-Obsidian Sync (first-party paid service) works fine but creates a parallel sync layer alongside git, which gets awkward when you want git to be the source of truth across multiple computers. Git-based sync via Obsidian Git keeps a single source of truth for free and integrates naturally with the workspace's existing `ws push` / `ws pull` flow on desktop.
+Obsidian Sync (first-party paid service) works fine but creates a parallel sync layer alongside git, which gets awkward when you want git as the source of truth across multiple computers. Git-based sync via Obsidian Git keeps a single source of truth for free and integrates naturally with the workspace's existing `ws push` / `ws pull` flow on desktop.
 
 ### Plugin-code-in-git policy
 
-Default for new vaults: plugin code (`main.js`, `styles.css`) is **committed**. Mobile has no `ws hoard upgrade`, so the only way phones get plugin JS is via `git pull`. The trade-off (~1.5MB repo bloat) is fine for personal use. Documented in the vault's `.gitignore` with the opt-in path back to a minimal repo if anyone ever wants it.
+Default for new vaults: plugin code (`main.js`, `styles.css`) is **committed**. Mobile has no `ws hoard upgrade`, so the only way phones get plugin JS is via `git pull`. The trade-off (~1.5MB repo bloat) is fine for personal use, documented in the vault's `.gitignore` with the opt-in path back to a minimal repo.
 
 **Exception:** `.obsidian/plugins/obsidian-git/` is *always* gitignored. Its `data.json` stores the auth Personal Access Token; committing it would leak your token into git history.
 
 ### Setup walkthrough
 
-Lives in the vault's `00_Inbox/Welcome.md` under the "Mobile setup (Android)" section — eight steps covering PAT generation, the install-twice dance (throwaway vault → install plugin to get the Clone command → clone real vault → re-install plugin in cloned vault since its folder is gitignored → reconfigure auth → test round-trip), and ongoing pull/push commands. The walkthrough exists in Welcome rather than this doc page so it travels with each vault to whatever device opens it first.
+Lives in the vault's `00_Inbox/Welcome.md` under "Mobile setup (Android)" — eight steps covering PAT generation, the install-twice dance (throwaway vault → install plugin to get the Clone command → clone real vault → re-install plugin in cloned vault since its folder is gitignored → reconfigure auth → test round-trip), and ongoing pull/push commands. The walkthrough lives in Welcome rather than this doc page so it travels with each vault to whatever device opens it first.
 
 ### community-plugins.json side effect
 
-When you enable obsidian-git on the phone, Obsidian writes `"obsidian-git"` to `.obsidian/community-plugins.json` and that change propagates to desktops on the next push. Desktops then see an entry for a plugin whose code isn't there. Modern Obsidian usually skips it silently; in some versions you may see a one-time "couldn't load" notice — dismiss it.
+When you enable obsidian-git on the phone, Obsidian writes `"obsidian-git"` to `.obsidian/community-plugins.json` and that change propagates to desktops on the next push. Desktops then see an entry for a plugin whose code isn't there. Modern Obsidian usually skips it silently; some versions show a one-time "couldn't load" notice — dismiss it.
 
 If the notice persists or you'd rather not see it at all, the cleanest workaround is a **per-clone gitignore on phone only**: edit `.git/info/exclude` inside the *phone's* cloned repo (this file is local-only, never committed) and add:
 
@@ -212,11 +212,11 @@ If the notice persists or you'd rather not see it at all, the cleanest workaroun
 .obsidian/community-plugins.json
 ```
 
-Phone's community-plugins.json (with obsidian-git) stays local. Desktops keep their version (without it). Trade-off: if you ever install a regular plugin on phone and want it on desktop too, you'd need to manually update the desktop side once.
+Phone's community-plugins.json (with obsidian-git) stays local; desktops keep their version (without it). Trade-off: installing a regular plugin on phone and wanting it on desktop too requires manually updating the desktop side once.
 
 ### Two-paths reminder for plugin updates
 
-Phone-side mobile workflow puts in-app plugin updates (via Obsidian's Community plugins page) into the same git timeline as everything else. If you click "Update" on Templater on phone, it commits the new `main.js` + new `manifest.json` to git, and on next pull desktops get the updated plugin too.
+Phone-side mobile workflow puts in-app plugin updates (via Obsidian's Community plugins page) into the same git timeline as everything else. Click "Update" on Templater on phone and it commits the new `main.js` + `manifest.json` to git; on next pull, desktops get the updated plugin too.
 
 This means the two upgrade paths can fight: in-app updates push fresher versions, then `ws hoard upgrade` would clobber them back to the template's pinned set. **Don't routinely run `ws hoard upgrade`** on a vault you've been actively maintaining via in-app updates. Run it for fresh init, intentional re-baselining, or after bumping pins in `templates/hoards/obsidian-vault/.upgrade/upgrade.yaml`.
 

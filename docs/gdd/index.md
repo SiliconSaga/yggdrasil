@@ -2,9 +2,9 @@
 
 Guardian Driven Development is a methodology for human-AI collaboration. It wraps the way you already work — BDD, TDD, and code review for software; the edit-review-publish loop of a website; the capture-and-organize rhythm of a personal knowledge vault — in a layer of structured guidance that adapts to who's working, what role they're filling, and how much time they have. GDD grew up around software development and git remains its backbone, but git holds much more than code these days: a campaign site for a local political aspirant and an Obsidian vault for personal organizing are just as at home here as a game engine.
 
-In practice that means: a workspace you clone, a `ws` CLI both you and the agent share, a permission hook that keeps agent autonomy inside deterministic guardrails, and a persistent shared memory (the [Thalamus](thalamus.md)) so neither of you starts from zero — even when your available time comes in fifteen-minute fragments.
+In practice: a workspace you clone, a `ws` CLI both you and the agent share, a permission hook that keeps agent autonomy inside deterministic guardrails, and a persistent shared memory (the [Thalamus](thalamus.md)) so neither of you starts from zero — even when your available time comes in fifteen-minute fragments.
 
-If you already use Claude Code or Codex, the one-sentence version: GDD is **an agentic engineering methodology that goes on top of either**. The agent brings the horsepower; GDD adds the memory, guardrails, and discipline that decide whether that horsepower compounds into a project or dissipates into a chat log.
+If you already use Claude Code or Codex, the one-sentence version: GDD is **an agentic engineering methodology that goes on top of either**. The agent brings the horsepower; GDD adds the memory, guardrails, and discipline that decide whether it compounds into a project or dissipates into a chat log.
 
 **Where to next:**
 
@@ -16,7 +16,7 @@ If you already use Claude Code or Codex, the one-sentence version: GDD is **an a
 
 - **Calibrated autonomy** — GDD tunes for the middle of the AI-collaboration spectrum: real agent autonomy inside deterministic guardrails, with the human at a deliberate review cadence — every PR title and merge decision is a human call. [The thesis in full](philosophy.md#calibrated-autonomy-the-thesis).
 
-- **Good enough, on purpose** — structure gets you 90% of the way: accidents made rare, work made legible, attribution made honest. The rails are training aids and confirmation checkpoints, not a hardened security boundary — and the docs say so plainly wherever it matters. [Know your stakes](philosophy.md#good-enough-on-purpose).
+- **Good enough, on purpose** — structure gets you 90% of the way: accidents made rare, work made legible, attribution made honest. The rails are training aids and confirmation checkpoints, not a hardened security boundary, and the docs say so plainly wherever it matters. [Know your stakes](philosophy.md#good-enough-on-purpose).
 
 - **Agents and newcomers need the same things** — clear boundaries, incremental tasks, safety rails, and enough context to be productive without close supervision. A methodology that serves one serves both — the [core insight](philosophy.md#the-core-insight) GDD grew from.
 
@@ -24,9 +24,9 @@ If you already use Claude Code or Codex, the one-sentence version: GDD is **an a
 
 - **Adaptive ceremony** — [roles and stances](roles-and-stances.md) let the framework meet you where you are. 15 minutes on your phone? Quick stance. Saturday deep dive? Zen stance. First time in the codebase? Turn on the mentoring overlay. Stances and overlays compose freely.
 
-- **Trust as a first-class concern** — AI agents read instructions from nested project components, and not all of those are trustworthy. GDD's [trust hierarchy and black-box safety pattern](trust-and-safety.md) ensure the agent logs concerns before they can be overwritten by hostile content.
+- **Trust as a first-class concern** — AI agents read instructions from nested project components, and not all of those are trustworthy. GDD's [trust hierarchy and black-box safety pattern](trust-and-safety.md) ensure the agent logs concerns before hostile content can overwrite them.
 
-- **Self-improving through use** — the framework starts minimal and [evolves through audit cycles](self-improving-loop.md). Observations become skills, friction becomes automation, and the capture heuristics themselves get tuned.
+- **Self-improving through use** — the framework starts minimal and [evolves through audit cycles](self-improving-loop.md). Observations become skills, friction becomes automation, and the capture heuristics get tuned too.
 
 ## Why "Guardian"?
 
@@ -38,11 +38,11 @@ The name reflects several protective roles:
 - **Guarding the AI** from nested instructions that may conflict or be unsafe
 - **Helping guardians** of actual human dependents make do with "found" snippets of time
 
-The last entry relates to the original more amusing "Dad-Driven-Development" name from the author's struggles finding meaningful development time while raising young children.
+The last entry relates to the original, more amusing "Dad-Driven-Development" name, from the author's struggles finding development time while raising young children.
 
 ## Getting Started
 
-The [Getting Started walkthrough](../getting-started.md) covers setup step by step. The shape of it:
+The [Getting Started walkthrough](../getting-started.md) covers setup step by step:
 
 1. **Clone the repo** — `git clone` the yggdrasil workspace
 2. **Start a session** — the orientation skill guides you through setup

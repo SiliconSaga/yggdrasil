@@ -1,6 +1,6 @@
 # Hoards
 
-A **hoard** is a personal git repo that lives inside the workspace at `hoards/<type>-<user>/`, alongside the components and realms. The yggdrasil workspace is the only "shared" part of the tree — components and realms come from elsewhere; hoards come from *you*. They're a catch-all for content that isn't a component (a project) and isn't a realm (community config), but still wants to live next to your work and ride the same `ws` CLI for sync.
+A **hoard** is a personal git repo that lives inside the workspace at `hoards/<type>-<user>/`, alongside the components and realms. The yggdrasil workspace is the only "shared" part of the tree — components and realms come from elsewhere; hoards come from *you*. They're a catch-all for content that isn't a component (a project) and isn't a realm (community config), but still wants to live next to your work and ride the `ws` CLI for sync.
 
 The canonical hoard type is **thalami** — the per-developer container for the [Thalamus](thalamus.md). The other shipped type is the [**obsidian-vault**](obsidian-vault.md) — a PARA-laid-out Obsidian vault for personal knowledge management, paired with the scribe role. The architecture is intentionally generic, so further types (scratch spaces, personal experiments) slot in without redesign.
 
@@ -34,7 +34,7 @@ gh repo create <user>/thalami-<user> --private \
   --source=hoards/thalami-<user> --remote=<user> --push
 ```
 
-If you want the agent's PAT to be able to push to your hoard (so `ws push thalami-<user>` works without a personal interactive auth step), add `agent-refr` (or whatever your agent identity is) as a GitHub collaborator on the hoard repo. The PAT inherits write access via that collaboration.
+For the agent's PAT to push to your hoard (so `ws push thalami-<user>` works without a personal interactive auth step), add `agent-refr` (or whatever your agent identity is) as a GitHub collaborator on the hoard repo — the PAT inherits write access via that collaboration.
 
 After `init`, `ws status` will show the new hoard in its listing, and the next session's orientation will resolve it as the active thalami hoard.
 
@@ -56,7 +56,7 @@ Why per-machine? Two reasons:
 1. **Avoids merge conflicts.** Two machines editing the same file between syncs would collide on every other line. Per-machine files eliminate that class of conflict.
 2. **Reflects reality.** Each machine has its own context (different keyboard, different network, different screen). Preferences that make sense at the desk don't always make sense on the laptop. Per-machine files keep that fidelity.
 
-Cross-machine concerns (preferences that genuinely apply everywhere, duplicate observations on multiple machines) get reconciled during **multi-thalami housekeeping** — see the `gdd-housekeeping` skill's "Multi-Thalami Review" section.
+Cross-machine concerns (preferences that apply everywhere, duplicate observations on multiple machines) get reconciled during **multi-thalami housekeeping** — see the `gdd-housekeeping` skill's "Multi-Thalami Review" section.
 
 ---
 
@@ -74,7 +74,7 @@ The file is committable, hoard-wide, and shared across machines — it's a workf
 
 The check itself runs as `ws hoard cadence` and reports a status line (`clean`, `dirty-fresh`, `dirty-stale`, `never-committed`, `no-active-hoard`, `no-thalamus-file`) plus elapsed-time fields the nudge text substitutes in. The orientation skill calls it automatically; you can also run it manually any time.
 
-**Migrating an existing thalami hoard** (created before yggdrasil PR #49 introduced `.ws-cadence.yaml`): copy `templates/hoards/thalami/.ws-cadence.yaml` into your hoard root, commit, and push. The old per-machine `commit_staleness_days` frontmatter field is now ignored; without the new file, the cadence script falls back to its 2-day default.
+**Migrating an existing thalami hoard** without `.ws-cadence.yaml`: copy `templates/hoards/thalami/.ws-cadence.yaml` into your hoard root, commit, and push. A per-machine `commit_staleness_days` frontmatter field is ignored; without the new file, the cadence script falls back to its 2-day default.
 
 **Future direction: scope filters.** A `watch:` glob list could let other hoard types scope dirty-detection (e.g., a vault hoard counting `*.md` but ignoring `_attachments/`). Not implemented in v1 — thalami's per-machine-file watching is hardcoded — but the extension point is reserved for when a second hoard type needs it.
 
@@ -93,9 +93,9 @@ The standard pattern with a thalami hoard across machines:
 Two coexisting modes that work well:
 
 - **Each machine commits its own per-machine file.** The hoard's history shows alternating commits per machine.
-- **One machine does cross-machine housekeeping** (typically the most-used desktop). It walks all `<machine>-thalamus.md` files, promotes universal preferences, dedups observations, updates each machine's audit log. The other machines pick up the consolidated state on next pull.
+- **One machine does cross-machine housekeeping** (typically the most-used desktop): it walks all `<machine>-thalamus.md` files, promotes universal preferences, dedups observations, updates each machine's audit log. The other machines pick up the consolidated state on next pull.
 
-**Push directly to `main` — no PR ceremony.** Thalami (and other personal hoards) are stream-of-consciousness notes; bot review adds nothing useful and a PR/review cycle just slows down sync. The convention is: `ws commit` → `ws pull` (fetch+rebase) → `ws push`, straight to `main`. PRs are a component-and-realm pattern.
+**Push directly to `main` — no PR ceremony.** Thalami (and other personal hoards) are stream-of-consciousness notes; bot review adds nothing useful and a PR/review cycle just slows down sync. The convention: `ws commit` → `ws pull` (fetch+rebase) → `ws push`, straight to `main`. PRs are a component-and-realm pattern.
 
 ---
 
@@ -103,13 +103,13 @@ Two coexisting modes that work well:
 
 A hoard tracks where it came from in a git-committed `.hoard.yaml` at its root — the source `template` and the `applied_version` of that template's recipe last applied. `ws hoard init` writes it; existing hoards adopt it on first upgrade (see below).
 
-Templates evolve — a new plugin, a new managed block on a dashboard — and `ws hoard upgrade <hoard>` is how a hoard catches up. It is provenance-tracked and plan-first, so it never guesses which template applies and never changes anything without showing you first:
+Templates evolve — a new plugin, a new managed block on a dashboard — and `ws hoard upgrade <hoard>` is how a hoard catches up. It's provenance-tracked and plan-first: it never guesses which template applies and never changes anything without showing you first.
 
 - `ws hoard upgrade <hoard> --plan` reads the template from `.hoard.yaml`, diffs the template's desired state against your live hoard, and prints a classified change set — additive (enable a new plugin), region edits (a template-managed block inside a file, delimited by `<!-- BEGIN upgrade-<id> -->` sentinels), and destructive (remove a file, disable a core plugin) — touching nothing.
 - `ws hoard upgrade <hoard> --apply` snapshots the whole hoard to `.upgrade-backup/<timestamp>/` first, then applies the plan and bumps `applied_version`. If the backup can't be taken, it aborts before changing anything.
 - `ws hoard upgrade <hoard> --rollback` restores the most recent snapshot, so you can apply, inspect in Obsidian, and retry until it's clean.
 
-The `gdd-hoard-upgrade` skill drives the loop: it runs `--plan`, proposes the destructive and region changes to you for approval (additive changes are safe), and only then runs `--apply`. A hoard that predates `.hoard.yaml` is adopted with `--template <name>`, which records provenance at a baseline one version behind the template so only the newest change applies rather than re-applying the whole recipe.
+The `gdd-hoard-upgrade` skill drives the loop: it runs `--plan`, proposes the destructive and region changes to you for approval (additive changes are safe), and only then runs `--apply`. A hoard without `.hoard.yaml` is adopted with `--template <name>`, which records provenance one version behind the template so only the newest change applies rather than re-applying the whole recipe.
 
 (Plugin `data.json` is currently overwritten on apply rather than merged, so per-hoard plugin-setting tweaks don't yet survive an upgrade — tracked as future work.)
 
@@ -120,7 +120,7 @@ The `gdd-hoard-upgrade` skill drives the loop: it runs `--plan`, proposes the de
 Two types ship today:
 
 - **thalami** — the per-machine Thalamus container this page mostly describes. The default for `ws hoard init`.
-- **obsidian-vault** — a PARA-laid-out Obsidian vault with a curated plugin set, seeded on init. Users land their knowledge graph as a hoard and get the `ws push/pull` ergonomics + cadence config for keeping it synced. Full reference: [obsidian-vault.md](obsidian-vault.md).
+- **obsidian-vault** — a PARA-laid-out Obsidian vault with a curated plugin set, seeded on init. Lands your knowledge graph as a hoard, with `ws push/pull` ergonomics and cadence config for keeping it synced. Full reference: [obsidian-vault.md](obsidian-vault.md).
 
 Plausible future types:
 

@@ -2,9 +2,9 @@
 
 An **adapter file** declares per-component commands the workspace can list and (where wired) invoke. `ws test`, `ws lint`, and `ws build` read `commands.test` / `commands.lint` / `commands.build` to choose what to run — adapter > auto-detection. Other declared commands (`run`, `serve`, anything you care to expose) are surfaced by `ws actions <component>` for human and agent reference without a dedicated `ws` subcommand. Adapter files live in the active realm at `realms/<active>/adapters/<component>.yaml` — realm-side configuration, kept out of the component repo so a community can wire up commands without forking upstream.
 
-Components without an adapter file fall back to auto-detection (Gradle, Make, Go, Python, npm) for `ws test`. Adapters are optional; add one when you want to override the test runner, document project-specific commands, or pin a different default for your community.
+Components without an adapter file fall back to auto-detection (Gradle, Make, Go, Python, npm) for `ws test`. Adapters are optional; add one to override the test runner, document project-specific commands, or pin a different default for your community.
 
-Why does adapter config live in the *realm* rather than the component? Because on its own it makes no sense — an adapter is purely added scaffolding for GDD to work a given component better, worthless to anyone not running GDD. Improvements that would help *everybody* (a better Makefile target, a CI fix, clearer docs) belong in the component itself as native changes; the adapter is the GDD-specific overlay a community maintains without asking upstream for anything.
+Adapter config lives in the *realm* rather than the component because on its own it makes no sense — an adapter is added scaffolding for GDD to work a given component better, worthless to anyone not running GDD. Improvements that help *everybody* (a better Makefile target, a CI fix, clearer docs) belong in the component itself as native changes; the adapter is the GDD-specific overlay a community maintains without asking upstream for anything.
 
 ---
 
@@ -67,8 +67,6 @@ The command prints two sections:
 - **Auto-detected** — what the workspace would fall back to if no adapter file existed (e.g. `./gradlew build`, `go test ./...`).
 
 If the component has neither an adapter file nor a recognized build system, `ws actions` prints a hint pointing at the path you'd create to add one.
-
-For execution (`ws test`), realm-configured `commands.test` takes precedence over auto-detection. `ws actions` displays both configured and auto-detected commands for inspection.
 
 ---
 
