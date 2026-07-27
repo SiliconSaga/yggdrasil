@@ -292,6 +292,7 @@ else
 fi
 
 FORK_NAMESPACE="$(dirname "$FORK_PATH")"  # destination namespace for project creation
+FORK_REPO_NAME="$(basename "$FORK_PATH")"
 
 # --- token resolution (longest-prefix match) --------------------------------
 # Token-walk lives in ws-realm.sh as `ws_resolve_token_var`. We pass the
@@ -560,10 +561,16 @@ if [[ -z "$FORK_DETAILS" ]]; then
             exit 1
         fi
 
-        # POST /projects/:id/fork with namespace_path
+        # POST /projects/:id/fork with namespace_path. When forkRepo gives the
+        # fork a different slug, pass it explicitly so creation and polling use
+        # the same project path.
         fork_create_result=""
         fork_create_err="$ERR_TMP"
-        if ! fork_create_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ID/fork" -X POST -f "namespace_path=$FORK_NAMESPACE" 2>"$fork_create_err"); then
+        fork_create_args=(-X POST -f "namespace_path=$FORK_NAMESPACE")
+        if [[ "$FORK_REPO_NAME" != "$UPSTREAM_REPO_NAME" ]]; then
+            fork_create_args+=(-f "name=$FORK_REPO_NAME" -f "path=$FORK_REPO_NAME")
+        fi
+        if ! fork_create_result=$(api_call "$FORK_TOKEN_VAR" "projects/$UPSTREAM_ID/fork" "${fork_create_args[@]}" 2>"$fork_create_err"); then
             echo "ERROR: Fork creation failed." >&2
             cat "$fork_create_err" >&2
             # Common failure: token lacks Maintainer role on the destination group.
