@@ -1,8 +1,8 @@
 # Case Studies
 
-GDD applied to real work — recent, concrete, and messier than a tutorial. See also the [roadmap](../roadmap.md)) for potential upcoming arcs serving a specific story.
+GDD applied to real work — recent, concrete, and messier than a tutorial. See also the [roadmap](../roadmap.md) for potential upcoming arcs serving a specific story.
 
-Two efforts are written up at length, and together they bracket the project's life so far:
+Two efforts are written up at length, bracketing the project's life so far:
 
 - **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)** — a full session from the week of the 1.0 release: an outside contributor's bug fix reviewed, an engine root cause found underneath it, fixes proposed back, and an issue filed — conducted almost entirely from a phone, one-handed, around childcare. The clearest picture of what the finished system feels like in use.
 - **[Early GDD — the first sessions](early-gdd.md)** — condensed transcripts and Thalamus files from GDD's first two sessions ever, back in March: dialogue and decisions as captured, technical detail stubbed. They predate most of today's system, so read them as origin material rather than current mechanics.
@@ -57,4 +57,4 @@ GDD's own multi-agent groundwork was built by two different agents in two worksp
 
 Another good example is summarized in [this GDD PR comment](https://github.com/SiliconSaga/yggdrasil/pull/38#issuecomment-4313480965).
 
-Honestly though: write-ups do not do the process justice when condensed, and cannot convey the sense of flow experienced. Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started.md)** — clone the workspace, turn on mentoring, and see what happens.
+Write-ups don't do the process justice when condensed. Try it yourself — **[Get started here](../../getting-started.md)** — clone the workspace, turn on mentoring, and see what happens.
