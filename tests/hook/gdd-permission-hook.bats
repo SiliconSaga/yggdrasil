@@ -57,12 +57,20 @@ setup() {
     [[ "$output" == *"Pipes"* ]]
 }
 
-@test "deny: grep with | redirects to Grep tool (specific message)" {
-    # Common false-positive case: regex alternation contains a literal
-    # | inside the quoted pattern. The hook can't distinguish that
-    # from a shell pipe, but it CAN recognize that the right answer
-    # for any grep-with-| invocation is to use the Grep tool.
+@test "masking: quoted regex alternation no longer trips the grep pipe arm" {
+    # Regex alternation inside a quoted pattern is literal data to
+    # grep — quoted-span masking now removes it from Tier-1's view in
+    # both quoting styles, so the functional command runs instead of
+    # bouncing off a corrective deny.
     run_hook 'grep -E "a|b" file.txt'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "deny: grep piping into another command still redirects to Grep tool" {
+    # The masked string retains the UNQUOTED pipe, so a genuine
+    # grep-headed pipeline keeps its specific corrective message.
+    run_hook 'grep -E "a|b" file.txt | head'
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"Grep tool"* ]]
@@ -809,13 +817,44 @@ JSON
     [[ "$output" == *"Shell composition"* ]]
 }
 
-@test "masking: double-quoted pipe still reaches the pipe arm" {
+@test "masking: expansion-free double-quoted operators are data (Phoenix case)" {
     seed_real_project_config
 
-    run_hook 'grep -E "a|b" file.txt'
+    run_hook 'grep -rn "AnnotationTypeWriter\|writeAnnotation" --include=*.java src/'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+    [[ "$output" != *"Backslash escapes"* ]]
+}
+
+@test "masking: defused dollar inside double quotes does not ask" {
+    seed_real_project_config
+
+    run_hook 'grep -c "\$" build/annotations.idx'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"parameter expansion"* ]]
+    [[ "$output" != *"Backslash escapes"* ]]
+}
+
+@test "masking: live dollar inside double quotes still reaches the expansion ask" {
+    seed_real_project_config
+
+    run_hook 'echo "value: $SECRET"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"parameter expansion"* ]]
+}
+
+@test "masking: command substitution inside double quotes still denies" {
+    seed_real_project_config
+
+    run_hook 'echo "now: $(date)"'
 
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"substitution"* ]]
 }
 
 @test "masking: unterminated single quote bails out to the ask" {
@@ -828,14 +867,16 @@ JSON
     [[ "$output" == *"Backslash escapes"* ]]
 }
 
-@test "masking: backslash inside double quotes keeps the ask" {
+@test "masking: backslash beside a live dollar in double quotes still prompts" {
     seed_real_project_config
 
-    run_hook 'echo "a\b"'
+    # The bare $ keeps the whole span visible to Tier 1, so the span's
+    # backslash stays subject to classification — the expansion ask
+    # (checked before the backslash arm) fires.
+    run_hook 'grep "$prefix\|fallback" file.txt'
 
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
-    [[ "$output" == *"Backslash escapes"* ]]
 }
 
 @test "ask: bash -c interpreter passthrough is human-gated" {

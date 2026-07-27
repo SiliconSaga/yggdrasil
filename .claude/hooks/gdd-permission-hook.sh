@@ -923,35 +923,45 @@ _normalize_windows_path_tokens() {
 }
 cmd="$(_normalize_windows_path_tokens "$cmd")"
 
-# ─── Single-quote masking for Tier-1 classification ─────────────────
+# ─── Quoted-span masking for Tier-1 classification ──────────────────
 #
-# Bash gives single-quoted content zero special meaning: a `\|` in a
-# grep pattern, a `;` in a commit message, a `&` in a URL cannot hide
-# a shell operator. Tier 1's substring matching over quoted content
-# was the workspace's dominant false-positive source (85 asks across
-# two sessions on 2026-07-26, most of them BRE alternation in
-# single-quoted grep patterns). Mask properly-terminated single-quoted
-# spans — content dropped, `''` kept as a token placeholder — and run
-# Tier 1 over the masked string so operator arms see the command the
-# way bash parses it. Every later tier still sees the full command.
+# Bash gives single-quoted content zero special meaning, and
+# double-quoted content is equally inert as long as no LIVE `$` or
+# backtick sits inside (a backslash before an ordinary character is
+# literal there; `\$` and `` \` `` are defused to literals). A `\|`
+# in a grep pattern, a `;` in a commit message, a `&` in a URL cannot
+# hide a shell operator from inside either quoting style. Tier 1's
+# substring matching over quoted content was the workspace's dominant
+# false-positive source (85 asks across two sessions on 2026-07-26,
+# most of them BRE alternation in quoted grep patterns). Mask
+# properly-terminated quoted spans — content dropped, `''`/`""` kept
+# as a token placeholder — and run Tier 1 over the masked string so
+# operator arms see the command the way bash parses it. Every later
+# tier still sees the full command.
+#
+# A double-quoted span containing a bare `$` or backtick is kept
+# VERBATIM (quotes and all): expansion and substitution are live
+# there and must keep reaching their Tier-1 arms. The pairwise `\x`
+# consume inside double quotes means `\"` cannot flip the state and
+# `\$` does not count as a live dollar.
 #
 # Conservative bail-outs (return the raw string, so Tier 1 behaves
 # exactly as before): an unquoted backslash anywhere (it escapes the
 # next character, making downstream quote boundaries untrustworthy),
-# or an unterminated quote at end of string. Double-quoted content is
-# preserved, not masked — `$(…)`, backticks, and `$var` stay active
-# there and must keep reaching their Tier-1 arms; `\"` inside double
-# quotes is consumed pairwise so an escaped quote cannot flip state.
+# or an unterminated quote at end of string.
 #
 # Posture note: this means quoted payloads to interpreters
 # (`bash -c 'anything'`) no longer trip Tier-1 substring denies. The
 # compensating control is the committed `bash -c *` / `sh -c *`
 # ask-list entries in hook-rules — the interpreter passthrough is the
 # risk there, not the quoting.
-_mask_single_quoted_spans() {
+_mask_quoted_spans() {
     local raw="$1"
-    [[ "$raw" != *"'"* ]] && { printf '%s' "$raw"; return; }
-    local out="" c state="plain"
+    if [[ "$raw" != *"'"* && "$raw" != *'"'* ]]; then
+        printf '%s' "$raw"
+        return
+    fi
+    local out="" c nxt span="" span_live=0 state="plain"
     local -i i n=${#raw}
     for ((i = 0; i < n; i++)); do
         c="${raw:$i:1}"
@@ -959,7 +969,7 @@ _mask_single_quoted_spans() {
             plain)
                 case "$c" in
                     "'") state="single"; out+="''" ;;
-                    '"') state="double"; out+="$c" ;;
+                    '"') state="double"; span=""; span_live=0 ;;
                     "\\") printf '%s' "$raw"; return ;;
                     *) out+="$c" ;;
                 esac
@@ -970,12 +980,24 @@ _mask_single_quoted_spans() {
             double)
                 case "$c" in
                     "\\")
-                        out+="$c"
+                        nxt=""
+                        [[ $((i + 1)) -lt $n ]] && nxt="${raw:$((i + 1)):1}"
+                        span+="$c$nxt"
                         i=$((i + 1))
-                        [[ $i -lt $n ]] && out+="${raw:$i:1}"
                         ;;
-                    '"') state="plain"; out+="$c" ;;
-                    *) out+="$c" ;;
+                    '"')
+                        state="plain"
+                        if [[ "$span_live" == "1" ]]; then
+                            out+="\"$span\""
+                        else
+                            out+='""'
+                        fi
+                        ;;
+                    '$'|'`')
+                        span_live=1
+                        span+="$c"
+                        ;;
+                    *) span+="$c" ;;
                 esac
                 ;;
         esac
@@ -986,7 +1008,7 @@ _mask_single_quoted_spans() {
     fi
     printf '%s' "$out"
 }
-tier1_cmd="$(_mask_single_quoted_spans "$cmd")"
+tier1_cmd="$(_mask_quoted_spans "$cmd")"
 
 # A word containing an unquoted single-backslash drive-letter path is
 # KNOWN-BROKEN, not merely ambiguous: bash strips the backslashes

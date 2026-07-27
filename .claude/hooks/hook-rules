@@ -33,8 +33,9 @@ find*-exec*
 find*-execdir*
 ws exec *
 ws hook-bypass [a-z]*
-# Interpreter passthroughs. Single-quoted spans are masked before
-# Tier-1 classification (they are literal data to bash), so a
+# Interpreter passthroughs. Quoted spans (single-quoted, and
+# double-quoted with no live `$`/backtick) are masked before Tier-1
+# classification — they are literal data to bash — so a
 # `bash -c '…payload…'` no longer trips the composition/pipe/redirect
 # denies on operators INSIDE the quotes — the payload is deliberately
 # opaque to the hook. Without these entries the call would fall through
