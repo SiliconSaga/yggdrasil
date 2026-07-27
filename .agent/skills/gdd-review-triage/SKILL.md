@@ -35,8 +35,7 @@ Understanding each reviewer's quirks is essential for effective triage.
 - Re-triggers on each push, refining its review incrementally
 - **May self-resolve threads** after validating a fix — if the pushed code
   addresses a finding, CodeRabbit ideally updates its comment and resolves the
-  thread itself. Prefer waiting for this rather than pre-emptively resolving;
-  but verify after each push — it may not always self-resolve.
+  thread itself (see resolution table below).
 - Can over-engineer suggestions (e.g., 20+ permission patterns when one suffices)
 - Deduplicates across re-reviews — may note when a new finding duplicates an
   existing open thread rather than filing it again
@@ -46,9 +45,8 @@ Understanding each reviewer's quirks is essential for effective triage.
   reviewer pane to trigger a re-review
 - Asking via CR comment causes Copilot to file a separate fix CR instead of
   reviewing — avoid this
-- Does NOT track resolved threads across re-reviews. It re-files the same
-  findings even after they've been addressed. Expect to bulk-resolve stale
-  threads after each Copilot re-review
+- Does NOT track resolved threads across re-reviews — re-files the same
+  findings even after they've been addressed (see resolution table below)
 
 ## Fetching Comments and Threads
 
@@ -111,10 +109,8 @@ reply carries information the resolution alone doesn't:
 | Large fix-set covering many threads | Optional: one batched comment | A single top-level summary comment listing what each commit addressed is friendlier than per-thread chatter. Keep individual replies for the disagreement / different-approach cases above. |
 | Nit you intentionally aren't fixing | **Yes** | Without the reply the reviewer's tool will re-flag it next round. A one-line "skipping — out of scope" prevents the loop. |
 
-Default: **resolve silently** and let the commit message do the
-narration. The commit body that explains *what* each fix addresses is
-the durable record; per-thread replies should add information that
-isn't already there.
+Default: **resolve silently** — the commit body is the durable record;
+per-thread replies should only add information that isn't already there.
 
 ## Triage Process
 

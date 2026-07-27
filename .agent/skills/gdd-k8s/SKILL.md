@@ -9,7 +9,7 @@ A Kubernetes write safety floor plus an optional small scope — a kube context 
 
 ## What This Is (and Is Not)
 
-A safety scope, not a security boundary: accident-prevention for anyone who wants writes bounded to a known context + namespace — a newcomer learning the ropes, or an expert who wants a guardrail while working near production. A human can run `kubectl` outside an agent harness, and an agent session can use the audited `ws hook-bypass k8s` escape hatch. Real authorization lives server-side in RBAC. The guard's job is to catch the command that slips out of habit, not to enforce cluster access control.
+A safety scope, not a security boundary: accident-prevention for anyone who wants writes bounded to a known context + namespace — a newcomer learning the ropes, or an expert who wants a guardrail while working near production. A human can run `kubectl` outside an agent harness, and an agent session can use the audited `ws hook-bypass k8s` escape hatch. The guard's job is to catch the command that slips out of habit, not to enforce cluster access control.
 
 ## When to Load
 
@@ -59,7 +59,7 @@ The hooks normalize common transparent launch forms before classification: leadi
 | Sustained cluster-wide or highly experimental interactive work on an intentionally disposable local cluster | After explicit user confirmation, run `ws k8s scope clear`; re-arm later if the user wants namespace bounds back. | Context/namespace enforcement stops, but the unscoped write safety floor remains: Claude asks on writes and Codex denies them until bypassed. |
 | A specific script or unattended tool must invoke raw `kubectl`, or unscoped Codex work is deliberately authorized | After explicit user confirmation, run `ws hook-bypass k8s`. | The write floor and raw-command interception are lifted for the rest of the agent session; an already-armed `ws k8s` wrapper remains scope-bounded. This is not a one-command exception. |
 
-Never clear the scope or create a bypass marker merely because the guard rejects an operation. Explain why it was rejected, compare the choices above, and obtain explicit user confirmation before reducing protection. Clearing is sufficient for interactive cluster-wide work in Claude because writes still prompt; unattended automation or unscoped Codex writes additionally need the session bypass.
+Never clear the scope or create a bypass marker merely because the guard rejects an operation. Explain why it was rejected, compare the choices above, and obtain explicit user confirmation before reducing protection.
 
 ## Surfacing Output to the User
 
@@ -70,8 +70,6 @@ When the agent cannot confirm the user is seeing output:
 - **Quote guard rejection messages verbatim** when a command is blocked. The guard's messages are written to be informative; a paraphrase loses the specific remedies they name.
 - **Echo `ws k8s scope show` output** after arming, rather than just asserting "the scope is armed."
 - **Surface any command output the user needs in order to make a decision** — context lists, namespace lookups, etc.
-
-The general rule: if the output of a tool call is the point — a rejection reason, a confirmation, a list — and the agent is not certain the user is seeing it, repeat it in plain text before moving on.
 
 ## Hook Availability
 

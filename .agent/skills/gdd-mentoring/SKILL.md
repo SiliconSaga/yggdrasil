@@ -6,7 +6,7 @@ description: >
 
 # GDD Mentoring
 
-A composable overlay that makes the AI explain its decisions, teach practices in context, and offer scaffolding. Not tied to seniority — anyone can request it for any topic.
+Makes the AI explain its decisions, teach practices in context, and offer scaffolding.
 
 ## When to Use
 

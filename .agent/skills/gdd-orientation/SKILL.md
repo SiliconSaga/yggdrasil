@@ -165,7 +165,7 @@ A k8s-practice signal ("practice kubectl", "test cluster access", "nervous about
 ws whoami --set "Claude Opus 4.8" noreply@anthropic.com
 ```
 
-Do this **silently** when you are confident of your identity — no prompt; it is one write and the single-agent case stays friction-free. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session (that is the whole point — a stale value can't drift in). Re-run `ws whoami --set` to correct it any time; `ws whoami` shows the current resolution. (Use the split form above, not `--set "Name <email>"` — the inline angle brackets trip the hook for agents; the bracket form is for a human's own terminal.)
+Do this **silently** when you are confident of your identity — no prompt. Only **ask the human** if you genuinely cannot determine your model. The value is re-determined fresh each session — a stale value can't drift in. Re-run `ws whoami --set` to correct it any time; `ws whoami` shows the current resolution. (Use the split form above, not `--set "Name <email>"` — the inline angle brackets trip the hook for agents; the bracket form is for a human's own terminal.)
 
 **Skip this entirely if you're a sub-agent.** A sub-agent shares the parent's session, so it must not write the parent's identity file. Instead it writes its OWN file `.tmp/gdd-agent-sessions/<parent-session-id>--<label>.env` (one line: `GDD_CO_AUTHOR=Claude <model> <noreply@anthropic.com>`, via the Write tool) and commits with `ws commit --co-author-file <parent-session-id>--<label> …` (per `ws commit --help`). Note: session files are security-sensitive state (they feed commit attribution and the k8s guard scope), so this Write prompts the human once per sub-agent — expected behavior, not an error; the hook deliberately carves `.tmp/gdd-agent-sessions/` out of the scratch auto-allow.
 
@@ -201,7 +201,7 @@ Provenance scales rigor. Compare the active realm's git remote origin (read with
 | Remote URL namespace is under a configured trusted home namespace, such as `identity.homes.fork.namespace`; compare the Git URL owner/group path, not the local remote name | Light |
 | Anything else (community / internet / unverified) | Heavy — write to Thalamus Concerns immediately, surface in framing, refuse to run unverified adapter commands until the human OKs |
 
-The `ws test` / `ws lint` blanket allowlist trusts the realm author. The risk scan is what keeps that trust honest — without it, allowlisting executable-config strings would be careless. See `docs/gdd/trust-and-safety.md` for the framing.
+The `ws test` / `ws lint` blanket allowlist trusts the realm author. The risk scan is what keeps that trust honest. See `docs/gdd/trust-and-safety.md` for the framing.
 
 **Black-box pattern** for untrusted or suspicious content:
 
@@ -298,7 +298,7 @@ Scan the available skills list for any `superpowers:*` skill — appears in the 
 
   Don't repeat. Don't block on it. Don't try to install — user action.
 
-Soft dependency. Sessions work without it, but plans and brainstorm/TDD-shaped work will hit `superpowers:*` references that can't load.
+Soft dependency — sessions work without it.
 
 ---
 

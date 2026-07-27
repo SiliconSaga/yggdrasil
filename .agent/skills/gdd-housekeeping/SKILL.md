@@ -41,9 +41,7 @@ applying the standard Promote/Keep/Prune trichotomy. Example:
 > last session. Want me to invoke `gdd-permissions` to think
 > through whether it's worth allowlisting?"
 
-This routes permissions-related work through the dedicated skill
-rather than handling it ad hoc during housekeeping. After the skill
-completes, the housekeeping flow resumes:
+After the skill completes, the housekeeping flow resumes:
 
 - **Pattern added.** The decision is durably recorded across the
   paired artifacts `.claude/settings.json` (the rule itself) and
@@ -77,15 +75,12 @@ For each, offer three actions:
 #### When you Promote, delete the original entry — don't leave a stub
 
 Once an item lands in its canonical home (a doc, a skill update, an
-issue, an instruction-file change), the corresponding Thalamus
-entry should disappear entirely. **Don't replace the entry with a
-"promoted to X" pointer** — that's graveyard noise, and the
-Thalamus should be a current-working-brain rather than a history
-of what used to be there. The Audit Log entry (Step 4) is what
-records that the promotion happened; the canonical doc itself is
-the new source of truth; git history preserves the original
-phrasing for anyone archaeology-bound. Three durable records is
-plenty; a fourth in the Thalamus is clutter.
+issue, an instruction-file change), delete the Thalamus entry
+entirely. **Don't replace it with a "promoted to X" pointer** — the
+Audit Log entry (Step 4) already records that the promotion happened,
+the canonical doc is the new source of truth, and git history
+preserves the original phrasing. Three durable records is plenty; a
+fourth in the Thalamus is clutter.
 
 The same applies to `~~strikethrough~~` markers that linger
 indefinitely. A short `~~item~~ DONE in PR #N` line is reasonable
@@ -169,7 +164,7 @@ Set `last_audit` to today's date in the YAML frontmatter.
 
 Run `ws status` to see dirty state across all repos — there may be uncommitted drafts or stale edits worth addressing while you're in tidy-up mode.
 
-Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.tmp/` have accumulated many draft files / scratch entries. This is especially worth it when those directories have grown past a few dozen entries — old drafts obscure current work and bloat grep results. Session identity files under `.tmp/gdd-agent-sessions/` are spared by default (wiping them would break a concurrent session's commit identity). During deliberate housekeeping you may additionally suggest `ws clean --sessions`, which clears ended sessions' identity files (the current session's is still kept) — but first confirm with the human that no other live sessions need them, and explain exactly what it removes so they can judge whether the timing is right.
+Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.tmp/` have accumulated many draft/scratch files — worth it once a directory has grown past a few dozen entries, since old drafts obscure current work and bloat grep results. Session identity files under `.tmp/gdd-agent-sessions/` are spared by default (wiping them would break a concurrent session's commit identity). During deliberate housekeeping you may additionally suggest `ws clean --sessions`, which clears ended sessions' identity files (the current session's is kept) — but first confirm with the human that no other live sessions need them, and explain what it removes.
 
 ### Step 6.5: Review the PreToolUse hook audit log
 
@@ -258,8 +253,7 @@ PR-and-review ceremony just adds friction to multi-machine sync. The
 convention is: **commit and push directly to `main`** (after the
 fetch+rebase cycle described in `gdd-orientation` Step 0a). Don't open
 PRs against the thalami hoard, don't request CodeRabbit/Copilot review,
-don't gate the push on anything beyond the rebase. The whole point of
-the hoard is fast personal-state sync; ceremony defeats it.
+don't gate the push on anything beyond the rebase.
 
 Same convention applies to other personal hoards (Obsidian vaults, scratch hoards). PRs are a component-and-realm pattern.
 
