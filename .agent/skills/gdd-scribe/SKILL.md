@@ -153,7 +153,7 @@ status: active
 
 ```
 
-Templates always include a `# H1` mirroring the filename as the first line after the frontmatter. Filename Heading Sync (bundled, enabled) keeps them in sync — without a matching H1, FHS picks the first body heading and renames the file. When Claude creates a note for the user, follow the same convention.
+Templates always include a `# H1` mirroring the filename as the first line after the frontmatter. Filename Heading Sync (bundled, enabled) keeps them in sync — without a matching H1, FHS picks the first body heading and renames the file.
 
 ## Inbox Processing
 
@@ -298,7 +298,7 @@ On the monthly review, in addition to the template's prompts: review projects th
 
 ### Waiting-room surface
 
-`WaitingRoom.md` (a second dashboard at the vault root, alongside `Dashboard.md`) lists every `waiting`-status project. During any ceremony, call out `waiting` items older than 30 days — *"still waiting on X?"* — and propose either a concrete follow-up or a status flip back to `active`/`next`. Because `waiting` never decays automatically, this poke is the only thing keeping blocked work from rotting silently.
+`WaitingRoom.md` (a second dashboard at the vault root, alongside `Dashboard.md`) lists every `waiting`-status project. During any ceremony, call out `waiting` items older than 30 days — *"still waiting on X?"* — and propose either a concrete follow-up or a status flip back to `active`/`next`.
 
 ## The GDD Bridge
 
@@ -311,8 +311,6 @@ The scribe skill only *moves items across* the bridge — it never decides wheth
 During the daily review, inbox processing, or a weekly sweep, watch for daily-note bullets tagged `#gdd`. For each one, propose moving it to the active thalami hoard's `Intake.md`:
 
 > "`Test the updated GDD hook on the Nvidia laptop` is tagged `#gdd` — move it to the thalami-hoard Intake so the GDD ceremony can route it?"
-
-This is propose-then-confirm like every other ceremony move — never shift an item silently.
 
 ### Locating and creating Intake.md
 
@@ -344,7 +342,7 @@ Suggested mapping (illustrative, not binding):
 | `high` × `soon`/`later`, or `medium` × `asap`/`next` | `medium` |
 | otherwise | `low` |
 
-The same proposal can come from the other direction during GDD housekeeping (@gdd-housekeeping Step 2.5). Either ceremony surfaces the move when convenient; drift between them is fine and gets reconciled on the next touch — the Thalamus's own posture, applied to a smaller artifact.
+The same proposal can come from the other direction during GDD housekeeping (@gdd-housekeeping Step 2.5). Either ceremony surfaces the move when convenient.
 
 If the linked arc has no `impact:` or `urgency:` set, stay silent. If the arc's `project:` link names a note that does not exist in the active vault, mention it once for the human's attention rather than acting silently.
 
@@ -404,8 +402,8 @@ vault.
 
 If Path C (keyword dip-in) triggers in a workspace with multiple
 vault-flavored hoards and no `active_vault:` is set, the binding
-sub-flow asks the user which vault — mid-conversation. The pin sticks
-for the rest of the session, so it's a one-time prompt. Users who
+sub-flow asks the user which vault — mid-conversation, a one-time
+prompt since the pin sticks for the rest of the session. Users who
 frequently dip into capture from multi-vault workspaces should set
 `active_vault:` in Thalamus frontmatter once to skip the question.
 

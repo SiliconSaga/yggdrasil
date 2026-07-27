@@ -107,7 +107,7 @@ If the issue blocks current or near-future work, note the URL and number in MEMO
 - **Requires reading this conversation to understand**: not agent-actionable — write a memory note instead
 - **Vague acceptance criteria**: a fresh agent won't know when it's done
 - **Wrong repo**: always verify with `git remote -v` before filing
-- **CLI not authenticated**: set provider token env var (`source ../yggdrasil/.env` from a sibling repo, or `source .env` from the workspace root); see docs/git-provider-setup.md
+- **CLI not authenticated**: source `.env` as shown in Pre-flight Checks; see docs/git-provider-setup.md
 - **Spans multiple repos**: file a design doc instead, not an issue
 - **Auto-close keywords in CRs referencing the issue**: when writing a CR body
   that references an issue filed here, use `relates to #N` or `see #N`.

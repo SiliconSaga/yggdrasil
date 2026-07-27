@@ -6,8 +6,7 @@ description: >
 
 # GDD Quick Stance
 
-A behavior modifier for short time windows. Minimal ceremony, fast context
-recovery, appropriately-sized task suggestions.
+A behavior modifier for short time windows.
 
 ## When to Use
 

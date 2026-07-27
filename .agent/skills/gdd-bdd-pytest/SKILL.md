@@ -6,8 +6,7 @@ description: Use when a Python component declares a `.feature` file and needs st
 # GDD BDD — pytest-bdd Runner
 
 Step definitions, test execution, and output for Python components
-using pytest-bdd. Activated by the core BDD skill when pytest-bdd
-is detected in the project.
+using pytest-bdd.
 
 ## Prerequisites
 

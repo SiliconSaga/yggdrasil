@@ -65,7 +65,7 @@ For each detected pattern, report:
 ## Rules
 
 - **Minimum evidence:** Do not propose a fix without at least 3 observed
-  instances. Two might be coincidence; three is a pattern.
+  instances — two might be coincidence.
 - **Propose, don't act:** Present findings to the user. Do not create scripts,
   modify CLAUDE.md, or file issues without approval.
 - **Stay concrete:** Every proposal must reference specific commands or actions

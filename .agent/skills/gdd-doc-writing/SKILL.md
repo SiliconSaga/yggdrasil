@@ -11,7 +11,7 @@ Conventions for documentation written in this ecosystem. Apply these rules to ev
 
 **Don't hard-wrap prose paragraphs.** Write each paragraph as a single line. The editor or renderer handles word wrap.
 
-Why: hard-wrapped markdown looks awkward when GitHub renders some contexts as line breaks (issue bodies, certain comment threads), and reflowing after every edit is unnecessary friction for human editors. Obsidian and most markdown editors handle wrap natively.
+Why: hard-wrapped markdown renders as line breaks in some GitHub contexts (issue bodies, comment threads), and reflowing after every edit is unnecessary friction.
 
 This applies to: markdown documents, READMEs, issue/PR bodies, commit messages, hoard notes, design docs.
 
@@ -23,15 +23,15 @@ It does *not* apply to:
 - YAML frontmatter
 - Mermaid diagrams (governed by the rules below)
 
-"One bullet per line" means literally one line per bullet — the bullet's text is not internally wrapped across multiple lines. A bullet whose text breaks across several physical lines counts as hard-wrapped prose and is to be avoided in new content for the same reason.
+"One bullet per line" means literally one line per bullet — a bullet whose text breaks across several physical lines counts as hard-wrapped prose and is to be avoided.
 
-If a file already uses hard-wrapped prose throughout, the existing wrapped content stays wrapped — don't reflow it as a side-effect of unrelated edits. But **new content added to such a file still uses the don't-wrap convention** — write new paragraphs and new bullets as single lines, even when the surrounding existing prose is wrapped. The "match the file" guidance is about *not touching unrelated wrapped paragraphs*, not about *adopting hard wrap for new content*. New files always use the don't-wrap convention.
+If a file already uses hard-wrapped prose throughout, the existing wrapped content stays wrapped — don't reflow it as a side-effect of unrelated edits. But **new content added to such a file still uses the don't-wrap convention**, even when the surrounding prose is wrapped. New files always use the don't-wrap convention.
 
 ## Describe current state, not history
 
 User-facing and reference docs (READMEs, runbooks, `docs/ws-cli-guide.md`, `docs/gdd/permissions.md`, and the like) describe how things work **now** — not how they used to work, what was removed, or what a feature replaced. Cut "there is no longer X", "this used to Y", "X was removed", "no longer need to", and "History —" framing; just state the current behavior. Don't name superseded approaches (e.g. a retired env var) to contrast against, and don't describe the tests that cover a behavior — a reference doc is the contract, not the test suite.
 
-Why: a reader wants today's contract, stated plainly. History-laden prose ages badly, invites confusion, and grows every time something changes. The same principle governs code comments and test names — see [`docs/code-style.md`](../../docs/code-style.md).
+Why: a reader wants today's contract, stated plainly. The same principle governs code comments and test names — see [`docs/code-style.md`](../../docs/code-style.md).
 
 The record of change lives elsewhere, and that is where history belongs:
 
@@ -87,13 +87,6 @@ hyphen) as the separator. This renders cleanly as plain text.
 subgraph T1["Tier 1 — Nordri — Cluster Substrate"]
 ```
 
-### Rule 5: Test the diagram mentally before writing
-
-Read each node label and check:
-- Does it contain `\n`? → Replace with `<br/>`
-- Does it use a `style X fill:` line? → Remove it
-- Is it a hierarchy diagram? → Use `graph BT`
-
 ## Component Documentation Convention
 
 Component narrative content scales through four shapes. A component picks the shape that fits its current content volume; graduation is propose-then-confirm during ceremony, never automated.
@@ -107,7 +100,7 @@ Component narrative content scales through four shapes. A component picks the sh
 
 ### Shape 2 — the convention
 
-Shape 2 is the new middle that this skill defines. Shape 1 needs no convention beyond "have a README"; Shape 3 inherits its conventions from its chosen framework.
+Shape 2 is the new middle this skill defines. Shape 1 needs no convention beyond "have a README"; Shape 3 inherits conventions from its chosen framework.
 
 Required structure:
 
@@ -139,7 +132,7 @@ Driven by content needs, propose-then-confirm during ceremony:
 
 - A single file holding multiple distinct concepts that should each have their own page.
 - No index — a user landing in `docs/` sees a flat directory listing of filenames with no orientation.
-- Hard-wrapped prose — the no-hard-wrap rule above applies to component docs the same as everywhere; component docs render in two distinct contexts (directly on GitHub and via Shape 3+ site renderers) where hard wraps render inconsistently.
+- Hard-wrapped prose — the no-hard-wrap rule applies to component docs the same as everywhere; they render both directly on GitHub and via Shape 3+ site renderers, where hard wraps render inconsistently.
 
 ### What this convention does NOT dictate
 
@@ -164,8 +157,7 @@ Example:
 ### Cluster Layer (L1) Naming
 
 The pre-bootstrap Kubernetes cluster (GKE or k3d) is called **"The Cluster"** — not
-"the metal" (implies bare metal, which is inaccurate; both GKE and homelab use
-virtualization). Refer to it as:
+"the metal" (both GKE and homelab use virtualization). Refer to it as:
 - "The Cluster" in prose
 - "L1: The Cluster" in layer sequence tables
 - `Kubernetes Cluster — GKE or k3d/k3d` in diagram subgraph labels

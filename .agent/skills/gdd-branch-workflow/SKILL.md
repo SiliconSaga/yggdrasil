@@ -173,19 +173,18 @@ Even "docs-only" PRs benefit from full CR (CodeRabbit, Copilot, or the equivalen
 
 ## Key Notes
 
-- Always use `ws push` rather than plain `git push` — it handles remote
-  selection, auth, and GitKraken `url.insteadOf` workarounds automatically.
+- `ws push` also handles GitKraken `url.insteadOf` workarounds automatically.
 - A provider token must be set in `.env` for push and CR scripts.
 - CR title follows the same `type:` convention as commit messages and issue titles.
 - **Always `cp` the template file — never write CR bodies from memory.** The template
-  evolves; using a remembered or hardcoded heredoc will produce a stale body. The `cp`
-  step is not optional even when batching multiple CRs.
+  evolves; a remembered or hardcoded heredoc will produce a stale body. Not optional
+  even when batching multiple CRs.
 - **Avoid "fixes #N" / "closes #N" / "resolves #N" in CR bodies unless the CR fully
   resolves the issue.** GitHub auto-closes the referenced issue on merge when it sees
   any of those keywords — even with qualifiers like "partially fixes" (the keyword
-  still wins). For partial fixes or related work, use `relates to #N` or `see #N`
-  which don't trigger auto-close. This applies to every CR body you write.
+  still wins). For partial fixes or related work, use `relates to #N` or `see #N`,
+  which don't trigger auto-close.
 
 ## When Direct Push to Main Is Acceptable
 
-Only when the user explicitly requests it, AND branch protection has not yet been configured on the repo. Once protection is active, all pushes to main require a CR regardless.
+Only if branch protection has not yet been configured on the repo — once active, all pushes to main require a CR regardless of user request.
