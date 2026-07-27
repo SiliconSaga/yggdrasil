@@ -78,6 +78,15 @@ git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-r
 gh-pr-create | gh pr create*  | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions, picks the right token + remote. `ws hook-bypass gh-pr-create` for a session-scoped bypass.
 git-mv       | git mv*        | Don't `git mv` — it pre-stages the rename and breaks `ws commit`'s bodyfile staging. Instead `mv <src> <dst>` (plain), then list BOTH the old and new paths under `add:` in your `ws commit` bodyfile; git still records a clean rename. `ws hook-bypass git-mv` for a session-scoped bypass.
 gh-repo-fork | *gh repo fork* | Use `ws clone-fork <component>` — creates the fork AND clones it AND wires fork+source remotes with a synced main, none of which `gh repo fork` does for you. Component not declared yet? `ws clone-fork --url <source-url> --add-to-ecosystem` does the declaration too. `ws hook-bypass gh-repo-fork` for a session-scoped bypass.
+# gh subcommands that MUTATE THE WORKING TREE THEY STAND IN. `ws gh` takes no
+# target and runs at the workspace root, so `ws gh pr checkout` rewrites the
+# WORKSPACE's tree — it has silently replaced yggdrasil's scripts/ and
+# templates/ with a Terasology PR before. Anchored patterns (not *gh …*) so
+# the recommended `ws exec <comp> gh …` form cannot match its own redirect.
+gh-checkout      | ws gh pr checkout* | `ws gh` runs at the workspace ROOT — `gh pr checkout` here rewrites the workspace's working tree, not the repo you meant. Run it inside the target instead: `ws exec <comp> gh pr checkout <n>` (use component `yggdrasil` if the workspace repo itself is intended). `ws hook-bypass gh-checkout` for a session-scoped bypass.
+gh-checkout-raw  | gh pr checkout*    | `gh pr checkout` mutates whatever repo it stands in — from the workspace root that is the workspace itself. Run it inside the target: `ws exec <comp> gh pr checkout <n>` (component `yggdrasil` if the workspace repo is intended). `ws hook-bypass gh-checkout-raw` for a session-scoped bypass.
+gh-repo-sync     | ws gh repo sync*   | `ws gh` runs at the workspace ROOT — `gh repo sync` here syncs the workspace repo, not the component you meant. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync` for a session-scoped bypass.
+gh-repo-sync-raw | gh repo sync*      | `gh repo sync` mutates the repo it stands in. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync-raw` for a session-scoped bypass.
 gh-cli       | gh *           | Use `ws gh <args>` — injects the workspace GH_TOKEN from .env so the command authenticates without interactive `gh auth login`. Any `gh` subcommand passes through. `ws hook-bypass gh-cli` for a session-scoped bypass.
 glab-cli     | glab *         | Use `ws glab <args>` — injects the workspace GitLab token from .env so the command authenticates without interactive login. Any `glab` subcommand passes through. `ws hook-bypass glab-cli` for a session-scoped bypass.
 

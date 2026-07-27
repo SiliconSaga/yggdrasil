@@ -937,6 +937,65 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+# ─── working-tree-mutating gh subcommands at the workspace root ─────
+#
+# `ws gh` has no target and runs at the workspace root, so gh
+# subcommands that rewrite the repo they stand in (`pr checkout`,
+# `repo sync`) hit the WORKSPACE tree — this silently replaced
+# yggdrasil's scripts/ with a Terasology PR on 2026-07-27 (Phoenix).
+# The redirect turns that silent clobber into a corrective pointer at
+# the ws exec form, which must itself never match the redirect.
+
+@test "redirect: ws gh pr checkout denies with the ws exec pointer" {
+    seed_real_project_config
+
+    run_hook 'ws gh pr checkout 5334 --repo MovingBlocks/Terasology'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"workspace ROOT"* ]]
+    [[ "$output" == *"ws exec"* ]]
+}
+
+@test "redirect: raw gh pr checkout gets the same protection" {
+    seed_real_project_config
+
+    run_hook 'gh pr checkout 5334 --repo MovingBlocks/Terasology'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws exec"* ]]
+}
+
+@test "redirect: ws gh repo sync denies toward ws pull / ws exec" {
+    seed_real_project_config
+
+    run_hook 'ws gh repo sync'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws pull"* ]]
+}
+
+@test "redirect: the recommended ws exec form does not match its own redirect" {
+    seed_real_project_config
+
+    run_hook 'ws exec terasology gh pr checkout 5334'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" != *"workspace ROOT"* ]]
+}
+
+@test "allow-path: non-mutating ws gh subcommands are untouched by the guard" {
+    seed_real_project_config
+
+    run_hook 'ws gh pr view 5338 --repo MovingBlocks/Terasology'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────
 
 @test "allow via allow-extras: pattern from hook-rules.local [allow-extras] matches" {
