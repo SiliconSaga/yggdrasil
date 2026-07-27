@@ -11,9 +11,9 @@
 
 ## Overview
 
-A contributor opened a fix for a crash in a Terasology world-generation module and asked a maintainer to look at it. That is an utterly ordinary open-source moment, and it is normally where things stall: reviewing it properly means having the right repos checked out at the right revisions, building a large Java project, running the game, and holding a facet-border dependency graph in your head. That is a focused-evening task, and focused evenings are exactly what a parent of a 2-, 5-, and 7-year-old does not have.
+A contributor opened a fix for a crash in a Terasology world-generation module and asked a maintainer to look at it. That is an ordinary open-source moment, and normally where things stall: reviewing it properly means having the right repos checked out at the right revisions, building a large Java project, running the game, and holding a facet-border dependency graph in your head. That is a focused-evening task — exactly what a parent of a 2-, 5-, and 7-year-old does not have.
 
-This session ran instead across childcare — starting with a toddler on lap, continuing from a phone while making lunch and going outside, and reaching a desk alone for the first time near the end. The work that came out of it: both PRs reviewed, an engine-level root cause identified beneath the reported bug, a second apparently-unrelated PR revealed to share that root cause, a failing CI build diagnosed and fixed, a deterministic regression test built where a reproduction was thought impossible, two follow-up PRs merged or approved, and one deliberately-declined bot finding filed as an issue.
+This session ran instead across childcare — starting with a toddler on lap, continuing from a phone while making lunch and going outside, and reaching a desk alone for the first time near the end.
 
 The point of this study is not that an agent wrote some Java. It is *where the human was standing* while it happened.
 
@@ -98,11 +98,11 @@ WARN o.t.e.w.g.i.WorldGeneratorManager - Could not resolve dependencies for modu
 
 **Human:** This is an inconsistent crash depending on a randomly chosen seed to build the conditions needed to cause the problem. We might not have an easy time doing a repro then fix.
 
-This is where the session turned. The agent had been building a headless harness to run the game repeatedly and count crashes — a reasonable but slow plan at ~130 seconds per iteration. The human's message reframed the problem, and the agent's analysis contradicted the premise:
+The agent had been building a headless harness to run the game repeatedly and count crashes — a reasonable but slow plan at ~130 seconds per iteration. The human's message reframed the problem, and the agent's analysis contradicted the premise:
 
 **Agent:** Your intuition is close but the variable is different. It's not seed-dependent — it's **per-JVM-run**. `providerChains` is an `ArrayListMultimap`, backed by a `HashMap`, keyed by `Class` objects. `Class` doesn't override `hashCode()`, so it uses identity hash — which is re-randomized every JVM start. Same seed, different launches, different outcome.
 
-*Crucially, the agent then abandoned its own experiment rather than defending it:*
+*The agent then abandoned its own experiment rather than defending it:*
 
 **Agent:** Crash-roulette at ~130s per iteration is a poor use of time, and you already flagged the repro as hard. Better approach: a unit test on the invariant, run in fresh JVMs — seconds each, and it becomes the regression test both PRs lack.
 
@@ -116,7 +116,7 @@ The headless harness built along the way was still worth keeping, and is documen
 
 **Human:** Can you also grab MovingBlocks/Terasology#5330 which has a fix in the same area and a single code review comment from CodeRabbit so we can also exercise `ws review`?
 
-This is where the session paid off in a way nobody planned. PR #5330 — filed as an unrelated bug about loading a saved game — turned out to touch `determineProviderChains`, the **sibling method** to the `determineBorders` the agent had already fingered. And soloturn's own diagnosis there named the same mechanism: hash-ordered provider iteration.
+PR #5330 — filed as an unrelated bug about loading a saved game — turned out to touch `determineProviderChains`, the **sibling method** to the `determineBorders` the agent had already fingered. Soloturn's own diagnosis there named the same mechanism: hash-ordered provider iteration.
 
 **Agent:** #5330 and #48 are two symptoms of one disease, and there's a third unfixed instance. Neither PR says this.
 
@@ -130,7 +130,7 @@ Then, reading the existing test file before checking anything else, it predicted
 
 *Checked: `Tests / Unit Tests` — **fail**. Confirmed locally. The test was encoding the bug as the contract.*
 
-The root cause turned out to be a one-method contract violation. `updatePriority`'s **own Javadoc** already specified the correct behaviour — "if provider *requires* facet, it's `PRIORITY_REQUIRES`" — while the implementation short-circuited on `updates != null` and returned the update priority for every facet, including require-only ones. That understates how much of a chain a requirement depends on, so `CaveToSurfaceProvider` could be ordered ahead of `DensityNoiseProvider`, and the `sides = 3` border arrived too late to propagate.
+The root cause was a one-method contract violation. `updatePriority`'s **own Javadoc** already specified the correct behaviour — "if provider *requires* facet, it's `PRIORITY_REQUIRES`" — while the implementation short-circuited on `updates != null` and returned the update priority for every facet, including require-only ones. That understates how much of a chain a requirement depends on, so `CaveToSurfaceProvider` could be ordered ahead of `DensityNoiseProvider`, and the `sides = 3` border arrived too late to propagate.
 
 The fix was making the code do what its documentation said.
 
@@ -154,7 +154,7 @@ remote: Permission to MovingBlocks/Terasology.git denied to agent-refr.
 
 **Human:** *(on Discord)* Correction I will end up agent pushing to its forks because wisely I did not give my agent push access to the moving blocks orgs 😉
 
-> **The boundary held at exactly the right moment.** A rushed maintainer, on a phone, had said "go ahead and push to both branches" — and the token simply could not. `agent-refr` has `push: false` but `triage: true`: enough to open issues and post PR comments, not enough to write to an org repo. The correct path — fork, push there, open a PR *into the contributor's branch* — is more etiquette-preserving anyway, because it hands soloturn the additions instead of rewriting his PR under him.
+> **The boundary held at exactly the right moment.** A rushed maintainer, on a phone, had said "go ahead and push to both branches" — and the token simply could not. `agent-refr` has `push: false` but `triage: true`: enough to open issues and post PR comments, not enough to write to an org repo. The correct path — fork, push there, open a PR *into the contributor's branch* — is more etiquette-preserving: it hands soloturn the additions instead of rewriting his PR under him.
 
 One legitimate bypass was needed and taken deliberately. Terasology keeps ~55 module repos as plain nested clones, which `ws` cannot address as targets — `ws commit coreworlds` fails outright. Rather than route around the hook silently, the agent used the sanctioned escape hatch with a stated reason:
 
@@ -197,7 +197,7 @@ Plus, in the workspace itself: a repaired `ecosystem.local.yaml`, 42 newly clone
 
 ## The Discord thread
 
-Running in parallel the whole time, lightly tidied. This is the texture the transcript above cannot show.
+Running in parallel the whole time, lightly tidied.
 
 > **Cervator** — 10:50
 > I'm looking at the CoreWorlds PR now 😅 Admittedly with a toddler on my lap, so I am one-handedly driving my agent
@@ -276,7 +276,7 @@ Running in parallel the whole time, lightly tidied. This is the texture the tran
 
 ## Key takeaways
 
-- **The workspace was the point.** A months-dormant Terasology checkout mid-way through a dependency-injection review effort would previously have prompted a fresh workspace — and then a forgotten one, and then a third. The Thalamus held the arcs, `ws status` held the repo states, and the session grafted onto the mess instead of fleeing it. That avoided toil is invisible in the diff and is arguably the largest single win here.
+- **The workspace was the point.** A months-dormant Terasology checkout mid-way through a dependency-injection review effort would previously have prompted a fresh workspace — and then a forgotten one, and then a third. The Thalamus held the arcs, `ws status` held the repo states, and the session grafted onto the mess instead of fleeing it. That avoided toil is invisible in the diff and is the largest single win here.
 - **Found time is real time.** Toddler on lap → phone while cooking → phone outdoors → fifteen focused minutes at a desk. The output was a root-cause fix in a 15-year-old engine, with tests. The claim GDD has always made about snippets of attention got its hardest test yet.
 - **The agent argued with the bots, and with itself.** It declined one CodeRabbit finding with reasoning and filed it as an issue; it accepted a Copilot finding after verifying the objection was real; and it abandoned its own expensive experiment when a cheaper, stronger one appeared.
 - **Falsification, not just green checks.** Every claim of "this fixes it" was backed by stashing the fix and watching the test fail. Twice — including after tightening the assertion, because a stricter test that no longer catches the original bug is worse than the loose one.

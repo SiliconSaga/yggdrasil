@@ -7,9 +7,7 @@
 
 ## Overview
 
-This transcript covers the second half of a long session — after GDD's initial implementation (design specs, 9 skills, multi-page docs, PR #17) was complete. It starts with the first real test of GDD orientation in a fresh session, then follows the ws commit bodyfile evolution and the first-ever Thalamus housekeeping audit.
-
-The earlier part of the session (brainstorming, design, implementation) is not included here — this focuses on GDD being used for the first time to guide actual development work.
+This transcript covers the second half of a long session — after GDD's initial implementation (design specs, 9 skills, multi-page docs, PR #17) was complete. It starts with the first real test of GDD orientation in a fresh session, then follows the ws commit bodyfile evolution and the first-ever Thalamus housekeeping audit. The earlier part of the session (brainstorming, design, implementation) is not included.
 
 ---
 
@@ -19,7 +17,7 @@ The earlier part of the session (brainstorming, design, implementation) is not i
 
 **Human:** I tried starting a new Claude session in the yggdrasil directory wondering what might trigger — but nothing did. When I asked "Based on your instructions what should we start with?" I did get a quick note about the workspace CLI, but nothing about GDD, orientation, or anything.
 
-**Agent:** The issue is clear: `gdd-orientation` has a description saying "Use at session start" but nothing in CLAUDE.md or AGENTS.md tells the agent to actually invoke it. The skill describes what to do, but nothing in the instruction chain says "do this first."
+**Agent:** The issue is clear: `gdd-orientation` has a description saying "Use at session start" but nothing in CLAUDE.md or AGENTS.md tells the agent to actually invoke it.
 
 *The agent added a Session Start section to AGENTS.md pointing to the orientation skill.*
 
@@ -49,13 +47,13 @@ The earlier part of the session (brainstorming, design, implementation) is not i
 
 ## Part 2: The Git Add Problem
 
-*With orientation working, the session turned to actual development. The human noticed an earlier issue where a `cd` command had shifted the working directory, requiring a compound `cd /path && git add` to recover.*
+*The human noticed an earlier issue where a `cd` command had shifted the working directory, requiring a compound `cd /path && git add` to recover.*
 
 **Human:** I remembered we finished the commit script in a different session. I just rebased to make it present locally. Feel free to commit normally for the gitignore then review the new commit usage for future commits.
 
 *The agent discovered `ws commit` and started using it. But the `git add` step before commits remained a raw git command, prone to cwd drift.*
 
-**Human:** We've seen "loose" fix expectations ("I just need to follow this more closely") come back repeatedly. Plus it might be more token friendly to have utility scripts and explicit instructions even for simple things, if it pretty much guarantees smooth sailing.
+**Human:** We've seen "loose" fix expectations ("I just need to follow this more closely") come back repeatedly. It might be more token friendly to have utility scripts and explicit instructions even for simple things, if it guarantees smooth sailing.
 
 **Agent:** You're right — "just be more careful" is the least reliable fix, especially across session resets. The cleanest solution is extending `ws commit` to accept files to stage.
 
@@ -142,7 +140,7 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 **Human:** What other related changes could we take care of? Should session wrap-up be part of housekeeping? And the gdd-workflow-audit and auto-approve audit seem close together.
 
-**Agent:** Good instincts — session wrap-up belongs in housekeeping (centralizes GDD-specific steps), and the gdd-workflow-audit + auto-approve audit should stay together as one general-purpose skill. Also flagged: no post-merge check exists.
+**Agent:** Session wrap-up belongs in housekeeping (centralizes GDD-specific steps), and the gdd-workflow-audit + auto-approve audit should stay together as one general-purpose skill. Also flagged: no post-merge check exists.
 
 *Issue #23 filed to consolidate these. The agent then ran the workflow auditor, scanning the auto-approve list.*
 
@@ -156,9 +154,9 @@ One stable auto-approvable command shape. All variation lives in the file.
 
 ## Key Takeaways
 
-- **Orientation took several iterations** to get right — the first version was an information dump, the final version is three lines: Thalamus status, mode/role, what to work on
+- **Orientation took several iterations** — the first version was an information dump, the final version is three lines: Thalamus status, mode/role, what to work on
 - **"Be more careful" is not a fix** — structural solutions (scripts, bodyfiles) are more reliable across session resets than behavioral notes
 - **The bodyfile pattern** emerged organically from discussing auto-approve concerns — the `.commits/` file is inspectable, auto-approvable, and follows the same pattern as `.prs/` and `.issues/`
-- **Thalamus async collaboration** was an unexpected emergent behavior — the human writing thoughts while the agent worked created a shared flow
+- **Thalamus async collaboration** emerged unexpectedly — the human writing thoughts while the agent worked created a shared flow
 - **First housekeeping** promoted 2 items to issues, pruned 4 resolved items, kept 3 for future exploration
 - **Auto-approve audit** revealed massive pattern accumulation from unique commands — cleaned from 59 to 4 entries
