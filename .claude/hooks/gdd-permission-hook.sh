@@ -188,6 +188,22 @@ fi
 
 cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 
+# Native Windows jq writes its output stream in text mode, translating every
+# LF to CRLF — so a command with an embedded newline reaches this hook with
+# an injected CR the harness will never execute (bash line-continuation
+# parsing then misses, and quote-state walkers see a stray control char).
+# The translation is exactly invertible: content LF → CRLF and content CRLF
+# → CR+CRLF, so collapsing CRLF back to LF restores the original string
+# byte-for-byte. Probe the jq binary once and undo only when it translates —
+# POSIX jq passes through untouched, and a genuine lone CR (the Tier-1
+# deny case) survives on both.
+if [[ "$cmd" == *$'\r\n'* ]]; then
+    _jq_probe="$(jq -rn '"a\nb"')"
+    if [[ "$_jq_probe" == *$'\r'* ]]; then
+        cmd="${cmd//$'\r\n'/$'\n'}"
+    fi
+fi
+
 # Externally-supplied paths (payload cwd/file_path, CLAUDE_PROJECT_DIR)
 # arrive in whatever form the host favors — POSIX /tmp/x, C:/x, or D:\x on
 # Windows, and any mix of the three for the SAME location once MSYS path
@@ -1252,7 +1268,7 @@ _opaque_command_string_requires_ask() {
     local command="$1" token runner
     local -a words
     _split_invocation_words "$command" || return 0
-    words=("${_INVOCATION_WORDS[@]}")
+    words=(${_INVOCATION_WORDS[@]+"${_INVOCATION_WORDS[@]}"})
     local -i i=0 n=${#words[@]}
     [[ "$n" -gt 1 ]] || return 1
 
@@ -1345,7 +1361,12 @@ _opaque_command_string_requires_ask() {
 
     token="${words[$i]}"
     runner="${token##*/}"
-    [[ "$runner" == *sh ]] || return 1
+    # Explicit sh-family set: a bare `*sh` suffix also matches ssh
+    # (whose -c selects a cipher) and fish — routine false prompts.
+    case "$runner" in
+        sh|bash|dash|ash|ksh|ksh93|mksh|zsh) ;;
+        *) return 1 ;;
+    esac
     i=$((i + 1))
     while [[ "$i" -lt "$n" ]]; do
         token="${words[$i]}"
@@ -1375,10 +1396,10 @@ _opaque_command_string_requires_ask() {
     return 1
 }
 
-if _opaque_command_string_requires_ask "$tier1_cmd" \
-    || _opaque_command_string_requires_ask "$cmd"; then
-    ask "Opaque command-string execution requires human approval because its payload cannot be classified safely by Tier 1. Use a reviewed script file when practical."
-fi
+# The gate that CALLS the parser lives below the redirect, k8s, and
+# adapter tiers — their verdicts are more specific (a scoped kubectl
+# inline-shell deny beats a generic approvable ask) and deny/allow
+# exits make first-match final. See the call site above Tier 4.
 
 # ─── Normalization for matching (applied to BOTH cmd and pattern) ───
 #
@@ -1861,6 +1882,16 @@ for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"};
         fi
     fi
 done
+
+# Opaque command-string gate — after the redirect / k8s / adapter
+# tiers so their more-specific verdicts (including the scoped kubectl
+# denies) win, before the ask-list and allow tiers so an interpreter
+# passthrough can never be auto-approved. Checks both the masked and
+# raw strings: the raw side catches quoted spellings masking removed.
+if _opaque_command_string_requires_ask "$tier1_cmd" \
+    || _opaque_command_string_requires_ask "$cmd"; then
+    ask "Opaque command-string execution requires human approval because its payload cannot be classified safely by Tier 1. Use a reviewed script file when practical."
+fi
 
 # ─── Tier 4: Ask-list — force a prompt for destructive commands ─────
 #

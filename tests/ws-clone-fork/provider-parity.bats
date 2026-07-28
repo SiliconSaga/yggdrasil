@@ -467,7 +467,10 @@ YAML
     [ "$status" -eq 0 ]
     [[ "$output" == *"ADDED: widget to "*"missing-local.yaml"* ]]
     [[ "$output" == *"Fork     : fork-org/widget"* ]]
-    grep -Fq "repo: https://github.com/source-org/widget.git" "$ECOSYSTEM_LOCAL"
+    # Assert the parsed value, not the serialized text — yq's quoting and
+    # spacing style is version-dependent and the data shape is the contract.
+    [ "$(yq '.components.widget.repo' "$ECOSYSTEM_LOCAL")" = "https://github.com/source-org/widget.git" ]
+    [ "$(yq '.components.widget.tier' "$ECOSYSTEM_LOCAL")" = "supporting" ]
     git -C "$COMPONENTS_DIR/widget" remote get-url forkhome
     git -C "$COMPONENTS_DIR/widget" remote get-url source-org
 }
