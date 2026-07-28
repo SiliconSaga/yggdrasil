@@ -4,7 +4,7 @@ Snapshot of the Thalamus file from the parallel workspace at the end of the revi
 
 # Thalamus frontmatter — read by orientation skill on session start
 
-```
+```yaml
 last_session: 2026-03-23
 last_audit: null
 staleness_days: 14

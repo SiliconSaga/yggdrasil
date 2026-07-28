@@ -84,7 +84,7 @@ It also flagged something the bots had missed entirely: the PR committed `src/te
 
 The log had already agreed, unprompted:
 
-```
+```text
 WARN o.t.e.w.g.i.WorldGeneratorManager - Could not resolve dependencies for module: JoshariasSurvival
 ```
 
@@ -148,7 +148,7 @@ It split the work into two commits, each verified green independently, so a main
 
 Then the push failed:
 
-```
+```console
 remote: Permission to MovingBlocks/Terasology.git denied to agent-refr.
 ```
 

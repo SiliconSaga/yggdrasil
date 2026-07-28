@@ -14,7 +14,7 @@ If you already use Claude Code or Codex, the one-sentence version: GDD is **an a
 
 ## Key Concepts
 
-- **Calibrated autonomy** — GDD tunes for the middle of the AI-collaboration spectrum: real agent autonomy inside deterministic guardrails, with the human at a deliberate review cadence — every PR title and merge decision is a human call. [The thesis in full](philosophy.md#calibrated-autonomy--the-thesis).
+- **Calibrated autonomy** — GDD tunes for the middle of the AI-collaboration spectrum: real agent autonomy inside deterministic guardrails, with the human at a deliberate review cadence — every PR title and merge decision is a human call. [The thesis in full](philosophy.md#calibrated-autonomy-the-thesis).
 
 - **Good enough, on purpose** — structure gets you 90% of the way: accidents made rare, work made legible, attribution made honest. The rails are training aids and confirmation checkpoints, not a hardened security boundary — and the docs say so plainly wherever it matters. [Know your stakes](philosophy.md#good-enough-on-purpose).
 

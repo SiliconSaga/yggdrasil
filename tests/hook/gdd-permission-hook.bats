@@ -915,6 +915,195 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+@test "ask: append-assignment prefix cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "X+=:/tmp bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: indexed-array assignment cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "A[0]=x bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: single-character env assignment cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "env X=1 bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: option-bearing bash -c interpreter passthrough is gated" {
+    seed_real_project_config
+
+    run_hook "bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: combined-option bash -lc interpreter passthrough is gated" {
+    seed_real_project_config
+
+    run_hook "bash -lc 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted absolute option-bearing interpreter passthrough is gated" {
+    seed_real_project_config
+
+    run_hook '"/bin/bash" --noprofile -c "echo first; echo second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env split-string command construction is human-gated" {
+    seed_real_project_config
+
+    run_hook 'env -S "bash --noprofile -c echo-first;echo-second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted env wrapper cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook '"/usr/bin/env" bash --noprofile -c "echo first; echo second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env argv0 operand cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "env -a spoof bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env alternate-path operand cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "env -P /bin bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: unknown combined env options fail closed" {
+    seed_real_project_config
+
+    run_hook "env -iu NAME bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: exec-wrapped interpreter passthrough is human-gated" {
+    seed_real_project_config
+
+    run_hook "exec bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted interpreter fragments cannot hide passthrough" {
+    seed_real_project_config
+
+    run_hook "bas''h --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted wrapper fragments cannot hide passthrough" {
+    seed_real_project_config
+
+    run_hook "e''nv bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted option fragments cannot hide passthrough" {
+    seed_real_project_config
+
+    run_hook "bash --noprofile '-'c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: double-quoted line continuation cannot hide interpreter" {
+    seed_real_project_config
+
+    run_hook $'"bas\\\nh" --noprofile -c "echo first; echo second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser ignores an unrelated quoted-space executable path" {
+    seed_real_project_config
+
+    run_hook '"C:/Program Files/tool.exe" --version'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser consumes an attached -O option operand" {
+    seed_real_project_config
+
+    run_hook "bash -Ocompat31 script.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser consumes an attached -o option operand" {
+    seed_real_project_config
+
+    run_hook "bash -onoclobber script.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser stops at a script operand before a later -c" {
+    seed_real_project_config
+
+    run_hook "bash script.sh -c"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser stops at the option terminator before a later -c" {
+    seed_real_project_config
+
+    run_hook "bash -- -c"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
 @test "masking: double-quoted Windows path is not treated as bare/unquoted" {
     seed_real_project_config
 

@@ -952,9 +952,9 @@ cmd="$(_normalize_windows_path_tokens "$cmd")"
 #
 # Posture note: this means quoted payloads to interpreters
 # (`bash -c 'anything'`) no longer trip Tier-1 substring denies. The
-# compensating control is the committed `bash -c *` / `sh -c *`
-# ask-list entries in hook-rules — the interpreter passthrough is the
-# risk there, not the quoting.
+# compensating controls are the prefix parser below and the common-form
+# ask-list entry in hook-rules — the interpreter passthrough is the risk
+# there, not the quoting.
 _mask_quoted_spans() {
     local raw="$1"
     if [[ "$raw" != *"'"* && "$raw" != *'"'* ]]; then
@@ -1153,6 +1153,232 @@ case "$tier1_cmd" in
         deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
         ;;
 esac
+
+# Command-string execution is opaque to Tier 1 after safe quoted spans are
+# masked. Parse only the invocation prefix — never the payload — and force
+# an ask when a sh-family interpreter enables command-string mode through
+# -c (including combined short options such as -lc), or when env constructs
+# a command from a split string.
+_split_invocation_words() {
+    local input="$1" current="" state="" char next
+    local -i pos=0 length=${#input} started=0
+    _INVOCATION_WORDS=()
+
+    while [[ "$pos" -lt "$length" ]]; do
+        char="${input:$pos:1}"
+        if [[ -z "$state" ]]; then
+            case "$char" in
+                [[:space:]])
+                    if [[ "$started" -eq 1 ]]; then
+                        _INVOCATION_WORDS+=("$current")
+                        current=""
+                        started=0
+                    fi
+                    ;;
+                "'")
+                    state="single"
+                    started=1
+                    ;;
+                '"')
+                    state="double"
+                    started=1
+                    ;;
+                \\)
+                    [[ $((pos + 1)) -lt "$length" ]] || return 1
+                    pos=$((pos + 1))
+                    current+="${input:$pos:1}"
+                    started=1
+                    ;;
+                *)
+                    current+="$char"
+                    started=1
+                    ;;
+            esac
+        elif [[ "$state" == "single" ]]; then
+            if [[ "$char" == "'" ]]; then
+                state=""
+            else
+                current+="$char"
+            fi
+        else
+            case "$char" in
+                '"')
+                    state=""
+                    ;;
+                \\)
+                    if [[ $((pos + 1)) -lt "$length" ]]; then
+                        next="${input:$((pos + 1)):1}"
+                        case "$next" in
+                            $'\n')
+                                # Bash removes a quoted line continuation
+                                # before forming the invocation word.
+                                pos=$((pos + 1))
+                                ;;
+                            '$'|'`'|'"'|\\)
+                                current+="$next"
+                                pos=$((pos + 1))
+                                ;;
+                            *)
+                                current+="\\"
+                                ;;
+                        esac
+                    else
+                        current+="\\"
+                    fi
+                    ;;
+                *)
+                    current+="$char"
+                    ;;
+            esac
+        fi
+        pos=$((pos + 1))
+    done
+
+    [[ -z "$state" ]] || return 1
+    if [[ "$started" -eq 1 ]]; then
+        _INVOCATION_WORDS+=("$current")
+    fi
+}
+
+_is_shell_assignment_word() {
+    # Bash accepts scalar, append, indexed-array, and associative-array
+    # assignment words here. Treat any identifier-led word containing =
+    # as assignment-shaped; a rare invalid lookalike may ask
+    # conservatively, but cannot hide a later interpreter invocation.
+    [[ "$1" == [A-Za-z_]*=* ]]
+}
+
+_opaque_command_string_requires_ask() {
+    local command="$1" token runner
+    local -a words
+    _split_invocation_words "$command" || return 0
+    words=("${_INVOCATION_WORDS[@]}")
+    local -i i=0 n=${#words[@]}
+    [[ "$n" -gt 1 ]] || return 1
+
+    # Skip transparent wrappers and leading assignments. The word
+    # splitter above models invocation-prefix quoting without executing
+    # expansions; this parser deliberately recognizes only a small,
+    # auditable wrapper and option subset.
+    while [[ "$i" -lt "$n" ]]; do
+        token="${words[$i]}"
+        if _is_shell_assignment_word "$token"; then
+            i=$((i + 1))
+            continue
+        fi
+        case "$token" in
+            env|*/env)
+                i=$((i + 1))
+                while [[ "$i" -lt "$n" ]]; do
+                    token="${words[$i]}"
+                    case "$token" in
+                        --)
+                            i=$((i + 1))
+                            while [[ "$i" -lt "$n" && "${words[$i]}" == ?*=* ]]; do
+                                i=$((i + 1))
+                            done
+                            break
+                            ;;
+                        -S|-S?*|--split-string|--split-string=*)
+                            # env parses this operand into an executable
+                            # command, so the nested invocation is opaque to
+                            # this prefix parser.
+                            return 0
+                            ;;
+                        -u|--unset|-C|--chdir|-a|--argv0|-P)
+                            [[ $((i + 1)) -lt "$n" ]] || return 1
+                            i=$((i + 2))
+                            ;;
+                        -u?*|-C?*|-a?*|-P?*|--unset=*|--chdir=*|--argv0=*)
+                            i=$((i + 1))
+                            ;;
+                        -i|--ignore-environment|-0|--null|-v|--debug)
+                            i=$((i + 1))
+                            ;;
+                        --help|--version)
+                            return 1
+                            ;;
+                        -*)
+                            # Unknown env options may consume the following
+                            # token. Fail closed rather than guessing where
+                            # the nested executable begins.
+                            return 0
+                            ;;
+                        ?*=*)
+                            i=$((i + 1))
+                            ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            command|*/command)
+                i=$((i + 1))
+                while [[ "$i" -lt "$n" ]]; do
+                    case "${words[$i]}" in
+                        --|-p) i=$((i + 1)) ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            exec|*/exec)
+                i=$((i + 1))
+                while [[ "$i" -lt "$n" ]]; do
+                    token="${words[$i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -a)
+                            [[ $((i + 1)) -lt "$n" ]] || return 1
+                            i=$((i + 2))
+                            ;;
+                        -a?*|-c|-l|-cl|-lc)
+                            i=$((i + 1))
+                            ;;
+                        -*) return 0 ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            *) break ;;
+        esac
+    done
+    [[ "$i" -lt "$n" ]] || return 1
+
+    token="${words[$i]}"
+    runner="${token##*/}"
+    [[ "$runner" == *sh ]] || return 1
+    i=$((i + 1))
+    while [[ "$i" -lt "$n" ]]; do
+        token="${words[$i]}"
+        case "$token" in
+            -c) return 0 ;;
+            -o|+o|-O|+O|--rcfile|--init-file)
+                [[ $((i + 1)) -lt "$n" ]] || return 1
+                i=$((i + 2))
+                ;;
+            --) return 1 ;;
+            --rcfile=*|--init-file=*|--*)
+                i=$((i + 1))
+                ;;
+            -o?*|+o?*|-O?*|+O?*)
+                i=$((i + 1))
+                ;;
+            -[^-]*)
+                [[ "$token" == *c* ]] && return 0
+                i=$((i + 1))
+                ;;
+            +[^+]*)
+                i=$((i + 1))
+                ;;
+            *) return 1 ;;
+        esac
+    done
+    return 1
+}
+
+if _opaque_command_string_requires_ask "$tier1_cmd" \
+    || _opaque_command_string_requires_ask "$cmd"; then
+    ask "Opaque command-string execution requires human approval because its payload cannot be classified safely by Tier 1. Use a reviewed script file when practical."
+fi
 
 # ─── Normalization for matching (applied to BOTH cmd and pattern) ───
 #

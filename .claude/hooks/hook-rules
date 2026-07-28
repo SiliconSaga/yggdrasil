@@ -38,20 +38,15 @@ ws hook-bypass [a-z]*
 # classification — they are literal data to bash — so a
 # `bash -c '…payload…'` no longer trips the composition/pipe/redirect
 # denies on operators INSIDE the quotes — the payload is deliberately
-# opaque to the hook. Without this entry the call would fall through
-# to the harness default: a prompt in default permission mode, but a
-# SILENT RUN in permissive modes (acceptEdits etc.). This committed
-# ask entry closes that gap unconditionally — the ask tier fires in
-# every permission mode and runs before any allowlist, committed or
-# local, so an interpreter passthrough can never be auto-approved and
-# the human always sees the full payload in the prompt before it runs.
-# The unanchored `*sh -c *` covers sh/bash/zsh/dash/ksh, absolute
-# interpreter paths (/bin/bash -c), and env-prefixed forms in one
-# pattern (it also sweeps in `ssh -c <cipher>` — a rare shape here,
-# and an ask, not a block). Known limit: options between the word and
-# -c (`bash --noprofile -c`) slip glob matching; the hook is
-# accident-prevention, not a security boundary (docs/gdd/philosophy.md),
-# and permissive-mode users accept that trade by choosing the mode.
+# opaque to the hook. A token-aware check in the hook runs after Tier
+# 1 and before later allow logic, recognizes quoted or unquoted
+# sh-family interpreter basenames behind assignments / env / command /
+# exec wrappers, covers intervening options plus combined short flags
+# such as `bash -lc`, and fails closed on env split-string or unknown
+# env option shapes.
+# This simple glob remains a readable defense-in-depth policy for the
+# common spelling (it also sweeps in `ssh -c <cipher>` — a rare shape
+# here, and an ask, not a block).
 *sh -c *
 # Adding an arbitrary URL to ecosystem.local.yaml is the component adoption trust gate. The ordinary clone remains automatic; either supported spelling requires a human.
 ws clone *--add-to-ecosystem*

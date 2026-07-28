@@ -16,7 +16,7 @@ GDD is the "good enough" workspace — and that's a design statement, not an apo
 
 Know your stakes. If you operate medical devices or rockets, you need regimes with harder guarantees than GDD makes — don't run those on "good enough." For a great many people, though — especially those arriving at the dawn of personalized software, building things for themselves and their communities that simply wouldn't exist otherwise — good enough is exactly enough.
 
-This honesty repeats deliberately across the framework: the [Kubernetes guard](features.md#kubernetes-practice-guard--ws-k8s) is "accident-prevention, not a security boundary," the hook's redirect tier is "a training aid, not a safety floor." [Trust and Safety](trust-and-safety.md) states plainly what each rail does and doesn't promise, so you can decide where your stakes sit.
+This honesty repeats deliberately across the framework: the [Kubernetes guard](features.md#kubernetes-practice-guard-ws-k8s) is "accident-prevention, not a security boundary," the hook's redirect tier is "a training aid, not a safety floor." [Trust and Safety](trust-and-safety.md) states plainly what each rail does and doesn't promise, so you can decide where your stakes sit.
 
 ## The Core Insight
 
