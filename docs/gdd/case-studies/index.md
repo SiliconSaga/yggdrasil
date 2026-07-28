@@ -5,7 +5,7 @@ GDD applied to real work — recent, concrete, and messier than a tutorial. Most
 Two efforts are written up at length, and together they bracket the project's life so far:
 
 - **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)** — a full session from the week of the 1.0 release: an outside contributor's bug fix reviewed, an engine root cause found underneath it, fixes proposed back, and an issue filed — conducted almost entirely from a phone, one-handed, around childcare. The clearest picture of what the finished system feels like in use.
-- **[Early GDD — the first sessions](early-gdd.md)** — verbatim (if condensed) transcripts and Thalamus files from GDD's first two sessions ever, back in March. They predate most of today's system, so read them as origin material rather than current mechanics.
+- **[Early GDD — the first sessions](early-gdd.md)** — condensed transcripts and Thalamus files from GDD's first two sessions ever, back in March: dialogue and decisions as captured, technical detail stubbed. They predate most of today's system, so read them as origin material rather than current mechanics.
 
 Reading one after the other is the fastest way to see how far the methodology travelled: the early sessions are GDD *being built*, the v1.0 study is GDD *being used* on someone else's codebase without the human having a desk.
 

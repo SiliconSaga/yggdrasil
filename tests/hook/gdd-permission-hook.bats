@@ -897,6 +897,48 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+@test "ask: absolute-path interpreter passthrough is gated too" {
+    seed_real_project_config
+
+    run_hook "/bin/bash -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env-prefixed interpreter passthrough is gated too" {
+    seed_real_project_config
+
+    run_hook "env FOO=1 bash -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "masking: double-quoted Windows path is not treated as bare/unquoted" {
+    seed_real_project_config
+
+    run_hook 'git -C "D:\Dev\GitWS\yggdrasil" status'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Unquoted Windows path"* ]]
+}
+
+@test "masking: quoted drive path in a bailed-out command asks, not the bare-path deny" {
+    seed_real_project_config
+
+    # A spaced quoted path defeats the token normalizer (word split), and
+    # the trailing unquoted backslash makes masking bail to the raw
+    # string — so the backslash arm sees the word `"D:\Dev`. Quote-led
+    # words must reach the generic ask: the bare-path deny's premise
+    # (bash strips the backslashes) is false for quoted content.
+    run_hook 'cp "D:\Dev My\a.txt" x\'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" != *"Unquoted Windows path"* ]]
+}
+
 # ─── gh repo fork → ws clone-fork redirect ──────────────────────────
 
 @test "redirect: ws gh repo fork points at ws clone-fork" {

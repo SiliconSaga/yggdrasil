@@ -1020,8 +1020,12 @@ tier1_cmd="$(_mask_quoted_spans "$cmd")"
 # stays on the generic ask arm.
 _bare_windows_path_word() {
     local w="$1"
+    # Anchored at word start: a word BEGINNING with a quote is a quoted
+    # path, which only reaches this check when masking bailed out — it
+    # must fall to the generic ask, not the known-broken deny (the
+    # deny's premise, bash stripping the backslashes, is false there).
     case "$w" in
-        *[A-Za-z]:\\*) ;;
+        [A-Za-z]:\\*) ;;
         *) return 1 ;;
     esac
     [[ "$w" == *'\\'* ]] && return 1   # doubled backslash — bash collapses it; that spelling works

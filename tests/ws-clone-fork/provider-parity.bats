@@ -465,9 +465,71 @@ YAML
     run bash "$CLONE_FORK_BIN" --url https://github.com/source-org/widget.git --add-to-ecosystem
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ADDED: widget to ecosystem.local.yaml"* ]]
+    [[ "$output" == *"ADDED: widget to "*"missing-local.yaml"* ]]
     [[ "$output" == *"Fork     : fork-org/widget"* ]]
     grep -Fq "repo: https://github.com/source-org/widget.git" "$ECOSYSTEM_LOCAL"
     git -C "$COMPONENTS_DIR/widget" remote get-url forkhome
     git -C "$COMPONENTS_DIR/widget" remote get-url source-org
+}
+
+@test "--add-to-ecosystem without --url is refused, not silently ignored" {
+    run bash "$CLONE_FORK_BIN" widget --add-to-ecosystem
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"--add-to-ecosystem only applies with --url"* ]]
+}
+
+@test "--url mode fails the realm trust gate BEFORE writing any ecosystem entry" {
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: forkhome
+components: {}
+YAML
+    mkdir -p "$REALMS_DIR/realm-fixture"
+    printf 'components: {}\n' > "$REALMS_DIR/realm-fixture/ecosystem.yaml"
+    printf 'realm: realm-fixture\n' > "$ECOSYSTEM_LOCAL"
+
+    run bash "$CLONE_FORK_BIN" --url https://github.com/source-org/widget.git --add-to-ecosystem
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"trust"* ]]
+    # The half-declared component must NOT exist — trust failure leaves no partial state.
+    ! grep -q "widget" "$ECOSYSTEM_LOCAL"
+}
+
+@test "--url mode with an already-declared matching repo continues without ADDED" {
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: forkhome
+  homes:
+    fork:
+      namespace: github.com/fork-org
+components:
+  widget:
+    tier: supporting
+    repo: https://github.com/source-org/widget.git
+YAML
+
+    run bash "$CLONE_FORK_BIN" --url https://github.com/source-org/widget.git --add-to-ecosystem
+
+    [[ "$output" == *"already declared with this repo"* ]]
+    [[ "$output" != *"ADDED:"* ]]
+    [ ! -f "$ECOSYSTEM_LOCAL" ]
+}
+
+@test "--url mode with a conflicting declared repo errors instead of overwriting" {
+    write_ecosystem <<'YAML'
+identity:
+  forkRemote: forkhome
+components:
+  widget:
+    tier: supporting
+    repo: https://github.com/other-org/widget.git
+YAML
+
+    run bash "$CLONE_FORK_BIN" --url https://github.com/source-org/widget.git --add-to-ecosystem
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"already declared with a different repo"* ]]
+    [ ! -f "$ECOSYSTEM_LOCAL" ]
 }

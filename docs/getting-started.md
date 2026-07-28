@@ -27,7 +27,7 @@ A *template* is a forkable scaffold. An *instance* is the on-disk result of runn
 
 ### Before you start: bootstrap
 
-Two foundational pieces have to be in place before any of the rest of the walkthrough works. Skim these and skip whichever you already have. (This page keeps to the happy path; the full prerequisite reference — per-OS install table, PATH details, Windows wrinkles — is [Workspace Setup](workspace-setup.md).)
+Git is the one thing needed before anything else — it does the cloning (and on Windows brings the shell). A GitHub or GitLab account only matters from the auth step onward, so you can clone and run the preflight check first and sort the account out when you get there. Skim these and skip whichever you already have. (This page keeps to the happy path; the full prerequisite reference — per-OS install table, PATH details, Windows wrinkles — is [Workspace Setup](workspace-setup.md).)
 
 #### Install Git
 

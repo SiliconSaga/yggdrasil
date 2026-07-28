@@ -160,6 +160,12 @@ if [[ -n "$CF_URL" && "$CF_ADD_ECO" != "true" ]]; then
     echo "  the component in ecosystem config and use 'ws clone-fork <component>'." >&2
     exit 1
 fi
+if [[ -z "$CF_URL" && "$CF_ADD_ECO" == "true" ]]; then
+    echo "ERROR: --add-to-ecosystem only applies with --url." >&2
+    echo "  A plain 'ws clone-fork <component>' reads an EXISTING ecosystem entry;" >&2
+    echo "  there is nothing to add. Use --url <source-url> to declare a new one." >&2
+    exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -184,10 +190,14 @@ for cmd in yq jq git; do
     fi
 done
 
-# --- URL mode: declare the component before the ecosystem resolves ----------
-# Mirrors ws-clone.sh's --add-to-ecosystem write (same yq shape, same
-# name derivation), then falls through to the normal component flow —
-# the merged-config read below picks up the entry just written.
+ECO="$(ws_resolve_ecosystem)"
+
+# --- URL mode: declare the component ----------------------------------------
+# Runs AFTER ws_resolve_ecosystem so the realm-trust gate (inside the
+# resolve) fires before anything is written — a trust failure must not
+# leave a half-declared component behind. This run uses $CF_URL
+# directly (the resolved merge predates the write); the entry is for
+# future commands. Mirrors ws-clone.sh's yq shape and name derivation.
 if [[ -n "$CF_URL" ]]; then
     git_remote_validate "$CF_URL" remote
     if [[ -z "$CF_NAME" ]]; then
@@ -198,25 +208,37 @@ if [[ -n "$CF_URL" ]]; then
         echo "  Use --name <name> (lowercase, alphanumeric, hyphens, dots)." >&2
         exit 1
     fi
-    LOCAL_CONFIG="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
-    if [[ ! -f "$LOCAL_CONFIG" ]]; then
-        # Deliberately NOT seeded from ecosystem.local.yaml.example (ws-clone
-        # does): the example's uncommented identity placeholders would
-        # deep-merge over the realm's real values and turn the clear
-        # "identity.forkRemote is not set" error below into a fork remote
-        # silently named after a placeholder.
-        printf '{}\n' > "$LOCAL_CONFIG"
+    EXISTING_REPO=$(COMP="$CF_NAME" yq '.components[strenv(COMP)].repo // ""' "$ECO" 2>/dev/null)
+    [[ "$EXISTING_REPO" == "null" ]] && EXISTING_REPO=""
+    if [[ -n "$EXISTING_REPO" ]]; then
+        if [[ "$EXISTING_REPO" == "$CF_URL" ]]; then
+            echo "Component '$CF_NAME' is already declared with this repo — continuing without changes."
+        else
+            echo "ERROR: Component '$CF_NAME' is already declared with a different repo:" >&2
+            echo "    declared: $EXISTING_REPO" >&2
+            echo "    --url:    $CF_URL" >&2
+            echo "  Use --name <other-name> for a separate component, or fix the existing entry." >&2
+            exit 1
+        fi
+    else
+        LOCAL_CONFIG="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+        if [[ ! -f "$LOCAL_CONFIG" ]]; then
+            # Deliberately NOT seeded from ecosystem.local.yaml.example (ws-clone
+            # does): the example's uncommented identity placeholders would
+            # deep-merge over the realm's real values and turn the clear
+            # "identity.forkRemote is not set" error below into a fork remote
+            # silently named after a placeholder.
+            printf '{}\n' > "$LOCAL_CONFIG"
+        fi
+        COMPONENT_NAME="$CF_NAME" REPO_URL="$CF_URL" \
+            yq -i '
+                .components[strenv(COMPONENT_NAME)].tier = "supporting" |
+                .components[strenv(COMPONENT_NAME)].repo = strenv(REPO_URL)
+            ' "$LOCAL_CONFIG"
+        echo "ADDED: $CF_NAME to $LOCAL_CONFIG (tier: supporting, repo: $CF_URL)"
     fi
-    COMPONENT_NAME="$CF_NAME" REPO_URL="$CF_URL" \
-        yq -i '
-            .components[strenv(COMPONENT_NAME)].tier = "supporting" |
-            .components[strenv(COMPONENT_NAME)].repo = strenv(REPO_URL)
-        ' "$LOCAL_CONFIG"
-    echo "ADDED: $CF_NAME to ecosystem.local.yaml (tier: supporting, repo: $CF_URL)"
     COMPONENT="$CF_NAME"
 fi
-
-ECO="$(ws_resolve_ecosystem)"
 
 # Scratch file for capturing provider-CLI stderr. Workspace convention is
 # .tmp/ over /tmp — Git Bash maps /tmp to an unpredictable location
@@ -227,16 +249,22 @@ ERR_TMP="$ROOT_DIR/.tmp/ws-clone-fork-err.$$"
 mkdir -p "$ROOT_DIR/.tmp"
 
 # --- read component config --------------------------------------------------
-UPSTREAM_URL=$(COMP="$COMPONENT" yq '.components[strenv(COMP)].repo // ""' "$ECO" 2>/dev/null)
-if [[ -z "$UPSTREAM_URL" || "$UPSTREAM_URL" == "null" ]]; then
-    echo "ERROR: Component '$COMPONENT' is not declared in ecosystem config." >&2
-    echo "  Add it to ecosystem.local.yaml under 'components:' first." >&2
-    echo "  Example:" >&2
-    echo "    components:" >&2
-    echo "      $COMPONENT:" >&2
-    echo "        tier: supporting" >&2
-    echo "        repo: <source-project-git-url>" >&2
-    exit 1
+# URL mode uses the given URL directly — the merged config was resolved
+# before the declaration write, so a lookup there would miss the new entry.
+if [[ -n "$CF_URL" ]]; then
+    UPSTREAM_URL="$CF_URL"
+else
+    UPSTREAM_URL=$(COMP="$COMPONENT" yq '.components[strenv(COMP)].repo // ""' "$ECO" 2>/dev/null)
+    if [[ -z "$UPSTREAM_URL" || "$UPSTREAM_URL" == "null" ]]; then
+        echo "ERROR: Component '$COMPONENT' is not declared in ecosystem config." >&2
+        echo "  Declare-and-clone in one step: ws clone-fork --url <source-url> --add-to-ecosystem" >&2
+        echo "  Or add it to ecosystem.local.yaml under 'components:' first:" >&2
+        echo "    components:" >&2
+        echo "      $COMPONENT:" >&2
+        echo "        tier: supporting" >&2
+        echo "        repo: <source-project-git-url>" >&2
+        exit 1
+    fi
 fi
 git_remote_validate "$UPSTREAM_URL" remote
 

@@ -26,7 +26,8 @@
         /^```/ { fence = 1 - fence; prev = 0; next }
         fence { next }
         /^[[:space:]]*$/ { prev = 0; next }
-        /^#/ || /^[[:space:]]*[-*][[:space:]]/ || /^[[:space:]]*[0-9]+\.[[:space:]]/ || /^>/ || /^\|/ || /^<!--/ { prev = 0; next }
+        /^[[:space:]]*[-*][[:space:]]/ || /^[[:space:]]*[0-9]+\.[[:space:]]/ { prev = 1; next }
+        /^#/ || /^>/ || /^\|/ || /^<!--/ { prev = 0; next }
         {
             if (prev) { printf "%s:%d: wrapped prose: %s\n", FILENAME, FNR, $0; bad = 1 }
             prev = 1
