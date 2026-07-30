@@ -216,7 +216,7 @@ Phone's community-plugins.json (with obsidian-git) stays local; desktops keep th
 
 ### Two-paths reminder for plugin updates
 
-Phone-side mobile workflow puts in-app plugin updates (via Obsidian's Community plugins page) into the same git timeline as everything else. Click "Update" on Templater on phone and it commits the new `main.js` + `manifest.json` to git; on next pull, desktops get the updated plugin too.
+Phone-side mobile workflow puts in-app plugin updates (via Obsidian's Community plugins page) into the same git timeline as everything else — but tapping "Update" only replaces the plugin files on disk; Obsidian Git's auto-commit watches note edits, not plugin/config changes. After updating, trigger a manual "Commit-and-sync" (or edit any note so auto-commit fires) so the new `main.js` + `manifest.json` actually land in git; on next pull, desktops then get the updated plugin too.
 
 This means the two upgrade paths can fight: in-app updates push fresher versions, then `ws hoard upgrade` would clobber them back to the template's pinned set. **Don't routinely run `ws hoard upgrade`** on a vault you've been actively maintaining via in-app updates. Run it for fresh init, intentional re-baselining, or after bumping pins in `templates/hoards/obsidian-vault/.upgrade/upgrade.yaml`.
 

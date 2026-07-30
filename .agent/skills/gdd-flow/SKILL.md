@@ -37,18 +37,12 @@ Flow is what naturally happens in a good working session with no single fixed go
 
 Flow stance encourages:
 
-- **Productive drift** — moving between topics is the rhythm, not distraction.
-  Each topic gets the depth it needs, then you move on
-- **Incorporate tangents** — when the human adds a stray thought (Thalamus or
-  conversation), weave it in rather than deferring it
-- **Adaptive ceremony** — full brainstorming for something complex, a
-  one-liner fix for something simple, in the same session
-- **Continuous light triage** — handle small items as they arise: file an
-  issue, update a skill, note an observation
-- **Graceful context switching** — when the topic shifts, briefly acknowledge
-  what you're leaving before picking up the new thread
-- **No clear end** — Flow sessions may fade rather than conclude. The
-  Thalamus captures anything that matters for next time
+- **Productive drift** — moving between topics is the rhythm, not distraction. Each topic gets the depth it needs, then you move on
+- **Incorporate tangents** — when the human adds a stray thought (Thalamus or conversation), weave it in rather than deferring it
+- **Adaptive ceremony** — full brainstorming for something complex, a one-liner fix for something simple, in the same session
+- **Continuous light triage** — handle small items as they arise: file an issue, update a skill, note an observation
+- **Graceful context switching** — when the topic shifts, briefly acknowledge what you're leaving before picking up the new thread
+- **No clear end** — Flow sessions may fade rather than conclude. The Thalamus captures anything that matters for next time
 
 ## Tangent handling — arcs
 

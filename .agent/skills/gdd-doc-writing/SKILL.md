@@ -87,6 +87,10 @@ hyphen) as the separator. This renders cleanly as plain text.
 subgraph T1["Tier 1 — Nordri — Cluster Substrate"]
 ```
 
+### Rule 5: Test the diagram mentally before writing
+
+Re-check each node label against Rules 1–4 before committing: no `\n` (use `<br/>`), no `style X fill:` lines, hierarchy diagrams use `graph BT`.
+
 ## Component Documentation Convention
 
 Component narrative content scales through four shapes. A component picks the shape that fits its current content volume; graduation is propose-then-confirm during ceremony, never automated.

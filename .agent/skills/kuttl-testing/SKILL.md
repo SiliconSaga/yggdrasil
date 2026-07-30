@@ -149,7 +149,11 @@ commands:
       kubectl logs client -n $NAMESPACE
 ```
 
-See Quick Reference below for the key elements this script relies on.
+Key elements:
+- `$NAMESPACE` is set by kuttl automatically (the ephemeral test namespace)
+- **Secret wait loop**: Operators create secrets asynchronously after the CR is ready
+- **Retry loop inside container**: The service endpoint may not be routable immediately
+- **`jsonpath phase=Succeeded`**: Correct wait for one-shot pods
 
 ## Quick Reference
 
@@ -161,7 +165,7 @@ See Quick Reference below for the key elements this script relies on.
 | `$NAMESPACE` | kuttl-provided test namespace variable |
 | `sleep 5` before secret check | Give operator time to start reconciling |
 | Retry loop in container command | Handle transient connectivity after provisioning |
-| `set -e -o pipefail` | Fail script on any error |
+| `set -e` | Fail script on any error (`-o pipefail` only in shells that support it — see Common Mistakes) |
 
 ## kuttl-test.yaml Configuration
 
@@ -217,6 +221,9 @@ Add a comment explaining the path depth when using `../` traversal. Absolute pat
 
 ## Common Mistakes
 
+- **Using `--for=condition=Ready` on one-shot pods**: Will timeout forever. Use `jsonpath phase=Succeeded`.
+- **Partial `status.conditions` assertion**: kuttl v0.24.0 requires ALL conditions. Check with `kubectl get -o yaml` first.
+- **Wrong CWD for file paths in commands**: Commands run from the test case directory. Use `../` traversal or absolute paths to reach project files.
 - **No retry loop in client commands**: The service may not be reachable the instant the CR reports Ready. Always retry.
 - **Not waiting for secrets**: Operators create connection secrets async. Poll for the secret before extracting credentials.
 - **Forgetting `--restart=Never`**: Without it, `kubectl run` creates a Deployment, not a one-shot pod. The pod restarts on failure instead of transitioning to `Failed`.

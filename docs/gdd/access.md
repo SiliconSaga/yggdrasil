@@ -210,7 +210,7 @@ It reports:
 - Whether `gh auth status` (or equivalent) succeeds.
 - Whether the agent identity has access to the remote (read at minimum; push requires further verification by attempting one).
 
-If `ws diagnose` shows ✗ for token coverage, the operation will fail with an opaque auth error at runtime; fix the missing token or scope first.
+If `ws diagnose` shows ✗ for token coverage, token-dependent operations (HTTPS pushes, provider API calls like `ws cr` and `ws issue`) will fail with an opaque auth error at runtime; fix the missing token or scope before reaching for those. SSH-transport remotes and plain local git operations don't consume the token and keep working regardless.
 
 ---
 

@@ -28,6 +28,8 @@ Invoke this skill when:
   pattern means.
 - **Reviewing `.claude/settings.json` changes** during code review.
 
+For the bulk case (scanning recent transcripts and proposing many patterns at once), invoke `fewer-permission-prompts` instead.
+
 ## Pattern-form decision tree
 
 The full decision tree is in `docs/gdd/permissions.md`, the
