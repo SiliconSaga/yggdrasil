@@ -32,7 +32,7 @@ Stance philosophy: quick = minimize ceremony for small rapid interactions. A def
 
 ### Zen
 
-Full ceremony for deep focus sessions. Saturday morning deep dive? Zen stance leans into thorough brainstorming, comprehensive reviews, auditing accumulated concerns, and completing large chunks of work end to end.
+Full ceremony for deep focus sessions. Saturday morning deep dive? Zen stance leans into thorough brainstorming, comprehensive reviews, auditing accumulated concerns, and completing large chunks of work end-to-end.
 
 Zen stance may proactively suggest housekeeping if observations have accumulated in the Thalamus.
 

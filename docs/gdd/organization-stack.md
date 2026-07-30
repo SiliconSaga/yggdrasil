@@ -13,7 +13,7 @@ The stack is read as audience/purpose tiers, not a simple durability ladder. Dur
 | **Docs** (`<component>/docs/`) | repo README + docs index + topic files | Anyone reading the repo. Durable reference knowledge | permanent, versioned |
 | **GitHub** | issues, PRs, the companion Project board | Collaborators / public. Trackable, durable, dynamic work | long-lived, edited live |
 
-Both the Vault and the Thalami hoard are already git-synced across machines — neither tier is machine-specific. The distinction is audience: the Vault is human-facing life organization; the Thalami hoard is agent-facing GDD working memory.
+Both the Vault and the Thalami hoard are git-synced across machines, but differently: the Vault is one shared tree, while the Thalami hoard syncs a collection of per-machine files — each machine writes only its own `*-thalamus.md`, which is what keeps the sync merge-conflict-free. The distinction between tiers is audience: the Vault is human-facing life organization; the Thalami hoard is agent-facing GDD working memory.
 
 Any Obsidian hoard scaffolded from the `obsidian-vault` template (`ws hoard init obsidian-vault`) plays the Vault role. Examples below name **`borgr`** — the maintainer's personal vault — as the concrete instance; the model works the same with any vault the template produces, under any name.
 

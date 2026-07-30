@@ -139,7 +139,7 @@ GitLab's API model differs from GitHub's enough that the same abstract pattern (
 
 For fork creation, use more precise terms: the **source project** is the project being forked, and the **destination namespace** is the fork-home group where GitLab creates the fork. After the fork exists, the same source project is usually the MR target.
 
-**Two-token model.** Every fork-based GitLab operation needs two distinct tokens, configured in `defaults.gitTokens` (longest URL prefix wins, so a fork-group entry shadows the source-project group entry for repos in the fork namespace):
+**Two-token model.** Every fork-based GitLab operation needs two distinct tokens, configured in `defaults.gitTokens` in the committed workspace config or your `ecosystem.local.yaml` — token routing reads only those two layers; realm-supplied `gitTokens` mappings are advisory and never consulted (longest URL prefix wins, so a fork-group entry shadows the source-project group entry for repos in the fork namespace):
 
 | Token | Role | Used for |
 |-------|------|----------|
@@ -158,7 +158,7 @@ For fork creation, use more precise terms: the **source project** is the project
 | **Personal Access Token** | Universal fallback | Works when no narrower actor exists, but carries your full GitLab account permissions. For split-token config, point both env vars at the same PAT to preserve routing even though isolation is lost. |
 | **Manual UI fork** | Human-only authority boundary | `ws clone-fork` emits a prefilled fork URL when the configured fork actor can't read the source project. The human completes the fork, then reruns the command. |
 
-**Bot attribution trade-off.** MRs opened via a Group Access Token, Project Access Token, or service-account token appear as authored by the bot/service-account user, not your personal account. The workspace mitigates this with two layers: (1) the fork namespace path makes your username visible in the MR source header, (2) `@HUMAN_ACCOUNT` substitution puts your handle in the MR body. Adequate for team workflows; not sufficient for formal audit trails requiring the GitLab `author` field to be a human identity.
+**Bot attribution trade-off.** MRs opened via a Group Access Token, Project Access Token, or service-account token appear as authored by the bot/service-account user, not your personal account. The workspace mitigates this with two layers: (1) the fork namespace path surfaces the relevant human or team namespace in the MR source header — though a group or service-account token may fork under a team namespace rather than a personal one, (2) `@HUMAN_ACCOUNT` substitution puts your handle explicitly in the MR body. Adequate for team workflows; not sufficient for formal audit trails requiring the GitLab `author` field to be a human identity.
 
 **Cross-group fork creation.** GitLab's fork API requires the caller to read the source project and create in the destination namespace. `ws clone-fork` handles this automatically when the fork token has both rights. If a group service account or access-token bot can create in the fork group but cannot read the source project, the API cannot create the fork; use GitLab's project/group "Invite a group" sharing mechanism, a different actor, or the manual UI helper — group-to-group or project-to-group sharing, not a token-specific share.
 

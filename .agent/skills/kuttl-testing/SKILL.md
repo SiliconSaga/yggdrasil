@@ -165,7 +165,7 @@ Key elements:
 | `$NAMESPACE` | kuttl-provided test namespace variable |
 | `sleep 5` before secret check | Give operator time to start reconciling |
 | Retry loop in container command | Handle transient connectivity after provisioning |
-| `set -e` | Fail script on any error (`-o pipefail` only in shells that support it — see Common Mistakes) |
+| `set -e`, plus `-o pipefail` in bash images | Fail script on any error, including mid-pipeline (`kubectl … \| base64 -d` succeeds without pipefail even when kubectl fails). Plain `sh` lacks pipefail — capture and verify each stage instead (see Common Mistakes) |
 
 ## kuttl-test.yaml Configuration
 
@@ -228,7 +228,7 @@ Add a comment explaining the path depth when using `../` traversal. Absolute pat
 - **Not waiting for secrets**: Operators create connection secrets async. Poll for the secret before extracting credentials.
 - **Forgetting `--restart=Never`**: Without it, `kubectl run` creates a Deployment, not a one-shot pod. The pod restarts on failure instead of transitioning to `Failed`.
 - **Missing `set -e`**: Without strict error handling, earlier failures are silently ignored and the test may pass incorrectly.
-- **Using `set -o pipefail` in `sh`**: Many lightweight images (Alpine, Debian-slim) use `sh` which does not support `pipefail`. Use only `set -e` for maximum compatibility.
+- **Using `set -o pipefail` in `sh`**: Many lightweight images (Alpine, Debian-slim) use `sh` which does not support `pipefail`. There, don't feed critical values through pipelines under bare `set -e` (a failed `kubectl` upstream still yields exit 0 downstream) — capture each stage into a variable and verify it before use.
 - **Relying on `kubectl wait --for=jsonpath`**: This syntax is not supported in all `kubectl` versions (e.g., some Docker images). Use a shell loop polling `.status.phase` for maximum portability.
 - **`--dry-run` flag**: Does not exist in kuttl v0.24.0. Run tests live against the cluster.
 

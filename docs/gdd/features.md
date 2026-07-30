@@ -113,7 +113,7 @@ A PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs before every Ba
 
 New users often see a burst of "scary red" deny output in the first few tool calls of a session as the agent's generic shell habits collide with the workspace's one-action-per-call convention. That's working as intended; nothing was harmed (the commands never ran) and the noise drops to near zero once the agent has cached the local conventions.
 
-The hook is roughly free in API-token cost — splitting a `cmd | head 20` into two separate tool calls is still one assistant turn, not two API calls — and pays off in auditability and context hygiene. See [agent-training.md](agent-training.md) for the token-cost model and what to do when a legitimate command gets denied.
+The hook is roughly free in API-token cost for commands that pass — splitting a `cmd | head 20` into two separate valid tool calls is still one assistant turn, not two API calls. A *denied* command does cost a retry: the agent reads the corrective message on its next turn and reissues, which is the deliberate teaching mechanism, and the denies taper off within a session as the conventions stick. Net, the hook pays off in auditability and context hygiene. See [agent-training.md](agent-training.md) for the token-cost model and what to do when a legitimate command gets denied.
 
 Per-machine extras (opt-in): if a command you trust keeps getting denied, copy `.claude/hooks/hook-rules.local.example` to `hook-rules.local` (in the same directory) and add bash glob patterns under the `[allow-extras]` section. The live file is gitignored — patterns stay per-machine and don't leak into project policy.
 
