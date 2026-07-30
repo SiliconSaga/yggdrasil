@@ -74,6 +74,7 @@ nav:
     - Case Studies:
       - gdd/case-studies/index.md
       - "Contributor PR Review (v1.0)": gdd/case-studies/terasology-contributor-review.md
+      - "A Five-Year-Old Disabled Test": gdd/case-studies/terasology-module-attribution.md
       - "Early GDD: First Sessions": gdd/case-studies/early-gdd.md
       - "Session 1: GDD Pilot": gdd/case-studies/session-1-gdd-pilot.md
       - "Session 2: Review Threads": gdd/case-studies/session-2-review-threads.md

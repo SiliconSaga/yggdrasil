@@ -19,6 +19,14 @@ Full writeup: **[Reviewing a contributor's PR — GDD v1.0](terasology-contribut
 
 **What it shows:** the found-time thesis at full stretch. Also the trust boundaries holding under pressure — the agent's token deliberately lacked push access to the upstream orgs, and the fork-and-PR path was the correct answer rather than an obstacle.
 
+## A five-year-old disabled test
+
+Every module integration test in a 15-year-old game engine was failing to attribute classes to their modules. Four rounds across two days found two independent defects stacked on each other — one introduced with a Gestalt upgrade in 2024, one latent since 2021 whose verifying test had been left `@Disabled` in the very commit that introduced it. That test is now implemented and passing, five years and three months later.
+
+Full writeup: **[A five-year-old disabled test — GDD on a deep bug](terasology-module-attribution.md)**.
+
+**What it shows:** the pairing on a genuinely hard problem, honestly accounted. The agent supplied stamina and made several real mistakes — including confidently explaining a mechanism it had not verified, caught only because writing it up meant checking it. The human supplied three sentences of half-remembered institutional knowledge that redirected the search, and the judgment to ask whether the tidy story was true.
+
 ## Local political site for a non-technical owner
 
 A local town-council candidate's campaign site was built by a third party as a compiled single-page app, but it had an assortment of bugs, and the owner couldn't change a word of it himself.
