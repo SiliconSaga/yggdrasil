@@ -5,13 +5,13 @@
 * **Stance / Role:** flow / developer
 * **Subject:** [Terasology](https://github.com/MovingBlocks/Terasology), a 15-year-old open-source voxel game engine
 * **Contributor:** [@soloturn](https://github.com/soloturn), who reviewed this write-up and agreed to be named — thank you, soloturn, for the fixes and for being the first outside contributor to meet GDD in the wild!
-* **Duration:** ~3.5 hours wall clock. Very little of it at a desk.
+* **Duration:** A few hours scattered across a day. Very little of it at a desk.
 
 ![Gooey's augmented workshop — Terasology's gelatinous-cube mascot, freshly fitted with cybernetic upgrades, running the Grand Terasology Improvement Engine alongside GDD's bee-bots](../../assets/images/GooeysAugmentedWorkshop.jpg)
 
 ## Overview
 
-A contributor opened a fix for a crash in a Terasology world-generation module and asked a maintainer to look at it. That is an utterly ordinary open-source moment, and it is normally where things stall: reviewing it properly means having the right repos checked out at the right revisions, building a large Java project, running the game, and holding a facet-border dependency graph in your head. That is a focused-evening task, and focused evenings are exactly what a parent of a 2-, 5-, and 7-year-old does not have.
+A contributor opened a fix for a crash in a Terasology world-generation module and asked for review. An ordinary open-source moment, and often where things stall: reviewing it properly means having the right repos checked out at the right revisions, building a large Java project, running the game, and holding a facet-border dependency graph in your head. That is a focused-evening task, and focused evenings are exactly what a parent of a 2-, 5-, and 7-year-old does not have.
 
 This session ran instead across childcare — starting with a toddler on lap, continuing from a phone while making lunch and going outside, and reaching a desk alone for the first time near the end. The work that came out of it: both PRs reviewed, an engine-level root cause identified beneath the reported bug, a second apparently-unrelated PR revealed to share that root cause, a failing CI build diagnosed and fixed, a deterministic regression test built where a reproduction was thought impossible, two follow-up PRs merged or approved, and one deliberately-declined bot finding filed as an issue.
 
