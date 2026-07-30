@@ -22,6 +22,7 @@ review_help() {
     echo "       ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]"
     echo "       ws review <comp> notes <cr#> [--remote <name>] [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]"
+    echo "       ws review <comp> comment <cr#> <bodyfile> [--remote <name>]"
     echo ""
     echo "CR review comments and thread management."
     echo ""
@@ -60,8 +61,15 @@ review_help() {
     echo "    --since <time>           Filter by time"
     echo ""
     echo "  reply <cr#> <thread-id> <message> [--resolve]"
-    echo "                             Reply to a review thread"
+    echo "                             Reply to a review thread. The GDD AI-attribution"
+    echo "                             banner is prepended automatically."
     echo "    --resolve                Also resolve the thread after replying"
+    echo ""
+    echo "  comment <cr#> <bodyfile>   Post a top-level PR/MR comment (not attached to"
+    echo "                             any diff thread) — for replying to a top-level"
+    echo "                             review note, or any comment not tied to an inline"
+    echo "                             thread. The GDD AI-attribution banner is"
+    echo "                             prepended automatically, same as reply."
     echo ""
     echo "Examples:"
     echo "  ws review yggdrasil 8                      # All review output (start here)"
@@ -77,6 +85,7 @@ review_help() {
     echo "  ws review yggdrasil threads 8 --resolve-all"
     echo "  ws review yggdrasil reply 8 THREAD_ID 'Addressed in abc123'"
     echo "  ws review yggdrasil reply 8 THREAD_ID 'Fixed' --resolve"
+    echo "  ws review yggdrasil comment 8 .crs/reply-notes.md"
     exit 0
 }
 
@@ -452,6 +461,27 @@ review_comments() {
     printf '%s\n' "$summary" | review_sanitize_provider_text
     echo ""
 
+    # Branch-drift check: warn if the CR's base branch has moved ahead of
+    # this branch since it was cut. Nothing else in the ws push/cr flow
+    # surfaces this, and review_comments is the command the workflow
+    # already recommends running after every push — piggyback here instead
+    # of adding a separate command to remember. Best-effort: an unresolvable
+    # base branch or a fetch failure degrades to silence, never a hard error.
+    if [[ -n "$_SELECTED_REMOTE" ]]; then
+        local base_ref=""
+        base_ref=$(gp_review_base_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || base_ref=""
+        if [[ -n "$base_ref" && "$base_ref" != "null" ]]; then
+            if git -C "$COMP_DIR" fetch --quiet "$_SELECTED_REMOTE" "$base_ref" 2>/dev/null; then
+                local behind_count=""
+                behind_count=$(git -C "$COMP_DIR" rev-list --count HEAD..FETCH_HEAD 2>/dev/null) || behind_count=""
+                if [[ -n "$behind_count" && "$behind_count" -gt 0 ]]; then
+                    echo "⚠ Base branch '$base_ref' is $behind_count commit(s) ahead of this branch — consider rebasing (see gdd-branch-workflow)."
+                    echo ""
+                fi
+            fi
+        fi
+    fi
+
     # === Phase 1: Fetch all three sections ===
     #
     # The fetches used to happen interleaved with prints. We now buffer
@@ -756,6 +786,10 @@ review_reply() {
         exit 1
     fi
 
+    local banner
+    banner=$(ws_gdd_attribution_line "reply") || exit 1
+    message="${banner}"$'\n\n'"${message}"
+
     gp_review_thread_reply "$REPO_SLUG" "$cr_num" "$thread_id" "$message" || {
         echo "ERROR: Failed to reply to thread $thread_id on CR #$cr_num." >&2
         exit 1
@@ -769,6 +803,41 @@ review_reply() {
         }
         echo "Thread resolved."
     fi
+}
+
+# Post a top-level PR/MR comment — not attached to any inline diff thread.
+# Bodyfile-based (like ws cr / ws issue) rather than an inline message
+# because top-level comments in practice run long (multi-paragraph
+# explanations, code blocks) — unlike `reply`, which is typically a short
+# one-liner and keeps its inline-message signature.
+review_comment() {
+    if [[ $# -ne 2 ]]; then
+        echo "Usage: ws review <comp> comment <cr#> <bodyfile> [--remote <name>]" >&2
+        exit 1
+    fi
+
+    local cr_num="$1" bodyfile="$2"
+
+    if [[ ! "$cr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CR number must be numeric, got '$cr_num'" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$bodyfile" ]]; then
+        echo "ERROR: body file not found: $bodyfile" >&2
+        exit 1
+    fi
+
+    local banner
+    banner=$(ws_gdd_attribution_line "comment") || exit 1
+    local message
+    message="${banner}"$'\n\n'"$(cat "$bodyfile")"
+
+    gp_review_post_comment "$REPO_SLUG" "$cr_num" "$message" || {
+        echo "ERROR: Failed to post comment on CR #$cr_num." >&2
+        exit 1
+    }
+    echo "Posted comment on CR #$cr_num ($REPO_SLUG)."
 }
 
 # --- Shared setup ---
@@ -912,6 +981,8 @@ elif [[ "${1:-}" == "notes" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
 elif [[ "${1:-}" == "reply" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
+elif [[ "${1:-}" == "comment" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_CR="$2"
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$1"
 fi
@@ -922,12 +993,17 @@ _SELECTED_PROVIDER=""
 # alone is ambiguous when two remotes share owner/repo across hosts or provider
 # mappings — token setup below needs the precise URL, not "first slug match".
 _SELECTED_URL=""
+# Remote name (not just slug/URL) — needed to `git fetch` the base branch for
+# the drift check in review_comments(). Matching by slug/URL alone isn't
+# enough since fetch needs the local remote name, not the repo identity.
+_SELECTED_REMOTE=""
 if [[ -n "$REVIEW_REMOTE" ]]; then
     for i in "${!_CANDIDATE_REMOTES[@]}"; do
         if [[ "${_CANDIDATE_REMOTES[$i]}" == "$REVIEW_REMOTE" ]]; then
             REPO_SLUG="${_CANDIDATE_SLUGS[$i]}"
             _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[$i]}"
             _SELECTED_URL="${_CANDIDATE_URLS[$i]}"
+            _SELECTED_REMOTE="${_CANDIDATE_REMOTES[$i]}"
             break
         fi
     done
@@ -944,6 +1020,7 @@ elif [[ ${#_CANDIDATE_SLUGS[@]} -eq 1 ]]; then
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
     _SELECTED_URL="${_CANDIDATE_URLS[0]}"
+    _SELECTED_REMOTE="${_CANDIDATE_REMOTES[0]}"
 elif [[ -n "$_PEEK_CR" ]]; then
     # Try each slug — collect all matches (CR numbers aren't unique across repos)
     # Deduplicate: skip slug/provider pairs we've already probed. Carry the
@@ -1006,11 +1083,13 @@ elif [[ -n "$_PEEK_CR" ]]; then
     REPO_SLUG="${_MATCH_SLUGS[0]}"
     _SELECTED_PROVIDER="${_MATCH_PROVIDERS[0]}"
     _SELECTED_URL="${_MATCH_URLS[0]}"
+    _SELECTED_REMOTE="${_MATCH_REMOTES[0]}"
 else
     # Can't probe without a CR number — use first slug
     REPO_SLUG="${_CANDIDATE_SLUGS[0]}"
     _SELECTED_PROVIDER="${_CANDIDATE_PROVIDERS[0]}"
     _SELECTED_URL="${_CANDIDATE_URLS[0]}"
+    _SELECTED_REMOTE="${_CANDIDATE_REMOTES[0]}"
 fi
 
 # Ensure the selected provider is loaded and its API authority is pinned to the
@@ -1040,6 +1119,9 @@ elif [[ "${1:-}" == "notes" ]]; then
 elif [[ "${1:-}" == "reply" ]]; then
     shift
     review_reply "$@"
+elif [[ "${1:-}" == "comment" ]]; then
+    shift
+    review_comment "$@"
 else
     review_comments "$@"
 fi

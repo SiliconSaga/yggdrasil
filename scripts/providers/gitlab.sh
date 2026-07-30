@@ -240,6 +240,23 @@ gp_review_threads_status() {
     '
 }
 
+# Post a top-level MR comment (not attached to a diff discussion).
+# Usage: gp_review_post_comment SLUG MR_NUM MESSAGE
+gp_review_post_comment() {
+    local slug="$1" mr_num="$2" message="$3"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api --method POST "projects/$encoded/merge_requests/$mr_num/notes" \
+        -f body="$message" >/dev/null
+}
+
+# Get the MR's target branch name.
+# Usage: gp_review_base_branch SLUG MR_NUM
+gp_review_base_branch() {
+    local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api "projects/$encoded/merge_requests/$mr_num" 2>/dev/null | jq -r '.target_branch' 2>/dev/null
+}
+
 # Reply to a discussion thread.
 # Usage: gp_review_thread_reply SLUG MR_NUM DISCUSSION_ID MESSAGE
 _gl_validate_discussion_id() {

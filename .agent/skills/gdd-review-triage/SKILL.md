@@ -79,7 +79,14 @@ bash scripts/ws review <comp> threads <cr#>             # unresolved thread list
 bash scripts/ws review <comp> threads <cr#> --resolve-all
 bash scripts/ws review <comp> threads <cr#> --resolve <id>
 bash scripts/ws review <comp> reply <cr#> <id> "message" --resolve
+bash scripts/ws review <comp> comment <cr#> <bodyfile>   # top-level comment, not tied to a thread
 ```
+
+`reply` and `comment` both prepend the GDD AI-attribution banner automatically
+— don't hand-type it, and don't fall back to raw `gh`/`glab` for a top-level
+PR/MR comment (that bypasses the banner). `ws review <comp> <cr#>` (the "run
+this first" command) also warns if the CR's base branch has moved ahead since
+the branch was cut — rebase per `gdd-branch-workflow` if it does.
 
 Thread resolution is a Side-effect operation (prompts for approval).
 

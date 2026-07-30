@@ -12,6 +12,8 @@ setup() {
 defaults:
   gitProviders:
     gitlab.com: gitlab
+identity:
+  human_account: reviewer
 components:
   app:
     repo: https://gitlab.com/upstream-group/project.git
@@ -158,13 +160,15 @@ probe_csi() { printf '\302\233'; }
 
 @test "reply preserves a message that begins with --remote" {
     # The <message> positional is free-form; a message that starts with
-    # --remote must reach the API verbatim, not be consumed as the flag.
-    # The trailing --remote selects the remote (required: CR #1 exists on both).
+    # --remote must reach the API verbatim (after the GDD attribution banner
+    # ws_gdd_attribution_line prepends), not be consumed as the flag. The
+    # trailing --remote selects the remote (required: CR #1 exists on both).
     run_ws_review app reply 1 abc123 '--remote=spoof' --remote fork
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Replied to thread on CR #1 (example-group/forked-project)"* ]]
-    [ "$(cat "$BODY_LOG")" = "--remote=spoof" ]
+    [[ "$(cat "$BODY_LOG")" == *$'\n\n'"--remote=spoof" ]]
+    [[ "$(cat "$BODY_LOG")" == "> "*"AI-assisted reply"* ]]
 }
 
 @test "GitLab provider rejects a thread ID that can steer the API path" {
