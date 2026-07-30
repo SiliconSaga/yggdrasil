@@ -4,7 +4,7 @@ Snapshot of the Thalamus file from the yggdrasil workspace at the end of the GDD
 
 # Thalamus frontmatter — read by orientation skill on session start
 
-```
+```yaml
 last_session: 2026-03-23
 last_audit: null
 staleness_days: 14  # suggest housekeeping after this many days without audit

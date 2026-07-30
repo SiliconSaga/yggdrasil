@@ -17,7 +17,7 @@ yggdrasil/
 
 Each realm is an independent git repo, gitignored from the workspace itself. The naming convention `realm-<community>` marks a directory as a realm candidate for `ws realm list` — but cloning a realm never activates it. Activation is an explicit trust decision (see below).
 
-The upstream `realm-template` ships as a tutorial scaffold; communities fork it and edit, ending up with something like `realm-siliconsaga` or `realm-yourorg`. See [Getting Started](../getting-started/index.md) for the clone-and-go walkthrough and the realm-creation pattern.
+The upstream `realm-template` ships as a tutorial scaffold; communities fork it and edit, ending up with something like `realm-siliconsaga` or `realm-yourorg`. See [Getting Started](../getting-started.md) for the clone-and-go walkthrough and the realm-creation pattern.
 
 ---
 
@@ -95,5 +95,5 @@ The merge generalizes to N layers. The same upstream → realm → local shape e
 - [GDD Features Tour](features.md) — where realms fit in the larger feature set.
 - [Hoards](hoards.md) — the personal counterpart to realms.
 - [Ecosystem Architecture](../ecosystem-architecture.md) — the merge semantics and dual-mode source resolution.
-- [Getting Started](../getting-started/index.md) — clone-and-go walkthrough including realm setup.
+- [Getting Started](../getting-started.md) — clone-and-go walkthrough including realm setup.
 - [Trust and Safety](trust-and-safety.md) — realm content's trust level and the broader hierarchy.

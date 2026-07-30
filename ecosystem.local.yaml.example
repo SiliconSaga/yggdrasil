@@ -42,6 +42,12 @@ identity:
 # Realm selector — uncomment to override auto-detection.
 # realm: realm-siliconsaga
 
+# Change-note prose budget for commit/CR/issue bodies (terse | standard | detailed).
+# Default: standard. Communities set their norm in the realm config; override
+# personally here. `ws orient` shows the active value; budgets live in templates/.
+# style:
+#   changeNotes: terse
+
 # Component overrides — uncomment and modify as needed.
 # components:
 #   some-component:

@@ -2,7 +2,7 @@
 
 A tour of what the yggdrasil workspace ships with. The [GDD index](index.md) covers the methodology; this doc covers the *features* — what's actually in the box and what each piece is for.
 
-If you want an end-to-end walkthrough rather than a feature inventory, go to [Getting Started](../getting-started/index.md). If you want the methodology that motivates the features, read the [GDD index](index.md) first.
+If you want an end-to-end walkthrough rather than a feature inventory, go to [Getting Started](../getting-started.md). If you want the methodology that motivates the features, read the [GDD index](index.md) first.
 
 ---
 
@@ -177,7 +177,7 @@ Full reference: [organization-stack.md](organization-stack.md). Design and ratio
 
 ## Next steps
 
-- Brand new? [Getting Started](../getting-started/index.md) walks you through cloning yggdrasil and a first session.
+- Brand new? [Getting Started](../getting-started.md) walks you through cloning yggdrasil and a first session.
 - Want the methodology before the tools? [GDD index](index.md).
 - Ready to scaffold a tutorial component? `ws component init gh-pages my-page` and follow the printed README.
-- Curious what's coming? The [roadmap](roadmap.md) covers post-1.0 direction; the [case studies](case-studies.md) show the current system on real work.
+- Curious what's coming? The [roadmap](roadmap.md) covers post-1.0 direction; the [case studies](case-studies/index.md) show the current system on real work.

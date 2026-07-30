@@ -1,6 +1,6 @@
 # Workspace Setup
 
-GDD isn't just for coding. The same workspace drives software work *and* non-developer work — personal organizing, research notes, or a knowledge base in an Obsidian-vault hoard. This page is the one-stop setup reference; for a guided first run, see [Getting Started](getting-started/index.md).
+GDD isn't just for coding. The same workspace drives software work *and* non-developer work — personal organizing, research notes, or a knowledge base in an Obsidian-vault hoard. This page is the one-stop setup reference; for a guided first run, see [Getting Started](getting-started.md).
 
 **You don't have to do this by hand.** If an AI agent is already running in the workspace, just ask it to set up the prerequisites — it can run the `winget` / `brew` / `apt` installs for you and tell you when to restart your shell. The rest of this page is what it (or you) will work through.
 
@@ -80,7 +80,9 @@ ws list          # what components the ecosystem declares
 ws clone --all   # clone them locally (or one: ws clone <comp>)
 ```
 
-For a guided, narrated first run — identity + auth setup, cloning a component, and the full edit → PR → review → deploy loop on a tiny target — follow [Getting Started](getting-started/index.md). New here? Start a session and ask the agent to **walk you through the tutorial** with mentoring on — it'll scaffold the `gh-pages` tutorial (`ws component init gh-pages …`) and narrate the whole GDD loop.
+Working from an IDE? `ws vscode` generates a `yggdrasil.code-workspace` file from your currently cloned components (re-run it after cloning more); JetBrains users open `yggdrasil/` and attach component directories as modules. IDE workspace files stay untracked — they vary per developer and per set of cloned components.
+
+For a guided, narrated first run — identity + auth setup, cloning a component, and the full edit → PR → review → deploy loop on a tiny target — follow [Getting Started](getting-started.md). New here? Start a session and ask the agent to **walk you through the tutorial** with mentoring on — it'll scaffold the `gh-pages` tutorial (`ws component init gh-pages …`) and narrate the whole GDD loop.
 
 ## Workspace shape
 

@@ -57,12 +57,20 @@ setup() {
     [[ "$output" == *"Pipes"* ]]
 }
 
-@test "deny: grep with | redirects to Grep tool (specific message)" {
-    # Common false-positive case: regex alternation contains a literal
-    # | inside the quoted pattern. The hook can't distinguish that
-    # from a shell pipe, but it CAN recognize that the right answer
-    # for any grep-with-| invocation is to use the Grep tool.
+@test "masking: quoted regex alternation no longer trips the grep pipe arm" {
+    # Regex alternation inside a quoted pattern is literal data to
+    # grep — quoted-span masking now removes it from Tier-1's view in
+    # both quoting styles, so the functional command runs instead of
+    # bouncing off a corrective deny.
     run_hook 'grep -E "a|b" file.txt'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "deny: grep piping into another command still redirects to Grep tool" {
+    # The masked string retains the UNQUOTED pipe, so a genuine
+    # grep-headed pipeline keeps its specific corrective message.
+    run_hook 'grep -E "a|b" file.txt | head'
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"Grep tool"* ]]
@@ -637,7 +645,11 @@ JSON
 
     run_hook "'w\\s' status"
 
-    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    # Single-quote masking removes the backslash from Tier-1's view, so
+    # this no longer lands on the backslash ask — but the security
+    # property is that the smuggled spelling must never AUTO-ALLOW.
+    # The raw string (quotes, backslash and all) is what the allowlist
+    # matcher sees, and it does not match `ws status`.
     [[ "$output" != *'"permissionDecision":"allow"'* ]]
 }
 
@@ -659,15 +671,19 @@ JSON
 # and later Tier 1 arms (redirect, newline) must still fire after a
 # token is normalized.
 
-@test "ask: bare backslashed drive path remains shell-escape ambiguous" {
+@test "deny: bare backslashed drive path is known-broken and teaches the fix" {
     write_project_hook_rules ""
     write_project_settings 'Bash(git -C * status)'
 
     run_hook 'git -C D:\Dev\GitWS\yggdrasil status'
 
+    # Bash strips the single backslashes before git runs (the -C target
+    # arrives as D:DevGitWSyggdrasil), so approving an ask would just run
+    # a command that acts on the wrong path. Deny with the working
+    # respellings instead of deferring the confusion to the human.
     [ "$status" -eq 0 ]
-    [[ "$output" == *'"permissionDecision":"ask"'* ]]
-    [[ "$output" == *"Backslash escapes"* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Unquoted Windows path"* ]]
 }
 
 @test "allow: single-quoted backslash drive path matches the allowlist" {
@@ -742,6 +758,473 @@ JSON
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     [[ "$output" == *"Newline-separated"* ]]
+}
+
+# ─── Single-quote masking (Tier 1 sees bash's parse) ────────────────
+#
+# Bash gives single-quoted content zero special meaning, so operator
+# substrings inside single quotes must not trip Tier-1 arms — that
+# false-positive class (BRE alternation in grep patterns, semicolons
+# in message strings, pipes in yq expressions) was the workspace's
+# dominant source of pointless prompts. Everything OUTSIDE single
+# quotes must keep exactly its old classification, and the bail-outs
+# (unquoted backslash, unterminated quote) must stay conservative.
+
+@test "masking: BRE alternation inside single quotes passes Tier 1" {
+    seed_real_project_config
+
+    run_hook "grep -rn 'samples/\\|case-studies' docs/"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+    [[ "$output" != *"Backslash escapes"* ]]
+}
+
+@test "masking: single-quoted semicolon is data, not composition" {
+    seed_real_project_config
+
+    run_hook "printf '%s' 'a; b'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "masking: single-quoted pipe is data, not a pipeline" {
+    seed_real_project_config
+
+    run_hook "printf 'a|b'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "masking: newline inside single quotes is data, not a separator" {
+    seed_real_project_config
+
+    run_hook $'printf \'a\nb\''
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Newline-separated"* ]]
+}
+
+@test "masking: unquoted operator after a masked span still denies" {
+    seed_real_project_config
+
+    run_hook "printf 'a' ; ls"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Shell composition"* ]]
+}
+
+@test "masking: expansion-free double-quoted operators are data (Phoenix case)" {
+    seed_real_project_config
+
+    run_hook 'grep -rn "AnnotationTypeWriter\|writeAnnotation" --include=*.java src/'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+    [[ "$output" != *"Backslash escapes"* ]]
+}
+
+@test "masking: defused dollar inside double quotes does not ask" {
+    seed_real_project_config
+
+    run_hook 'grep -c "\$" build/annotations.idx'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"parameter expansion"* ]]
+    [[ "$output" != *"Backslash escapes"* ]]
+}
+
+@test "masking: live dollar inside double quotes still reaches the expansion ask" {
+    seed_real_project_config
+
+    run_hook 'echo "value: $SECRET"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"parameter expansion"* ]]
+}
+
+@test "masking: command substitution inside double quotes still denies" {
+    seed_real_project_config
+
+    run_hook 'echo "now: $(date)"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"substitution"* ]]
+}
+
+@test "masking: unterminated single quote bails out to the ask" {
+    seed_real_project_config
+
+    run_hook "echo 'a\\"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"Backslash escapes"* ]]
+}
+
+@test "masking: backslash beside a live dollar in double quotes still prompts" {
+    seed_real_project_config
+
+    # The bare $ keeps the whole span visible to Tier 1, so the span's
+    # backslash stays subject to classification — the expansion ask
+    # (checked before the backslash arm) fires.
+    run_hook 'grep "$prefix\|fallback" file.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: bash -c interpreter passthrough is human-gated" {
+    seed_real_project_config
+
+    run_hook "bash -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: sh -c interpreter passthrough is human-gated" {
+    seed_real_project_config
+
+    run_hook "sh -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: absolute-path interpreter passthrough is gated too" {
+    seed_real_project_config
+
+    run_hook "/bin/bash -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env-prefixed interpreter passthrough is gated too" {
+    seed_real_project_config
+
+    run_hook "env FOO=1 bash -c 'echo hi'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: append-assignment prefix cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "X+=:/tmp bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: indexed-array assignment cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "A[0]=x bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: single-character env assignment cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "env X=1 bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: option-bearing bash -c interpreter passthrough is gated" {
+    seed_real_project_config
+
+    run_hook "bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: combined-option bash -lc interpreter passthrough is gated" {
+    seed_real_project_config
+
+    run_hook "bash -lc 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted absolute option-bearing interpreter passthrough is gated" {
+    seed_real_project_config
+
+    run_hook '"/bin/bash" --noprofile -c "echo first; echo second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env split-string command construction is human-gated" {
+    seed_real_project_config
+
+    run_hook 'env -S "bash --noprofile -c echo-first;echo-second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted env wrapper cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook '"/usr/bin/env" bash --noprofile -c "echo first; echo second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env argv0 operand cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "env -a spoof bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: env alternate-path operand cannot hide interpreter passthrough" {
+    seed_real_project_config
+
+    run_hook "env -P /bin bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: unknown combined env options fail closed" {
+    seed_real_project_config
+
+    run_hook "env -iu NAME bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: exec-wrapped interpreter passthrough is human-gated" {
+    seed_real_project_config
+
+    run_hook "exec bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted interpreter fragments cannot hide passthrough" {
+    seed_real_project_config
+
+    run_hook "bas''h --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted wrapper fragments cannot hide passthrough" {
+    seed_real_project_config
+
+    run_hook "e''nv bash --noprofile -c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: quoted option fragments cannot hide passthrough" {
+    seed_real_project_config
+
+    run_hook "bash --noprofile '-'c 'echo first; echo second'"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: double-quoted line continuation cannot hide interpreter" {
+    seed_real_project_config
+
+    run_hook $'"bas\\\nh" --noprofile -c "echo first; echo second"'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser ignores an unrelated quoted-space executable path" {
+    seed_real_project_config
+
+    run_hook '"C:/Program Files/tool.exe" --version'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser consumes an attached -O option operand" {
+    seed_real_project_config
+
+    run_hook "bash -Ocompat31 script.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser consumes an attached -o option operand" {
+    seed_real_project_config
+
+    run_hook "bash -onoclobber script.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser stops at a script operand before a later -c" {
+    seed_real_project_config
+
+    run_hook "bash script.sh -c"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "interpreter parser stops at the option terminator before a later -c" {
+    seed_real_project_config
+
+    run_hook "bash -- -c"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "masking: double-quoted Windows path is not treated as bare/unquoted" {
+    seed_real_project_config
+
+    run_hook 'git -C "D:\Dev\GitWS\yggdrasil" status'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Unquoted Windows path"* ]]
+}
+
+@test "masking: quoted drive path in a bailed-out command asks, not the bare-path deny" {
+    seed_real_project_config
+
+    # A spaced quoted path defeats the token normalizer (word split), and
+    # the trailing unquoted backslash makes masking bail to the raw
+    # string — so the backslash arm sees the word `"D:\Dev`. Quote-led
+    # words must reach the generic ask: the bare-path deny's premise
+    # (bash strips the backslashes) is false for quoted content.
+    run_hook 'cp "D:\Dev My\a.txt" x\'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" != *"Unquoted Windows path"* ]]
+}
+
+# ─── gh repo fork → ws clone-fork redirect ──────────────────────────
+
+@test "redirect: ws gh repo fork points at ws clone-fork" {
+    seed_real_project_config
+
+    run_hook 'ws gh repo fork Terasology/CoreWorlds --org SiliconSaga --clone=false'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws clone-fork"* ]]
+}
+
+@test "redirect: raw gh repo fork gets the clone-fork pointer, not the generic gh one" {
+    seed_real_project_config
+
+    run_hook 'gh repo fork Terasology/CoreWorlds --clone=false'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws clone-fork"* ]]
+}
+
+@test "ask: ws clone-fork --add-to-ecosystem is the component trust gate" {
+    seed_real_project_config
+
+    run_hook 'ws clone-fork --url https://github.com/x/y.git --add-to-ecosystem'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "ask: ws clone-fork --add-eco alias is gated the same way" {
+    seed_real_project_config
+
+    run_hook 'ws clone-fork --url https://github.com/x/y.git --add-eco'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+# ─── working-tree-mutating gh subcommands at the workspace root ─────
+#
+# `ws gh` has no target and runs at the workspace root, so gh
+# subcommands that rewrite the repo they stand in (`pr checkout`,
+# `repo sync`) hit the WORKSPACE tree — this silently replaced
+# yggdrasil's scripts/ with a Terasology PR on 2026-07-27 (Phoenix).
+# The redirect turns that silent clobber into a corrective pointer at
+# the ws exec form, which must itself never match the redirect.
+
+@test "redirect: ws gh pr checkout denies with the ws exec pointer" {
+    seed_real_project_config
+
+    run_hook 'ws gh pr checkout 5334 --repo MovingBlocks/Terasology'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"workspace ROOT"* ]]
+    [[ "$output" == *"ws exec"* ]]
+}
+
+@test "redirect: raw gh pr checkout gets the same protection" {
+    seed_real_project_config
+
+    run_hook 'gh pr checkout 5334 --repo MovingBlocks/Terasology'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws exec"* ]]
+}
+
+@test "redirect: ws gh repo sync denies toward ws pull / ws exec" {
+    seed_real_project_config
+
+    run_hook 'ws gh repo sync'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws pull"* ]]
+}
+
+@test "redirect: the recommended ws exec form does not match its own redirect" {
+    seed_real_project_config
+
+    run_hook 'ws exec terasology gh pr checkout 5334'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" != *"workspace ROOT"* ]]
+}
+
+@test "allow-path: non-mutating ws gh subcommands are untouched by the guard" {
+    seed_real_project_config
+
+    run_hook 'ws gh pr view 5338 --repo MovingBlocks/Terasology'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
 # ─── Tier 6: [allow-extras] from hook-rules.local ───────────────────

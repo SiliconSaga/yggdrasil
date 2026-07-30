@@ -91,7 +91,7 @@ Reference forms in skill bodies:
 3. **`ws <cmd>`** in preference to raw `git` / `gh` / `glab` / runners (see Reflex Contract).
 4. **One command at a time.** Don't bundle with `;` `&&` `|`. The PreToolUse hook denies shell composition — use separate tool calls and native `ws` flags (`--compact`, `--limit N`, `--output <phrase>`) instead of pipes.
 5. **No raw `git`/`gh`/`glab`** for the unconditional verbs above. Wrappers handle attribution, auth, remote selection — raw tools won't.
-6. **No hard-wrapped prose.** Write each paragraph as a single line and let editors / renderers handle wrap. Code blocks, tables, lists, and YAML frontmatter are exempt.
+6. **No hard-wrapped prose.** Write each paragraph as a single line and let editors / renderers handle wrap. Code blocks, tables, and YAML frontmatter are exempt; list *structure* is too (one line per item), but each bullet's own text is still a single line — never wrap inside a bullet.
 7. **Prefer native file tools over shelling out.** Use your harness's file read / write / edit tools to inspect or change files rather than `cat` / `echo` / `sed` / `tee` — clearer, and it sidesteps the shell-composition and redirection hooks. When you genuinely need a throwaway helper script (a poll loop, a one-off probe), put it under the workspace `.tmp/` (gitignored, swept by `ws clean`), never `/tmp`.
 
 ---
@@ -106,9 +106,10 @@ The orientation skill is the right starting point; these pointers are here so a 
 - [`docs/workspace-setup.md`](docs/workspace-setup.md) — prerequisites, PATH setup, workspace shape (components/realms/hoards), agent permissions.
 - [`docs/git-provider-setup.md`](docs/git-provider-setup.md) — auth, token scopes, `.env` setup.
 - [`docs/code-style.md`](docs/code-style.md) — commenting + documentation conventions.
-- [`docs/ide-setup.md`](docs/ide-setup.md) — VS Code, JetBrains, terminal editor setup.
 - [`.claude/hooks/README.md`](.claude/hooks/README.md) — PreToolUse hook tiers, redirect/bypass mechanics.
 - [`docs/plans/2026-04-24-realms-and-hoards-design.md`](docs/plans/2026-04-24-realms-and-hoards-design.md) — realms + hoards model.
 - [`docs/plans/2026-04-25-component-templates-design.md`](docs/plans/2026-04-25-component-templates-design.md) — `ws component init` flavors.
 
 Issue / CR / commit draft templates live in `templates/`; gitignored draft clearinghouses live in `.issues/` `.crs/` `.commits/`. The `ws clean` subcommand purges them when stale.
+
+**Change-note brevity.** Commit, CR, and issue prose runs on a budget: subjects do the talking, and bodies carry only what the diff can't show — evidence, traps, significance. Never re-narrate the diff in a commit body, and never re-narrate the commits in a CR body (the provider renders them right below it). `style.changeNotes` in ecosystem config (`terse` | `standard` | `detailed`, default `standard`) tunes the budget — realms carry community norms, `ecosystem.local.yaml` personal ones, and `ws orient` surfaces the active value. Per-level budgets live in the `templates/` files themselves.

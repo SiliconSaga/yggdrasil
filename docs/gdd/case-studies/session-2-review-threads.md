@@ -67,7 +67,7 @@ This is the parallel session to Session 1 (the commit bodyfile work). The two se
 
 *The final command surface:*
 
-```
+```text
 ws review <comp> threads <pr#> [--status | --resolve <id> | --resolve-all]
 ws review <comp> <pr#> [--reviewer <name>] [--since <time>]
 ```
@@ -123,7 +123,7 @@ Several tangential observations were captured to Thalamus during brainstorming r
 
 **Human:** Go ahead and use this automation to resolve those review comments. They have been addressed from another workspace. Let us see it work.
 
-```
+```console
 $ ws review yggdrasil threads 19 --resolve-all
 Resolved 6 threads on PR #19 (SiliconSaga/yggdrasil).
 

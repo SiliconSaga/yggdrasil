@@ -2,11 +2,11 @@
 
 The fastest way to experience GDD is to clone the yggdrasil workspace and start a session with **mentoring** on — the AI will explain the workspace, the methodology, and the tools as you go. You don't need to understand everything upfront.
 
-If you'd rather see what's in the box first before diving in, the [GDD Features Tour](../gdd/features.md) is a quick read covering the workspace, realms, hoards, component templates, the bot-driven review loop, stances, and permissions.
+If you'd rather see what's in the box first before diving in, the [GDD Features Tour](gdd/features.md) is a quick read covering the workspace, realms, hoards, component templates, the bot-driven review loop, stances, and permissions.
 
 Note that this currently assumes a variety of prerequisites:
 
-- You're using Claude Code as your AI agent (Codex and more are on the [roadmap](../gdd/roadmap.md))
+- You're using Claude Code as your AI agent (Codex and more are on the [roadmap](gdd/roadmap.md))
 - You're using GitHub or GitLab for version control (Gitea/Forgejo planned)
 - You're using a Unix-like shell (Linux, macOS, WSL, Git Bash)
 - **Recommended**: [Obra Superpowers](https://github.com/obra/superpowers) installed in your agent. GDD's implementation plans and several practices (brainstorming, TDD, executing plans, subagent-driven development, code review) reference `superpowers:*` skills. Everything still works without it, but you'll see references to skills the agent can't load. The orientation skill checks for Superpowers at session start and nudges you to install if missing.
@@ -27,7 +27,7 @@ A *template* is a forkable scaffold. An *instance* is the on-disk result of runn
 
 ### Before you start: bootstrap
 
-Two foundational pieces have to be in place before any of the rest of the walkthrough works. Skim these and skip whichever you already have.
+Git is the one thing needed before anything else — it does the cloning (and on Windows brings the shell). A GitHub or GitLab account only matters from the auth step onward, so you can clone and run the preflight check first and sort the account out when you get there. Skim these and skip whichever you already have. (This page keeps to the happy path; the full prerequisite reference — per-OS install table, PATH details, Windows wrinkles — is [Workspace Setup](workspace-setup.md).)
 
 #### Install Git
 
@@ -77,7 +77,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
 
    For GitLab fork groups, also set `identity.homes.fork.namespace` to the full fork-home namespace, such as `gitlab.example.com/my-team/gdd/alice-fork-group`.
 
-3. **Set up auth** — follow the [Git Provider Setup](../git-provider-setup.md) guide to configure your provider token in `.env` and install the CLI tools (`gh` for GitHub, `glab` for GitLab). This enables the `ws` CLI to push, file issues, and manage PRs/MRs.
+3. **Set up auth** — follow the [Git Provider Setup](git-provider-setup.md) guide to configure your provider token in `.env` and install the CLI tools (`gh` for GitHub, `glab` for GitLab). This enables the `ws` CLI to push, file issues, and manage PRs/MRs.
 
 4. **Add `ws` to your PATH** — all workspace operations go through the `ws` CLI. Adding `scripts/` to your PATH lets you run `ws <command>` directly instead of the longer `bash scripts/ws <command>` form. It also means `ws` always resolves paths relative to the workspace root, so it works correctly no matter which directory you (or an AI agent) run it from:
 
@@ -87,7 +87,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
    echo "export PATH=\"$(pwd)/scripts:\$PATH\"" >> ~/.bashrc  # bash
    ```
 
-   Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal. Run `ws help` to verify.
+   Then reload your shell (`source ~/.zshrc` / `source ~/.bashrc`) or open a new terminal. Run `ws help` to verify. (Windows has a few PATH wrinkles — bash outside Git Bash, MSYS path mangling — covered in [Workspace Setup](workspace-setup.md#add-scripts-to-your-path) if you hit them.)
 
 5. **Scaffold your first component** — the GitHub Pages tutorial is the recommended first target. It needs nothing beyond the setup above (no community configuration, no existing project):
 
@@ -111,7 +111,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
 
 7. **Say hello.** The GDD orientation will kick in automatically — it'll mention Thalamus, ask about your stance, and ask what you want to work on.
 
-   **Heads-up about the "scary red" output you might see early on.** In the first few tool calls of a session, you'll often see the agent get a stream of red-looking error messages — things like "Output / input redirection is disallowed" or "File-descriptor merges aren't needed". Those aren't crashes. They're the workspace's PreToolUse hook gently rejecting the agent's generic shell habits and pointing at the local way to do the same thing. The agent reads each message on its next turn and retries; after a handful of denies it has the conventions cached and the noise drops to nearly zero. Nothing was harmed (the rejected commands never ran). See [agent-training.md](../gdd/agent-training.md) for the full explanation if you're curious.
+   **Heads-up about the "scary red" output you might see early on.** In the first few tool calls of a session, you'll often see the agent get a stream of red-looking error messages — things like "Output / input redirection is disallowed" or "File-descriptor merges aren't needed". Those aren't crashes. They're the workspace's PreToolUse hook gently rejecting the agent's generic shell habits and pointing at the local way to do the same thing. The agent reads each message on its next turn and retries; after a handful of denies it has the conventions cached and the noise drops to nearly zero. Nothing was harmed (the rejected commands never ran). See [agent-training.md](gdd/agent-training.md) for the full explanation if you're curious.
 
 8. **Ask for the mentoring overlay.** This is the key for your first session:
 
@@ -130,7 +130,7 @@ That's enough to get through this walkthrough. The token + CLI setup (Step 3 bel
 
 ## What Happens Next
 
-As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root). Once you work from more than one machine, a *thalami hoard* gives it a git-synced, per-machine home — see [Hoards](../gdd/hoards.md) when you get there.
+As you work, the AI captures observations in the **Thalamus** — a shared thinking space that persists between sessions. You can write thoughts there too (it's just a markdown file at `Thalamus.md` in the workspace root). Once you work from more than one machine, a *thalami hoard* gives it a git-synced, per-machine home — see [Hoards](gdd/hoards.md) when you get there.
 
 After a few sessions, try **housekeeping** — review what's accumulated, promote useful observations to issues or skill updates, prune what's resolved. This is how GDD improves itself through use.
 
@@ -139,7 +139,7 @@ When you're comfortable, try other stances:
 - **Quick** for 15-minute sessions between other responsibilities
 - **Zen** for deep work sessions where you want full ceremony
 
-See the [GDD overview](../gdd/index.md) for the full methodology, or the [case studies](../gdd/case-studies.md) for what GDD looks like on real work.
+See the [GDD overview](gdd/index.md) for the full methodology, or the [case studies](gdd/case-studies/index.md) for what GDD looks like on real work.
 
 ## Explore a community's components
 
@@ -158,7 +158,7 @@ The SiliconSaga catalog leans toward homelab Kubernetes and indie game dev. A fe
 - **terasology** — a voxel game (Java). Make a quick content change and see it in-game.
 - **destinationsol** — a space shooter (Java). Same idea — tweak something visible and run it.
 
-A realm is a higher-trust adoption than cloning a single repo — it carries agent instructions and adapter commands that flow into your sessions (see [Trust and Safety](../gdd/trust-and-safety.md)). Adopt realms from communities you're actually joining; for casual exploration, cloning individual repos with `ws clone --url` is the lighter touch.
+A realm is a higher-trust adoption than cloning a single repo — it carries agent instructions and adapter commands that flow into your sessions (see [Trust and Safety](gdd/trust-and-safety.md)). Adopt realms from communities you're actually joining; for casual exploration, cloning individual repos with `ws clone --url` is the lighter touch.
 
 ## Bringing GDD to Your Own Community
 
@@ -196,4 +196,4 @@ When you make it your own, tutorial components are just independent repos in `co
 
 The realm also solves multi-workspace sharing: same realm repo on different machines gives you consistent configuration, while `ecosystem.local.yaml` handles per-machine differences.
 
-The realm architecture is implemented today; multi-realm inheritance (corporate → department → team chains) and a community marketplace for hoard templates remain forward-looking — see the [GDD design docs](../gdd/index.md) for the broader trajectory.
+The realm architecture is implemented today; multi-realm inheritance (corporate → department → team chains) and a community marketplace for hoard templates remain forward-looking — see the [GDD design docs](gdd/index.md) for the broader trajectory.

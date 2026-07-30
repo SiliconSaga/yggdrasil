@@ -6,7 +6,7 @@ Compare with the [pre-housekeeping snapshot](thalamus-primary.md) to see what ch
 
 # Thalamus frontmatter — read by orientation skill on session start
 
-```
+```yaml
 last_session: 2026-03-24
 last_audit: 2026-03-24
 staleness_days: 14  # suggest housekeeping after this many days without audit

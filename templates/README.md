@@ -14,13 +14,9 @@ Workspace scaffolding used by `ws` commands and `ws hoard init`.
 ## Subdirectories
 
 - `hoards/` — templates for `ws hoard init <type>` (e.g. `thalami/`).
-- `components/` — templates for `ws component init <flavor> <name>`
-  (e.g. `gh-pages/` — a tutorial-friendly GitHub Pages site).
-- `external/` — gitignored landing area for fetched / externally-sourced
-  templates (future "marketplace" use). Tracked only by `.gitkeep`.
+- `components/` — templates for `ws component init <flavor> <name>` (e.g. `gh-pages/` — a tutorial-friendly GitHub Pages site).
+- `external/` — gitignored landing area for fetched / externally-sourced templates (future "marketplace" use). Tracked only by `.gitkeep`.
 
 ## Leaf-to-directory promotion
 
-A template starts as a single file (e.g. `thalamus.md`). If it grows
-multi-file, it becomes a directory (`thalamus/`) containing an entry file
-(by convention `default.md`). Consumers should resolve in that order.
+A template starts as a single file (e.g. `thalamus.md`). If it grows multi-file, it becomes a directory (`thalamus/`) containing an entry file (by convention `default.md`). Consumers should resolve in that order.

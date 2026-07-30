@@ -16,7 +16,7 @@ The biggest post-1.0 track. The portable layers are already agent-neutral — `A
 
 ## Assisted access and support — reaching non-developers
 
-The other big post-1.0 track: lowering the barrier for people who aren't developers, and handling the support that comes with them. The throughline is *see it, say it, ship it — and get help when stuck*. Several pieces, most already prototyped or designed against real dogfood runs (see [case studies](case-studies.md)):
+The other big post-1.0 track: lowering the barrier for people who aren't developers, and handling the support that comes with them. The throughline is *see it, say it, ship it — and get help when stuck*. Several pieces, most already prototyped or designed against real dogfood runs (see [case studies](case-studies/index.md)):
 
 - **PR preview deploys + visual diffs** — every pull request to a gh-pages (or other static-site) component gets a live preview URL and an automatic before/after screenshot comparison posted to the PR, so a non-developer can *see* a change before it ships instead of reading a diff. Pure GitHub Actions — no third-party service, no API key — so it ports to any Pages component. Design and first implementation plan are written.
 - **Chat-channel agents** — GDD driven from a phone over chat. Claude Code's official channel plugins (Discord, Telegram, iMessage) turn a direct message into an agent session: the user describes a change, the agent opens a PR, CI builds the preview and diff, the bot replies with a link and the diff image, and a reply of "ship it" merges. The user never touches git directly; the PR remains the audit trail underneath. Voice comes free from the phone's own dictation — no bespoke voice feature needed. A **web-development concierge** persona pairs this loop with a site; and because a long-lived chat session eventually fills its context, the agent watches for that and offers a gentle *"good time to start fresh?"* — archiving the session and re-orienting from its persistent notes so nothing important is lost.
@@ -41,7 +41,7 @@ The [Guarded Kubernetes tutorial](../tutorials/guarded-kubernetes.md) and the gh
 
 - **A multi-phase newcomer arc** — describe GDD and its basics first, then a local-only starter tutorial (plain HTML edited and previewed in a browser — no credentials, no remote, no custom tooling), and only then "graduate" into realms, adapters, and remote workflows. The same phasing naturally starts newcomers on a single-machine local Thalamus and introduces the thalami hoard when they actually go multi-machine. GA testing showed the current intro reaches realm setup before a newcomer knows what GDD *is*.
 - **More component template flavors** — local frontend (vanilla JS), local backend (per-language where adapters exist), a full-stack mini, and an MCP server template. Multiple flavors also let learners exercise the multi-machine thalami sync by switching projects across sessions.
-- **A refreshed end-to-end onboarding pass** — re-testing the newcomer path on clean machines and folding the friction findings back in (this is continuous — see the [case studies](case-studies.md) for how a real dogfood run feeds the framework).
+- **A refreshed end-to-end onboarding pass** — re-testing the newcomer path on clean machines and folding the friction findings back in (this is continuous — see the [case studies](case-studies/index.md) for how a real dogfood run feeds the framework).
 - **Progress checklists that graduate into task lists** — GA testing confirmed a simple checkbox progress view lands well early; wiring it into a formal tracked task list once a learner starts something concrete (like the gh-pages tutorial) is the natural next step.
 - **Richer scaffolding** (further out) — backing `ws component init` with a real templating system rather than a copy, connecting to the template-upgrade machinery hoards already have.
 
@@ -51,7 +51,7 @@ A solid 1.x community-oriented feature. Today's Thalamus is deliberately one hum
 
 ## Flagship writeups
 
-The methodology docs explain how GDD works; longer-form pieces about *why* and *what it's like* are queued: an "age of personalized software" thesis piece, after-action reports from real builds, and expansion of the [case studies](case-studies.md). Raw material exists; writing time is the constraint.
+The methodology docs explain how GDD works; longer-form pieces about *why* and *what it's like* are queued: an "age of personalized software" thesis piece, after-action reports from real builds, and expansion of the [case studies](case-studies/index.md). Raw material exists; writing time is the constraint.
 
 ## CLI and infrastructure ideas — waiting on evidence of need
 

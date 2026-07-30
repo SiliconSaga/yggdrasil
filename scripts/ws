@@ -13,6 +13,9 @@
 #   clone [comp|--all|--url <url> [--name N] [--add-to-ecosystem]] Clone components
 #   clone-fork <comp>  Fork-aware clone: ensure fork exists, clone fork, wire
 #                      both remotes, sync main with upstream. Idempotent.
+#   clone-fork --url <url> [--name N] --add-to-ecosystem
+#                      Same flow for an undeclared source repo — declares it
+#                      in ecosystem.local.yaml on the way in.
 #   pull [comp]       Pull all or one component
 #   vscode            Generate VS Code workspace file
 #   push [comp] [branch|tag] [--force] Push branch or tag (remote from identity.forkRemote)

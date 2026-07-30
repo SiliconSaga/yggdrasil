@@ -188,6 +188,22 @@ fi
 
 cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 
+# Native Windows jq writes its output stream in text mode, translating every
+# LF to CRLF — so a command with an embedded newline reaches this hook with
+# an injected CR the harness will never execute (bash line-continuation
+# parsing then misses, and quote-state walkers see a stray control char).
+# The translation is exactly invertible: content LF → CRLF and content CRLF
+# → CR+CRLF, so collapsing CRLF back to LF restores the original string
+# byte-for-byte. Probe the jq binary once and undo only when it translates —
+# POSIX jq passes through untouched, and a genuine lone CR (the Tier-1
+# deny case) survives on both.
+if [[ "$cmd" == *$'\r\n'* ]]; then
+    _jq_probe="$(jq -rn '"a\nb"')"
+    if [[ "$_jq_probe" == *$'\r'* ]]; then
+        cmd="${cmd//$'\r\n'/$'\n'}"
+    fi
+fi
+
 # Externally-supplied paths (payload cwd/file_path, CLAUDE_PROJECT_DIR)
 # arrive in whatever form the host favors — POSIX /tmp/x, C:/x, or D:\x on
 # Windows, and any mix of the three for the SAME location once MSYS path
@@ -923,6 +939,126 @@ _normalize_windows_path_tokens() {
 }
 cmd="$(_normalize_windows_path_tokens "$cmd")"
 
+# ─── Quoted-span masking for Tier-1 classification ──────────────────
+#
+# Bash gives single-quoted content zero special meaning, and
+# double-quoted content is equally inert as long as no LIVE `$` or
+# backtick sits inside (a backslash before an ordinary character is
+# literal there; `\$` and `` \` `` are defused to literals). A `\|`
+# in a grep pattern, a `;` in a commit message, a `&` in a URL cannot
+# hide a shell operator from inside either quoting style. Tier 1's
+# substring matching over quoted content was the workspace's dominant
+# false-positive source (85 asks across two sessions on 2026-07-26,
+# most of them BRE alternation in quoted grep patterns). Mask
+# properly-terminated quoted spans — content dropped, `''`/`""` kept
+# as a token placeholder — and run Tier 1 over the masked string so
+# operator arms see the command the way bash parses it. Every later
+# tier still sees the full command.
+#
+# A double-quoted span containing a bare `$` or backtick is kept
+# VERBATIM (quotes and all): expansion and substitution are live
+# there and must keep reaching their Tier-1 arms. The pairwise `\x`
+# consume inside double quotes means `\"` cannot flip the state and
+# `\$` does not count as a live dollar.
+#
+# Conservative bail-outs (return the raw string, so Tier 1 behaves
+# exactly as before): an unquoted backslash anywhere (it escapes the
+# next character, making downstream quote boundaries untrustworthy),
+# or an unterminated quote at end of string.
+#
+# Posture note: this means quoted payloads to interpreters
+# (`bash -c 'anything'`) no longer trip Tier-1 substring denies. The
+# compensating controls are the prefix parser below and the common-form
+# ask-list entry in hook-rules — the interpreter passthrough is the risk
+# there, not the quoting.
+_mask_quoted_spans() {
+    local raw="$1"
+    if [[ "$raw" != *"'"* && "$raw" != *'"'* ]]; then
+        printf '%s' "$raw"
+        return
+    fi
+    local out="" c nxt span="" span_live=0 state="plain"
+    local -i i n=${#raw}
+    for ((i = 0; i < n; i++)); do
+        c="${raw:$i:1}"
+        case "$state" in
+            plain)
+                case "$c" in
+                    "'") state="single"; out+="''" ;;
+                    '"') state="double"; span=""; span_live=0 ;;
+                    "\\") printf '%s' "$raw"; return ;;
+                    *) out+="$c" ;;
+                esac
+                ;;
+            single)
+                [[ "$c" == "'" ]] && state="plain"
+                ;;
+            double)
+                case "$c" in
+                    "\\")
+                        nxt=""
+                        [[ $((i + 1)) -lt $n ]] && nxt="${raw:$((i + 1)):1}"
+                        span+="$c$nxt"
+                        i=$((i + 1))
+                        ;;
+                    '"')
+                        state="plain"
+                        if [[ "$span_live" == "1" ]]; then
+                            out+="\"$span\""
+                        else
+                            out+='""'
+                        fi
+                        ;;
+                    '$'|'`')
+                        span_live=1
+                        span+="$c"
+                        ;;
+                    *) span+="$c" ;;
+                esac
+                ;;
+        esac
+    done
+    if [[ "$state" != "plain" ]]; then
+        printf '%s' "$raw"
+        return
+    fi
+    printf '%s' "$out"
+}
+tier1_cmd="$(_mask_quoted_spans "$cmd")"
+
+# A word containing an unquoted single-backslash drive-letter path is
+# KNOWN-BROKEN, not merely ambiguous: bash strips the backslashes
+# before the program runs (D:\Dev\x arrives as D:Devx), so approving
+# the ask would just run a command that acts on the wrong path and
+# confuses everyone downstream. Deny with the working respellings
+# instead. Doubled backslashes (D:\\Dev\\x) are excluded — bash
+# collapses them to single ones, so that spelling actually works and
+# stays on the generic ask arm.
+_bare_windows_path_word() {
+    local w="$1"
+    # Anchored at word start: a word BEGINNING with a quote is a quoted
+    # path, which only reaches this check when masking bailed out — it
+    # must fall to the generic ask, not the known-broken deny (the
+    # deny's premise, bash stripping the backslashes, is false there).
+    case "$w" in
+        [A-Za-z]:\\*) ;;
+        *) return 1 ;;
+    esac
+    [[ "$w" == *'\\'* ]] && return 1   # doubled backslash — bash collapses it; that spelling works
+    [[ "$w" == *'\' ]] && return 1     # trailing backslash — line continuation, not path stripping
+    return 0
+}
+
+_has_bare_windows_path() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    local w
+    for w in ${words[@]+"${words[@]}"}; do
+        _bare_windows_path_word "$w" && return 0
+    done
+    return 1
+}
+
 # ─── Tier 1: Deny shell composition with corrective messages ────────
 #
 # Order of arms matters in this case statement: the first arm whose
@@ -948,14 +1084,16 @@ cmd="$(_normalize_windows_path_tokens "$cmd")"
 # fires when the ONLY Tier 1 violation is `|` (regex alternation or
 # a grep-pipeline), which is where the corrective message about the
 # Grep tool / pipe-free grep is the right substitute.
-case "$cmd" in
+case "$tier1_cmd" in
     *$'\n'*|*$'\r'*)
         # Embedded newline / CR — bash treats either as a command
         # separator (a literal newline in a string runs whatever
         # follows as a fresh command). Same threat as `;` / `&&`,
         # but easier to miss because it doesn't look like an
         # operator. Catch early so it can't sneak past the other
-        # arms via creative whitespace.
+        # arms via creative whitespace. (A newline masked away above
+        # was inside single quotes — data to the program, not a
+        # separator — and legitimately skips this arm.)
         deny "Newline-separated command lists are disallowed — each line after the first runs as a fresh command, hidden from per-call audit. Issue one command per tool call."
         ;;
     *"&&"*|*"||"*|*";"*)
@@ -991,7 +1129,15 @@ case "$cmd" in
     *"\\"*)
         # Redirect operators are checked first so an otherwise ambiguous bare
         # Windows path cannot downgrade a real shell redirect from deny to ask.
-        ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. For Windows paths, use forward slashes (D:/Dev/...) or wrap the complete drive-letter path in quotes."
+        # Any backslash still visible here sits outside single quotes (masking
+        # above removed the safe ones). The known-broken shape — an unquoted
+        # single-backslash drive-letter path — denies with the working
+        # respellings; everything else keeps the generic ask.
+        if _has_bare_windows_path "$tier1_cmd"; then
+            deny "Unquoted Windows path detected: bash strips single backslashes before the command runs (D:\\Dev\\file arrives as D:Devfile), so this would act on the wrong path. Re-run with the full path quoted (\"D:\\Dev\\file\") or with forward slashes (D:/Dev/file)."
+        else
+            ask "Backslash escapes require human approval because quoting changes whether the backslash is syntax or literal data, and a transformed match could otherwise reach the wrong permission tier. For Windows paths, use forward slashes (D:/Dev/...) or wrap the complete drive-letter path in quotes."
+        fi
         ;;
     *"&"*)
         # Background / command-list separator. By this point `&&` is
@@ -1014,7 +1160,7 @@ case "$cmd" in
         # the corrective text is the more-specific one. Pure
         # `grep <pattern> <file>` (no operators) falls through to
         # Tier 2 — the bare invocation is fine.
-        case "$cmd" in
+        case "$tier1_cmd" in
             *"|"*)
                 deny "Prefer the Grep tool over \`grep ... | ...\` or \`grep -E 'a|b' ...\` when available — it handles regex alternation cleanly and bypasses this hook. If the Grep tool isn't exposed in this Claude Code setup, plain \`grep\` is fine — just avoid \`|\`: drop the pipe, narrow the source files, or use \`grep -E '<alt>'\` without a pipeline. See AGENTS.md or CLAUDE.md for the workspace convention." ;;
         esac
@@ -1023,6 +1169,237 @@ case "$cmd" in
         deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
         ;;
 esac
+
+# Command-string execution is opaque to Tier 1 after safe quoted spans are
+# masked. Parse only the invocation prefix — never the payload — and force
+# an ask when a sh-family interpreter enables command-string mode through
+# -c (including combined short options such as -lc), or when env constructs
+# a command from a split string.
+_split_invocation_words() {
+    local input="$1" current="" state="" char next
+    local -i pos=0 length=${#input} started=0
+    _INVOCATION_WORDS=()
+
+    while [[ "$pos" -lt "$length" ]]; do
+        char="${input:$pos:1}"
+        if [[ -z "$state" ]]; then
+            case "$char" in
+                [[:space:]])
+                    if [[ "$started" -eq 1 ]]; then
+                        _INVOCATION_WORDS+=("$current")
+                        current=""
+                        started=0
+                    fi
+                    ;;
+                "'")
+                    state="single"
+                    started=1
+                    ;;
+                '"')
+                    state="double"
+                    started=1
+                    ;;
+                \\)
+                    [[ $((pos + 1)) -lt "$length" ]] || return 1
+                    pos=$((pos + 1))
+                    current+="${input:$pos:1}"
+                    started=1
+                    ;;
+                *)
+                    current+="$char"
+                    started=1
+                    ;;
+            esac
+        elif [[ "$state" == "single" ]]; then
+            if [[ "$char" == "'" ]]; then
+                state=""
+            else
+                current+="$char"
+            fi
+        else
+            case "$char" in
+                '"')
+                    state=""
+                    ;;
+                \\)
+                    if [[ $((pos + 1)) -lt "$length" ]]; then
+                        next="${input:$((pos + 1)):1}"
+                        case "$next" in
+                            $'\n')
+                                # Bash removes a quoted line continuation
+                                # before forming the invocation word.
+                                pos=$((pos + 1))
+                                ;;
+                            '$'|'`'|'"'|\\)
+                                current+="$next"
+                                pos=$((pos + 1))
+                                ;;
+                            *)
+                                current+="\\"
+                                ;;
+                        esac
+                    else
+                        current+="\\"
+                    fi
+                    ;;
+                *)
+                    current+="$char"
+                    ;;
+            esac
+        fi
+        pos=$((pos + 1))
+    done
+
+    [[ -z "$state" ]] || return 1
+    if [[ "$started" -eq 1 ]]; then
+        _INVOCATION_WORDS+=("$current")
+    fi
+}
+
+_is_shell_assignment_word() {
+    # Bash accepts scalar, append, indexed-array, and associative-array
+    # assignment words here. Treat any identifier-led word containing =
+    # as assignment-shaped; a rare invalid lookalike may ask
+    # conservatively, but cannot hide a later interpreter invocation.
+    [[ "$1" == [A-Za-z_]*=* ]]
+}
+
+_opaque_command_string_requires_ask() {
+    local command="$1" token runner
+    local -a words
+    _split_invocation_words "$command" || return 0
+    words=(${_INVOCATION_WORDS[@]+"${_INVOCATION_WORDS[@]}"})
+    local -i i=0 n=${#words[@]}
+    [[ "$n" -gt 1 ]] || return 1
+
+    # Skip transparent wrappers and leading assignments. The word
+    # splitter above models invocation-prefix quoting without executing
+    # expansions; this parser deliberately recognizes only a small,
+    # auditable wrapper and option subset.
+    while [[ "$i" -lt "$n" ]]; do
+        token="${words[$i]}"
+        if _is_shell_assignment_word "$token"; then
+            i=$((i + 1))
+            continue
+        fi
+        case "$token" in
+            env|*/env)
+                i=$((i + 1))
+                while [[ "$i" -lt "$n" ]]; do
+                    token="${words[$i]}"
+                    case "$token" in
+                        --)
+                            i=$((i + 1))
+                            while [[ "$i" -lt "$n" && "${words[$i]}" == ?*=* ]]; do
+                                i=$((i + 1))
+                            done
+                            break
+                            ;;
+                        -S|-S?*|--split-string|--split-string=*)
+                            # env parses this operand into an executable
+                            # command, so the nested invocation is opaque to
+                            # this prefix parser.
+                            return 0
+                            ;;
+                        -u|--unset|-C|--chdir|-a|--argv0|-P)
+                            [[ $((i + 1)) -lt "$n" ]] || return 1
+                            i=$((i + 2))
+                            ;;
+                        -u?*|-C?*|-a?*|-P?*|--unset=*|--chdir=*|--argv0=*)
+                            i=$((i + 1))
+                            ;;
+                        -i|--ignore-environment|-0|--null|-v|--debug)
+                            i=$((i + 1))
+                            ;;
+                        --help|--version)
+                            return 1
+                            ;;
+                        -*)
+                            # Unknown env options may consume the following
+                            # token. Fail closed rather than guessing where
+                            # the nested executable begins.
+                            return 0
+                            ;;
+                        ?*=*)
+                            i=$((i + 1))
+                            ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            command|*/command)
+                i=$((i + 1))
+                while [[ "$i" -lt "$n" ]]; do
+                    case "${words[$i]}" in
+                        --|-p) i=$((i + 1)) ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            exec|*/exec)
+                i=$((i + 1))
+                while [[ "$i" -lt "$n" ]]; do
+                    token="${words[$i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -a)
+                            [[ $((i + 1)) -lt "$n" ]] || return 1
+                            i=$((i + 2))
+                            ;;
+                        -a?*|-c|-l|-cl|-lc)
+                            i=$((i + 1))
+                            ;;
+                        -*) return 0 ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            *) break ;;
+        esac
+    done
+    [[ "$i" -lt "$n" ]] || return 1
+
+    token="${words[$i]}"
+    runner="${token##*/}"
+    # Explicit sh-family set: a bare `*sh` suffix also matches ssh
+    # (whose -c selects a cipher) and fish — routine false prompts.
+    case "$runner" in
+        sh|bash|dash|ash|ksh|ksh93|mksh|zsh) ;;
+        *) return 1 ;;
+    esac
+    i=$((i + 1))
+    while [[ "$i" -lt "$n" ]]; do
+        token="${words[$i]}"
+        case "$token" in
+            -c) return 0 ;;
+            -o|+o|-O|+O|--rcfile|--init-file)
+                [[ $((i + 1)) -lt "$n" ]] || return 1
+                i=$((i + 2))
+                ;;
+            --) return 1 ;;
+            --rcfile=*|--init-file=*|--*)
+                i=$((i + 1))
+                ;;
+            -o?*|+o?*|-O?*|+O?*)
+                i=$((i + 1))
+                ;;
+            -[^-]*)
+                [[ "$token" == *c* ]] && return 0
+                i=$((i + 1))
+                ;;
+            +[^+]*)
+                i=$((i + 1))
+                ;;
+            *) return 1 ;;
+        esac
+    done
+    return 1
+}
+
+# The gate that CALLS the parser lives below the redirect, k8s, and
+# adapter tiers — their verdicts are more specific (a scoped kubectl
+# inline-shell deny beats a generic approvable ask) and deny/allow
+# exits make first-match final. See the call site above Tier 4.
 
 # ─── Normalization for matching (applied to BOTH cmd and pattern) ───
 #
@@ -1505,6 +1882,16 @@ for _entry in ${adapter_redirect_commands[@]+"${adapter_redirect_commands[@]}"};
         fi
     fi
 done
+
+# Opaque command-string gate — after the redirect / k8s / adapter
+# tiers so their more-specific verdicts (including the scoped kubectl
+# denies) win, before the ask-list and allow tiers so an interpreter
+# passthrough can never be auto-approved. Checks both the masked and
+# raw strings: the raw side catches quoted spellings masking removed.
+if _opaque_command_string_requires_ask "$tier1_cmd" \
+    || _opaque_command_string_requires_ask "$cmd"; then
+    ask "Opaque command-string execution requires human approval because its payload cannot be classified safely by Tier 1. Use a reviewed script file when practical."
+fi
 
 # ─── Tier 4: Ask-list — force a prompt for destructive commands ─────
 #
