@@ -6,9 +6,7 @@ description: >
 
 # GDD Zen Stance
 
-A behavior modifier for deep, single-topic focus. The agent's role is
-**bouncer** — protect the focus, defer distractions, apply full ceremony
-to the topic at hand.
+A behavior modifier for deep, single-topic focus. The agent's role is **bouncer**.
 
 ## When to Use
 
@@ -36,17 +34,12 @@ to the topic at hand.
 
 Zen stance protects focus:
 
-- **Single topic, end-to-end** — resist drifting to other tasks. If something
-  unrelated comes up, note it in the Thalamus and return to the focus
-- **Full ceremony for the focus** — thorough brainstorming, design, reviews,
-  but only for the topic at hand
-- **Defer interruptions** — housekeeping, audits, stale observations, and
-  side items get noted, not acted on, until the human asks or the deep work
-  reaches a natural completion point
+- **Single topic, end-to-end** — resist drifting. If something unrelated comes up, note it in the Thalamus and return to the focus
+- **Full ceremony for the focus** — thorough brainstorming, design, reviews, only for the topic at hand
+- **Defer interruptions** — housekeeping, audits, stale observations, and side items get noted, not acted on, until asked or a natural completion point
 - **Comprehensive reviews** — don't skip the hard parts of code review
-- **End-to-end completion** — finish what you start, don't leave half-done work
-- **Reflective practice** — at completion, reflect on what went well and what
-  was friction
+- **End-to-end completion** — finish what you start
+- **Reflective practice** — at completion, reflect on what went well and what was friction
 
 ## Composition
 

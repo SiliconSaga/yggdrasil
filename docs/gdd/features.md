@@ -1,8 +1,6 @@
 # GDD Features Tour
 
-A tour of what the yggdrasil workspace ships with. The [GDD index](index.md) covers the methodology; this doc covers the *features* — what's actually in the box and what each piece is for.
-
-If you want an end-to-end walkthrough rather than a feature inventory, go to [Getting Started](../getting-started.md). If you want the methodology that motivates the features, read the [GDD index](index.md) first.
+A tour of what the yggdrasil workspace ships with. The [GDD index](index.md) covers the methodology; this doc covers the *features* — what's actually in the box and what each piece is for. For an end-to-end walkthrough rather than a feature inventory, go to [Getting Started](../getting-started.md).
 
 ---
 
@@ -55,7 +53,7 @@ See [hoards.md](hoards.md) for the deeper dive: setup, the cadence config (`.ws-
 
 The flagship template is **gh-pages** — a tiny GitHub Pages site designed as the new-contributor tutorial. From scaffold to live deployed page through the full GDD-and-bot-review loop is roughly 15 minutes.
 
-Templates are designed to be opinionated where it removes friction and unopinionated where it constrains creativity. The README inside each template is a deterministic walkthrough that someone can follow solo, without an agent.
+Templates are opinionated where that removes friction and unopinionated where it would constrain creativity. The README inside each template is a deterministic walkthrough that someone can follow solo, without an agent.
 
 Future direction: more flavors (local frontend, local backend, full-stack mini, MCP server template). The shape is established; each new flavor is just another `templates/components/<flavor>/` directory.
 
@@ -103,7 +101,7 @@ Stances are picked at session start (and can be re-picked mid-session). The acti
 
 ## Permissions — what the agent can run without prompting
 
-`.claude/settings.json`'s `permissions.allow` and `permissions.deny` control which commands run without a confirmation prompt (output still streams normally either way; the question is just whether the user gets asked before execution). The two-layer defense model (subcommand-level safety + matcher-level scoping) keeps the allowlist trustworthy even if Claude Code's matcher behavior shifts.
+`.claude/settings.json`'s `permissions.allow` and `permissions.deny` control which commands run without a confirmation prompt (output streams normally either way; the question is just whether the user gets asked before execution). The two-layer defense model (subcommand-level safety + matcher-level scoping) keeps the allowlist trustworthy even if Claude Code's matcher behavior shifts.
 
 Adding a new pattern? Read [permissions.md](permissions.md) — the **When to widen vs narrow patterns** section — first. Operational guidance for adding patterns or handling "don't ask again" prompts is in the `gdd-permissions` skill.
 
@@ -115,22 +113,22 @@ A PreToolUse hook at `.claude/hooks/gdd-permission-hook.sh` runs before every Ba
 
 New users often see a burst of "scary red" deny output in the first few tool calls of a session as the agent's generic shell habits collide with the workspace's one-action-per-call convention. That's working as intended; nothing was harmed (the commands never ran) and the noise drops to near zero once the agent has cached the local conventions.
 
-The hook is roughly free in API-token cost — splitting a `cmd | head 20` into two separate tool calls is still one assistant turn, not two API calls — and pays off in auditability and context hygiene. See [agent-training.md](agent-training.md) for the full explanation, including the token-cost model and what to do when a legitimate command gets denied.
+The hook is roughly free in API-token cost for commands that pass — splitting a `cmd | head 20` into two separate valid tool calls is still one assistant turn, not two API calls. A *denied* command does cost a retry: the agent reads the corrective message on its next turn and reissues, which is the deliberate teaching mechanism, and the denies taper off within a session as the conventions stick. Net, the hook pays off in auditability and context hygiene. See [agent-training.md](agent-training.md) for the token-cost model and what to do when a legitimate command gets denied.
 
 Per-machine extras (opt-in): if a command you trust keeps getting denied, copy `.claude/hooks/hook-rules.local.example` to `hook-rules.local` (in the same directory) and add bash glob patterns under the `[allow-extras]` section. The live file is gitignored — patterns stay per-machine and don't leak into project policy.
 
-Codex uses smaller feature bridges rather than importing the Claude hook wholesale. Its redirect bridge consumes the same `[redirect-commands]` guidance for raw commit, push, PR-creation, and rename commands; its Kubernetes bridge applies the shared guard policy. Both deny or defer, leaving unrelated and bypassed calls to normal Codex routing. These hooks improve workflow consistency but are not a security boundary.
+Codex uses smaller feature bridges rather than importing the Claude hook wholesale: its redirect bridge consumes the same `[redirect-commands]` guidance for raw commit, push, PR-creation, and rename commands, and its Kubernetes bridge applies the shared guard policy. Both deny or defer, leaving unrelated and bypassed calls to normal Codex routing — a workflow-consistency aid, not a security boundary.
 
 ---
 
 ## Kubernetes practice guard — `ws k8s`
 
-A safety scope for kubectl — training wheels while you learn, a guardrail near production: arm a scope (a context + one or more namespaces) and the workspace blocks accidental *writes* to anything outside it — before kubectl runs. Reads stay free cluster-wide; the guard is accident-prevention against destructive out-of-scope writes, **not** a security or confidentiality boundary (real authorization is server-side RBAC).
+A safety scope for kubectl — training wheels while you learn, a guardrail near production: arm a scope (a context + one or more namespaces) and the workspace blocks accidental *writes* to anything outside it, before kubectl runs. Reads stay free cluster-wide; the guard is accident-prevention against destructive out-of-scope writes, **not** a security or confidentiality boundary (real authorization is server-side RBAC).
 
 - `ws k8s scope set --context <ctx> --namespace <ns[,ns]>` arms the guard for the session; `ws k8s scope show` / `ws k8s scope clear` inspect and disarm. The context must exist; a namespace that doesn't exist yet only warns, so you can arm across environments and create the namespaces afterward.
-- `ws k8s <kubectl args>` runs guarded: in-scope reads and writes go through (writes inject `--context`); out-of-scope, cluster-scoped, or malformed-input writes are REJECTED with a **class-aware** message that names the right next step (widen the scope, lift the guard, or fix the input). You may create/delete the very namespaces your scope covers.
+- `ws k8s <kubectl args>` runs guarded: in-scope reads and writes go through (writes inject `--context`); out-of-scope, cluster-scoped, or malformed-input writes are REJECTED with a **class-aware** message naming the right next step (widen the scope, lift the guard, or fix the input). You may create/delete the very namespaces your scope covers.
 - Claude Code and Codex have separate focused hook paths backed by the same `scripts/ws-k8s-guard.sh` policy. When a scope is armed, both catch raw `kubectl`, block out-of-scope writes with the shared message, deny in-scope raw writes with guidance to retry through `ws k8s` for context injection, and catch directly invoked scripts containing `kubectl`. The Codex bridge is deny-or-defer, so safe calls still follow normal Codex sandbox and approval routing. `ws hook-bypass k8s` lifts raw-command interception for a session (human-approved, audited) without disabling the guard inside `ws k8s`.
-- A plain human terminal with no session id is still guarded by an active session's scope (ambient aggregation), so the protection holds when you step in by hand.
+- A plain human terminal with no session id is still guarded by an active session's scope (ambient aggregation), so protection holds when you step in by hand.
 
 The `gdd-k8s` skill drives the scope-capture flow; the mentoring overlay narrates each guard decision so a nervous practitioner learns the pattern, not just the commands. Harnesses without a verified pre-tool hook retain the portable `AGENTS.md` guidance plus the guarded `ws k8s` wrapper. Hands-on: the [Guarded Kubernetes tutorial](../tutorials/guarded-kubernetes.md) (needs a cluster). Reference: [skills-reference.md](skills-reference.md), [agent-training.md](agent-training.md), and the [Codex project configuration](../../.codex/README.md).
 
@@ -140,7 +138,7 @@ The `gdd-k8s` skill drives the scope-capture flow; the mentoring overlay narrate
 
 The parallel permission system: which **remote Git operations** the agent can perform on a repo. Mediated by token scope, collaborator status, and a deliberate **two-identity model** — the human contributor and a separate agent identity (e.g. `agent-refr`), each with its own scoped PAT.
 
-The two-identity model gives reviewable attribution (every commit and PR is clearly authored by one or the other), scope minimization (the agent token holds *just enough* permission for routine work), and clean revocation (compromise the agent token? revoke without disrupting your own access). The fork-or-collaborator pattern lets the agent push to repos it doesn't own:
+The two-identity model gives reviewable attribution (every commit and PR is authored by one or the other), scope minimization (the agent token holds *just enough* permission for routine work), and clean revocation (compromise the agent token? revoke without disrupting your own access). The fork-or-collaborator pattern lets the agent push to repos it doesn't own:
 
 - **Forks** for source-project contribution: `identity.homes.fork.namespace` declares the fork-home namespace, `forkRemote` names the local fork remote, and PRs/MRs target the source project from the fork.
 - **Collaborator** for personal repos (typical for hoards): add the agent as a `push`-permission collaborator on your personal repo; no fork needed.
@@ -159,13 +157,13 @@ Every observation captured in the Thalamus is candidate material for promotion. 
 - **Keep** — relevant but not yet actionable.
 - **Prune** — resolved, stale, or superseded.
 
-This is how the framework refines itself through use: the things that recur become formalized; the things that resolve drop off. See [self-improving-loop.md](self-improving-loop.md).
+This is how the framework refines itself through use: recurring things become formalized; resolved things drop off. See [self-improving-loop.md](self-improving-loop.md).
 
 ---
 
 ## The organization stack — capture to durable knowledge
 
-Work in this ecosystem moves through four tiers: the **Vault** (a personal Obsidian hoard for life organization), the **Thalami** hoard (the Thalamus and in-flight arcs), component **Docs**, and **GitHub** (issues, PRs, the companion Project board). The *organization stack* is the model that names these tiers and the promotion paths between them, so nothing captured gets lost in a seam.
+Work in this ecosystem moves through four tiers: the **Vault** (a personal Obsidian hoard for life organization), the **Thalami** hoard (the Thalamus and in-flight arcs), component **Docs**, and **GitHub** (issues, PRs, the companion Project board). The *organization stack* names these tiers and the promotion paths between them, so nothing captured gets lost in a seam.
 
 Two propose-then-confirm ceremonies move items across the tiers. The **scribe ceremony** triages the vault and hands GDD-bound items to a machine-agnostic `Intake.md` — the *bridge*. The **GDD ceremony** drains that intake into arcs, and graduates a closing arc's lasting value out to component docs and GitHub. A cadence ladder (daily / weekly / monthly) keeps each tier reviewed.
 

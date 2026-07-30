@@ -9,7 +9,7 @@
 
 This transcript covers a GDD session on a second workstation, implementing `ws review threads` (issue #11) — a subcommand for listing and resolving PR review threads via the GitHub GraphQL API. The session exercises the full Superpowers brainstorming-to-implementation pipeline, encounters real-world friction (missing tools, approval UX, cross-workspace conflicts), and culminates in the new tool being used on its own PR's review comments.
 
-This is the parallel session to Session 1 (the commit bodyfile work). The two sessions deliberately created a merge conflict to test cross-workspace development.
+This is the parallel session to Session 1 (the commit bodyfile work); the two sessions deliberately created a merge conflict to test cross-workspace development.
 
 ---
 
@@ -17,13 +17,13 @@ This is the parallel session to Session 1 (the commit bodyfile work). The two se
 
 *The human started a fresh session on a second workstation, mentioning they had GitHub issues to work on.*
 
-**Agent:** I follow Guardian Driven Development conventions for this workspace — happy to explain more if you're curious. No Thalamus.md found. Want me to create one from the template?
+**Agent:** I follow Guardian Driven Development conventions for this workspace. No Thalamus.md found. Want me to create one from the template?
 
 **Human:** Yes please! Both on initializing the second brain process and getting details from the issue about "threads." I'm going to check in here occasionally throughout the day so it'll be a bit like zen as a developer.
 
 *The agent created Thalamus.md with zen/developer defaults, fetched issue #11, and summarized it. The orientation was brief and human-first — no component scan, no information dump.*
 
-> **GDD note:** This was the first session on the Win11 workstation. Orientation followed the refined instructions from Session 1's iterations — mention GDD briefly, offer Thalamus, ask about mode, ask what to work on. The component scan and trust verification were deferred until after alignment.
+> **GDD note:** This was the first session on the Win11 workstation. Orientation followed the refined instructions from Session 1's iterations — mention GDD briefly, offer Thalamus, ask about mode, ask what to work on.
 
 ---
 
@@ -41,11 +41,11 @@ This is the parallel session to Session 1 (the commit bodyfile work). The two se
 
 ### Should threads be a separate command or part of `ws review`?
 
-**Human:** Curiously, is there any reason review doesn't just do positional, to keep with the pattern of other commands? How have we handled inline-vs-standalone scripts in the past?
+**Human:** Is there any reason review doesn't just do positional, to keep with the pattern of other commands? How have we handled inline-vs-standalone scripts in the past?
 
 *This question triggered a deeper investigation. The agent analyzed the full `ws` dispatcher — 622 lines, with some commands inline and others as standalone scripts.*
 
-**Agent:** The split is chronological accident, not principled. Commands written before `ws` existed got wrapped as delegates. Commands written after `ws` were added inline. There's no architectural reason for the difference.
+**Agent:** The split is chronological accident, not principled. Commands written before `ws` existed got wrapped as delegates. Commands written after `ws` were added inline.
 
 **Human:** Threads and reviews are very closely related — should the two of them earn a single new script file together?
 
@@ -87,8 +87,6 @@ Several tangential observations were captured to Thalamus during brainstorming r
 *The agent presented the design in 5 sections, getting approval after each: command surface, file structure, GraphQL queries, permission tiers, and migration of existing code.*
 
 **Human:** *(on the design doc section order)* If we're putting that in a doc I'd put the threads line first since we check for that case first.
-
-*Small detail, but it reflects the principle that documentation should match code flow.*
 
 *The spec was written and committed. A spec-review subagent was dispatched, which found two issues:*
 

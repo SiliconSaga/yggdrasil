@@ -8,11 +8,9 @@ description: Use when an active realm declares `mcp.servers` and `.mcp.json` doe
 Guidelines for AI agent behaviour around MCP servers in a GDD workspace.
 This skill covers the GDD-side patterns (setup offer with Thalamus persistence, realm config integration, `ws mcp-setup` flow); realm-specific details (server list, caveats) are loaded from the file referenced by `mcp.doc` in the active realm's ecosystem config.
 
-**Currently Claude-focused.** Concrete commands (`.mcp.json`, `/mcp`) below are Claude Code's. Codex, Gemini CLI, and other MCP-capable agents will follow the same `gdd-mcp` ↔ `gdd-mcp-<runner>` pair pattern as `gdd-bdd` ↔ `gdd-bdd-pytest` once their content lands; until then this skill covers Claude paths explicitly and points elsewhere for others.
+**Currently Claude-focused.** Concrete commands (`.mcp.json`, `/mcp`) below are Claude Code's. Codex, Gemini CLI, and other MCP-capable agents will follow the same `gdd-mcp` ↔ `gdd-mcp-<runner>` pair pattern as `gdd-bdd` ↔ `gdd-bdd-pytest` once their content lands.
 
 ## Setup (when .mcp.json is absent)
-
-If `.mcp.json` does not exist in the workspace root:
 
 1. Check Thalamus Preferences for `mcp-setup: declined`. If found, skip silently.
 2. Otherwise, check the merged ecosystem config for declared `mcp.servers`.

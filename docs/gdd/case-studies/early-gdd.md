@@ -2,7 +2,7 @@
 
 *March 2026 — GDD's first two sessions ever, just after the initial MVP.*
 
-Historical GDD in action: session transcripts and Thalamus files, condensed for length — technical implementation detail (code diffs, file contents) is stubbed — with the dialogue and decisions otherwise preserved as captured. They show the shape of the collaboration — orientation, observations accumulating, housekeeping, cross-workspace hand-offs — but they predate most of today's system (realms, hoards, stances, the `ws k8s` guard), so read them as artifacts of GDD's origin rather than examples of current mechanics. Terminology reflects the vocabulary at capture time; what these transcripts call "modes" later split into stances, roles, and the mentoring overlay.
+Session transcripts and Thalamus files, condensed for length — technical implementation detail (code diffs, file contents) is stubbed — with the dialogue and decisions otherwise preserved as captured. They show the shape of the collaboration — orientation, observations accumulating, housekeeping, cross-workspace hand-offs — but predate most of today's system (realms, hoards, stances, the `ws k8s` guard), so read them as artifacts of GDD's origin rather than current mechanics. Terminology reflects the vocabulary at capture time; what these transcripts call "modes" later split into stances, roles, and the mentoring overlay.
 
 What makes them worth keeping is the contrast. Here the methodology barely exists yet: orientation has to be invented over several failed attempts, `ws commit` is being designed mid-session, and the human discovers async Thalamus collaboration by accident while the agent works on something else. Set that against the [v1.0 graduation study](terasology-contributor-review.md), where the same loop runs on an outside contributor's codebase with the human mostly on a phone — the machinery has receded far enough to be driven one-handed.
 
@@ -42,6 +42,4 @@ When reading these, notice:
 
 Then notice what is *absent* compared to the v1.0 study: no realms or adapters, no per-machine thalami hoard, no arcs, no permission tiers, no `ws review` triage flow — all of which grew out of friction visible in these very transcripts.
 
-Honestly though: transcripts do not do the process justice when condensed, and cannot convey the sense of flow experienced. And who would have time to read an entire session log spanning hours of work? Maybe if you fed it to a different agent and told it what sort of magic you'd be interested in hearing about :-)
-
-Sometimes the only real way is to just try it yourself. **[Get started here](../../getting-started.md)** — clone the workspace, turn on mentoring, and see what happens.
+Transcripts don't do the process justice when condensed. Try it yourself — **[Get started here](../../getting-started.md)** — clone the workspace, turn on mentoring, and see what happens.

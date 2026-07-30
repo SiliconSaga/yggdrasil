@@ -24,9 +24,7 @@ Stored as .feature    Tagged & labeled      Vordu shows progress
 in the component      "good first issue"    on the roadmap
 ```
 
-Each stage is independently useful. Writing a scenario is a complete
-contribution even if nobody implements it for weeks. Writing a feature
-without scenarios is a complete contribution — it makes the work visible.
+Each stage is independently useful, even if nobody advances it for weeks.
 
 ## When to Use
 
@@ -103,7 +101,6 @@ use it, others don't. Match the existing style in the component.
 
 ### 4. Commit
 
-A feature file is a standalone deliverable.
 - Planning feature: `feat: plan <capability> for <component>`
 - With scenarios: `feat: define <behavior> scenarios for <component>`
 
@@ -201,7 +198,7 @@ superpowers:test-driven-development:
 > Scenarios define WHAT should happen. TDD implements HOW.
 > Each scenario becomes a failing test to drive implementation.
 
-The BDD skill does not manage red-green-refactor. That's the TDD skill's job.
+The BDD skill does not manage red-green-refactor — that's the TDD skill's job.
 
 ---
 

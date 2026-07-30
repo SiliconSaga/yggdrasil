@@ -1,6 +1,6 @@
 # CR Internals — Cross-Fork Change Requests
 
-This document covers the internal mechanics of cross-fork CR creation in yggdrasil. It is aimed at realm maintainers and contributors debugging token or MR creation issues — not regular GDD users.
+Internal mechanics of cross-fork CR creation in yggdrasil, for realm maintainers and contributors debugging token or MR creation issues — not regular GDD users.
 
 ## Overview: The Two-Token Model
 
@@ -11,7 +11,7 @@ When you run `ws cr <component> --upstream`, yggdrasil can operate with two toke
 | Fork write token | Developer (fork group) | Pushing branches, authenticating MR/PR creation from the fork |
 | Source reporter token | Reporter (source-project group) | Reading source-project metadata, creating issues, reading MR comments and threads (`ws review`) |
 
-Both roles are needed when no single credential has all required grants. The source reporter token covers read and issue operations against the source project — not just default-branch lookup. Eliminating it from the CR path would still leave source-project read access required for `ws review` and `ws issue`.
+Both roles are needed when no single credential has all required grants. The source reporter token covers read and issue operations against the source project, not just default-branch lookup — required for `ws review` and `ws issue` even outside the CR path.
 
 These tokens are configured in the ecosystem config's `defaults.gitTokens` map, keyed by URL prefix. The longest matching prefix wins, so a fork-group token (longer path) takes precedence over a parent-group token for the same host.
 
@@ -62,7 +62,7 @@ This is different from GitHub's `owner:branch` head syntax, but the high-level a
                 ...
 ```
 
-The token must be switched between the metadata read and MR creation calls in split-token setups. Using only the reporter token for both can fail because the reporter token has no write/source-branch rights on the fork. Using only the fork token can fail when it lacks source-project read; group sharing or a same-hierarchy/public source project can make the fork token sufficient for MR creation.
+The token must be switched between the metadata read and MR creation calls in split-token setups. Using only the reporter token for both fails because it has no write/source-branch rights on the fork. Using only the fork token fails when it lacks source-project read; group sharing or a same-hierarchy/public source project can make the fork token sufficient for MR creation.
 
 ## Summary: Which Token Goes Where
 
@@ -74,7 +74,7 @@ The token must be switched between the metadata read and MR creation calls in sp
 | `ws review` (MR comments, threads) | Any token with source-project read | Source reporter token |
 | `ws issue` (create issue on source project) | Any token with source-project read | Source reporter token |
 
-On GitHub, "any token with source-project read" may be a single token that also covers the fork — especially with classic PATs or public source projects. On GitLab with private source and fork groups, separate tokens are often useful because the fork group and source-project group each need explicit access grants; a PAT or a fork-group token that has been granted source-project read can cover both roles, but with less isolation.
+On GitHub, "any token with source-project read" may be a single token that also covers the fork — especially with classic PATs or public source projects. On GitLab with private source and fork groups, separate tokens are often useful because the fork group and source-project group each need explicit access grants; a PAT or fork-group token granted source-project read can cover both roles, but with less isolation.
 
 The practical difference for yggdrasil is token routing: source-project metadata, review, and issue operations use a source-readable token, while MR creation uses an actor that can write to the fork/source branch and read the target/source project.
 
@@ -86,19 +86,19 @@ On GitHub you have two legitimate options for limiting the blast radius of an au
 
 1. **Fine-grained PAT on your own account** — GitHub lets you scope these below your actual access level. You can be an org owner and issue a PAT that only has write on your fork org and read on the source project. The PR is posted as *you*, with your full username and avatar visible in the GitHub UI. The scoping is enforced at the token level, not the account level.
 
-2. **Dedicated machine user** (separate GitHub account) — an older pattern that predates fine-grained PATs. A separate account with a classic token is granted only the team memberships it needs. The PR appears as the machine user, not you personally. Still common and valid, but no longer strictly necessary on GitHub.
+2. **Dedicated machine user** (separate GitHub account) — an older pattern that predates fine-grained PATs. A separate account with a classic token is granted only the team memberships it needs. The PR appears as the machine user, not you personally. Still common and valid.
 
 The key point: on GitHub, option 1 lets you post as your own human account while still running with restricted permissions.
 
 ### GitLab: scoped actors, PAT fallback
 
-A GitLab Personal Access Token runs as the creating user and inherits their full access level. If your account is Owner of `group/project`, your PAT is effectively Owner too — there is no way to issue a PAT that has only Reporter access to a group where you have Owner access.
+A GitLab Personal Access Token runs as the creating user and inherits their full access level. If your account is Owner of `group/project`, your PAT is effectively Owner too — there is no way to issue a PAT with only Reporter access to a group where you have Owner access.
 
-The GitLab-native solutions are **Group Access Tokens**, **Project Access Tokens**, and **Service Accounts**. Group/project access tokens carry an explicit role independent of any human user; they are available on self-managed/Dedicated GitLab and on GitLab.com paid tiers. Group service accounts are a useful GitLab.com Free-compatible path when the GitLab instance exposes them to group Owners, but they are not general cross-group machine users: they can only be added to their creation group or descendants, so sibling/external source-project access must come from public visibility, same-hierarchy membership, or GitLab project/group sharing to the fork-home group.
+The GitLab-native solutions are **Group Access Tokens**, **Project Access Tokens**, and **Service Accounts**. Group/project access tokens carry an explicit role independent of any human user; they are available on self-managed/Dedicated GitLab and on GitLab.com paid tiers. Group service accounts are a useful GitLab.com Free-compatible path when the instance exposes them to group Owners, but they are not general cross-group machine users: they can only be added to their creation group or descendants, so sibling/external source-project access must come from public visibility, same-hierarchy membership, or GitLab project/group sharing to the fork-home group.
 
 Group sharing has one non-obvious consequence for fork creation: a fork-group access-token bot cannot be directly invited to a sibling/external source project, but if the source project or parent group invites the fork-home group, the bot can gain source-project read through that group membership. Then the same fork-group token may satisfy GitLab's fork API requirement: one caller identity with source-project read and destination-namespace create rights.
 
-**Machine users on managed GitLab** are often not an option either — user accounts may be managed by SSO or central administration, so you can't create a dedicated bot account as easily as you could on public GitHub. Instance service accounts are the closest GitLab analogue, but they require administrator involvement and are usually too heavyweight for per-developer GDD setup.
+**Machine users on managed GitLab** are often not an option either — accounts may be managed by SSO or central administration, so you can't create a dedicated bot account as easily as on public GitHub. Instance service accounts are the closest GitLab analogue, but require administrator involvement and are usually too heavyweight for per-developer GDD setup.
 
 When no scoped actor is available, use a Personal Access Token and point both env vars at the same PAT to maintain the two-token routing pattern. This preserves the mechanics but loses permission isolation.
 
@@ -112,7 +112,7 @@ Since the GitLab UI shows the bot as the MR author, yggdrasil uses two layers of
 
 2. **`@HUMAN_ACCOUNT` in the MR body** — the CR template substitutes the `identity.human_account` value (e.g. `@youruser`) into the body at creation time, so the human is explicitly named in the description.
 
-This is an accepted trade-off for now. It provides adequate attribution for most team workflows, but may not satisfy formal audit requirements that expect the GitLab *author* field to match a human identity. If that becomes a requirement, the only human-author path is a per-developer PAT, and because GitLab PATs cannot be downscoped that carries a wider blast radius than the scoped-actor approach.
+This is an accepted trade-off: adequate attribution for most team workflows, but it may not satisfy formal audit requirements expecting the GitLab *author* field to match a human identity. If that becomes a requirement, the only human-author path is a per-developer PAT, which carries a wider blast radius than the scoped-actor approach since GitLab PATs cannot be downscoped.
 
 ## See Also
 

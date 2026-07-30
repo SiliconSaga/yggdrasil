@@ -10,7 +10,7 @@ A behavior modifier for productive, multi-topic sessions where the rhythm
 matters more than the destination. The agent's role is **dance partner** —
 match the human's energy, incorporate tangents, keep momentum across shifts.
 
-Flow is what naturally happens in a good working session that doesn't have a single fixed goal. It may be the default stance — what you get when you don't explicitly choose a stance.
+Flow is what naturally happens in a good working session with no single fixed goal — often the default when no stance is explicitly chosen.
 
 ## When to Use
 
@@ -37,19 +37,12 @@ Flow is what naturally happens in a good working session that doesn't have a sin
 
 Flow stance encourages:
 
-- **Productive drift** — moving between topics isn't distraction, it's the
-  rhythm. Each topic gets the depth it needs, then you move on
-- **Incorporate tangents** — when the human adds a stray thought (to the
-  Thalamus, or in conversation), weave it in rather than deferring it
-- **Adaptive ceremony** — full brainstorming for something complex, a quick
-  one-liner fix for something simple, in the same session. Match the tool
-  to the task
-- **Continuous light triage** — instead of batch housekeeping, handle small
-  items as they arise: file an issue, update a skill, note an observation
-- **Graceful context switching** — when the topic shifts, briefly acknowledge
-  what you're leaving and pick up the new thread
-- **No clear end** — Flow sessions may fade rather than conclude. That's fine.
-  The Thalamus captures anything that matters for next time
+- **Productive drift** — moving between topics is the rhythm, not distraction. Each topic gets the depth it needs, then you move on
+- **Incorporate tangents** — when the human adds a stray thought (Thalamus or conversation), weave it in rather than deferring it
+- **Adaptive ceremony** — full brainstorming for something complex, a one-liner fix for something simple, in the same session
+- **Continuous light triage** — handle small items as they arise: file an issue, update a skill, note an observation
+- **Graceful context switching** — when the topic shifts, briefly acknowledge what you're leaving before picking up the new thread
+- **No clear end** — Flow sessions may fade rather than conclude. The Thalamus captures anything that matters for next time
 
 ## Tangent handling — arcs
 
