@@ -93,7 +93,7 @@ The standard pattern with a thalami hoard across machines:
 Two coexisting modes that work well:
 
 - **Each machine commits its own per-machine file.** The hoard's history shows alternating commits per machine.
-- **One machine does cross-machine housekeeping** (typically the most-used desktop): it walks all `<machine>-thalamus.md` files, promotes universal preferences, dedups observations, updates each machine's audit log. The other machines pick up the consolidated state on next pull.
+- **One machine does cross-machine housekeeping** (typically the most-used desktop): it walks all `<machine>-thalamus.md` files, promotes universal preferences, and dedups observations. Edits to another machine's file happen only in this coordinated mode, while that machine's sessions are idle — the everyday per-machine write rule exists to prevent concurrent-edit conflicts, and idle-time housekeeping is the one sanctioned exception. The other machines pick up the consolidated state on next pull.
 
 **Push directly to `main` — no PR ceremony.** Thalami (and other personal hoards) are stream-of-consciousness notes; bot review adds nothing useful and a PR/review cycle just slows down sync. The convention: `ws commit` → `ws pull` (fetch+rebase) → `ws push`, straight to `main`. PRs are a component-and-realm pattern.
 

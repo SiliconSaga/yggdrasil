@@ -164,7 +164,7 @@ Set `last_audit` to today's date in the YAML frontmatter.
 
 Run `ws status` to see dirty state across all repos — there may be uncommitted drafts or stale edits worth addressing while you're in tidy-up mode.
 
-Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.tmp/` have accumulated many draft/scratch files — worth it once a directory has grown past a few dozen entries, since old drafts obscure current work and bloat grep results. Session identity files under `.tmp/gdd-agent-sessions/` are spared by default (wiping them would break a concurrent session's commit identity). During deliberate housekeeping you may additionally suggest `ws clean --sessions`, which clears ended sessions' identity files (the current session's is kept) — but first confirm with the human that no other live sessions need them, and explain what it removes.
+Also suggest `ws clean` if `.commits/`, `.issues/`, `.crs/`, `.outputs/`, or `.tmp/` have accumulated many draft/scratch files — worth it once a directory has grown past a few dozen entries, since old drafts obscure current work and bloat grep results. Session identity files under `.tmp/gdd-agent-sessions/` are spared by default (wiping them would break a concurrent session's commit identity). During deliberate housekeeping you may additionally suggest `ws clean --sessions-all`, which clears ended sessions' identity files (the current session's is kept; plain `--sessions` is compatibility-only and prunes nothing) — but first confirm with the human that no other live sessions need them, and explain what it removes.
 
 ### Step 6.5: Review the PreToolUse hook audit log
 

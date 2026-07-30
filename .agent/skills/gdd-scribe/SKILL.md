@@ -402,12 +402,7 @@ vault.
 
 ## Multi-vault Edge Case
 
-If Path C (keyword dip-in) triggers in a workspace with multiple
-vault-flavored hoards and no `active_vault:` is set, the binding
-sub-flow asks the user which vault — mid-conversation, a one-time
-prompt since the pin sticks for the rest of the session. Users who
-frequently dip into capture from multi-vault workspaces should set
-`active_vault:` in Thalamus frontmatter once to skip the question.
+If Path C (keyword dip-in) triggers in a workspace with multiple vault-flavored hoards and no `active_vault:` is set, the binding sub-flow asks the user which vault — mid-conversation, a one-time prompt since the pin sticks for the rest of the session. Users who frequently dip into capture from multi-vault workspaces should set `active_vault:` in Thalamus frontmatter once to skip the question.
 
 ## What This Skill Does NOT Do
 

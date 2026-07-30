@@ -160,8 +160,7 @@ Example:
 
 ### Cluster Layer (L1) Naming
 
-The pre-bootstrap Kubernetes cluster (GKE or k3d) is called **"The Cluster"** — not
-"the metal" (the backing infrastructure varies — cloud, VMs, containers via k3d, or genuinely bare metal). Refer to it as:
+The pre-bootstrap Kubernetes cluster (GKE or k3d) is called **"The Cluster"** — not "the metal" (the backing infrastructure varies — cloud, VMs, containers via k3d, or genuinely bare metal). Refer to it as:
 - "The Cluster" in prose
 - "L1: The Cluster" in layer sequence tables
 - `Kubernetes Cluster — GKE or k3d/k3d` in diagram subgraph labels

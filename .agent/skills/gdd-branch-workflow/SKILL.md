@@ -174,7 +174,7 @@ Even "docs-only" PRs benefit from full CR (CodeRabbit, Copilot, or the equivalen
 ## Key Notes
 
 - Always use `ws push` rather than plain `git push` — it handles remote selection, auth, and GitKraken `url.insteadOf` workarounds automatically.
-- A provider token must be set in `.env` (gitignored — keep it that way) for push and CR scripts. Never commit or print token values, in commands or CR bodies.
+- Provider tokens flow through the workspace's token-injection mechanism ([`docs/git-provider-setup.md`](../../docs/git-provider-setup.md)): stored in the gitignored `.env`, sourced by the `ws` dispatcher, injected per-process. Never commit or print token values, in commands or CR bodies.
 - CR title follows the same `type:` convention as commit messages and issue titles.
 - **Always `cp` the template file — never write CR bodies from memory.** The template evolves; a remembered or hardcoded heredoc will produce a stale body. Not optional even when batching multiple CRs.
 - **Avoid "fixes #N" / "closes #N" / "resolves #N" in CR bodies unless the CR fully resolves the issue.** GitHub auto-closes the referenced issue on merge when it sees any of those keywords — even with qualifiers like "partially fixes" (the keyword still wins). For partial fixes or related work, use `relates to #N` or `see #N`, which don't trigger auto-close.

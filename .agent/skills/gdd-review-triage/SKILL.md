@@ -109,8 +109,7 @@ reply carries information the resolution alone doesn't:
 | Large fix-set covering many threads | Optional: one batched comment | A single top-level summary comment listing what each commit addressed is friendlier than per-thread chatter. Keep individual replies for the disagreement / different-approach cases above. |
 | Nit you intentionally aren't fixing | **Yes** | Without the reply the reviewer's tool will re-flag it next round. A one-line "skipping — out of scope" prevents the loop. |
 
-Default: **resolve silently** — the commit body is the durable record;
-per-thread replies should only add information that isn't already there.
+Default: **resolve silently** — the commit body is the durable record; per-thread replies should only add information that isn't already there.
 
 ## Triage Process
 

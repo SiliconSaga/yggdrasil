@@ -113,9 +113,11 @@ commands:
         sleep 2
       done
 
-      # Extract credentials
-      PASSWORD=$(kubectl get secret my-secret -n $NAMESPACE \
-        -o jsonpath='{.data.password}' | base64 -d)
+      # Extract credentials — per-stage, not piped: under bare `set -e` a
+      # failed kubectl upstream of a pipe is masked by the succeeding decoder
+      SECRET_B64=$(kubectl get secret my-secret -n "$NAMESPACE" \
+        -o jsonpath='{.data.password}') || exit 1
+      PASSWORD=$(printf '%s' "$SECRET_B64" | base64 -d) || exit 1
 
       # Run client with RETRY LOOP inside the container
       kubectl run client --namespace $NAMESPACE \

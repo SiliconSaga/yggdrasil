@@ -52,7 +52,7 @@ When mentoring is on, the AI explains decisions, teaches practices in context, a
 
 The AI's job with mentoring active is to **grow the human**, not just ship the code — every interaction is an opportunity to transfer understanding.
 
-Mentoring is also the overlay that arms tool-practice workflows. For example, `gdd-k8s` (the guarded-Kubernetes practice skill) activates when mentoring is on and the session involves Kubernetes — guiding the contributor through safe, explained cluster interactions rather than handing them raw `kubectl` commands to run without context.
+Tool-practice workflows pair naturally with mentoring. For example, `gdd-k8s` (the guarded-Kubernetes practice skill) activates whenever a session involves Kubernetes; with mentoring on, it additionally explains each cluster interaction and why the guard shapes it that way, rather than just running safely.
 
 ## See also
 
