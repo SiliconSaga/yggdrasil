@@ -240,6 +240,22 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "security: a nested scripts dispatcher does not inherit workspace permissions" {
+    write_project_settings 'Bash(ws status)'
+    mkdir -p "$WORK/nested/scripts"
+    touch "$WORK/nested/scripts/ws"
+
+    run_hook "bash scripts/ws status" "$WORK/nested"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "security: shipped permissions contain no middle-glob git -C rules" {
+    run jq -e '[.permissions.allow[] | select(startswith("Bash(git -C *"))] | length == 0' "$REPO_ROOT/.claude/settings.json"
+    [ "$status" -eq 0 ]
+}
+
 @test "allow via settings: wildcard pattern matches args" {
     write_project_settings 'Bash(ws hoard upgrade *)'
     run_hook "ws hoard upgrade borgr"

@@ -1436,13 +1436,24 @@ _opaque_command_string_requires_ask() {
 # Audit log entries continue to record the literal command, so
 # drift toward one form or the other remains visible over time.
 normalize_for_match() {
-    local s="$1"
-    case "$s" in
-        "bash ./scripts/"*) s="${s#bash ./scripts/}" ;;
-        "bash scripts/"*)   s="${s#bash scripts/}" ;;
-        "./scripts/"*)      s="${s#./scripts/}" ;;
-        "scripts/"*)        s="${s#scripts/}" ;;
-    esac
+    local s="$1" mode="${2:-pattern}" allow_script_prefix=1
+    local cwd_real="" trusted_real=""
+    if [[ "$mode" == "command" ]]; then
+        allow_script_prefix=0
+        cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P)" || cwd_real=""
+        trusted_real="$(cd "$_trusted_root" 2>/dev/null && pwd -P)" || trusted_real=""
+        if [[ -n "$cwd_real" && "$cwd_real" == "$trusted_real" ]]; then
+            allow_script_prefix=1
+        fi
+    fi
+    if [[ "$allow_script_prefix" -eq 1 ]]; then
+        case "$s" in
+            "bash ./scripts/"*) s="${s#bash ./scripts/}" ;;
+            "bash scripts/"*)   s="${s#bash scripts/}" ;;
+            "./scripts/"*)      s="${s#./scripts/}" ;;
+            "scripts/"*)        s="${s#scripts/}" ;;
+        esac
+    fi
     # Matching is conservative, not execution: remove one-token quoting and
     # collapse harmless whitespace so quoting cannot hide an ask-tier action.
     s="${s//\"/}"
@@ -1453,7 +1464,7 @@ normalize_for_match() {
     s="${s% }"
     printf '%s' "$s"
 }
-match_cmd="$(normalize_for_match "$cmd")"
+match_cmd="$(normalize_for_match "$cmd" command)"
 
 # The committed direct-bats allow is only for focused tests under tests/.
 # Bash glob `*` crosses slashes and `..`, so validate every argument before
