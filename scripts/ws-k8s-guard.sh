@@ -224,10 +224,16 @@ k8s_guard_mask_inert_quotes() {
         segment="${input:start:i-start}"
         if [[ "$at_command_start" == "1" ]]; then
             output+="$segment"
+            # Track the span's INNER text as word content: a quoted wrapper
+            # word ("env", "command") must still match the wrapper case when
+            # the word completes. A placeholder here flipped command position
+            # off and let the NEXT quoted command word be blanked — a
+            # compound `then "env" "kubectl" …` slipped the deny floor.
+            word+="${segment:1:${#segment}-2}"
         else
             output+="${segment//?/ }"
+            word+="q"
         fi
-        word+="q"
     done
     printf '%s' "$output"
 }
@@ -499,11 +505,11 @@ k8s_guard_evaluate() {
                         ;;
                 esac
                 ;;
-            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--user|--cluster|--client-certificate|--client-key|--certificate-authority)
+            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "$a"
                 return 0
                 ;;
-            --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*)
+            --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--as-user-extra=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "${a%%=*}"
                 return 0
                 ;;

@@ -98,6 +98,14 @@ assert_denied() {
     assert_denied
 }
 
+@test "quoted wrapper word cannot blank the following quoted kubectl" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook 'if true; then "env" "kubectl" delete namespace prod; fi'
+
+    assert_denied
+}
+
 @test "quoted kubectl search pattern defers to normal Codex routing" {
     seed_scope codex-test kind-practice alice-sandbox
 

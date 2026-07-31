@@ -153,11 +153,13 @@ EOF
 }
 @test "impersonation and identity flags are blocked (split and equals forms)" {
     local flag
-    for flag in --as=system:admin --user=other --cluster=prod-cluster --client-certificate=/tmp/c.crt; do
+    for flag in --as=system:admin --user=other --cluster=prod-cluster --client-certificate=/tmp/c.crt --as-user-extra=scope=admin; do
         run_guard "kind-practice" "alice-sandbox" kubectl get pods "$flag" -n alice-sandbox
         [[ "$output" == BLOCK:context:* ]]
     done
     run_guard "kind-practice" "alice-sandbox" kubectl get pods --as system:admin -n alice-sandbox
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods --as-user-extra scope=admin -n alice-sandbox
     [[ "$output" == BLOCK:context:* ]]
 }
 @test "alternate connection flags are blocked in split and equals forms" {
