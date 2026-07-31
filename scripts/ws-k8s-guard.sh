@@ -505,11 +505,11 @@ k8s_guard_evaluate() {
                         ;;
                 esac
                 ;;
-            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority)
+            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority|--tls-server-name|--insecure-skip-tls-verify)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "$a"
                 return 0
                 ;;
-            --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--as-user-extra=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*)
+            --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--as-user-extra=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*|--tls-server-name=*|--insecure-skip-tls-verify=*)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "${a%%=*}"
                 return 0
                 ;;
