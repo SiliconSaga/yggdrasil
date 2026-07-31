@@ -461,6 +461,29 @@ review_comments() {
     printf '%s\n' "$summary" | review_sanitize_provider_text
     echo ""
 
+    # Branch-identity check: warn if the locally checked-out branch isn't
+    # actually this CR's head branch. A local branch can share history with
+    # the real CR branch (e.g. checked out from the same commit under a
+    # different name) without being it — committing/pushing there creates an
+    # unrelated branch instead of updating this CR (the exact mistake that
+    # motivated this check: a branch named "soloturn" was pushed as a new
+    # branch instead of updating the PR's actual "soloturn-performance"
+    # head). Checked before the drift check below, since drift against the
+    # wrong branch isn't meaningful. Best-effort: an unresolvable head
+    # branch degrades to silence, never a hard error.
+    if [[ -n "$_SELECTED_REMOTE" ]]; then
+        local head_ref=""
+        head_ref=$(gp_review_head_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_ref=""
+        if [[ -n "$head_ref" && "$head_ref" != "null" ]]; then
+            local local_branch=""
+            local_branch=$(git -C "$COMP_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null) || local_branch=""
+            if [[ -n "$local_branch" && "$local_branch" != "$head_ref" ]]; then
+                echo "⚠ Local branch '$local_branch' does not match this CR's head branch '$head_ref' — committing/pushing here won't update this CR."
+                echo ""
+            fi
+        fi
+    fi
+
     # Branch-drift check: warn if the CR's base branch has moved ahead of
     # this branch since it was cut. Nothing else in the ws push/cr flow
     # surfaces this, and review_comments is the command the workflow
