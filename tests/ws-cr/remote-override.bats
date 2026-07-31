@@ -70,6 +70,10 @@ MD
     git -C "$WORK" push -q "$ALT_BARE" refs/heads/feature/from-linked-worktree
     git -C "$WORK" push -q "$ALT_BARE" "$BASE_COMMIT:refs/heads/feature/diverged"
     git -C "$WORK" push -q "$ALT_BARE" "$BASE_COMMIT:refs/heads/feature/stale-fetch"
+    # Target branch for the stale-base preflight: parked at the base commit,
+    # which every fixture branch contains — the check passes unless a test
+    # deliberately moves it.
+    git -C "$WORK" push -q "$ALT_BARE" "$BASE_COMMIT:refs/heads/main"
     git -C "$WORK" update-ref refs/remotes/alt/feature/from-linked-worktree refs/heads/feature/from-linked-worktree
     git -C "$WORK" update-ref refs/remotes/alt/feature/diverged "$BASE_COMMIT"
     git -C "$WORK" update-ref refs/remotes/alt/feature/stale-fetch refs/heads/feature/stale-fetch
@@ -231,5 +235,91 @@ YAML
     [[ "$output" == *"Cross-host CR creation is not supported"* ]]
     [[ "$output" == *"github.com"* ]]
     [[ "$output" == *"github.enterprise.test"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+# ─── stale-base preflight ───────────────────────────────────────────
+
+# Advance the bare repo's main past the fixture branches from a scratch
+# clone, so the moved tip's commit object does NOT exist in $WORK — this
+# exercises the check's fetch-before-compare path as well as the compare.
+_move_remote_main() {
+    local scratch="$BATS_TEST_TMPDIR/mover"
+    git clone -q "$ALT_BARE" "$scratch"
+    git -C "$scratch" config user.name "Mover"
+    git -C "$scratch" config user.email "mover@example.local"
+    git -C "$scratch" checkout -q main
+    echo moved > "$scratch/moved.txt"
+    git -C "$scratch" add moved.txt
+    git -C "$scratch" commit -q -m "someone else's merge"
+    git -C "$scratch" push -q origin main
+}
+
+@test "stale-base: fresh target branch passes the preflight" {
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: fresh base" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "stale-base: moved target branch fails with a rebase pointer" {
+    _move_remote_main
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: moved base" .crs/body.md
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"has moved"* ]]
+    [[ "$output" == *"Rebase first"* ]]
+    [[ "$output" == *"--stale-base-ok"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "stale-base: missing target branch fails closed before CR creation" {
+    git -C "$ALT_BARE" update-ref -d refs/heads/main
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: missing base" .crs/body.md
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"target branch 'main' is not known on remote 'alt'"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
+@test "stale-base: --stale-base-ok submits against the moved base" {
+    _move_remote_main
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt --stale-base-ok "test: stacked CR" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "stale-base: GIT_CR_STALE_BASE_OK env form also skips the preflight" {
+    _move_remote_main
+
+    run bash -c 'cd "$1" || exit 1; GIT_CR_REMOTE=alt GIT_CR_STALE_BASE_OK=1 bash "$2" "test: stacked CR" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "stale-base: --upstream path passes the preflight against a fresh upstream" {
+    # fork remote = 'fork' (identity.forkRemote), so 'alt' is the detected
+    # upstream — its bare-repo backing exercises the same preflight on the
+    # cross-fork path.
+    run bash -c 'cd "$1" || exit 1; GIT_CR_REMOTE=fork bash "$2" --upstream "test: upstream CR" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Opening cross-fork CR"* ]]
+    [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "stale-base: --upstream path fails when the upstream default branch moved" {
+    _move_remote_main
+
+    run bash -c 'cd "$1" || exit 1; GIT_CR_REMOTE=fork bash "$2" --upstream "test: upstream CR" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"has moved"* ]]
+    [[ "$output" == *"--stale-base-ok"* ]]
     [[ ! -f "$GH_LOG" ]]
 }

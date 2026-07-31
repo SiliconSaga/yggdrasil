@@ -94,12 +94,29 @@ normalize_for_match() {
 match_cmd="$(normalize_for_match "$cmd")"
 k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
 script_path="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
+if k8s_guard_script_content_exempt "$GDD_PROJECT_ROOT" "$script_path"; then
+    script_path=""
+fi
 inline_shell=0
 k8s_guard_inline_shell_contains_kubectl "$match_cmd" && inline_shell=1
 
 if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
-    if [[ "$match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
-        || [[ "$match_cmd" == *"ws k8s"* || "$match_cmd" == *"scripts/ws k8s"* ]]; then
+    masked_match_cmd="$(normalize_for_match "$(k8s_guard_mask_inert_quotes "$cmd")")"
+    # Compound forms defeat the tokenized inline-shell helper (word 0 is the
+    # first command, not the wrapped shell), so a regex stands in here. It
+    # tolerates assignment/env/command wrapper prefixes and requires -c as
+    # its own option word — a path operand like /tmp/build-abc must not
+    # read as command-string mode. Sentinel context, so over-matching a
+    # weird shape costs a deny that teaches one-command-at-a-time.
+    unsafe_inline_shell=0
+    unsafe_inline_re='(^|[;&|[:space:]]|\()(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|command)[[:space:]]+)*([^[:space:]]*/)?(bash|sh|dash|ash|ksh|ksh93|mksh|zsh)[[:space:]]([^[:space:]]+[[:space:]])*-[A-Za-z]*c([[:space:]]|$)'
+    if [[ "$match_cmd" =~ $unsafe_inline_re ]] \
+        && [[ "$match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]]; then
+        unsafe_inline_shell=1
+    fi
+    if [[ "$masked_match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
+        || [[ "$masked_match_cmd" == *"ws k8s"* || "$masked_match_cmd" == *"scripts/ws k8s"* ]] \
+        || [[ "$unsafe_inline_shell" == "1" ]]; then
         deny "Kubernetes commands must be issued as one composition-free command. This compound or multiline form cannot be evaluated safely."
     fi
     exit 0

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # git-cr.sh — open a change request (PR/MR) from the current branch
 #
-# Usage: git-cr.sh [--remote REMOTE] [--source-branch BRANCH] [--upstream] TITLE BODYFILE
+# Usage: git-cr.sh [--remote REMOTE] [--source-branch BRANCH] [--upstream] [--stale-base-ok] TITLE BODYFILE
 #   --remote REMOTE — use this git remote as the fork/head remote.
 #                     Defaults to GIT_CR_REMOTE, then identity.forkRemote.
 #   --source-branch BRANCH — submit this local, remote-tracked branch instead
@@ -80,10 +80,15 @@ _create_pr_with_prominent_url() {
 UPSTREAM=""
 CR_REMOTE="${GIT_CR_REMOTE:-}"
 SOURCE_BRANCH="${GIT_CR_SOURCE_BRANCH:-}"
+STALE_BASE_OK="${GIT_CR_STALE_BASE_OK:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --upstream)
       UPSTREAM="1"
+      shift
+      ;;
+    --stale-base-ok)
+      STALE_BASE_OK="1"
       shift
       ;;
     --remote)
@@ -141,7 +146,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 mkdir -p "$REPO_ROOT/.crs"
 
 if [[ -z "$TITLE" || -z "$BODYFILE" || $# -ne 2 ]]; then
-  echo "Usage: $0 [--remote REMOTE] [--source-branch BRANCH] [--upstream] TITLE BODYFILE" >&2
+  echo "Usage: $0 [--remote REMOTE] [--source-branch BRANCH] [--upstream] [--stale-base-ok] TITLE BODYFILE" >&2
   echo "  See templates/change.md for a ready-to-copy bodyfile template. CR bodyfiles conventionally live in .crs/." >&2
   exit 1
 fi
@@ -288,6 +293,47 @@ if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   fi
 fi
 
+# Stale-base preflight. With multiple contributors, the target branch's tip
+# routinely moves between branching and CR time — the bots then review a
+# stale diff and conflicts surface only after the CR opens. Verify the live
+# base tip is contained in the source branch before creating; a moved base
+# fails with a rebase pointer. --stale-base-ok (or GIT_CR_STALE_BASE_OK=1)
+# skips the check for deliberate cases like stacked CRs. Same exit-code
+# discipline as the source-branch verification above: ls-remote exit 2 =
+# ref absent, other nonzero = transport/auth failure. Both fail closed before
+# handing an ambiguous base to the provider.
+check_base_branch_fresh() {
+  local remote="$1" remote_url="$2" base_branch="$3"
+  [[ "$STALE_BASE_OK" == "1" ]] && return 0
+  declare -a GIT_AUTH_ENV=()
+  local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+  git_auth_env_for_url "$remote_url"
+  local _bs=0 _out _tip
+  _out=$(env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git ls-remote --exit-code "$remote" "refs/heads/$base_branch") || _bs=$?
+  if [[ "$_bs" -eq 2 ]]; then
+    echo "ERROR: target branch '$base_branch' is not known on remote '$remote'." >&2
+    echo "  Check the repository default branch and remote selection, then retry." >&2
+    echo "  If the detected default branch is intentionally absent here, --stale-base-ok skips this preflight." >&2
+    exit 1
+  elif [[ "$_bs" -ne 0 ]]; then
+    echo "ERROR: could not verify target branch '$base_branch' on '$remote' — git ls-remote failed (see above); check connectivity and auth." >&2
+    exit 1
+  fi
+  _tip="${_out%%[[:space:]]*}"
+  if ! git cat-file -e "${_tip}^{commit}" 2>/dev/null; then
+    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git fetch --quiet "$remote" "refs/heads/$base_branch" || {
+      echo "ERROR: could not fetch target branch '$base_branch' from '$remote' for the stale-base check." >&2
+      exit 1
+    }
+  fi
+  if ! git merge-base --is-ancestor "$_tip" "refs/heads/$BRANCH"; then
+    echo "ERROR: target branch '$base_branch' on '$remote' has moved — tip ${_tip:0:12} is not contained in '$BRANCH'." >&2
+    echo "  Rebase first (git fetch $remote && git rebase $remote/$base_branch, or ws pull), re-push, then re-run ws cr." >&2
+    echo "  Submitting against the moved base deliberately (e.g. a stacked CR)? Re-run with --stale-base-ok." >&2
+    exit 1
+  fi
+}
+
 # Detect provider and load implementation; set token before auth check
 gp_detect_and_load "$FORK_URL" "$_ECO"
 gp_set_token_for_url "$FORK_URL" "$_AUTH_ECO"
@@ -323,7 +369,11 @@ if [[ -n "$UPSTREAM" ]]; then
     fi
   fi
   UPSTREAM_REMOTE="${UPSTREAM_REMOTES[0]}"
-  UPSTREAM_URL=$(git remote get-url "$UPSTREAM_REMOTE" 2>/dev/null)
+  # Raw config read for the same reason as FORK_URL above: every consumer is
+  # logical (provider detect, host compare, token mapping) and must see the
+  # canonical configured URL, not a url.insteadOf rewrite. Transport addresses
+  # the remote by NAME, so git still applies rewrites where they belong.
+  UPSTREAM_URL=$(git config --get-all "remote.$UPSTREAM_REMOTE.url" 2>/dev/null | head -n1) || true
 
   # Verify both remotes use the same provider
   UPSTREAM_PROVIDER=$(gp_detect "$UPSTREAM_URL" "$_ECO" 2>/dev/null) || {
@@ -364,6 +414,8 @@ if [[ -n "$UPSTREAM" ]]; then
   gp_set_token_for_url "$UPSTREAM_URL" "$_AUTH_ECO"
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
 
+  check_base_branch_fresh "$UPSTREAM_REMOTE" "$UPSTREAM_URL" "$UPSTREAM_DEFAULT"
+
   echo "Opening cross-fork CR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
   echo "  Title: $TITLE"
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
@@ -384,6 +436,8 @@ else
   gp_set_token_for_url "$FORK_URL" "$_AUTH_ECO"
 
   DEFAULT_BRANCH=$(gp_default_branch "$FORK_SLUG")
+
+  check_base_branch_fresh "$FORK_REMOTE" "$FORK_URL" "$DEFAULT_BRANCH"
 
   echo "Opening CR for $FORK_SLUG/$BRANCH → $DEFAULT_BRANCH"
   echo "  Title: $TITLE"

@@ -242,8 +242,23 @@ gp_review_threads_status() {
 
 # Reply to a discussion thread.
 # Usage: gp_review_thread_reply SLUG MR_NUM DISCUSSION_ID MESSAGE
+_gl_validate_discussion_id() {
+    local discussion_id="$1"
+    # "." and ".." pass the character allowlist but are path segments —
+    # URL normalization can steer them to a different API endpoint.
+    if [[ "$discussion_id" == "." || "$discussion_id" == ".." ]]; then
+        echo "ERROR: Invalid GitLab discussion ID." >&2
+        return 1
+    fi
+    if [[ ! "$discussion_id" =~ ^[A-Za-z0-9._~-]+$ ]]; then
+        echo "ERROR: Invalid GitLab discussion ID." >&2
+        return 1
+    fi
+}
+
 gp_review_thread_reply() {
     local slug="$1" mr_num="$2" discussion_id="$3" message="$4"
+    _gl_validate_discussion_id "$discussion_id" || return 1
     local encoded; encoded=$(_gl_encode "$slug")
     glab api --method POST "projects/$encoded/merge_requests/$mr_num/discussions/$discussion_id/notes" \
         -f body="$message" >/dev/null 2>&1
@@ -253,6 +268,7 @@ gp_review_thread_reply() {
 # Usage: gp_review_thread_resolve SLUG MR_NUM DISCUSSION_ID
 gp_review_thread_resolve() {
     local slug="$1" mr_num="$2" discussion_id="$3"
+    _gl_validate_discussion_id "$discussion_id" || return 1
     local encoded; encoded=$(_gl_encode "$slug")
     glab api --method PUT "projects/$encoded/merge_requests/$mr_num/discussions/$discussion_id" \
         -f resolved=true >/dev/null 2>&1

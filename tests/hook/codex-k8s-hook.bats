@@ -74,6 +74,81 @@ assert_denied() {
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
 }
 
+@test "quoted kubectl after a subshell open is still denied, not masked away" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook '( "kubectl" delete namespace prod )'
+
+    assert_denied
+}
+
+@test "quoted kubectl after control-flow words is still denied, not masked away" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook 'if true; then "kubectl" delete namespace prod; fi'
+
+    assert_denied
+}
+
+@test "env-wrapped inline shell in a compound command is still denied" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook "echo safe; env FOO=1 bash -c 'kubectl delete namespace prod'"
+
+    assert_denied
+}
+
+@test "quoted wrapper word cannot blank the following quoted kubectl" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook 'if true; then "env" "kubectl" delete namespace prod; fi'
+
+    assert_denied
+}
+
+@test "quoted kubectl search pattern defers to normal Codex routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook 'rg -n "all-namespaces|kubectl|WRITE" scripts/ws-k8s-guard.sh'
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "quoted Kubernetes-looking shell data defers to normal Codex routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+    local command
+    for command in \
+        "rg -n 'all-namespaces|kubectl|WRITE' scripts/ws-k8s-guard.sh" \
+        'printf "kubectl; this is inert data"'; do
+        run_codex_hook "$command"
+        [ "$status" -eq 0 ]
+        [ -z "$output" ]
+    done
+}
+
+@test "quoted kubectl command words in unsafe forms remain denied" {
+    seed_scope codex-test kind-practice alice-sandbox
+    local command
+    for command in \
+        'echo safe; "kubectl" delete namespace prod' \
+        'VAR=value "kubectl" delete namespace prod; echo unsafe' \
+        'env "kubectl" delete namespace prod; echo unsafe'; do
+        run_codex_hook "$command"
+        assert_denied
+        [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
+    done
+}
+
+@test "unsafe inline shell containing kubectl is denied before partial evaluation" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook "bash -c 'echo safe; kubectl delete namespace prod'"
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
+}
+
 @test "unrelated multiline command still defers to normal Codex routing" {
     seed_scope codex-test kind-practice alice-sandbox
 
@@ -128,6 +203,46 @@ assert_denied() {
     reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")"
     [[ "${reason,,}" == *"no kubernetes guard scope is active"* ]]
     [[ "$reason" == *"calls raw kubectl"* ]]
+}
+
+@test "reviewed ws dispatcher is exempt from script content inspection" {
+    printf '#!/usr/bin/env bash\n# ws k8s eventually dispatches to kubectl\n' > "$WORK/scripts/ws"
+
+    run_codex_hook 'bash scripts/ws review yggdrasil 142' no-scope
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "reviewed permission audit script is exempt from script content inspection" {
+    printf '#!/usr/bin/env bash\necho "Bash(kubectl:*)|high|blanket kubectl allow"\n' > "$WORK/scripts/ws-audit-permissions.sh"
+
+    run_codex_hook 'bash scripts/ws-audit-permissions.sh' no-scope
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "other first-party scripts remain subject to content inspection" {
+    printf '#!/usr/bin/env bash\nkubectl apply -k overlays/plain\n' > "$WORK/scripts/other.sh"
+
+    run_codex_hook 'bash scripts/other.sh' no-scope
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"calls raw kubectl"* ]]
+}
+
+@test "symlink to an exempt script remains subject to content inspection" {
+    printf '#!/usr/bin/env bash\nkubectl apply -k overlays/plain\n' > "$WORK/scripts/ws-audit-permissions.sh"
+    ln -s "$WORK/scripts/ws-audit-permissions.sh" "$WORK/scripts/ws-audit-linked.sh" 2>/dev/null || true
+    if [[ ! -L "$WORK/scripts/ws-audit-linked.sh" ]]; then
+        skip "symlinks unavailable on this platform"
+    fi
+
+    run_codex_hook 'bash scripts/ws-audit-linked.sh' no-scope
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"calls raw kubectl"* ]]
 }
 
 @test "slash-relative script containing kubectl is denied when no scope is active" {
