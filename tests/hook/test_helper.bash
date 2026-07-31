@@ -194,9 +194,9 @@ run_hook_with_session() {
 }
 
 # Build a PowerShell tool-call payload and pipe it into the hook.
-# The PowerShell branch is deny-by-default with a test-wrapper
-# carve-out and a `powershell` bypass slug, so tests need the real
-# tool_name plus (optionally) a session_id for the bypass cases.
+# The PowerShell branch is deny-by-default with a `powershell` bypass
+# slug, so tests need the real tool_name plus (optionally) a session_id
+# for the bypass cases.
 #
 # Args: $1 = command string, $2 = session_id (optional, empty = omit),
 #       $3 = cwd (defaults to $WORK)

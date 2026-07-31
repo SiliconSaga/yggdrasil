@@ -93,7 +93,7 @@ The recurring-bypass pattern — same slug bypassed every session — is a signa
 
 The hook also registers on the `PowerShell` tool (see `settings.json`) and denies every invocation rather than porting the Bash tiers to PowerShell grammar. The rationale: the `ws` CLI + Bash tool are the sanctioned surface, agents observably drift into PowerShell once it starts "working," and a granular PowerShell tier would need its own grammar — PS 5.1 has no `&&`/`||`, so `;` is its *only* statement separator, and a naive port of the Tier 1 composition deny would make the tool unusable rather than safe.
 
-Component tests, including Windows wrappers around containerized tools, use `ws test <component> [test-name]`. That route stays automatic after the realm adapter and target trust checks; invoking `test.ps1` directly does not create a second provenance path inside the permission hook.
+Component tests, including Windows wrappers around containerized tools, use `ws test <component> [test-name]`. That route uses workspace target resolution and, when it selects an adapter, the active realm trust check; invoking `test.ps1` directly does not create a second provenance path inside the permission hook.
 
 One exception remains:
 

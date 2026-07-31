@@ -765,8 +765,9 @@ fi
 # a tool agents shouldn't be drifting into (PS 5.1 has no && / ||, so
 # `;` is its ONLY statement separator — a naive port of the Tier 1 deny
 # rules would be unusable rather than safe). Component test wrappers run via
-# `ws test`, where target and adapter trust are already established. Raw
-# PowerShell requires a session-scoped bypass marker (`ws hook-bypass
+# `ws test`, which uses workspace target resolution and checks active realm
+# trust whenever it selects an adapter. Raw PowerShell requires a session-scoped
+# bypass marker (`ws hook-bypass
 # powershell`), human-approved through the ask tier like every other slug.
 if [[ "$tool_name" == "PowerShell" ]]; then
     # Session-scoped bypass marker — same mechanics as the Tier 2/3
@@ -1419,7 +1420,8 @@ esac
 # Git's global execution modifiers and remote-helper transports run programs
 # before/under otherwise read-looking subcommands. They are never safe to
 # inherit from a broad `git diff`/`git show` allow pattern.
-if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
+if [[ "$match_cmd" == git || "$match_cmd" == git\ * \
+    || "$match_cmd" =~ ^ws[[:space:]]+exec[[:space:]]+[^[:space:]]+[[:space:]]+git($|[[:space:]]) ]]; then
     # Git accepts unambiguous prefixes of long options. Match each visible
     # option token as a prefix of the dangerous spelling, not just the full
     # spelling, so e.g. --uplo= cannot inherit a broad git-fetch allow as an
@@ -1427,7 +1429,7 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
     # candidate. Tokens longer than or unrelated to these names do not match.
     _git_dangerous_long_options=(
         --config-env --upload-pack --exec --exec-path --extcmd --ext-diff
-        --output --output-directory --open-files-in-pager
+        --textconv --output --output-directory --open-files-in-pager
     )
     _git_words=()
     read -r -a _git_words <<< "$match_cmd"
@@ -1440,7 +1442,7 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
             fi
         done
     done
-    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--exec-path($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
+    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--exec-path($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--textconv($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi
     if [[ "$match_cmd" =~ (^|[[:space:]])grep([[:space:]]|$) ]] \
@@ -1450,6 +1452,124 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
     if [[ "$match_cmd" =~ (^|[[:space:]])(ext|fd):: ]]; then
         deny "Executable Git remote helper syntax is not allowed by read-oriented Git permissions."
     fi
+fi
+
+# Restore low-friction read-only Git inspection without granting a middle-glob
+# path wildcard in settings.json. The hook owns both decisions that the static
+# matcher cannot express safely: the `-C` target must resolve to this workspace
+# root or a root/operator-declared component, and the effective subcommand must
+# be a read-only shape. Realm and hoard targets deliberately fall through until
+# target resolution carries a typed, independently verified trust decision.
+_git_component_declared_by_root_or_local() {
+    local name="$1" config
+    command -v yq >/dev/null 2>&1 || return 1
+    for config in "$_trusted_root/ecosystem.yaml" "$_trusted_root/ecosystem.local.yaml"; do
+        [[ -f "$config" ]] || continue
+        if COMPONENT_NAME="$name" yq -e '.components[strenv(COMPONENT_NAME)] != null' "$config" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_git_read_target_is_trusted() {
+    local target="$1" target_path="" target_real="" root_real=""
+    local components_real="" component_name=""
+    case "$target" in
+        ""|-*|*'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+    esac
+    target_path="$(_normalize_host_path "$target")"
+    if [[ "$target_path" != /* ]]; then
+        target_path="$cwd/$target_path"
+    fi
+    case "/$target_path/" in
+        */../*) return 1 ;;
+    esac
+    target_real="$(cd -P -- "$target_path" 2>/dev/null && pwd -P)" || return 1
+    root_real="$(cd -P -- "$_trusted_root" 2>/dev/null && pwd -P)" || return 1
+    [[ -e "$target_real/.git" ]] || return 1
+    [[ "$target_real" == "$root_real" ]] && return 0
+
+    components_real="$(cd "$root_real/components" 2>/dev/null && pwd -P)" || return 1
+    [[ "$(dirname "$target_real")" == "$components_real" ]] || return 1
+    component_name="${target_real##*/}"
+    [[ "$component_name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] || return 1
+    _git_component_declared_by_root_or_local "$component_name"
+}
+
+_git_read_tokens_are_literal() {
+    local token
+    for token in "$@"; do
+        case "$token" in
+            *'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+_git_read_shape_is_safe() {
+    local verb="$1" argument_count="$2" first_argument="${3:-}"
+    case "$verb" in
+        show|grep|log|diff|ls-tree|rev-parse) return 0 ;;
+        status)
+            [[ "$argument_count" -eq 0 ]] && return 0
+            [[ "$argument_count" -eq 1 && ( "$first_argument" == "-s" || "$first_argument" == "--short" ) ]]
+            return
+            ;;
+        remote)
+            [[ "$argument_count" -eq 1 && "$first_argument" == "-v" ]]
+            return
+            ;;
+        branch)
+            [[ "$argument_count" -eq 1 && "$first_argument" == "--show-current" ]]
+            return
+            ;;
+    esac
+    return 1
+}
+
+_git_c_read_is_safe() {
+    local -a words=()
+    local count target verb first_argument=""
+    read -r -a words <<< "$match_cmd"
+    count=${#words[@]}
+    [[ "$count" -ge 4 ]] || return 1
+    [[ "${words[0]}" == "git" && "${words[1]}" == "-C" ]] || return 1
+    _git_read_tokens_are_literal "${words[@]}" || return 1
+    target="${words[2]}"
+    verb="${words[3]}"
+    _git_read_target_is_trusted "$target" || return 1
+    [[ "$count" -gt 4 ]] && first_argument="${words[4]}"
+    _git_read_shape_is_safe "$verb" "$((count - 4))" "$first_argument"
+}
+
+_ws_exec_git_read_is_safe() {
+    local -a words=()
+    local count target verb target_path first_argument=""
+    read -r -a words <<< "$match_cmd"
+    count=${#words[@]}
+    [[ "$count" -ge 5 ]] || return 1
+    [[ "${words[0]}" == "ws" && "${words[1]}" == "exec" && "${words[3]}" == "git" ]] || return 1
+    _git_read_tokens_are_literal "${words[@]}" || return 1
+    target="${words[2]}"
+    verb="${words[4]}"
+    if [[ "$target" == "yggdrasil" ]]; then
+        target_path="$_trusted_root"
+    else
+        [[ "$target" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] || return 1
+        if [[ -d "$_trusted_root/realms/$target/.git" || -d "$_trusted_root/hoards/$target/.git" ]]; then
+            return 1
+        fi
+        _git_component_declared_by_root_or_local "$target" || return 1
+        target_path="$_trusted_root/components/$target"
+    fi
+    _git_read_target_is_trusted "$target_path" || return 1
+    [[ "$count" -gt 5 ]] && first_argument="${words[5]}"
+    _git_read_shape_is_safe "$verb" "$((count - 5))" "$first_argument"
+}
+
+if _git_c_read_is_safe || _ws_exec_git_read_is_safe; then
+    allow "validated read-only Git target and subcommand"
 fi
 
 # ─── Tier 2: Redirect deny — raw commands with a `ws` equivalent ────
