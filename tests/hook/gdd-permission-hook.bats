@@ -2620,6 +2620,44 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
+@test "k8s safety floor: first-party scripts/ file with kubectl as data does not ask" {
+    # ws-audit-permissions.sh carries "kubectl" in audit PATTERN STRINGS;
+    # content-grepping it produced false asks on a read-only tool (hit by
+    # a Codex-workspace session via direct script-path invocation). Files
+    # physically residing in the reviewed scripts/ dir are exempt.
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\necho "Bash(kubectl:*)|high|blanket kubectl allow"\n' > "$WORK/scripts/ws-audit-fake.sh"
+    run_hook_with_session "bash $WORK/scripts/ws-audit-fake.sh" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "k8s safety floor: symlink inside scripts/ keeps the content inspection" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\nkubectl apply -k overlays/plain\n' > "$WORK/outside.sh"
+    ln -s "$WORK/outside.sh" "$WORK/scripts/ws-linked.sh" 2>/dev/null || true
+    if [[ ! -L "$WORK/scripts/ws-linked.sh" ]]; then
+        # MSYS ln -s silently copies when symlinks are unavailable — a copy
+        # inside scripts/ is legitimately first-party, so nothing to test.
+        skip "symlinks unavailable on this platform"
+    fi
+    run_hook_with_session "bash $WORK/scripts/ws-linked.sh" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+
+@test "k8s scoped: first-party scripts/ file with kubectl as data is not denied" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    mkdir -p "$WORK/scripts"
+    printf '#!/bin/bash\necho "Bash(kubectl:*)|high|blanket kubectl allow"\n' > "$WORK/scripts/ws-audit-fake.sh"
+    run_hook_with_session "bash $WORK/scripts/ws-audit-fake.sh" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
 @test "k8s safety floor: unscoped script containing kubectl force-asks" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     printf '#!/bin/bash\nkubectl apply -k overlays/plain\n' > "$WORK/danger.sh"
@@ -2639,10 +2677,13 @@ BASH
     [[ "$output" != *"Kubernetes"* ]]
 }
 @test "k8s safety floor: slash-relative script containing kubectl force-asks" {
+    # Slash-relative invocation must resolve against cwd for the content
+    # scan. Placed OUTSIDE scripts/ — first-party scripts/ files are
+    # exempt by design (covered by the first-party exemption tests).
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
-    mkdir -p "$WORK/scripts"
-    printf '#!/bin/bash\nkubectl run script-test --image=pause -n gdd-practice\n' > "$WORK/scripts/direct-danger.sh"
-    run_hook_with_session 'scripts/direct-danger.sh' "no-scope-sess" "$WORK"
+    mkdir -p "$WORK/tools"
+    printf '#!/bin/bash\nkubectl run script-test --image=pause -n gdd-practice\n' > "$WORK/tools/direct-danger.sh"
+    run_hook_with_session 'tools/direct-danger.sh' "no-scope-sess" "$WORK"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }

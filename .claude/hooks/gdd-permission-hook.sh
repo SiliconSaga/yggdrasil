@@ -1634,14 +1634,25 @@ fi
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
-    # The reviewed ws dispatcher mentions kubectl for its `ws k8s` verb, so a
-    # pre-PATH `bash scripts/ws <verb>` invocation would otherwise read as an
-    # opaque kubectl-bearing script and force-ask on every newcomer ws call.
-    # Its k8s flows are classified by the explicit `ws k8s` arms above; only
-    # the dispatcher itself (same inode) is exempt — any other script keeps
-    # the content inspection.
-    if [[ -n "$_k8s_script_file" && "$_k8s_script_file" -ef "$_trusted_root/scripts/ws" ]]; then
-        _k8s_script_file=""
+    # First-party workspace scripts mention kubectl legitimately — the
+    # dispatcher's `ws k8s` routing, the guard implementation itself, and
+    # audit PATTERN STRINGS in ws-audit-permissions.sh — so content-grepping
+    # them for the word produced false asks on read-only tools (a
+    # Codex-workspace session hit this on `bash scripts/ws-audit-permissions.sh`;
+    # direct script-path invocation is that harness's habitual form). Their
+    # real k8s flows are classified by the explicit `ws k8s` arms above.
+    # Exempt exactly the files that physically reside in the reviewed
+    # scripts/ directory: the file must not itself be a symlink (a link
+    # placed in scripts/ pointing elsewhere must keep inspection) and its
+    # PHYSICAL parent must be the workspace scripts/ dir (-ef compares
+    # inodes, so path spelling and symlinked ancestors can't spoof it).
+    # Everything else — scratch scripts, component scripts — keeps the
+    # content inspection.
+    if [[ -n "$_k8s_script_file" && ! -L "$_k8s_script_file" ]]; then
+        _k8s_script_parent="$(cd "$(dirname "$_k8s_script_file")" 2>/dev/null && pwd -P)" || _k8s_script_parent=""
+        if [[ -n "$_k8s_script_parent" && "$_k8s_script_parent" -ef "$_trusted_root/scripts" ]]; then
+            _k8s_script_file=""
+        fi
     fi
     k8s_guard_inline_shell_contains_kubectl "$match_cmd" && _k8s_inline_shell=1
     _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
