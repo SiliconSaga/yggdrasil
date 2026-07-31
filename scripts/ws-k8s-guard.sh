@@ -30,6 +30,16 @@ k8s_guard_normalize_command() {
             return 0
             ;;
     esac
+    # Subshell parens are compound forms too, but only OUTSIDE quotes — a
+    # label selector like -l 'env in (prod)' is a single command. Check the
+    # inert-quote-masked form: quoted parens vanish, live ones classify
+    # unsafe (and a malformed-quote input returns unmasked, failing closed).
+    case "$(k8s_guard_mask_inert_quotes "$command")" in
+        *"("*|*")"*)
+            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+            return 0
+            ;;
+    esac
     local -a words=()
     read -r -a words <<< "$command"
     [[ ${#words[@]} -gt 0 ]] || return 0
@@ -147,7 +157,7 @@ k8s_guard_mask_inert_quotes() {
         if [[ "$char" != "'" && "$char" != '"' ]]; then
             output+="$char"
             case "$char" in
-                $'\n'|$'\r'|';'|'|'|'&')
+                $'\n'|$'\r'|';'|'|'|'&'|'('|')')
                     word=""
                     at_command_start=1
                     ;;
@@ -159,6 +169,11 @@ k8s_guard_mask_inert_quotes() {
                             else
                                 case "$word" in
                                     [A-Za-z_][A-Za-z0-9_]*=*|env|*/env|command|*/command|--|-i|--ignore-environment|-p)
+                                        ;;
+                                    # Control-flow words keep the NEXT word in
+                                    # command position — `if true; then "kubectl"
+                                    # …` must not mask the quoted command word.
+                                    if|then|else|elif|fi|while|until|do|done|case|esac|'!'|'{'|'}')
                                         ;;
                                     -u|--unset)
                                         wrapper_operand=1
@@ -484,11 +499,11 @@ k8s_guard_evaluate() {
                         ;;
                 esac
                 ;;
-            --kubeconfig|--server|--token)
+            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--user|--cluster|--client-certificate|--client-key|--certificate-authority)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "$a"
                 return 0
                 ;;
-            --kubeconfig=*|--server=*|--token=*)
+            --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "${a%%=*}"
                 return 0
                 ;;

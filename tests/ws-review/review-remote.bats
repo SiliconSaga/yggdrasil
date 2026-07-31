@@ -156,6 +156,26 @@ probe_csi() { printf '\302\233'; }
     [ ! -e "$BODY_LOG" ]
 }
 
+@test "GitLab provider rejects bare dot-segment thread IDs" {
+    # "." and ".." pass the character allowlist yet normalize to a
+    # different API path — must be rejected as exact values.
+    local id
+    for id in '.' '..'; do
+        run_ws_review app reply 1 "$id" 'dot probe' --remote fork
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"Failed to reply to thread"* ]]
+    done
+    [ ! -e "$BODY_LOG" ]
+}
+
+@test "GitLab provider rejects an invalid thread ID during resolve" {
+    run_ws_review app threads 1 --resolve 'thread/../../notes' --remote fork
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Failed to resolve thread"* ]]
+    [ ! -e "$BODY_LOG" ]
+}
+
 @test "review --reviewer matches literal login instead of regex wildcard" {
     run_ws_review app 1 --remote fork --reviewer a.b --compact
 

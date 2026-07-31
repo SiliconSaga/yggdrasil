@@ -143,6 +143,23 @@ EOF
     run_guard "kind-practice" "alice-sandbox" kubectl delete pods --all-namespaces=false -n alice-sandbox
     [ "$output" = "WRITE_IN_SCOPE" ]
 }
+@test "an invalid --all-namespaces value BLOCKs instead of defaulting" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pods --all-namespaces=yes -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+@test "quoted parens in a label selector stay tokenizable (not the unsafe sentinel)" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -l 'environment in (production)' -n alice-sandbox
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+@test "impersonation and identity flags are blocked (split and equals forms)" {
+    local flag
+    for flag in --as=system:admin --user=other --cluster=prod-cluster --client-certificate=/tmp/c.crt; do
+        run_guard "kind-practice" "alice-sandbox" kubectl get pods "$flag" -n alice-sandbox
+        [[ "$output" == BLOCK:context:* ]]
+    done
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods --as system:admin -n alice-sandbox
+    [[ "$output" == BLOCK:context:* ]]
+}
 @test "alternate connection flags are blocked in split and equals forms" {
     local flag
     for flag in --kubeconfig --server --token; do

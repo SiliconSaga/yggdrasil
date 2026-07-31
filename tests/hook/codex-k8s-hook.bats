@@ -74,6 +74,30 @@ assert_denied() {
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
 }
 
+@test "quoted kubectl after a subshell open is still denied, not masked away" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook '( "kubectl" delete namespace prod )'
+
+    assert_denied
+}
+
+@test "quoted kubectl after control-flow words is still denied, not masked away" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook 'if true; then "kubectl" delete namespace prod; fi'
+
+    assert_denied
+}
+
+@test "env-wrapped inline shell in a compound command is still denied" {
+    seed_scope codex-test kind-practice alice-sandbox
+
+    run_codex_hook "echo safe; env FOO=1 bash -c 'kubectl delete namespace prod'"
+
+    assert_denied
+}
+
 @test "quoted kubectl search pattern defers to normal Codex routing" {
     seed_scope codex-test kind-practice alice-sandbox
 

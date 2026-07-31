@@ -102,8 +102,15 @@ k8s_guard_inline_shell_contains_kubectl "$match_cmd" && inline_shell=1
 
 if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
     masked_match_cmd="$(normalize_for_match "$(k8s_guard_mask_inert_quotes "$cmd")")"
+    # Compound forms defeat the tokenized inline-shell helper (word 0 is the
+    # first command, not the wrapped shell), so a regex stands in here. It
+    # tolerates assignment/env/command wrapper prefixes and requires -c as
+    # its own option word — a path operand like /tmp/build-abc must not
+    # read as command-string mode. Sentinel context, so over-matching a
+    # weird shape costs a deny that teaches one-command-at-a-time.
     unsafe_inline_shell=0
-    if [[ "$match_cmd" =~ ^[[:space:]]*([^[:space:]]*/)?(bash|sh)[[:space:]].*-[^[:space:]]*c([[:space:]]|$) ]] \
+    unsafe_inline_re='(^|[;&|[:space:]]|\()(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|command)[[:space:]]+)*([^[:space:]]*/)?(bash|sh|dash|ash|ksh|ksh93|mksh|zsh)[[:space:]]([^[:space:]]+[[:space:]])*-[A-Za-z]*c([[:space:]]|$)'
+    if [[ "$match_cmd" =~ $unsafe_inline_re ]] \
         && [[ "$match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]]; then
         unsafe_inline_shell=1
     fi

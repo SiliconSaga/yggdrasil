@@ -244,6 +244,12 @@ gp_review_threads_status() {
 # Usage: gp_review_thread_reply SLUG MR_NUM DISCUSSION_ID MESSAGE
 _gl_validate_discussion_id() {
     local discussion_id="$1"
+    # "." and ".." pass the character allowlist but are path segments —
+    # URL normalization can steer them to a different API endpoint.
+    if [[ "$discussion_id" == "." || "$discussion_id" == ".." ]]; then
+        echo "ERROR: Invalid GitLab discussion ID." >&2
+        return 1
+    fi
     if [[ ! "$discussion_id" =~ ^[A-Za-z0-9._~-]+$ ]]; then
         echo "ERROR: Invalid GitLab discussion ID." >&2
         return 1
