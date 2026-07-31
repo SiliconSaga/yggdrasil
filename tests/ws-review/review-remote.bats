@@ -159,10 +159,7 @@ probe_csi() { printf '\302\233'; }
 }
 
 @test "reply preserves a message that begins with --remote" {
-    # The <message> positional is free-form; a message that starts with
-    # --remote must reach the API verbatim (after the GDD attribution banner
-    # ws_gdd_attribution_line prepends), not be consumed as the flag. The
-    # trailing --remote selects the remote (required: CR #1 exists on both).
+    # The <message> positional is free-form; a message that starts with --remote must reach the API verbatim (after the GDD attribution banner ws_gdd_attribution_line prepends), not be consumed as the flag. The trailing --remote selects the remote (required: CR #1 exists on both).
     run_ws_review app reply 1 abc123 '--remote=spoof' --remote fork
 
     [ "$status" -eq 0 ]

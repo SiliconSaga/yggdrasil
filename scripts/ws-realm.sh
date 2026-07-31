@@ -677,14 +677,7 @@ ws_resolve_token_var() {
     printf '%s\n' "$token_var"
 }
 
-# Resolve the GDD AI-attribution banner line, shared by any script that posts
-# agent-authored text to an external tracker (CR/issue bodies, review replies
-# and comments). git-cr.sh / git-issue.sh enforce this line's presence in a
-# user-supplied template instead of calling this — they predate it and their
-# bodies are already template-sourced, so re-deriving here would just be a
-# second copy of the same logic with no behavior change. New callers (like
-# ws-review.sh's reply/comment) that build short messages ad hoc, without a
-# template to copy from, should call this instead of typing the line by hand.
+# Resolve the GDD AI-attribution banner line, shared by any script that posts agent-authored text to an external tracker (CR/issue bodies, review replies and comments). git-cr.sh / git-issue.sh enforce this line's presence in a user-supplied template instead of calling this — they predate it and their bodies are already template-sourced, so re-deriving here would just be a second copy of the same logic with no behavior change. New callers (like ws-review.sh's reply/comment) that build short messages ad hoc, without a template to copy from, should call this instead of typing the line by hand.
 # Usage: ws_gdd_attribution_line "<label>"   (label e.g. "comment", "reply")
 ws_gdd_attribution_line() {
     local label="$1"

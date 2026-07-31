@@ -461,16 +461,7 @@ review_comments() {
     printf '%s\n' "$summary" | review_sanitize_provider_text
     echo ""
 
-    # Branch-identity check: warn if the locally checked-out branch isn't
-    # actually this CR's head branch. A local branch can share history with
-    # the real CR branch (e.g. checked out from the same commit under a
-    # different name) without being it — committing/pushing there creates an
-    # unrelated branch instead of updating this CR (the exact mistake that
-    # motivated this check: a branch named "soloturn" was pushed as a new
-    # branch instead of updating the PR's actual "soloturn-performance"
-    # head). Checked before the drift check below, since drift against the
-    # wrong branch isn't meaningful. Best-effort: an unresolvable head
-    # branch degrades to silence, never a hard error.
+    # Branch-identity check: warn if the locally checked-out branch isn't actually this CR's head branch. A local branch can share history with the real CR branch (e.g. checked out from the same commit under a different name) without being it — committing/pushing there creates an unrelated branch instead of updating this CR (the exact mistake that motivated this check: a branch named "soloturn" was pushed as a new branch instead of updating the PR's actual "soloturn-performance" head). Checked before the drift check below, since drift against the wrong branch isn't meaningful. Best-effort: an unresolvable head branch degrades to silence, never a hard error.
     if [[ -n "$_SELECTED_REMOTE" ]]; then
         local head_ref=""
         head_ref=$(gp_review_head_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_ref=""
@@ -484,12 +475,7 @@ review_comments() {
         fi
     fi
 
-    # Branch-drift check: warn if the CR's base branch has moved ahead of
-    # this branch since it was cut. Nothing else in the ws push/cr flow
-    # surfaces this, and review_comments is the command the workflow
-    # already recommends running after every push — piggyback here instead
-    # of adding a separate command to remember. Best-effort: an unresolvable
-    # base branch or a fetch failure degrades to silence, never a hard error.
+    # Branch-drift check: warn if the CR's base branch has moved ahead of this branch since it was cut. Nothing else in the ws push/cr flow surfaces this, and review_comments is the command the workflow already recommends running after every push — piggyback here instead of adding a separate command to remember. Best-effort: an unresolvable base branch or a fetch failure degrades to silence, never a hard error.
     if [[ -n "$_SELECTED_REMOTE" ]]; then
         local base_ref=""
         base_ref=$(gp_review_base_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || base_ref=""
@@ -828,11 +814,7 @@ review_reply() {
     fi
 }
 
-# Post a top-level PR/MR comment — not attached to any inline diff thread.
-# Bodyfile-based (like ws cr / ws issue) rather than an inline message
-# because top-level comments in practice run long (multi-paragraph
-# explanations, code blocks) — unlike `reply`, which is typically a short
-# one-liner and keeps its inline-message signature.
+# Post a top-level PR/MR comment — not attached to any inline diff thread. Bodyfile-based (like ws cr / ws issue) rather than an inline message because top-level comments in practice run long (multi-paragraph explanations, code blocks) — unlike `reply`, which is typically a short one-liner and keeps its inline-message signature.
 review_comment() {
     if [[ $# -ne 2 ]]; then
         echo "Usage: ws review <comp> comment <cr#> <bodyfile> [--remote <name>]" >&2
@@ -1016,9 +998,7 @@ _SELECTED_PROVIDER=""
 # alone is ambiguous when two remotes share owner/repo across hosts or provider
 # mappings — token setup below needs the precise URL, not "first slug match".
 _SELECTED_URL=""
-# Remote name (not just slug/URL) — needed to `git fetch` the base branch for
-# the drift check in review_comments(). Matching by slug/URL alone isn't
-# enough since fetch needs the local remote name, not the repo identity.
+# Remote name (not just slug/URL) — needed to `git fetch` the base branch for the drift check in review_comments(). Matching by slug/URL alone isn't enough since fetch needs the local remote name, not the repo identity.
 _SELECTED_REMOTE=""
 if [[ -n "$REVIEW_REMOTE" ]]; then
     for i in "${!_CANDIDATE_REMOTES[@]}"; do
