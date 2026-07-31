@@ -14,6 +14,10 @@ setup() {
 
     cat > "$TEST_BIN/git" <<'SH'
 #!/usr/bin/env bash
+if [[ "${1:-}" == "hash-object" ]]; then
+    printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    exit 0
+fi
 printf '%s\n' "$*" >> "$GIT_LOG"
 exit 0
 SH
@@ -75,6 +79,20 @@ YAML
     [ ! -s "$GIT_LOG" ]
 }
 
+@test "explicit URL mode checks a URL-derived component name for collisions" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
 @test "explicit URL mode permits the declared repo under its component name" {
     cat > "$WORK/ecosystem.yaml" <<'YAML'
 components:
@@ -110,6 +128,20 @@ components:
 YAML
 
     run bash "$WORK/scripts/ws-clone.sh" --url ssh://bob@github.example:22/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode keeps IPv6 hosts distinct from SSH port suffixes" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: ssh://git@[2001:db8::1:2222]/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url ssh://git@[2001:db8::1]:2222/example/widget.git --name widget
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"declared component"* ]]
@@ -177,6 +209,31 @@ components: {}
 YAML
     cat > "$WORK/ecosystem.local.yaml" <<'YAML'
 realm: realm-stale
+YAML
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode includes declarations from a currently trusted realm" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components: {}
+YAML
+    mkdir -p "$WORK/realms/realm-current"
+    cat > "$WORK/realms/realm-current/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+realm: realm-current
+_gdd:
+  realmTrust:
+    realm: realm-current
+    fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 YAML
 
     run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget

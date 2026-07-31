@@ -146,6 +146,7 @@ repository_identity_from_url() {
     esac
 
     host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+    [[ "$host" == *:* ]] && host="[$host]"
     path="${path#/}"
     while [[ "$path" == */ ]]; do
         path="${path%/}"
