@@ -238,6 +238,11 @@ for arg in "$@"; do
             # treats it as boolean (--recursive). Same swallow risk.
             -r)
                 [[ "$runner" == "python" ]] && expect_value=true ;;
+            # -j/--jobs takes a value for bats (parallel job count) and Go
+            # (-p N is Go's parallelism flag, already listed above; bats has
+            # no boolean flag spelled -j/--jobs, so this is unambiguous).
+            -j|--jobs)
+                [[ "$runner" == "bats" ]] && expect_value=true ;;
         esac
     else
         test_selectors+=("$arg")
@@ -416,6 +421,34 @@ case "$runner" in
         if [[ ${#test_selectors[@]} -eq 1 && "$bats_selectors_are_paths" != true ]]; then
             bats_argv+=(--filter "$test_filter")
         fi
+
+        # Auto-enable bats' parallel mode when a backend is on PATH and the
+        # caller didn't already pass -j/--jobs themselves. bats defaults to
+        # looking for a binary literally named "parallel" (GNU parallel);
+        # rush is preferred when both are present since it has no citation
+        # nag and no Perl dependency. Single-file runs skip this — the
+        # cross-process fan-out only pays off with multiple files.
+        _bats_user_set_jobs=false
+        for _a in "${runner_args[@]}"; do
+            case "$_a" in
+                -j|--jobs) _bats_user_set_jobs=true; break ;;
+            esac
+        done
+        if [[ "$_bats_user_set_jobs" != true && ${#bats_files[@]} -gt 1 ]]; then
+            _bats_parallel_bin=""
+            if command -v rush >/dev/null 2>&1; then
+                _bats_parallel_bin="rush"
+            elif command -v parallel >/dev/null 2>&1; then
+                _bats_parallel_bin="parallel"
+            fi
+            if [[ -n "$_bats_parallel_bin" ]]; then
+                _bats_jobs=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+                echo "(running ${#bats_files[@]} test files in parallel: --jobs $_bats_jobs via $_bats_parallel_bin)" >&2
+                bats_argv+=(--jobs "$_bats_jobs")
+                [[ "$_bats_parallel_bin" == "rush" ]] && bats_argv+=(--parallel-binary-name rush)
+            fi
+        fi
+
         bats_argv+=("${runner_args[@]}" "${bats_files[@]}")
         "${bats_argv[@]}"
         ;;
