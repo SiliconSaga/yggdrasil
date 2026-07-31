@@ -171,6 +171,33 @@ clone_url() {
         exit 1
     fi
 
+    # An explicit URL clone must not occupy the identity of a component that
+    # the merged ecosystem already declares. Protocol-equivalent URLs compare
+    # by normalized host/path so the declared HTTPS repo can still be cloned
+    # over SSH; a different repo must use a unique name.
+    local eco component_declared declared_repo git_org declared_norm requested_norm
+    eco="$(ws_resolve_ecosystem)"
+    component_declared=$(COMPONENT_NAME="$name" yq -r '.components[strenv(COMPONENT_NAME)] != null' "$eco")
+    if [[ "$component_declared" == "true" ]]; then
+        declared_repo=$(COMPONENT_NAME="$name" yq -r '.components[strenv(COMPONENT_NAME)].repo // ""' "$eco")
+        if [[ -z "$declared_repo" ]]; then
+            git_org=$(yq -r '.defaults.gitOrg // ""' "$eco")
+            [[ -n "$git_org" ]] && declared_repo="${git_org%/}/$name.git"
+        fi
+        if [[ -z "$declared_repo" ]]; then
+            echo "ERROR: '$name' is a declared component without a repository URL." >&2
+            echo "  Configure its repository and use 'ws clone $name', or choose a unique --name." >&2
+            exit 1
+        fi
+        declared_norm="$(git_auth_normalize_url "$declared_repo")"
+        requested_norm="$(git_auth_normalize_url "$url")"
+        if [[ "$declared_norm" != "$requested_norm" ]]; then
+            echo "ERROR: '$name' is a declared component for a different repository." >&2
+            echo "  Use 'ws clone $name' for the declared component or choose a unique --name." >&2
+            exit 1
+        fi
+    fi
+
     local target="$COMPONENTS_DIR/$name"
     local safe_url
     safe_url=$(redact_url "$url")

@@ -61,6 +61,33 @@ YAML
     [[ "$(<"$GIT_LOG")" == *"clone"*"$source"* ]]
 }
 
+@test "explicit URL mode rejects a different repo under a declared component name" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode permits the declared repo under its component name" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url git@github.com:example/widget.git --name widget
+
+    [ "$status" -eq 0 ]
+    [[ "$(<"$GIT_LOG")" == *"clone"*"example/widget.git"* ]]
+}
+
 @test "canonical ecosystem flag adds an explicit URL clone to local config" {
     local source="$BATS_TEST_TMPDIR/adopted-source.git"
     mkdir -p "$source"
