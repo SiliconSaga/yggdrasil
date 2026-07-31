@@ -599,17 +599,14 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     file_path=$(echo "$input" | jq -r '.tool_input.file_path // ""')
     file_path="$(_normalize_host_path "$file_path")"
 
-    # Path-traversal guard. The scratch-dir test below is a textual
-    # prefix match, so a path like `.tmp/../../etc/whatever` would
-    # still START WITH `$project_dir/.tmp/` and wrongly auto-allow a
-    # write that RESOLVES outside the project. Reject any path
-    # containing a `..` segment up front and fall through to the
-    # harness prompt — a legitimate scratch-dir write never needs
-    # `..`, so this costs nothing real and closes the bypass without
-    # depending on a `realpath`/`readlink` that varies across OSes.
+    # Traversal and symlink aliases must never inherit the scratch auto-allow,
+    # but resolve them before falling through: an alias may target protected
+    # workspace state that requires an explicit human decision even when the
+    # host is otherwise running in acceptEdits mode.
+    edit_alias_path=0
     case "$file_path" in
         ..|../*|*/..|*/../*)
-            exit 0  # passthrough — let the harness prompt
+            edit_alias_path=1
             ;;
     esac
 
@@ -619,26 +616,30 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         *)  abs_path="$project_dir/$file_path" ;;
     esac
 
-    # Symlink guard. The `..` guard above stops textual traversal, but
-    # a symlink INSIDE a scratch dir defeats a textual prefix match a
-    # different way: `.tmp/evil` → `/etc` still has a literal path
-    # starting with `$project_dir/.tmp/`, yet a write through it lands
-    # outside the project. Two checks close this:
-    #
-    #   1. If the target itself is a symlink, passthrough — a write
-    #      follows the link to wherever it points.
-    #   2. Resolve the deepest existing directory ancestor of the
-    #      target with `cd … && pwd -P` (physical path, symlinks
-    #      resolved) and confirm it is still under the *resolved*
-    #      project root. Resolving BOTH sides also handles the case
-    #      where the whole project is reached via a symlinked path.
+    # Follow a symlink at the final path element before resolving the parent.
+    # `pwd -P` below handles symlinked ancestors; this bounded loop covers the
+    # otherwise-missed `.tmp/alias -> ../.env` shape. Any resolution failure
+    # falls through to the host rather than gaining a scratch allow.
+    resolve_path="$abs_path"
+    edit_link_depth=0
+    while [[ -L "$resolve_path" ]]; do
+        edit_alias_path=1
+        edit_link_depth=$((edit_link_depth + 1))
+        [[ "$edit_link_depth" -le 32 ]] || exit 0
+        edit_link_target="$(readlink "$resolve_path" 2>/dev/null)" || exit 0
+        case "$edit_link_target" in
+            /*) resolve_path="$edit_link_target" ;;
+            *) resolve_path="${resolve_path%/*}/$edit_link_target" ;;
+        esac
+    done
+
+    # Resolve the deepest existing directory ancestor of the effective target
+    # with `cd … && pwd -P` and confirm it remains under the resolved project
+    # root. Resolving both sides also handles a symlinked project checkout.
     #
     # `cd`/`pwd -P` is POSIX and needs no `realpath` (which varies
     # across OSes). Any failure → passthrough, never a false allow.
-    if [[ -L "$abs_path" ]]; then
-        exit 0  # target is a symlink — let the harness prompt
-    fi
-    sym_probe="${abs_path%/*}"
+    sym_probe="${resolve_path%/*}"
     unresolved_suffix=""
     while [[ ! -d "$sym_probe" && "$sym_probe" == */* ]]; do
         unresolved_suffix="/${sym_probe##*/}$unresolved_suffix"
@@ -646,7 +647,7 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     done
     real_probe="$(cd "$sym_probe" 2>/dev/null && pwd -P)" || exit 0
     real_project="$(cd "$project_dir" 2>/dev/null && pwd -P)" || exit 0
-    resolved_abs_path="$real_probe$unresolved_suffix/${abs_path##*/}"
+    resolved_abs_path="$real_probe$unresolved_suffix/${resolve_path##*/}"
     case "$real_probe/" in
         "$real_project/"*) : ;;   # resolves inside the project — OK
         *) exit 0 ;;              # resolves outside — passthrough
@@ -731,6 +732,10 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         cmd="$tool_name $file_path"
         ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
     fi
+
+    # Non-sensitive aliases still pass through to the host permission flow;
+    # they never inherit a textual scratch-directory auto-allow.
+    [[ "$edit_alias_path" -eq 1 ]] && exit 0
 
     # Scratch dirs that auto-allow Edit / Write come from the
     # [scratch-dirs] section of hook-rules (parsed above). The baseline

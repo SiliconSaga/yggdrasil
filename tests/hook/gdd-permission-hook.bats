@@ -372,6 +372,31 @@ JSON
     [[ "$output" == *"security-sensitive workspace state"* ]]
 }
 
+@test "security: parent traversal into sensitive config still forces an ask" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+
+    run_hook_write "Write" "$WORK/.tmp/../.claude/settings.json"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: a final symlink into sensitive config still forces an ask" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+    touch "$WORK/.env"
+    ln -s "$WORK/.env" "$WORK/.tmp/env-alias" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/env-alias" ]] || skip "real symlinks not supported on this platform"
+
+    run_hook_write "Write" "$WORK/.tmp/env-alias"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
 @test "security: session identity state forces an ask instead of auto-allow" {
     seed_real_project_config
 
