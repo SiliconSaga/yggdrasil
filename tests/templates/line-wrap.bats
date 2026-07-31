@@ -24,11 +24,22 @@
 
 _wrap_detect() {
     awk '
-        FNR == 1 { fm = 0; fence = 0; prev = 0 }
+        FNR == 1 { fm = 0; fence = ""; prev = 0 }
         FNR == 1 && $0 == "---" { fm = 1; next }
         fm { if ($0 == "---") fm = 0; next }
-        /^[[:space:]]*```/ { fence = 1 - fence; prev = 0; next }
-        fence { next }
+        /^[[:space:]]*(```|~~~)/ {
+            line = $0
+            sub(/^[[:space:]]*/, "", line)
+            marker = substr(line, 1, 3)
+            if (fence == "") {
+                fence = marker
+            } else if (fence == marker) {
+                fence = ""
+            }
+            prev = 0
+            next
+        }
+        fence != "" { next }
         /^[[:space:]]*$/ { prev = 0; next }
         /^[[:space:]]*[-*][[:space:]]/ || /^[[:space:]]*[0-9]+\.[[:space:]]/ { prev = 1; next }
         /^#/ || /^>/ || /^\|/ || /^<!--/ { prev = 0; next }

@@ -291,3 +291,25 @@ _move_remote_main() {
     [ "$status" -eq 0 ]
     [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
 }
+
+@test "stale-base: --upstream path passes the preflight against a fresh upstream" {
+    # fork remote = 'fork' (identity.forkRemote), so 'alt' is the detected
+    # upstream — its bare-repo backing exercises the same preflight on the
+    # cross-fork path.
+    run bash -c 'cd "$1" || exit 1; GIT_CR_REMOTE=fork bash "$2" --upstream "test: upstream CR" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Opening cross-fork CR"* ]]
+    [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "stale-base: --upstream path fails when the upstream default branch moved" {
+    _move_remote_main
+
+    run bash -c 'cd "$1" || exit 1; GIT_CR_REMOTE=fork bash "$2" --upstream "test: upstream CR" "$3"' bash "$WORK" "$GIT_CR_BIN" "$BODYFILE"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"has moved"* ]]
+    [[ "$output" == *"--stale-base-ok"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}

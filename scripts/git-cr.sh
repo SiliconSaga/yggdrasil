@@ -366,7 +366,11 @@ if [[ -n "$UPSTREAM" ]]; then
     fi
   fi
   UPSTREAM_REMOTE="${UPSTREAM_REMOTES[0]}"
-  UPSTREAM_URL=$(git remote get-url "$UPSTREAM_REMOTE" 2>/dev/null)
+  # Raw config read for the same reason as FORK_URL above: every consumer is
+  # logical (provider detect, host compare, token mapping) and must see the
+  # canonical configured URL, not a url.insteadOf rewrite. Transport addresses
+  # the remote by NAME, so git still applies rewrites where they belong.
+  UPSTREAM_URL=$(git config --get-all "remote.$UPSTREAM_REMOTE.url" 2>/dev/null | head -n1) || true
 
   # Verify both remotes use the same provider
   UPSTREAM_PROVIDER=$(gp_detect "$UPSTREAM_URL" "$_ECO" 2>/dev/null) || {
