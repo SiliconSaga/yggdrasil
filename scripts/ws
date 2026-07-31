@@ -228,25 +228,29 @@ ws_cr() {
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] <title> <bodyfile>
+Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] [--stale-base-ok] <title> <bodyfile>
 
   component   Component, realm, or hoard to open the CR against
   --remote    Use this git remote as the fork/head remote for this CR
   --source-branch
               Submit this local, remote-tracked branch instead of current HEAD
   --upstream  Target the upstream repo instead of the fork remote
+  --stale-base-ok
+              Skip the stale-base preflight (deliberate stacked CRs etc.)
   title       CR (PR / MR) title
   bodyfile    Path (relative to workspace root) to a change bodyfile
               — see templates/change.md
 
 Opens a code-review request via git-cr.sh. The current branch is used unless
---source-branch selects another pushed branch from the same repository.
+--source-branch selects another pushed branch from the same repository. Before
+creating, the live target-branch tip is verified to be contained in the source
+branch — a moved target fails with a rebase pointer unless --stale-base-ok.
 HELP
             return 0
         fi
     done
-    if [[ $# -lt 3 || $# -gt 8 ]]; then
-        echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] <title> <bodyfile>" >&2
+    if [[ $# -lt 3 || $# -gt 9 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] [--stale-base-ok] <title> <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
@@ -295,8 +299,8 @@ HELP
                 ;;
         esac
     done
-    if [[ ${#args[@]} -lt 2 || ${#args[@]} -gt 3 ]]; then
-        echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] <title> <bodyfile>" >&2
+    if [[ ${#args[@]} -lt 2 || ${#args[@]} -gt 4 ]]; then
+        echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] [--stale-base-ok] <title> <bodyfile>" >&2
         exit 1
     fi
     # Resolve bodyfile path before cd (last arg is always the bodyfile)
