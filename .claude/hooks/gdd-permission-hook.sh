@@ -6,8 +6,8 @@
 # PURPOSE
 # Fires on PreToolUse for Bash (four-tier deny/ask/allow logic), for
 # Edit/Write (scratch-dir auto-allow), and for PowerShell (deny-by-
-# default with a test-wrapper carve-out + `powershell` bypass slug —
-# see the PowerShell branch below). Has dormant PermissionRequest
+# default with an audited `powershell` bypass slug — see the PowerShell
+# branch below). Has dormant PermissionRequest
 # support wired in but not registered by default. Inspects the tool
 # input and emits one of four outcomes:
 #
