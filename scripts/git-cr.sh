@@ -313,6 +313,7 @@ check_base_branch_fresh() {
   if [[ "$_bs" -eq 2 ]]; then
     echo "ERROR: target branch '$base_branch' is not known on remote '$remote'." >&2
     echo "  Check the repository default branch and remote selection, then retry." >&2
+    echo "  If the detected default branch is intentionally absent here, --stale-base-ok skips this preflight." >&2
     exit 1
   elif [[ "$_bs" -ne 0 ]]; then
     echo "ERROR: could not verify target branch '$base_branch' on '$remote' — git ls-remote failed (see above); check connectivity and auth." >&2

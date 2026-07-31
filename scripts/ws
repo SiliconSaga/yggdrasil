@@ -243,8 +243,9 @@ Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstr
 
 Opens a code-review request via git-cr.sh. The current branch is used unless
 --source-branch selects another pushed branch from the same repository. Before
-creating, the live target-branch tip is verified to be contained in the source
-branch — a moved target fails with a rebase pointer unless --stale-base-ok.
+creating, the live target-branch tip is verified to exist and be contained in
+the source branch — a moved target fails with a rebase pointer, a missing
+target fails closed; --stale-base-ok skips the preflight either way.
 HELP
             return 0
         fi
