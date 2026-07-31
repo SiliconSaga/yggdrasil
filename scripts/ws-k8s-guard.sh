@@ -117,6 +117,106 @@ k8s_guard_script_path() {
     printf '%s' "$path"
 }
 
+# True only for the two reviewed workspace entrypoints whose source text
+# legitimately mentions kubectl while dispatching or auditing other commands.
+# Exact inode comparison tolerates alternate path spellings; rejecting symlinks
+# prevents an exempt name from becoming an alias to different content.
+k8s_guard_script_content_exempt() {
+    local root="$1" path="$2" candidate
+    [[ -n "$root" && -n "$path" && ! -L "$path" ]] || return 1
+    for candidate in \
+        "$root/scripts/ws" \
+        "$root/scripts/ws-audit-permissions.sh"; do
+        if [[ -f "$candidate" && "$path" -ef "$candidate" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Mask inert single- and double-quoted spans before deciding whether an unsafe
+# compound command is Kubernetes-related. Shell operators and words inside a
+# quoted search pattern are data, not executable syntax. Double-quoted spans
+# containing expansion syntax and malformed quoting retain the original input
+# so callers continue to fail closed.
+k8s_guard_mask_inert_quotes() {
+    local input="$1" output="" char quote segment word=""
+    local i=0 start length=${#1} closed live at_command_start=1 wrapper_operand=0
+    while [[ $i -lt $length ]]; do
+        char="${input:i:1}"
+        if [[ "$char" != "'" && "$char" != '"' ]]; then
+            output+="$char"
+            case "$char" in
+                $'\n'|$'\r'|';'|'|'|'&')
+                    word=""
+                    at_command_start=1
+                    ;;
+                ' '|$'\t')
+                    if [[ -n "$word" ]]; then
+                        if [[ "$at_command_start" == "1" ]]; then
+                            if [[ "$wrapper_operand" == "1" ]]; then
+                                wrapper_operand=0
+                            else
+                                case "$word" in
+                                    [A-Za-z_][A-Za-z0-9_]*=*|env|*/env|command|*/command|--|-i|--ignore-environment|-p)
+                                        ;;
+                                    -u|--unset)
+                                        wrapper_operand=1
+                                        ;;
+                                    --unset=*)
+                                        ;;
+                                    *)
+                                        at_command_start=0
+                                        ;;
+                                esac
+                            fi
+                        fi
+                        word=""
+                    fi
+                    ;;
+                *) word+="$char" ;;
+            esac
+            i=$((i + 1))
+            continue
+        fi
+
+        quote="$char"
+        start=$i
+        i=$((i + 1))
+        closed=0
+        live=0
+        while [[ $i -lt $length ]]; do
+            char="${input:i:1}"
+            if [[ "$quote" == '"' && "$char" == '\' ]]; then
+                i=$((i + 2))
+                continue
+            fi
+            if [[ "$char" == "$quote" ]]; then
+                i=$((i + 1))
+                closed=1
+                break
+            fi
+            if [[ "$quote" == '"' && ( "$char" == '$' || "$char" == '`' ) ]]; then
+                live=1
+            fi
+            i=$((i + 1))
+        done
+        if [[ "$closed" != "1" || "$live" == "1" ]]; then
+            printf '%s' "$input"
+            return 0
+        fi
+
+        segment="${input:start:i-start}"
+        if [[ "$at_command_start" == "1" ]]; then
+            output+="$segment"
+        else
+            output+="${segment//?/ }"
+        fi
+        word+="q"
+    done
+    printf '%s' "$output"
+}
+
 # True when a shell's inline-command option carries a literal kubectl call.
 k8s_guard_inline_shell_contains_kubectl() {
     local command="$1" normalized runner token
@@ -358,7 +458,7 @@ k8s_guard_evaluate() {
     else
         printf 'NOT_K8S'; return 0
     fi
-    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a
+    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a all_ns_value
     local ffiles=()
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
@@ -373,6 +473,25 @@ k8s_guard_evaluate() {
             -n=*|--namespace=*) ns_arg="${a#*=}";;
             -n?*) ns_arg="${a#-n}";;        # attached short form: -n<ns>
             -A|--all-namespaces) all_ns=1 ;;
+            --all-namespaces=*)
+                all_ns_value="${a#*=}"
+                case "$all_ns_value" in
+                    true|True|TRUE|1|t|T) all_ns=1 ;;
+                    false|False|FALSE|0|f|F) all_ns=0 ;;
+                    *)
+                        printf 'BLOCK:precondition:invalid --all-namespaces boolean value'
+                        return 0
+                        ;;
+                esac
+                ;;
+            --kubeconfig|--server|--token)
+                printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "$a"
+                return 0
+                ;;
+            --kubeconfig=*|--server=*|--token=*)
+                printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "${a%%=*}"
+                return 0
+                ;;
             -f|--filename) ffiles+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
             -f=*|--filename=*) ffiles+=("${a#*=}");;
             -f?*) ffiles+=("${a#-f}");;      # attached short form: -f<file>
@@ -444,7 +563,45 @@ k8s_guard_evaluate() {
     # deletes prod regardless). Fail closed before any namespace logic.
     case "$verb" in
         cordon|uncordon|drain) printf 'BLOCK:unbounded:kubectl %s operates on a node (cluster-scoped); not namespace-scope-bounded' "$verb"; return 0 ;;
+        certificate)
+            case "$verb2" in
+                approve|deny)
+                    printf 'BLOCK:unbounded:kubectl certificate %s changes a cluster-scoped certificate request' "$verb2"
+                    return 0
+                    ;;
+            esac
+            ;;
     esac
+
+    # `kubectl cp` accepts [namespace/]pod:path on either side. An explicit
+    # operand namespace overrides the context default, so inspect both operands
+    # before falling back to the ordinary -n/default-namespace check.
+    if [[ "$verb" == "cp" ]]; then
+        local cp_operand cp_remote cp_ns cp_explicit=0
+        local -a cp_operands=("$verb2")
+        [[ ${#rest_pos[@]} -gt 0 ]] && cp_operands+=("${rest_pos[@]}")
+        for cp_operand in "${cp_operands[@]}"; do
+            [[ "$cp_operand" == *:* ]] || continue
+            cp_remote="${cp_operand%%:*}"
+            [[ "$cp_remote" == */* ]] || continue
+            cp_ns="${cp_remote%%/*}"
+            [[ -n "$cp_ns" ]] || continue
+            cp_explicit=1
+            if ! _k8s_ns_in_csv "$cp_ns" "$scope_ns_csv"; then
+                printf 'BLOCK:scope:kubectl cp operand namespace %s is outside the guard scope (%s)' "$cp_ns" "$scope_ns_csv"
+                return 0
+            fi
+        done
+        if [[ "$cp_explicit" == "1" ]]; then
+            if [[ -n "$ns_arg" ]] && ! _k8s_ns_in_csv "$ns_arg" "$scope_ns_csv"; then
+                printf 'BLOCK:scope:kubectl cp -n namespace %s is outside the guard scope (%s)' "$ns_arg" "$scope_ns_csv"
+                return 0
+            fi
+            printf 'WRITE_IN_SCOPE'
+            return 0
+        fi
+    fi
+
     # In-scope namespace lifecycle: create/delete of a namespace whose NAME is
     # itself within the guard scope is allowed — it lets a practitioner create
     # (or delete and recreate) their own scoped namespace(s). The namespace name

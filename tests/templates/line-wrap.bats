@@ -24,22 +24,29 @@
 
 _wrap_detect() {
     awk '
-        FNR == 1 { fm = 0; fence = ""; prev = 0 }
+        FNR == 1 { fm = 0; fence_char = ""; fence_len = 0; prev = 0 }
         FNR == 1 && $0 == "---" { fm = 1; next }
         fm { if ($0 == "---") fm = 0; next }
         /^[[:space:]]*(```|~~~)/ {
             line = $0
             sub(/^[[:space:]]*/, "", line)
-            marker = substr(line, 1, 3)
-            if (fence == "") {
-                fence = marker
-            } else if (fence == marker) {
-                fence = ""
+            marker_char = substr(line, 1, 1)
+            marker_len = 0
+            while (substr(line, marker_len + 1, 1) == marker_char) {
+                marker_len++
+            }
+            suffix = substr(line, marker_len + 1)
+            if (fence_char == "") {
+                fence_char = marker_char
+                fence_len = marker_len
+            } else if (marker_char == fence_char && marker_len >= fence_len && suffix ~ /^[[:space:]]*$/) {
+                fence_char = ""
+                fence_len = 0
             }
             prev = 0
             next
         }
-        fence != "" { next }
+        fence_char != "" { next }
         /^[[:space:]]*$/ { prev = 0; next }
         /^[[:space:]]*[-*][[:space:]]/ || /^[[:space:]]*[0-9]+\.[[:space:]]/ { prev = 1; next }
         /^#/ || /^>/ || /^\|/ || /^<!--/ { prev = 0; next }
@@ -103,4 +110,22 @@ GRANDFATHERED="gdd gdd-bdd gdd-bdd-pytest gdd-branch-workflow gdd-doc-writing gd
             return 1
         }
     done
+}
+
+@test "a shorter fence does not close a longer opening fence" {
+    local fixture="$BATS_TEST_TMPDIR/long-fence.md"
+    printf '````shell\n```\ncode line one\ncode line two\n````\n' > "$fixture"
+
+    run _wrap_detect "$fixture"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "a fence with an info suffix does not close an existing fence" {
+    local fixture="$BATS_TEST_TMPDIR/info-suffix.md"
+    printf '```shell\n```typescript\ncode line one\ncode line two\n```\n' > "$fixture"
+
+    run _wrap_detect "$fixture"
+
+    [ "$status" -eq 0 ]
 }

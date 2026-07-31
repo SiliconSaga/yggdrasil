@@ -274,6 +274,16 @@ _move_remote_main() {
     [[ ! -f "$GH_LOG" ]]
 }
 
+@test "stale-base: missing target branch fails closed before CR creation" {
+    git -C "$ALT_BARE" update-ref -d refs/heads/main
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: missing base" .crs/body.md
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"target branch 'main' is not known on remote 'alt'"* ]]
+    [[ ! -f "$GH_LOG" ]]
+}
+
 @test "stale-base: --stale-base-ok submits against the moved base" {
     _move_remote_main
 

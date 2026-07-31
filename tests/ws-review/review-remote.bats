@@ -148,6 +148,14 @@ probe_csi() { printf '\302\233'; }
     [ "$(cat "$BODY_LOG")" = "--remote=spoof" ]
 }
 
+@test "GitLab provider rejects a thread ID that can steer the API path" {
+    run_ws_review app reply 1 'thread/../../notes' 'unsafe path probe' --remote fork
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Failed to reply to thread"* ]]
+    [ ! -e "$BODY_LOG" ]
+}
+
 @test "review --reviewer matches literal login instead of regex wildcard" {
     run_ws_review app 1 --remote fork --reviewer a.b --compact
 

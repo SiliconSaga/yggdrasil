@@ -300,8 +300,8 @@ fi
 # fails with a rebase pointer. --stale-base-ok (or GIT_CR_STALE_BASE_OK=1)
 # skips the check for deliberate cases like stacked CRs. Same exit-code
 # discipline as the source-branch verification above: ls-remote exit 2 =
-# ref absent (let CR creation surface the provider's own error), other
-# nonzero = transport/auth failure.
+# ref absent, other nonzero = transport/auth failure. Both fail closed before
+# handing an ambiguous base to the provider.
 check_base_branch_fresh() {
   local remote="$1" remote_url="$2" base_branch="$3"
   [[ "$STALE_BASE_OK" == "1" ]] && return 0
@@ -311,7 +311,9 @@ check_base_branch_fresh() {
   local _bs=0 _out _tip
   _out=$(env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git ls-remote --exit-code "$remote" "refs/heads/$base_branch") || _bs=$?
   if [[ "$_bs" -eq 2 ]]; then
-    return 0
+    echo "ERROR: target branch '$base_branch' is not known on remote '$remote'." >&2
+    echo "  Check the repository default branch and remote selection, then retry." >&2
+    exit 1
   elif [[ "$_bs" -ne 0 ]]; then
     echo "ERROR: could not verify target branch '$base_branch' on '$remote' — git ls-remote failed (see above); check connectivity and auth." >&2
     exit 1

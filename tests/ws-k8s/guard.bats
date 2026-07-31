@@ -135,6 +135,23 @@ EOF
     run_guard "kind-practice" "alice-sandbox" kubectl delete pods --all-namespaces
     [[ "$output" == BLOCK:* ]]
 }
+@test "--all-namespaces=true on a write BLOCKs" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pods --all-namespaces=true
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
+@test "--all-namespaces=false does not broaden an in-scope write" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pods --all-namespaces=false -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "alternate connection flags are blocked in split and equals forms" {
+    local flag
+    for flag in --kubeconfig --server --token; do
+        run_guard "kind-practice" "alice-sandbox" kubectl get pods "$flag" attacker-controlled
+        [[ "$output" == BLOCK:context:* ]]
+        run_guard "kind-practice" "alice-sandbox" kubectl get pods "${flag}=attacker-controlled"
+        [[ "$output" == BLOCK:context:* ]]
+    done
+}
 @test "unknown verb is treated as write (fail-safe)" {
     run_guard "kind-practice" "alice-sandbox" kubectl frobnicate -n prod
     [[ "$output" == BLOCK:* ]]
@@ -395,6 +412,28 @@ YAML
 @test "cordon node is blocked (node-level verb)" {
     run_guard "kind-practice" "alice-sandbox" kubectl cordon node1
     [[ "$output" == BLOCK:* ]]
+}
+@test "certificate approval is blocked as a cluster-scoped write" {
+    local decision
+    for decision in approve deny; do
+        run_guard "kind-practice" "alice-sandbox" kubectl certificate "$decision" node-request
+        [[ "$output" == BLOCK:unbounded:* ]]
+    done
+}
+@test "kubectl cp blocks an explicit out-of-scope source namespace" {
+    make_kubectl_stub "alice-sandbox"
+    run_guard "kind-practice" "alice-sandbox" kubectl cp prod/source-pod:/tmp/data ./data
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "kubectl cp blocks an explicit out-of-scope destination namespace" {
+    make_kubectl_stub "alice-sandbox"
+    run_guard "kind-practice" "alice-sandbox" kubectl cp ./data prod/destination-pod:/tmp/data
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "kubectl cp honors an explicit in-scope namespace over the context default" {
+    make_kubectl_stub "default"
+    run_guard "kind-practice" "alice-sandbox" kubectl cp alice-sandbox/source-pod:/tmp/data ./data
+    [ "$output" = "WRITE_IN_SCOPE" ]
 }
 @test "apply -f a cluster-scoped Kind is blocked even with in-scope -n" {
     printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/cr.yaml"
