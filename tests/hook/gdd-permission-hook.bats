@@ -2418,7 +2418,7 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# ─── PowerShell branch: deny-by-default + carve-out + bypass ────────
+# ─── PowerShell branch: deny-by-default + bypass ───────────────────
 #
 # CLAUDE_PROJECT_DIR is pinned to $WORK in the bypass tests so the
 # marker lookup resolves inside the sandbox regardless of what the
@@ -2432,25 +2432,28 @@ EOF
     [[ "$output" == *"ws hook-bypass powershell"* ]]
 }
 
-@test "powershell: bare ./test.ps1 allows (carve-out)" {
+@test "powershell: bare ./test.ps1 routes through ws test" {
     run_hook_ps "./test.ps1"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
-@test "powershell: ./test.ps1 with suite arg allows" {
+@test "powershell: ./test.ps1 with suite arg routes through ws test" {
     run_hook_ps "./test.ps1 openbao"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
-@test "powershell: Set-Location prefix + ./test.ps1 allows" {
+@test "powershell: Set-Location prefix + ./test.ps1 routes through ws test" {
     run_hook_ps "Set-Location D:/Dev/GitWS/yggdrasil/components/nidavellir; ./test.ps1 openbao"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
-@test "powershell: scratch-hosted test wrapper does not use the carve-out" {
+@test "powershell: scratch-hosted test wrapper remains denied" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
 
@@ -2461,7 +2464,7 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "powershell: case variants of scratch roots do not use the carve-out" {
+@test "powershell: case variants of scratch roots remain denied" {
     seed_real_project_config
     mkdir -p "$WORK/.TMP"
     if [[ ! "$WORK/.claude" -ef "$WORK/.CLAUDE" ]]; then
@@ -2476,7 +2479,7 @@ EOF
     [[ "$output" != *'"permissionDecision":"allow"'* ]]
 }
 
-@test "powershell: dot segments cannot disguise a scratch-hosted wrapper" {
+@test "powershell: dot segments do not change the default denial" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
 
@@ -2487,7 +2490,7 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "powershell: persisted scratch cwd does not make test wrapper trusted" {
+@test "powershell: persisted scratch cwd does not authorize a test wrapper" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
 
@@ -2498,10 +2501,11 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "powershell: cd prefix + backslash invocation allows" {
+@test "powershell: cd prefix + backslash invocation routes through ws test" {
     run_hook_ps "cd D:/Dev/GitWS/yggdrasil/components/mimir; .\\test.ps1"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
 @test "powershell: trailing command after test.ps1 denies" {

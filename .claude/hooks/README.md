@@ -93,9 +93,10 @@ The recurring-bypass pattern — same slug bypassed every session — is a signa
 
 The hook also registers on the `PowerShell` tool (see `settings.json`) and denies every invocation rather than porting the Bash tiers to PowerShell grammar. The rationale: the `ws` CLI + Bash tool are the sanctioned surface, agents observably drift into PowerShell once it starts "working," and a granular PowerShell tier would need its own grammar — PS 5.1 has no `&&`/`||`, so `;` is its *only* statement separator, and a naive port of the Tier 1 composition deny would make the tool unusable rather than safe.
 
-Two exceptions:
+Component tests, including Windows wrappers around containerized tools, use `ws test <component> [test-name]`. That route stays automatic after the realm adapter and target trust checks; invoking `test.ps1` directly does not create a second provenance path inside the permission hook.
 
-- **Component kuttl test wrappers auto-allow.** kuttl ships no native Windows binary, so components wrap it in Docker via `test.ps1` (mimir, nidavellir). The allowed shapes are `./test.ps1 [args]` and `Set-Location <dir>; ./test.ps1 [args]` (also `cd`/`.\` forms), with both segments restricted to composition-free characters — no `;` chains beyond the single prefix, no `$()`/backticks/script blocks in the path or args. As everywhere else, the hook audits the invocation string only; what a committed script does internally is reviewed at the script's own PR, not at invocation time.
+One exception remains:
+
 - **`ws hook-bypass powershell`** grants a session-scoped raw-PowerShell bypass through the same human-gated ask flow as the Tier 2/3 slugs (it's a built-in slug in `ws-hook-bypass.sh`, not a `hook-rules` row). The intended use is the rare case where PowerShell is genuinely the right tool — e.g. piping test payloads into *this hook* while debugging it, which Bash Tier 1 redirection rules block by design.
 
 `WS_HOOK_DISABLE=1` disables this branch along with everything else.

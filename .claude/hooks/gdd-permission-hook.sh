@@ -764,87 +764,11 @@ fi
 # Bash tiers to PowerShell grammar would be a large, error-prone job for
 # a tool agents shouldn't be drifting into (PS 5.1 has no && / ||, so
 # `;` is its ONLY statement separator — a naive port of the Tier 1 deny
-# rules would be unusable rather than safe). So: deny everything, with
-# two narrow exceptions —
-#
-#   1. Component kuttl test wrappers. kuttl ships no native Windows
-#      binary, so components wrap it in Docker via test.ps1 (mimir,
-#      nidavellir). The shapes `./test.ps1 [args]` and
-#      `Set-Location <dir>; ./test.ps1 [args]` auto-allow, with both
-#      segments restricted to composition-free characters. As with bash
-#      scripts, the hook audits the invocation string only — script
-#      internals are out of scope by design.
-#   2. A session-scoped bypass marker (`ws hook-bypass powershell`),
-#      human-approved through the ask tier like every other slug — for
-#      the rare legitimate raw-PowerShell need (e.g. piping payloads
-#      into THIS hook while debugging it, which Bash Tier 1 blocks).
+# rules would be unusable rather than safe). Component test wrappers run via
+# `ws test`, where target and adapter trust are already established. Raw
+# PowerShell requires a session-scoped bypass marker (`ws hook-bypass
+# powershell`), human-approved through the ask tier like every other slug.
 if [[ "$tool_name" == "PowerShell" ]]; then
-    # Carve-out: component test wrapper, optionally preceded by ONE
-    # Set-Location/cd (the PowerShell tool's cwd persists across calls,
-    # so suite runs are typically `Set-Location <comp>; ./test.ps1 …`).
-    # The character class excludes composition, redirection, variable /
-    # subexpression expansion, backticks, and script blocks in BOTH the
-    # path and the args — `./test.ps1 $(...)` must not slip through.
-    #
-    # CR/LF guard first: newline is a full statement separator in
-    # PowerShell, and both [[:space:]] and a negated bracket class match
-    # it — so without this case arm, `./test.ps1<newline>Remove-Item …`
-    # would satisfy the regex and auto-allow (caught in review by
-    # CodeRabbit + Copilot, repro-verified). The Bash branch's Tier 1
-    # newline deny never runs for PowerShell, so the rejection has to
-    # live here. The [ \t]-only separators below are belt-and-braces.
-    case "$cmd" in
-        *$'\n'*|*$'\r'*)
-            : ;;  # multi-line — never carve-out; fall through to deny/bypass
-        *)
-            _ps_seg='[^;|&<>$`(){}'$'\n\r'']'
-            _ps_wrapper_re="^(([Ss]et-[Ll]ocation|cd)[ \t]+${_ps_seg}+;[ \t]*)?\.[/\\]test\.ps1([ \t]${_ps_seg}*)?$"
-            if [[ "$cmd" =~ $_ps_wrapper_re ]]; then
-                # Scratch directories are intentionally agent-writable, so a
-                # test.ps1 stored there has no trusted provenance. Resolve the
-                # optional Set-Location/cd prefix (or use the payload cwd) and
-                # skip the carve-out whenever it points into a configured
-                # scratch root. The normal PowerShell bypass remains available
-                # for a human-approved exceptional run.
-                _ps_effective_dir="$cwd"
-                if [[ "$cmd" == *";"* ]]; then
-                    _ps_location="${cmd%%;*}"
-                    _ps_location="${_ps_location#* }"
-                    _ps_location="${_ps_location#\"}"
-                    _ps_location="${_ps_location%\"}"
-                    _ps_location="${_ps_location#\'}"
-                    _ps_location="${_ps_location%\'}"
-                    case "$_ps_location" in
-                        /*|[A-Za-z]:[/\\]*) _ps_effective_dir="$_ps_location" ;;
-                        *) _ps_effective_dir="$cwd/$_ps_location" ;;
-                    esac
-                fi
-                _ps_effective_dir="$(_normalize_host_path "$_ps_effective_dir")"
-                if _ps_resolved_dir="$(cd "$_ps_effective_dir" 2>/dev/null && pwd -P)"; then
-                    _ps_effective_dir="$(_normalize_host_path "$_ps_resolved_dir")"
-                fi
-                _ps_project_root="$_trusted_root"
-                if _ps_resolved_root="$(cd "$_trusted_root" 2>/dev/null && pwd -P)"; then
-                    _ps_project_root="$(_normalize_host_path "$_ps_resolved_root")"
-                fi
-                _ps_effective_dir_fold="$(_policy_path_fold "$_ps_effective_dir")"
-                _ps_project_root_fold="$(_policy_path_fold "$_ps_project_root")"
-                _ps_scratch=0
-                case "$_ps_effective_dir" in
-                    ..|../*|*/..|*/../*) _ps_scratch=1 ;;
-                esac
-                for _ps_prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
-                    _ps_prefix_fold="$(_policy_path_fold "${_ps_prefix%/}")"
-                    _ps_scratch_root_fold="$_ps_project_root_fold/$_ps_prefix_fold"
-                    case "$_ps_effective_dir_fold/" in
-                        "$_ps_scratch_root_fold/"*) _ps_scratch=1; break ;;
-                    esac
-                done
-                [[ "$_ps_scratch" -eq 1 ]] || allow "powershell test-wrapper carve-out"
-            fi
-            ;;
-    esac
-
     # Session-scoped bypass marker — same mechanics as the Tier 2/3
     # slugs (written by `ws hook-bypass powershell`, honored only when
     # its session_id matches the current session). Project root prefers
@@ -871,7 +795,7 @@ if [[ "$tool_name" == "PowerShell" ]]; then
         fi
     fi
 
-    deny "PowerShell is blocked by default in this workspace — use the Bash tool with the \`ws\` wrappers (see AGENTS.md Reflex Contract). Exception: component kuttl wrappers run without a prompt as \`./test.ps1 [suite]\`, optionally preceded by one \`Set-Location <dir>;\`. For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
+    deny "PowerShell is blocked by default in this workspace — use \`ws test <component> [test-name]\` for component tests or the Bash tool with other \`ws\` wrappers (see AGENTS.md Reflex Contract). For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
 fi
 
 # ─── Windows path-token separator normalization ─────────────────────
