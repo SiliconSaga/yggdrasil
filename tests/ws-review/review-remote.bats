@@ -109,7 +109,7 @@ run_ws_review() {
         "ECOSYSTEM=$WORK/ecosystem.yaml" \
         "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" \
         "GITLAB_TOKEN=dummy-token" \
-        "GITLAB_HOST=ambient.example" \
+        "GITLAB_HOST=gitlab.com" \
         "GLAB_EXPECTED_HOST=gitlab.com" \
         "GLAB_BODY_LOG=$BODY_LOG" \
         bash "$WS_BIN" review "$@"

@@ -884,7 +884,7 @@ else
     echo "         CLONE: $FORK_REMOTE_URL → $TARGET (remote: $FORK_REMOTE)"
     GIT_AUTH_ENV=()
     git_auth_env_for_url "$FORK_REMOTE_URL"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
+    git_auth_run git clone --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
     git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
 fi
 
@@ -894,7 +894,7 @@ echo "  Step 3: sync local + fork main with source project ..."
 
 GIT_AUTH_ENV=()
 git_auth_env_for_url "$UPSTREAM_REMOTE_URL"
-env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git -C "$TARGET" fetch "$UPSTREAM_REMOTE_NAME" --quiet
+git_auth_run git -C "$TARGET" fetch "$UPSTREAM_REMOTE_NAME" --quiet
 
 # Determine the upstream default branch (might be "main" or "master")
 DEFAULT_BRANCH=$(echo "$local_upstream_details" | jq -r '.default_branch // "main"')
@@ -958,7 +958,7 @@ echo "  Step 4: push synced $DEFAULT_BRANCH to fork ..."
 # and status, then stream the output and branch on the real status.
 GIT_AUTH_ENV=()
 git_auth_env_for_url "$FORK_REMOTE_URL"
-if push_output=$(env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git -C "$TARGET" push "$FORK_REMOTE" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
+if push_output=$(git_auth_run git -C "$TARGET" push "$FORK_REMOTE" "refs/heads/$DEFAULT_BRANCH:refs/heads/$DEFAULT_BRANCH" 2>&1); then
     push_ok=true
 else
     push_ok=false

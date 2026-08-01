@@ -651,7 +651,7 @@ HELP
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$template_url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$template_url" "$target"
+    git_auth_run git clone -- "$template_url" "$target"
     echo ""
     echo "Template realm ready, but inactive until you review and select it."
     echo ""
@@ -890,7 +890,7 @@ ws_realm_clone_url() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"
-    env ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"} git clone -- "$url" "$target"
+    git_auth_run git clone -- "$url" "$target"
     echo ""
     echo "Community realm cloned but not active. Review and select it with:"
     echo "  ws realm use $repo_name"

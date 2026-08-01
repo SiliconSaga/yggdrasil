@@ -30,6 +30,49 @@ source "$_GP_SCRIPT_DIR/git-remote.sh"
 # shellcheck source=git-auth.sh
 source "$_GP_SCRIPT_DIR/git-auth.sh"
 
+# Remember the provider credentials supplied by the user's starting environment.
+# Provider selection may temporarily clear them for another host, then restore
+# them when a later operation returns to the host they were configured for.
+_GP_AMBIENT_GH_HOST="${GH_HOST:-github.com}"
+_GP_AMBIENT_GITLAB_HOST="${GITLAB_HOST:-gitlab.com}"
+_GP_AMBIENT_GH_TOKEN_SET=0
+_GP_AMBIENT_GITLAB_TOKEN_SET=0
+_GP_AMBIENT_GH_TOKEN=""
+_GP_AMBIENT_GITLAB_TOKEN=""
+if [[ -n "${GH_TOKEN:-}" ]]; then
+    _GP_AMBIENT_GH_TOKEN_SET=1
+    _GP_AMBIENT_GH_TOKEN="$GH_TOKEN"
+fi
+if [[ -n "${GITLAB_TOKEN:-}" ]]; then
+    _GP_AMBIENT_GITLAB_TOKEN_SET=1
+    _GP_AMBIENT_GITLAB_TOKEN="$GITLAB_TOKEN"
+fi
+
+# Pin a provider CLI to HOST and expose the user's ambient token only when it
+# was paired with that same host. On another host the CLI can still use its
+# own host-scoped credential store, or a local gitTokens mapping can override.
+_gp_bind_provider_host() {
+    local provider="$1" host="$2"
+    case "$provider" in
+        github)
+            export GH_HOST="$host"
+            if [[ "$_GP_AMBIENT_GH_TOKEN_SET" -eq 1 && "$host" == "$_GP_AMBIENT_GH_HOST" ]]; then
+                export GH_TOKEN="$_GP_AMBIENT_GH_TOKEN"
+            else
+                unset GH_TOKEN
+            fi
+            ;;
+        gitlab)
+            export GITLAB_HOST="$host"
+            if [[ "$_GP_AMBIENT_GITLAB_TOKEN_SET" -eq 1 && "$host" == "$_GP_AMBIENT_GITLAB_HOST" ]]; then
+                export GITLAB_TOKEN="$_GP_AMBIENT_GITLAB_TOKEN"
+            else
+                unset GITLAB_TOKEN
+            fi
+            ;;
+    esac
+}
+
 # Detect provider from a remote URL.
 # Usage: gp_detect URL [ECOSYSTEM_FILE]
 #   URL             — git remote URL (https or ssh)
@@ -197,7 +240,12 @@ gp_token_api_login() {
                 printf '%s' "could not create temporary provider diagnostic file"
                 return 3
             fi
-            out=$(env GH_TOKEN="$tok" GH_HOST="$host" GH_NO_UPDATE_NOTIFIER=1 ${to[@]+"${to[@]}"} gh api user --jq .login 2>"$stderr_file")
+            out=$(
+                export GH_TOKEN="$tok"
+                export GH_HOST="$host"
+                export GH_NO_UPDATE_NOTIFIER=1
+                ${to[@]+"${to[@]}"} gh api user --jq .login 2>"$stderr_file"
+            )
             rc=$?
             ;;
         gitlab)
@@ -207,7 +255,12 @@ gp_token_api_login() {
                 printf '%s' "could not create temporary provider diagnostic file"
                 return 3
             fi
-            out=$(env GITLAB_TOKEN="$tok" GITLAB_HOST="$host" GLAB_CHECK_UPDATE=false ${to[@]+"${to[@]}"} glab api user 2>"$stderr_file")
+            out=$(
+                export GITLAB_TOKEN="$tok"
+                export GITLAB_HOST="$host"
+                export GLAB_CHECK_UPDATE=false
+                ${to[@]+"${to[@]}"} glab api user 2>"$stderr_file"
+            )
             rc=$?
             ;;
         *)
@@ -289,10 +342,7 @@ gp_detect_and_load() {
 
     # Provider CLIs accept owner/repo slugs that do not encode the host. Pin their API authority from the already-selected remote so enterprise provider calls cannot silently fall back to a public host.
     host="$(git_remote_host "$1")" || return 1
-    case "$provider" in
-        github) export GH_HOST="$host" ;;
-        gitlab) export GITLAB_HOST="$host" ;;
-    esac
+    _gp_bind_provider_host "$provider" "$host"
 }
 
 # Select and export the appropriate authentication token for a URL.
@@ -302,6 +352,18 @@ gp_detect_and_load() {
 gp_set_token_for_url() {
     local url="$1"
     local eco="${2:-}"
+
+    # Rebind both API authority and ambient credentials when a workflow moves
+    # between remotes. The already-loaded provider is authoritative when the
+    # local auth config contains only token mappings rather than host mappings.
+    local provider="${_GP_LOADED_PROVIDER:-}" host=""
+    if [[ -z "$provider" ]]; then
+        provider="$(gp_detect "$url" "$eco" 2>/dev/null || true)"
+    fi
+    if [[ -n "$provider" ]]; then
+        host="$(git_remote_host "$url" 2>/dev/null || true)"
+        [[ -n "$host" ]] && _gp_bind_provider_host "$provider" "$host"
+    fi
 
     [[ -z "$eco" ]] && return 0
 
@@ -327,8 +389,9 @@ gp_set_token_for_url() {
         ws_require_provider_token_var "$best_var" || return 1
         local token_value="${!best_var:-}"
         if [[ -n "$token_value" ]]; then
-            local provider
-            provider="$(gp_detect "$url" "$eco" 2>/dev/null || true)"
+            if [[ -z "$provider" ]]; then
+                provider="$(gp_detect "$url" "$eco" 2>/dev/null || true)"
+            fi
             if [[ -z "$provider" ]]; then
                 case "$best_var" in
                     GITLAB_*) provider="gitlab" ;;

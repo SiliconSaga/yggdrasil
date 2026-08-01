@@ -42,6 +42,105 @@ YAML
     [ "$GH_HOST" = "ghe.example.com" ]
 }
 
+@test "provider selection does not carry an ambient GitLab token to another host" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-hosts.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitProviders:
+    trusted.example.com: gitlab
+    other.example.com: gitlab
+YAML
+
+    run env \
+        GITLAB_HOST="trusted.example.com" \
+        GITLAB_TOKEN="ambient-secret" \
+        bash -c 'source "$1/scripts/git-provider.sh"; gp_detect_and_load "https://other.example.com/team/project.git" "$2"; printf "%s|%s" "$GITLAB_HOST" "${GITLAB_TOKEN-unset}"' _ "$REPO_ROOT" "$eco"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "other.example.com|unset" ]
+}
+
+@test "provider selection restores an ambient GitLab token for its paired host" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-hosts.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitProviders:
+    trusted.example.com: gitlab
+    other.example.com: gitlab
+YAML
+
+    run env \
+        GITLAB_HOST="trusted.example.com" \
+        GITLAB_TOKEN="ambient-secret" \
+        bash -c 'source "$1/scripts/git-provider.sh"; gp_detect_and_load "https://other.example.com/team/project.git" "$2"; gp_detect_and_load "https://trusted.example.com/team/project.git" "$2"; printf "%s|%s" "$GITLAB_HOST" "${GITLAB_TOKEN-unset}"' _ "$REPO_ROOT" "$eco"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "trusted.example.com|ambient-secret" ]
+}
+
+@test "provider selection does not carry an ambient GitHub token to another host" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-hosts.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitProviders:
+    github.com: github
+    ghe.example.com: github
+YAML
+
+    run env \
+        GH_HOST="github.com" \
+        GH_TOKEN="ambient-secret" \
+        bash -c 'source "$1/scripts/git-provider.sh"; gp_detect_and_load "https://ghe.example.com/team/project.git" "$2"; printf "%s|%s" "$GH_HOST" "${GH_TOKEN-unset}"' _ "$REPO_ROOT" "$eco"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "ghe.example.com|unset" ]
+}
+
+@test "local token mapping overrides an ambient token bound to another host" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-hosts.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitProviders:
+    trusted.example.com: gitlab
+    other.example.com: gitlab
+  gitTokens:
+    other.example.com/team: GITLAB_OTHER_TOKEN
+YAML
+
+    run env \
+        GITLAB_HOST="trusted.example.com" \
+        GITLAB_TOKEN="ambient-secret" \
+        GITLAB_OTHER_TOKEN="scoped-secret" \
+        bash -c 'source "$1/scripts/git-provider.sh"; gp_detect_and_load "https://other.example.com/team/project.git" "$2"; gp_set_token_for_url "https://other.example.com/team/project.git" "$2"; printf "%s|%s" "$GITLAB_HOST" "$GITLAB_TOKEN"' _ "$REPO_ROOT" "$eco"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "other.example.com|scoped-secret" ]
+}
+
+@test "provider token probe does not invoke external env with the credential" {
+    local fake_bin="$BATS_TEST_TMPDIR/fake-bin"
+    local env_record="$BATS_TEST_TMPDIR/env-argv"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/env" <<'BASH'
+#!/bin/bash
+printf '%s\n' "$@" > "$ENV_RECORD"
+exec /usr/bin/env "$@"
+BASH
+    cat > "$fake_bin/gh" <<'BASH'
+#!/bin/bash
+printf '%s\n' "probe-user"
+BASH
+    chmod +x "$fake_bin/env" "$fake_bin/gh"
+    export ENV_RECORD="$env_record"
+    PATH="$fake_bin:$PATH"
+
+    run gp_token_api_login github github.example.com probe-secret
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "probe-user" ]
+    [ ! -e "$env_record" ]
+}
+
 @test "gp_load rejects provider names that escape the providers directory" {
     local fake_scripts="$BATS_TEST_TMPDIR/scripts"
     mkdir -p "$fake_scripts/providers"
@@ -126,6 +225,30 @@ YAML
 
     [ "$GH_TOKEN" = "ghp_example" ]
     [ "${GITLAB_TOKEN:-}" = "" ]
+}
+
+@test "local token selection retains the provider detected from merged config" {
+    local provider_eco="$BATS_TEST_TMPDIR/ecosystem-provider.yaml"
+    local auth_eco="$BATS_TEST_TMPDIR/ecosystem-auth.yaml"
+    cat > "$provider_eco" <<'YAML'
+defaults:
+  gitProviders:
+    code.example.com: gitlab
+YAML
+    cat > "$auth_eco" <<'YAML'
+defaults:
+  gitTokens:
+    code.example.com/team: GITHUB_SHARED_TOKEN
+YAML
+
+    export GITHUB_SHARED_TOKEN="shared-secret"
+    unset GH_TOKEN GITLAB_TOKEN
+
+    gp_detect_and_load "https://code.example.com/team/project.git" "$provider_eco"
+    gp_set_token_for_url "https://code.example.com/team/project.git" "$auth_eco"
+
+    [ "$GITLAB_TOKEN" = "shared-secret" ]
+    [ "${GH_TOKEN:-}" = "" ]
 }
 
 @test "realm-only gitTokens mappings cannot authorize credential attachment" {

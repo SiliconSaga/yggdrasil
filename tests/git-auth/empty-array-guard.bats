@@ -29,6 +29,29 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     [ "$status" -ne 0 ]
 }
 
+@test "auth arrays are not passed through the external env command" {
+    run grep -rnE 'env .*\$\{GIT_(PUSH_)?AUTH_ENV' "$REPO_ROOT/scripts"
+    [ "$status" -ne 0 ]
+}
+
+@test "git_auth_run exports auth entries without placing them in parent argv" {
+    local probe="$BATS_TEST_TMPDIR/auth-probe.sh"
+    cat > "$probe" <<'BASH'
+#!/bin/bash
+printf 'value=%s\n' "${AUTH_PROBE_SECRET:-missing}"
+ps -o command= -p "$PPID"
+BASH
+    chmod +x "$probe"
+    source "$REPO_ROOT/scripts/git-auth.sh"
+    GIT_AUTH_ENV=("AUTH_PROBE_SECRET=argv-secret")
+
+    run git_auth_run "$probe"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"value=argv-secret"* ]]
+    [[ "$output" != *"AUTH_PROBE_SECRET=argv-secret"* ]]
+}
+
 @test "guarded auth-env expansion is empty-array-safe under set -u" {
     # The exact call-site shape with an EMPTY array. Crashed on bash 3.2
     # in the bare form; the guarded form must run cleanly under `set -u`
