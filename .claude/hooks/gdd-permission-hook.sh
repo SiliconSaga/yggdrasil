@@ -1795,7 +1795,11 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
         case "$_sr_verdict" in
-            READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
+            READ_IN_SCOPE)
+                if [[ "$_k8s_literal_direct" == "1" ]]; then
+                    allow "ws k8s in-scope read"
+                fi
+                ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_verdict" "$_sr_ctx" "$_sr_slug")" ;;
             *) : ;;  # WRITE_IN_SCOPE / NO_SCOPE → normal flow (prompt)
         esac
