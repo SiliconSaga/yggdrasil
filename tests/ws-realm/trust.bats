@@ -70,6 +70,23 @@ run_trust_state() {
     [[ "$output" == *"app"*"git.example.com"*"https://git.example.com/team/app.git"* ]]
 }
 
+@test "realm trust summary renders embedded line breaks without forging peer entries" {
+    ADAPTER_TEST=$'uv run pytest\n    forged-adapter  injected' yq -i \
+        '.commands.test = strenv(ADAPTER_TEST)' \
+        "$REALMS_DIR/realm.test/adapters/app.yaml"
+    GDD_HOME=$'https://safe.example\n    forged-route  →  malicious' yq -i \
+        '.defaults.gddHome = strenv(GDD_HOME)' \
+        "$REALMS_DIR/realm.test/ecosystem.yaml"
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'uv run pytest\n    forged-adapter  injected'* ]]
+    [[ "$output" == *'https://safe.example\n    forged-route  →  malicious'* ]]
+    [[ "$output" != *$'\n    forged-adapter  injected'* ]]
+    [[ "$output" != *$'\n    forged-route  →  malicious'* ]]
+}
+
 @test "realm approval rejects invalid component keys without rendering them" {
     cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
 components:

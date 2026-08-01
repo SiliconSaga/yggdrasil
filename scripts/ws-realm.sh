@@ -671,7 +671,11 @@ _ws_realm_summary_text() {
 }
 
 _ws_realm_summary_inline_text() {
-    printf '%s' "$1" | tr -d '\000-\037\177'
+    local value="$1"
+    value="${value//$'\r'/\\r}"
+    value="${value//$'\n'/\\n}"
+    value="${value//$'\t'/\\t}"
+    printf '%s' "$value" | tr -d '\000-\037\177'
 }
 
 ws_realm_trust_summary() {
@@ -708,7 +712,7 @@ ws_realm_trust_summary() {
             echo "ERROR: adapter trust input must be a regular file: $adapter_file" >&2
             return 1
         fi
-        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "      " + .key + "  " + .value' "$adapter_file" 2>/dev/null)"; then
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "      " + (.key | @json) + "  " + (.value | @json)' "$adapter_file" 2>/dev/null)"; then
             echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
             return 1
         fi
@@ -729,7 +733,7 @@ ws_realm_trust_summary() {
           .components // {} | to_entries | .[] |
           {"key": ("components." + .key + ".forkRepo"), "value": (.value.forkRepo // "")}
         ])
-        | .[] | select(.value != "") | "    " + .key + "  →  " + .value
+        | .[] | select(.value != "") | "    " + (.key | @json) + "  →  " + (.value | @json)
     ' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render fork routing from $realm_file; refusing realm adoption." >&2
         return 1
@@ -746,7 +750,7 @@ ws_realm_trust_summary() {
           .defaults.gitProviders // {} | to_entries | .[] |
           {"key": ("defaults.gitProviders." + .key), "value": .value}
         ])
-        | .[] | select(.value != "") | "    " + .key + "  →  " + .value
+        | .[] | select(.value != "") | "    " + (.key | @json) + "  →  " + (.value | @json)
     ' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render provider/workflow routing from $realm_file; refusing realm adoption." >&2
         return 1
@@ -754,14 +758,14 @@ ws_realm_trust_summary() {
     if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
     echo "  Credential-mapping requests (not authoritative until copied locally):"
-    if ! commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + .key + "  →  $" + .value' "$realm_file" 2>/dev/null)"; then
+    if ! commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + (.key | @json) + "  →  $" + (.value | @json)' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render credential mappings from $realm_file; refusing realm adoption." >&2
         return 1
     fi
     if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
 
     echo "  MCP endpoints:"
-    if ! commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + .key + "  →  transport=" + .value.transport + " " + .value.url' "$realm_file" 2>/dev/null)"; then
+    if ! commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + (.key | @json) + "  →  transport=" + (.value.transport | @json) + " " + (.value.url | @json)' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
         return 1
     fi
