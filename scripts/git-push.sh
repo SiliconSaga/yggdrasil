@@ -46,8 +46,21 @@ fi
 TARGET="${1:-}"
 TARGET_KIND="branch"
 if [[ -z "$TARGET" ]]; then
-  TARGET="$(git rev-parse --abbrev-ref HEAD)"
+  if ! TARGET="$(git symbolic-ref --quiet --short HEAD)"; then
+    echo "ERROR: Cannot infer a branch while HEAD is detached." >&2
+    echo "  Switch to a local branch, or pass an exact local branch or tag name." >&2
+    exit 1
+  fi
+  if ! git show-ref --verify --quiet "refs/heads/$TARGET"; then
+    echo "ERROR: Current branch '$TARGET' has no exact local branch ref." >&2
+    exit 1
+  fi
 else
+  if [[ "$TARGET" == refs/* || "$TARGET" == *:* ]]; then
+    echo "ERROR: Target '$TARGET' must name an exact local branch or tag; refspecs and fully qualified refs are not accepted." >&2
+    exit 1
+  fi
+
   HAS_LOCAL_BRANCH=""
   HAS_LOCAL_TAG=""
   if git show-ref --verify --quiet "refs/heads/$TARGET"; then
@@ -63,6 +76,9 @@ else
     exit 1
   elif [[ -n "$HAS_LOCAL_TAG" ]]; then
     TARGET_KIND="tag"
+  elif [[ -z "$HAS_LOCAL_BRANCH" ]]; then
+    echo "ERROR: Target '$TARGET' must name an exact local branch or tag." >&2
+    exit 1
   fi
 fi
 
@@ -131,6 +147,7 @@ if [[ "$TARGET_KIND" == "tag" ]]; then
 fi
 
 BRANCH="$TARGET"
+BRANCH_REFSPEC="refs/heads/$BRANCH:refs/heads/$BRANCH"
 
 # Safety: refuse to force-push main or master
 if [[ -n "$FORCE" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
@@ -163,11 +180,11 @@ if [[ -n "$FORCE" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH"
+  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
 else
   echo "Pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH"
+  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
 fi

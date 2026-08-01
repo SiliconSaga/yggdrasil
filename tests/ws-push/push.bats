@@ -40,6 +40,20 @@ setup() {
     [ "$(git -C "$REPO_DIR" rev-parse --abbrev-ref --symbolic-full-name feature/tag-support@{upstream})" = "fork/feature/tag-support" ]
 }
 
+@test "pushes an exact branch ref when its short name has revision meaning" {
+    git -C "$REPO_DIR" branch @ HEAD
+    branch_sha="$(git -C "$REPO_DIR" rev-parse refs/heads/@)"
+    printf 'new head\n' >> "$REPO_DIR/file.txt"
+    git -C "$REPO_DIR" add file.txt
+    git -C "$REPO_DIR" commit -q -m "advance current branch"
+
+    run_git_push @
+
+    [ "$status" -eq 0 ]
+    remote_ref_exists refs/heads/@
+    [ "$(remote_ref_sha refs/heads/@)" = "$branch_sha" ]
+}
+
 @test "refuses an explicit name that is both a local branch and local tag" {
     git -C "$REPO_DIR" switch -q -c release
     git -C "$REPO_DIR" tag release
@@ -50,6 +64,30 @@ setup() {
     [[ "$output" == *"ambiguous"* ]]
     [[ "$output" == *"refs/heads/release"* ]]
     [[ "$output" == *"refs/tags/release"* ]]
+}
+
+@test "refuses a fully qualified branch target before push safeguards" {
+    run_git_push --force refs/heads/main
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"must name an exact local branch or tag"* ]]
+    ! remote_ref_exists refs/heads/main
+}
+
+@test "refuses a refspec target" {
+    run_git_push main:refs/heads/release
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"refspecs and fully qualified refs are not accepted"* ]]
+    ! remote_ref_exists refs/heads/release
+}
+
+@test "refuses an unknown short target before invoking git push" {
+    run_git_push missing
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"must name an exact local branch or tag"* ]]
+    [[ "$output" != *"src refspec missing does not match any"* ]]
 }
 
 @test "refuses force-pushing tags" {
