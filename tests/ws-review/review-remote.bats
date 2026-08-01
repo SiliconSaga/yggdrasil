@@ -132,6 +132,18 @@ probe_csi() { printf '\302\233'; }
     [[ "$output" == *"--remote <name>"* ]]
 }
 
+@test "review deduplicates one host and project across remote transports" {
+    git -C "$WORK/components/app" remote remove fork
+    git -C "$WORK/components/app" remote add mirror git@gitlab.com:upstream-group/project.git
+
+    run_ws_review app 1 --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"=== CR #1 (upstream-group/project) ==="* ]]
+    [[ "$output" == *"Title: Upstream MR"* ]]
+    [[ "$output" != *"found on multiple remotes"* ]]
+}
+
 @test "review --remote selects a specific remote and queries its project" {
     run_ws_review app 1 --remote fork --compact
 

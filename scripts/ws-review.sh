@@ -958,7 +958,8 @@ elif [[ -n "$_PEEK_CR" ]]; then
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
         _prov="${_CANDIDATE_PROVIDERS[$i]}"
-        _key="${_prov}:${_CANDIDATE_URLS[$i]}:${_slug}"
+        _candidate_host="$(git_remote_host "${_CANDIDATE_URLS[$i]}" 2>/dev/null)" || continue
+        _key="${_prov}:${_candidate_host}:${_slug}"
         [[ "$_seen" == *"|${_key}|"* ]] && continue
         _seen+="|${_key}|"
         gp_detect_and_load "${_CANDIDATE_URLS[$i]}" "$_ECO" 2>/dev/null || continue
