@@ -78,9 +78,13 @@ ws_session_set() {
     # writer's stale lock degrades to a (still atomic) unlocked write instead of
     # deadlocking forever. We track whether THIS call acquired the lock and only
     # release it then — timing out must never rmdir another live writer's lock.
-    local lockdir="${path}.lock" _try=0 _have_lock=0 _max="${WS_SESSION_LOCK_TRIES:-100}"
-    if [[ ! "$_max" =~ ^[0-9]+$ ]]; then
-        echo "WARNING: WS_SESSION_LOCK_TRIES must be a non-negative integer; using 100." >&2
+    local lockdir="${path}.lock" _try=0 _have_lock=0 _max="${WS_SESSION_LOCK_TRIES:-100}" _max_valid=0
+    if [[ "$_max" =~ ^[0-9]+$ && ${#_max} -le 5 ]]; then
+        _max=$((10#$_max))
+        (( _max <= 10000 )) && _max_valid=1
+    fi
+    if [[ "$_max_valid" -ne 1 ]]; then
+        echo "WARNING: WS_SESSION_LOCK_TRIES must be a decimal integer from 0 to 10000; using 100." >&2
         _max=100
     fi
     while (( _try < _max )); do

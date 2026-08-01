@@ -72,3 +72,12 @@ setup() { setup_session_env; }
     [ "$status" -eq 0 ]
     [ "$output" = "flow" ]
 }
+
+@test "session lock retry count treats leading zeros as decimal" {
+    run_session 'GDD_SESSION_ID=s1 WS_SESSION_LOCK_TRIES=008 ws_session_set GDD_STANCE flow'
+
+    [ "$status" -eq 0 ]
+    run_session 'GDD_SESSION_ID=s1 ws_session_get GDD_STANCE'
+    [ "$status" -eq 0 ]
+    [ "$output" = "flow" ]
+}
