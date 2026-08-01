@@ -526,14 +526,14 @@ k8s_guard_evaluate() {
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
             # must not read `5s` as a second namespace). Attached (`-oyaml`) and
             # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
-            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir) i=$((i+2)); continue ;;
+            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type) i=$((i+2)); continue ;;
             -*)
-                # Unknown options before the verb are ambiguous: they may take
-                # the next token as a value, shifting a mutating verb into the
-                # slot we would otherwise classify as a read. Fail closed and
-                # let the hook surface the guard reason to the operator.
-                if [[ -z "$verb" ]]; then
-                    printf 'BLOCK:precondition:unrecognized option before kubectl verb: %s' "$a"
+                # Unknown options before the verb or its resource are ambiguous:
+                # they may take the next token as a value, shifting the command
+                # or resource into a slot with weaker classification. Fail closed
+                # and let the hook surface the guard reason to the operator.
+                if [[ -z "$verb" || -z "$verb2" ]]; then
+                    printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
                     return 0
                 fi
                 ;;

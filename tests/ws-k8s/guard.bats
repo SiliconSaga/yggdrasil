@@ -95,6 +95,18 @@ EOF
     run_guard "kind-practice" "alice-sandbox" kubectl delete --cache-dir /tmp/cache nodes worker1
     [[ "$output" == BLOCK:unbounded:* ]]
 }
+@test "space-form patch type cannot hide a cluster-scoped resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl patch --type merge clusterrolebinding/example -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
+@test "space-form patch type preserves an in-scope namespaced resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl patch --type merge deployment/example -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "unknown space-form option before a resource fails closed" {
+    run_guard "kind-practice" "alice-sandbox" kubectl patch --future-mode merge deployment/example -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+}
 @test "write to in-scope namespace is WRITE_IN_SCOPE" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete pod foo -n alice-sandbox
     [ "$output" = "WRITE_IN_SCOPE" ]
