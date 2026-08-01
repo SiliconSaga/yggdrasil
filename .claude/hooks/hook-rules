@@ -31,6 +31,9 @@ git*clean -d*
 find * -delete*
 find*-exec*
 find*-execdir*
+find*-fprint*
+find*-fls*
+find*-ok*
 ws exec *
 ws hook-bypass [a-z]*
 # Interpreter passthroughs. Quoted spans (single-quoted, and

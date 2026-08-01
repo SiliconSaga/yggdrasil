@@ -2038,6 +2038,35 @@ find*-exec*"
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
 
+@test "ask: shipped find floor covers file-writing and interactive execution primaries" {
+    seed_real_project_config
+    local command
+    local -a commands=(
+        "find . -maxdepth 0 -fprintf $WORK/out %p"
+        "find . -maxdepth 0 -fprint $WORK/out"
+        "find . -maxdepth 0 -fprint0 $WORK/out"
+        "find . -maxdepth 0 -fls $WORK/out"
+        "find . -maxdepth 0 -ok echo {} +"
+    )
+
+    for command in "${commands[@]}"; do
+        run_hook "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    done
+}
+
+@test "allow: broad local find rule still permits read-only searches" {
+    seed_real_project_config
+    write_local_hook_rules "[allow-extras]
+find *"
+
+    run_hook "find . -type f -print"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 # ─── Tier 2 redirect-deny — parser ──────────────────────────────────
 
 @test "redirect: malformed [redirect-commands] entry (2 columns) is skipped with warning" {
