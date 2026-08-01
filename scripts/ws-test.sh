@@ -150,6 +150,15 @@ fi
 
 # 2. Auto-detect from project files
 if [[ -z "$runner" ]]; then
+    # Realm and hoard repositories are control/documentation containers, not
+    # ordinary declared components. Do not let an unreviewed project marker
+    # (Makefile, gradlew, pyproject.toml, or go.mod) create an execution path.
+    # Their tests remain available through a trusted active-realm adapter.
+    if [[ "${COMPONENT_DIR%/*}" == "$REALMS_DIR" || "${COMPONENT_DIR%/*}" == "$HOARDS_DIR" ]]; then
+        echo "ERROR: Refusing an auto-detected test runner for realm or hoard target '$comp'." >&2
+        echo "  Define commands.test in an approved realm adapter, then retry 'ws test $comp'." >&2
+        exit 1
+    fi
     # Workspace-root tests: yggdrasil itself is treated as a "component"
     # whose test suite is the bats files under tests/. We use the vendored
     # bats-core runtime so contributors don't need a system install.
