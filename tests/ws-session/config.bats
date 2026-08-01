@@ -59,3 +59,16 @@ setup() { setup_session_env; }
     [ "$status" -eq 0 ]
     [ "$output" = "lock-kept:flow" ]
 }
+
+@test "session lock retry count is never evaluated as arithmetic code" {
+    local sentinel="$ROOT_DIR/lock-arithmetic-ran"
+    local payload='_[$(touch "'"$sentinel"'")]'
+
+    run_session "GDD_SESSION_ID=s1 WS_SESSION_LOCK_TRIES='$payload' ws_session_set GDD_STANCE flow"
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$sentinel" ]
+    run_session 'GDD_SESSION_ID=s1 ws_session_get GDD_STANCE'
+    [ "$status" -eq 0 ]
+    [ "$output" = "flow" ]
+}

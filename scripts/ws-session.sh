@@ -79,6 +79,10 @@ ws_session_set() {
     # deadlocking forever. We track whether THIS call acquired the lock and only
     # release it then — timing out must never rmdir another live writer's lock.
     local lockdir="${path}.lock" _try=0 _have_lock=0 _max="${WS_SESSION_LOCK_TRIES:-100}"
+    if [[ ! "$_max" =~ ^[0-9]+$ ]]; then
+        echo "WARNING: WS_SESSION_LOCK_TRIES must be a non-negative integer; using 100." >&2
+        _max=100
+    fi
     while (( _try < _max )); do
         if mkdir "$lockdir" 2>/dev/null; then _have_lock=1; break; fi
         _try=$((_try + 1)); sleep 0.05
