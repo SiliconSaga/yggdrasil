@@ -3077,6 +3077,67 @@ BASH
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
 }
+
+@test "scoped-redirect: transparent wrappers preserve an out-of-scope write denial" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'nohup timeout 10s kubectl delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"REJECTED by the k8s scope guard"* ]]
+}
+
+@test "scoped-redirect: xargs Kubernetes construction is denied as unclassifiable" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'xargs kubectl delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"composition-free command"* ]]
+}
+
+@test "scoped-redirect: quoted xargs and kubectl command words remain denied" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session '"xargs" "kubectl" delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"composition-free command"* ]]
+}
+
+@test "scoped-redirect: quoted kubectl data after xargs keeps normal routing" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'xargs echo "kubectl"' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"composition-free command"* ]]
+}
+
+@test "scoped-redirect: transparent wrapper chains preserve quoted xargs command words" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'nohup timeout 10s xargs "kubectl" delete pod foo -n prod' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"composition-free command"* ]]
+}
+
+@test "scoped-redirect: transparent wrapper chains keep quoted xargs data inert" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'nohup timeout 10s xargs echo "kubectl"' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"composition-free command"* ]]
+}
+
+@test "scoped-redirect: unrelated transparent wrapper keeps normal routing" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'nohup sleep 1' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"REJECTED by the k8s scope guard"* ]]
+}
+
 @test "scoped-redirect: in-scope ws k8s read auto-approves" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"

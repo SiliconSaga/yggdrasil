@@ -59,6 +59,57 @@ EOF
     done
 }
 
+@test "transparent process wrappers preserve kubectl classification" {
+    local command expected="kubectl delete pod foo -n prod"
+    for command in \
+        'nohup kubectl delete pod foo -n prod' \
+        'setsid -f kubectl delete pod foo -n prod' \
+        'time -p kubectl delete pod foo -n prod' \
+        'timeout --signal TERM 10s kubectl delete pod foo -n prod' \
+        'nice -n 5 kubectl delete pod foo -n prod' \
+        'ionice -c 3 kubectl delete pod foo -n prod' \
+        'stdbuf -oL kubectl delete pod foo -n prod' \
+        'nohup timeout --kill-after=2s 10s nice -n 5 kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "$expected" ]
+    done
+}
+
+@test "command-building and unknown wrapper forms fail closed" {
+    local command
+    for command in \
+        'xargs kubectl delete pod foo -n prod' \
+        'timeout --unrecognized 10s kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+    done
+}
+
+@test "wrapper modes that do not launch a child remain passthrough" {
+    local command
+    for command in \
+        'nohup --help kubectl delete pod foo -n prod' \
+        'setsid --help kubectl delete pod foo -n prod' \
+        'time --version kubectl delete pod foo -n prod' \
+        'ionice -p 123 kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "$command" ]
+    done
+}
+
+@test "unsafe xargs inspection distinguishes a quoted command from quoted data through wrapper chains" {
+    run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
+        'nohup timeout 10s xargs -d "\\n" -n 1 "kubectl" delete pod foo -n prod'
+    [ "$status" -eq 0 ]
+
+    run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
+        'nohup timeout 10s xargs -d "\\n" -n 1 echo "kubectl"'
+    [ "$status" -eq 1 ]
+}
+
 @test "non-kubectl command is NOT_K8S" {
     run_guard "kind-practice" "alice-sandbox" ls -la
     [ "$output" = "NOT_K8S" ]

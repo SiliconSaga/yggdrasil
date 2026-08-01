@@ -331,6 +331,55 @@ assert_denied() {
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"REJECTED by the k8s scope guard"* ]]
 }
 
+@test "transparent wrappers preserve an out-of-scope write denial" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup timeout 10s kubectl delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"REJECTED by the k8s scope guard"* ]]
+}
+
+@test "xargs Kubernetes construction is denied as unclassifiable" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'xargs kubectl delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"composition-free command"* ]]
+}
+
+@test "quoted xargs and kubectl command words remain denied" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook '"xargs" "kubectl" delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"composition-free command"* ]]
+}
+
+@test "quoted kubectl data after xargs does not trigger the guard" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'xargs echo "kubectl"'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "transparent wrapper chains preserve quoted xargs command words" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup timeout 10s xargs "kubectl" delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"composition-free command"* ]]
+}
+
+@test "transparent wrapper chains keep quoted xargs data inert" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup timeout 10s xargs echo "kubectl"'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "unrelated transparent wrapper defers to normal Codex routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup sleep 1'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "guarded out-of-scope ws k8s write uses the shared guard message" {
     seed_scope codex-test kind-practice alice-sandbox
     run_codex_hook 'ws k8s delete pod foo -n prod'
