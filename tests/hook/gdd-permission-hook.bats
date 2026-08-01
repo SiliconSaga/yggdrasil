@@ -240,6 +240,238 @@ setup() {
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "security: nested script dispatcher spellings do not inherit workspace permissions" {
+    write_project_settings 'Bash(ws status)'
+    mkdir -p "$WORK/nested/scripts"
+    touch "$WORK/nested/scripts/ws"
+    local command
+    local -a commands=(
+        "bash scripts/ws status"
+        "bash ./scripts/ws status"
+        "./scripts/ws status"
+        "scripts/ws status"
+    )
+
+    for command in "${commands[@]}"; do
+        run_hook "$command" "$WORK/nested"
+        [ "$status" -eq 0 ]
+        [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+        # Not a silent host prompt: the hook teaches why the relative
+        # dispatcher call did not inherit workspace permissions.
+        [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+        [[ "$output" == *"outside the workspace root"* ]]
+    done
+}
+
+@test "security: shipped permissions contain no middle-glob git -C rules" {
+    run jq -e '[.permissions.allow[] | select(startswith("Bash(git -C *"))] | length == 0' "$REPO_ROOT/.claude/settings.json"
+    [ "$status" -eq 0 ]
+}
+
+@test "allow: validated git -C reads at the workspace root avoid middle-glob permissions" {
+    write_project_settings ''
+    mkdir -p "$WORK/.git"
+    local command_tail
+    local -a command_tails=(
+        "status"
+        "status -s"
+        "status --short"
+        "show HEAD"
+        "grep needle"
+        "log --oneline -3"
+        "diff HEAD"
+        "remote -v"
+        "branch --show-current"
+        "ls-tree HEAD"
+        "rev-parse HEAD"
+        "ls-files"
+        "show-ref --verify refs/heads/main"
+        "describe --tags"
+        "merge-base HEAD HEAD"
+        "range-diff HEAD...HEAD"
+    )
+
+    for command_tail in "${command_tails[@]}"; do
+        run_hook "git -C $WORK $command_tail"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    done
+}
+
+@test "allow: validated git -C reads accept a root-declared component" {
+    write_project_settings ''
+    mkdir -p "$WORK/components/demo/.git"
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  demo:
+    repo: https://github.com/example/demo.git
+YAML
+
+    run_hook "git -C $WORK/components/demo log --oneline -3"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C read fast path rejects undeclared and external repositories" {
+    write_project_settings ''
+    mkdir -p "$WORK/components/undeclared/.git"
+    mkdir -p "$BATS_TEST_TMPDIR/outside/.git"
+    printf 'components: {}\n' > "$WORK/ecosystem.yaml"
+
+    run_hook "git -C $WORK/components/undeclared status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+
+    run_hook "git -C $BATS_TEST_TMPDIR/outside status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C read fast path accepts only branch --show-current" {
+    write_project_settings ''
+    mkdir -p "$WORK/.git"
+
+    run_hook "git -C $WORK branch --show-current"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+
+    run_hook "git -C $WORK branch --list"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C diff --no-index cannot escape the validated target" {
+    write_project_settings ''
+    mkdir -p "$WORK/.git"
+
+    run_hook "git -C $WORK diff --no-index /etc/passwd /etc/shadow"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C read fast path rejects dynamic paths and mutating shapes" {
+    write_project_settings ''
+    mkdir -p "$WORK/.git"
+
+    run_hook "git -C $WORK/components/* status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+
+    run_hook "git -C $WORK branch -f status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C read fast path rejects symlink traversal targets" {
+    write_project_settings ''
+    mkdir -p "$WORK/components/demo/.git"
+    mkdir -p "$BATS_TEST_TMPDIR/outside/child"
+    mkdir -p "$BATS_TEST_TMPDIR/outside/.git"
+    ln -s "$BATS_TEST_TMPDIR/outside/child" "$WORK/components/demo/link" 2>/dev/null || true
+    [[ -L "$WORK/components/demo/link" ]] || skip "real symlinks not supported on this platform"
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  demo:
+    repo: https://github.com/example/demo.git
+YAML
+
+    run_hook "git -C $WORK/components/demo/link/.. status"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: Git read fast paths reject pathname expansion in arguments" {
+    write_project_settings ''
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    mkdir -p "$WORK/.git"
+    touch "$WORK/--output=.env"
+
+    run_hook "git -C $WORK log --*" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+
+    run_hook "ws exec yggdrasil git log --*" "$WORK"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "security: git text conversion denies before the read fast path" {
+    write_project_settings ''
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    mkdir -p "$WORK/.git"
+
+    run_hook "git -C $WORK diff --textconv HEAD"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+
+    run_hook "ws exec yggdrasil git diff --textconv HEAD"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"Git execution modifier"* ]]
+}
+
+@test "allow: ws exec keeps validated Git reads low-friction" {
+    write_project_settings ''
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    mkdir -p "$WORK/.git"
+    mkdir -p "$WORK/components/demo/.git"
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  demo:
+    repo: https://github.com/example/demo.git
+YAML
+
+    run_hook "ws exec yggdrasil git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+
+    run_hook "ws exec demo git log --oneline -3"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: ws exec Git fast path leaves mutations on the ask-list" {
+    write_project_settings ''
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    mkdir -p "$WORK/.git"
+
+    run_hook "ws exec yggdrasil git branch -f topic"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "security: ws exec Git fast path rejects a target shadowed by a realm or hoard" {
+    write_project_settings ''
+    write_project_hook_rules "[ask-commands]
+ws exec *"
+    mkdir -p "$WORK/components/demo/.git"
+    mkdir -p "$WORK/realms/demo/.git"
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  demo:
+    repo: https://github.com/example/demo.git
+YAML
+
+    run_hook "ws exec demo git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+
+    mv "$WORK/realms/demo" "$WORK/realms/demo-away"
+    mkdir -p "$WORK/hoards/demo/.git"
+    run_hook "ws exec demo git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
 @test "allow via settings: wildcard pattern matches args" {
     write_project_settings 'Bash(ws hoard upgrade *)'
     run_hook "ws hoard upgrade borgr"
@@ -350,6 +582,46 @@ JSON
     [[ -L "$WORK/.tmp/root-alias" ]] || skip "real symlinks not supported on this platform"
 
     run_hook_write "Write" "$WORK/.tmp/root-alias/.env"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: parent traversal into sensitive config still forces an ask" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+
+    run_hook_write "Write" "$WORK/.tmp/../.claude/settings.json"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: a final symlink into sensitive config still forces an ask" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+    touch "$WORK/.env"
+    ln -s "$WORK/.env" "$WORK/.tmp/env-alias" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/env-alias" ]] || skip "real symlinks not supported on this platform"
+
+    run_hook_write "Write" "$WORK/.tmp/env-alias"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    [[ "$output" == *"security-sensitive workspace state"* ]]
+}
+
+@test "security: a multi-hop final symlink into sensitive config still forces an ask" {
+    seed_real_project_config
+    mkdir -p "$WORK/.tmp"
+    touch "$WORK/.env"
+    ln -s "$WORK/.env" "$WORK/.tmp/env-target" 2>/dev/null || true
+    ln -s "$WORK/.tmp/env-target" "$WORK/.tmp/env-alias" 2>/dev/null || true
+    [[ -L "$WORK/.tmp/env-alias" ]] || skip "real symlinks not supported on this platform"
+
+    run_hook_write "Write" "$WORK/.tmp/env-alias"
 
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
@@ -1797,6 +2069,35 @@ find*-exec*"
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
 
+@test "ask: shipped find floor covers file-writing and interactive execution primaries" {
+    seed_real_project_config
+    local command
+    local -a commands=(
+        "find . -maxdepth 0 -fprintf $WORK/out %p"
+        "find . -maxdepth 0 -fprint $WORK/out"
+        "find . -maxdepth 0 -fprint0 $WORK/out"
+        "find . -maxdepth 0 -fls $WORK/out"
+        "find . -maxdepth 0 -ok echo {} +"
+    )
+
+    for command in "${commands[@]}"; do
+        run_hook "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    done
+}
+
+@test "allow: broad local find rule still permits read-only searches" {
+    seed_real_project_config
+    write_local_hook_rules "[allow-extras]
+find *"
+
+    run_hook "find . -type f -print"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
 # ─── Tier 2 redirect-deny — parser ──────────────────────────────────
 
 @test "redirect: malformed [redirect-commands] entry (2 columns) is skipped with warning" {
@@ -2377,7 +2678,7 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-# ─── PowerShell branch: deny-by-default + carve-out + bypass ────────
+# ─── PowerShell branch: deny-by-default + bypass ───────────────────
 #
 # CLAUDE_PROJECT_DIR is pinned to $WORK in the bypass tests so the
 # marker lookup resolves inside the sandbox regardless of what the
@@ -2391,25 +2692,28 @@ EOF
     [[ "$output" == *"ws hook-bypass powershell"* ]]
 }
 
-@test "powershell: bare ./test.ps1 allows (carve-out)" {
+@test "powershell: bare ./test.ps1 routes through ws test" {
     run_hook_ps "./test.ps1"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
-@test "powershell: ./test.ps1 with suite arg allows" {
+@test "powershell: ./test.ps1 with suite arg routes through ws test" {
     run_hook_ps "./test.ps1 openbao"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
-@test "powershell: Set-Location prefix + ./test.ps1 allows" {
+@test "powershell: Set-Location prefix + ./test.ps1 routes through ws test" {
     run_hook_ps "Set-Location D:/Dev/GitWS/yggdrasil/components/nidavellir; ./test.ps1 openbao"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
-@test "powershell: scratch-hosted test wrapper does not use the carve-out" {
+@test "powershell: scratch-hosted test wrapper remains denied" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
 
@@ -2420,7 +2724,7 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "powershell: case variants of scratch roots do not use the carve-out" {
+@test "powershell: case variants of scratch roots remain denied" {
     seed_real_project_config
     mkdir -p "$WORK/.TMP"
     if [[ ! "$WORK/.claude" -ef "$WORK/.CLAUDE" ]]; then
@@ -2435,7 +2739,7 @@ EOF
     [[ "$output" != *'"permissionDecision":"allow"'* ]]
 }
 
-@test "powershell: dot segments cannot disguise a scratch-hosted wrapper" {
+@test "powershell: dot segments do not change the default denial" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
 
@@ -2446,7 +2750,7 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "powershell: persisted scratch cwd does not make test wrapper trusted" {
+@test "powershell: persisted scratch cwd does not authorize a test wrapper" {
     seed_real_project_config
     mkdir -p "$WORK/.tmp"
 
@@ -2457,10 +2761,11 @@ EOF
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
-@test "powershell: cd prefix + backslash invocation allows" {
+@test "powershell: cd prefix + backslash invocation routes through ws test" {
     run_hook_ps "cd D:/Dev/GitWS/yggdrasil/components/mimir; .\\test.ps1"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws test"* ]]
 }
 
 @test "powershell: trailing command after test.ps1 denies" {

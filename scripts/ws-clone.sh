@@ -97,6 +97,89 @@ redact_url() {
     echo "$1" | sed 's|://[^@]*@|://***@|'
 }
 
+# Normalize a validated remote for repository-identity comparisons. This is
+# deliberately separate from git_auth_normalize_url: credential routing may
+# ignore SSH details that are material when deciding whether two URLs name the
+# same repository. The conventional `git` SSH user and protocol-default ports
+# are transport details; other usernames and non-default ports are retained.
+repository_identity_from_url() {
+    local url="$1" scheme="" rest="" authority="" hostport=""
+    local user="" host="" port="" path="" suffix=""
+
+    case "$url" in
+        https://*|ssh://*)
+            scheme="${url%%://*}"
+            rest="${url#*://}"
+            authority="${rest%%/*}"
+            path="${rest#*/}"
+            hostport="$authority"
+            if [[ "$scheme" == "ssh" && "$hostport" == *@* ]]; then
+                user="${hostport%%@*}"
+                hostport="${hostport#*@}"
+            elif [[ "$scheme" == "https" && "$hostport" == *@* ]]; then
+                # HTTPS userinfo is credentials, never repository identity.
+                # Unreachable in practice — git_remote_validate refuses
+                # embedded-credential URLs before any identity comparison —
+                # but stripped here so this helper stays standalone-correct.
+                hostport="${hostport#*@}"
+            fi
+            if [[ "$hostport" == \[*\]* ]]; then
+                host="${hostport#\[}"
+                host="${host%%\]*}"
+                suffix="${hostport#*\]}"
+                [[ "$suffix" == :* ]] && port="${suffix#:}"
+            elif [[ "$hostport" == *:* ]]; then
+                host="${hostport%%:*}"
+                port="${hostport#*:}"
+            else
+                host="$hostport"
+            fi
+            if [[ ( "$scheme" == "https" && "$port" == "443" ) || ( "$scheme" == "ssh" && "$port" == "22" ) ]]; then
+                port=""
+            fi
+            ;;
+        *)
+            if [[ "$url" =~ ^([^@/:]+@)?([^@/:]+):(.+)$ ]]; then
+                user="${BASH_REMATCH[1]%@}"
+                host="${BASH_REMATCH[2]}"
+                path="${BASH_REMATCH[3]}"
+                scheme="ssh"
+            else
+                printf 'local:%s\n' "$url"
+                return 0
+            fi
+            ;;
+    esac
+
+    host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+    [[ "$host" == *:* ]] && host="[$host]"
+    path="${path#/}"
+    while [[ "$path" == */ ]]; do
+        path="${path%/}"
+    done
+    path="${path%.git}"
+    [[ "$user" == "git" ]] && user=""
+    [[ -n "$user" ]] && user="${user}@"
+    [[ -n "$port" ]] && port=":${port}"
+    printf 'repo:%s%s%s/%s\n' "$user" "$host" "$port" "$path"
+}
+
+# Explicit clones need declarations from authorities whose trust is current.
+# Root and operator-local config are always available; realm declarations join
+# the comparison only while the selected realm's approval still matches.
+explicit_clone_ecosystem() {
+    local active_realm trust_state
+    active_realm="$(ws_detect_realm)"
+    if [[ -n "$active_realm" ]]; then
+        trust_state="$(ws_realm_trust_state "$active_realm")"
+        if [[ "$trust_state" == "current" ]]; then
+            ws_resolve_ecosystem
+            return
+        fi
+    fi
+    ws_resolve_local_ecosystem
+}
+
 clone_component() {
     local name="$1"
     local eco="$2"
@@ -169,6 +252,34 @@ clone_url() {
         echo "ERROR: Derived name '$name' is not a valid component name." >&2
         echo "  Use --name <name> to specify a valid one (lowercase, alphanumeric, hyphens, dots)." >&2
         exit 1
+    fi
+
+    # An explicit URL clone must not occupy the identity of a component that
+    # the merged ecosystem already declares. Protocol-equivalent URLs compare
+    # by normalized host/path so the declared HTTPS repo can still be cloned
+    # over SSH; a different repo must use a unique name.
+    local eco component_declared declared_repo git_org declared_norm requested_norm
+    eco="$(explicit_clone_ecosystem)"
+    component_declared=$(COMPONENT_NAME="$name" yq -r '.components[strenv(COMPONENT_NAME)] != null' "$eco")
+    if [[ "$component_declared" == "true" ]]; then
+        declared_repo=$(COMPONENT_NAME="$name" yq -r '.components[strenv(COMPONENT_NAME)].repo // ""' "$eco")
+        if [[ -z "$declared_repo" ]]; then
+            git_org=$(yq -r '.defaults.gitOrg // ""' "$eco")
+            [[ -n "$git_org" ]] && declared_repo="${git_org%/}/$name.git"
+        fi
+        if [[ -z "$declared_repo" ]]; then
+            echo "ERROR: '$name' is a declared component without a repository URL." >&2
+            echo "  Configure its repository and use 'ws clone $name', or choose a unique --name." >&2
+            exit 1
+        fi
+        git_remote_validate "$declared_repo" remote
+        declared_norm="$(repository_identity_from_url "$declared_repo")"
+        requested_norm="$(repository_identity_from_url "$url")"
+        if [[ "$declared_norm" != "$requested_norm" ]]; then
+            echo "ERROR: '$name' is a declared component for a different repository." >&2
+            echo "  Use 'ws clone $name' for the declared component or choose a unique --name." >&2
+            exit 1
+        fi
     fi
 
     local target="$COMPONENTS_DIR/$name"

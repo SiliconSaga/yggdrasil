@@ -6,8 +6,8 @@
 # PURPOSE
 # Fires on PreToolUse for Bash (four-tier deny/ask/allow logic), for
 # Edit/Write (scratch-dir auto-allow), and for PowerShell (deny-by-
-# default with a test-wrapper carve-out + `powershell` bypass slug —
-# see the PowerShell branch below). Has dormant PermissionRequest
+# default with an audited `powershell` bypass slug — see the PowerShell
+# branch below). Has dormant PermissionRequest
 # support wired in but not registered by default. Inspects the tool
 # input and emits one of four outcomes:
 #
@@ -599,17 +599,14 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     file_path=$(echo "$input" | jq -r '.tool_input.file_path // ""')
     file_path="$(_normalize_host_path "$file_path")"
 
-    # Path-traversal guard. The scratch-dir test below is a textual
-    # prefix match, so a path like `.tmp/../../etc/whatever` would
-    # still START WITH `$project_dir/.tmp/` and wrongly auto-allow a
-    # write that RESOLVES outside the project. Reject any path
-    # containing a `..` segment up front and fall through to the
-    # harness prompt — a legitimate scratch-dir write never needs
-    # `..`, so this costs nothing real and closes the bypass without
-    # depending on a `realpath`/`readlink` that varies across OSes.
+    # Traversal and symlink aliases must never inherit the scratch auto-allow,
+    # but resolve them before falling through: an alias may target protected
+    # workspace state that requires an explicit human decision even when the
+    # host is otherwise running in acceptEdits mode.
+    edit_alias_path=0
     case "$file_path" in
         ..|../*|*/..|*/../*)
-            exit 0  # passthrough — let the harness prompt
+            edit_alias_path=1
             ;;
     esac
 
@@ -619,26 +616,30 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         *)  abs_path="$project_dir/$file_path" ;;
     esac
 
-    # Symlink guard. The `..` guard above stops textual traversal, but
-    # a symlink INSIDE a scratch dir defeats a textual prefix match a
-    # different way: `.tmp/evil` → `/etc` still has a literal path
-    # starting with `$project_dir/.tmp/`, yet a write through it lands
-    # outside the project. Two checks close this:
-    #
-    #   1. If the target itself is a symlink, passthrough — a write
-    #      follows the link to wherever it points.
-    #   2. Resolve the deepest existing directory ancestor of the
-    #      target with `cd … && pwd -P` (physical path, symlinks
-    #      resolved) and confirm it is still under the *resolved*
-    #      project root. Resolving BOTH sides also handles the case
-    #      where the whole project is reached via a symlinked path.
+    # Follow a symlink at the final path element before resolving the parent.
+    # `pwd -P` below handles symlinked ancestors; this bounded loop covers the
+    # otherwise-missed `.tmp/alias -> ../.env` shape. Any resolution failure
+    # falls through to the host rather than gaining a scratch allow.
+    resolve_path="$abs_path"
+    edit_link_depth=0
+    while [[ -L "$resolve_path" ]]; do
+        edit_alias_path=1
+        edit_link_depth=$((edit_link_depth + 1))
+        [[ "$edit_link_depth" -le 32 ]] || exit 0
+        edit_link_target="$(readlink "$resolve_path" 2>/dev/null)" || exit 0
+        case "$edit_link_target" in
+            /*) resolve_path="$edit_link_target" ;;
+            *) resolve_path="${resolve_path%/*}/$edit_link_target" ;;
+        esac
+    done
+
+    # Resolve the deepest existing directory ancestor of the effective target
+    # with `cd … && pwd -P` and confirm it remains under the resolved project
+    # root. Resolving both sides also handles a symlinked project checkout.
     #
     # `cd`/`pwd -P` is POSIX and needs no `realpath` (which varies
     # across OSes). Any failure → passthrough, never a false allow.
-    if [[ -L "$abs_path" ]]; then
-        exit 0  # target is a symlink — let the harness prompt
-    fi
-    sym_probe="${abs_path%/*}"
+    sym_probe="${resolve_path%/*}"
     unresolved_suffix=""
     while [[ ! -d "$sym_probe" && "$sym_probe" == */* ]]; do
         unresolved_suffix="/${sym_probe##*/}$unresolved_suffix"
@@ -646,7 +647,7 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
     done
     real_probe="$(cd "$sym_probe" 2>/dev/null && pwd -P)" || exit 0
     real_project="$(cd "$project_dir" 2>/dev/null && pwd -P)" || exit 0
-    resolved_abs_path="$real_probe$unresolved_suffix/${abs_path##*/}"
+    resolved_abs_path="$real_probe$unresolved_suffix/${resolve_path##*/}"
     case "$real_probe/" in
         "$real_project/"*) : ;;   # resolves inside the project — OK
         *) exit 0 ;;              # resolves outside — passthrough
@@ -732,6 +733,10 @@ if [[ "$tool_name" == "Edit" || "$tool_name" == "Write" ]]; then
         ask "This edit changes security-sensitive workspace state or configuration and requires human approval."
     fi
 
+    # Non-sensitive aliases still pass through to the host permission flow;
+    # they never inherit a textual scratch-directory auto-allow.
+    [[ "$edit_alias_path" -eq 1 ]] && exit 0
+
     # Scratch dirs that auto-allow Edit / Write come from the
     # [scratch-dirs] section of hook-rules (parsed above). The baseline
     # mirrors the "Workspace-local scratch" section of .gitignore;
@@ -759,87 +764,12 @@ fi
 # Bash tiers to PowerShell grammar would be a large, error-prone job for
 # a tool agents shouldn't be drifting into (PS 5.1 has no && / ||, so
 # `;` is its ONLY statement separator — a naive port of the Tier 1 deny
-# rules would be unusable rather than safe). So: deny everything, with
-# two narrow exceptions —
-#
-#   1. Component kuttl test wrappers. kuttl ships no native Windows
-#      binary, so components wrap it in Docker via test.ps1 (mimir,
-#      nidavellir). The shapes `./test.ps1 [args]` and
-#      `Set-Location <dir>; ./test.ps1 [args]` auto-allow, with both
-#      segments restricted to composition-free characters. As with bash
-#      scripts, the hook audits the invocation string only — script
-#      internals are out of scope by design.
-#   2. A session-scoped bypass marker (`ws hook-bypass powershell`),
-#      human-approved through the ask tier like every other slug — for
-#      the rare legitimate raw-PowerShell need (e.g. piping payloads
-#      into THIS hook while debugging it, which Bash Tier 1 blocks).
+# rules would be unusable rather than safe). Component test wrappers run via
+# `ws test`, which uses workspace target resolution and checks active realm
+# trust whenever it selects an adapter. Raw PowerShell requires a session-scoped
+# bypass marker (`ws hook-bypass
+# powershell`), human-approved through the ask tier like every other slug.
 if [[ "$tool_name" == "PowerShell" ]]; then
-    # Carve-out: component test wrapper, optionally preceded by ONE
-    # Set-Location/cd (the PowerShell tool's cwd persists across calls,
-    # so suite runs are typically `Set-Location <comp>; ./test.ps1 …`).
-    # The character class excludes composition, redirection, variable /
-    # subexpression expansion, backticks, and script blocks in BOTH the
-    # path and the args — `./test.ps1 $(...)` must not slip through.
-    #
-    # CR/LF guard first: newline is a full statement separator in
-    # PowerShell, and both [[:space:]] and a negated bracket class match
-    # it — so without this case arm, `./test.ps1<newline>Remove-Item …`
-    # would satisfy the regex and auto-allow (caught in review by
-    # CodeRabbit + Copilot, repro-verified). The Bash branch's Tier 1
-    # newline deny never runs for PowerShell, so the rejection has to
-    # live here. The [ \t]-only separators below are belt-and-braces.
-    case "$cmd" in
-        *$'\n'*|*$'\r'*)
-            : ;;  # multi-line — never carve-out; fall through to deny/bypass
-        *)
-            _ps_seg='[^;|&<>$`(){}'$'\n\r'']'
-            _ps_wrapper_re="^(([Ss]et-[Ll]ocation|cd)[ \t]+${_ps_seg}+;[ \t]*)?\.[/\\]test\.ps1([ \t]${_ps_seg}*)?$"
-            if [[ "$cmd" =~ $_ps_wrapper_re ]]; then
-                # Scratch directories are intentionally agent-writable, so a
-                # test.ps1 stored there has no trusted provenance. Resolve the
-                # optional Set-Location/cd prefix (or use the payload cwd) and
-                # skip the carve-out whenever it points into a configured
-                # scratch root. The normal PowerShell bypass remains available
-                # for a human-approved exceptional run.
-                _ps_effective_dir="$cwd"
-                if [[ "$cmd" == *";"* ]]; then
-                    _ps_location="${cmd%%;*}"
-                    _ps_location="${_ps_location#* }"
-                    _ps_location="${_ps_location#\"}"
-                    _ps_location="${_ps_location%\"}"
-                    _ps_location="${_ps_location#\'}"
-                    _ps_location="${_ps_location%\'}"
-                    case "$_ps_location" in
-                        /*|[A-Za-z]:[/\\]*) _ps_effective_dir="$_ps_location" ;;
-                        *) _ps_effective_dir="$cwd/$_ps_location" ;;
-                    esac
-                fi
-                _ps_effective_dir="$(_normalize_host_path "$_ps_effective_dir")"
-                if _ps_resolved_dir="$(cd "$_ps_effective_dir" 2>/dev/null && pwd -P)"; then
-                    _ps_effective_dir="$(_normalize_host_path "$_ps_resolved_dir")"
-                fi
-                _ps_project_root="$_trusted_root"
-                if _ps_resolved_root="$(cd "$_trusted_root" 2>/dev/null && pwd -P)"; then
-                    _ps_project_root="$(_normalize_host_path "$_ps_resolved_root")"
-                fi
-                _ps_effective_dir_fold="$(_policy_path_fold "$_ps_effective_dir")"
-                _ps_project_root_fold="$(_policy_path_fold "$_ps_project_root")"
-                _ps_scratch=0
-                case "$_ps_effective_dir" in
-                    ..|../*|*/..|*/../*) _ps_scratch=1 ;;
-                esac
-                for _ps_prefix in ${scratch_dirs[@]+"${scratch_dirs[@]}"}; do
-                    _ps_prefix_fold="$(_policy_path_fold "${_ps_prefix%/}")"
-                    _ps_scratch_root_fold="$_ps_project_root_fold/$_ps_prefix_fold"
-                    case "$_ps_effective_dir_fold/" in
-                        "$_ps_scratch_root_fold/"*) _ps_scratch=1; break ;;
-                    esac
-                done
-                [[ "$_ps_scratch" -eq 1 ]] || allow "powershell test-wrapper carve-out"
-            fi
-            ;;
-    esac
-
     # Session-scoped bypass marker — same mechanics as the Tier 2/3
     # slugs (written by `ws hook-bypass powershell`, honored only when
     # its session_id matches the current session). Project root prefers
@@ -866,7 +796,7 @@ if [[ "$tool_name" == "PowerShell" ]]; then
         fi
     fi
 
-    deny "PowerShell is blocked by default in this workspace — use the Bash tool with the \`ws\` wrappers (see AGENTS.md Reflex Contract). Exception: component kuttl wrappers run without a prompt as \`./test.ps1 [suite]\`, optionally preceded by one \`Set-Location <dir>;\`. For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
+    deny "PowerShell is blocked by default in this workspace — use \`ws test <component> [test-name]\` for component tests or the Bash tool with other \`ws\` wrappers (see AGENTS.md Reflex Contract). For a genuine raw-PowerShell need (e.g. hook debugging), request a session-scoped bypass: \`ws hook-bypass powershell --reason \"<why>\"\` — a human approves it and it expires with the session."
 fi
 
 # ─── Windows path-token separator normalization ─────────────────────
@@ -1436,13 +1366,24 @@ _opaque_command_string_requires_ask() {
 # Audit log entries continue to record the literal command, so
 # drift toward one form or the other remains visible over time.
 normalize_for_match() {
-    local s="$1"
-    case "$s" in
-        "bash ./scripts/"*) s="${s#bash ./scripts/}" ;;
-        "bash scripts/"*)   s="${s#bash scripts/}" ;;
-        "./scripts/"*)      s="${s#./scripts/}" ;;
-        "scripts/"*)        s="${s#scripts/}" ;;
-    esac
+    local s="$1" mode="${2:-pattern}" allow_script_prefix=1
+    local cwd_real="" trusted_real=""
+    if [[ "$mode" == "command" ]]; then
+        allow_script_prefix=0
+        cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P)" || cwd_real=""
+        trusted_real="$(cd "$_trusted_root" 2>/dev/null && pwd -P)" || trusted_real=""
+        if [[ -n "$cwd_real" && "$cwd_real" == "$trusted_real" ]]; then
+            allow_script_prefix=1
+        fi
+    fi
+    if [[ "$allow_script_prefix" -eq 1 ]]; then
+        case "$s" in
+            "bash ./scripts/"*) s="${s#bash ./scripts/}" ;;
+            "bash scripts/"*)   s="${s#bash scripts/}" ;;
+            "./scripts/"*)      s="${s#./scripts/}" ;;
+            "scripts/"*)        s="${s#scripts/}" ;;
+        esac
+    fi
     # Matching is conservative, not execution: remove one-token quoting and
     # collapse harmless whitespace so quoting cannot hide an ask-tier action.
     s="${s//\"/}"
@@ -1453,7 +1394,22 @@ normalize_for_match() {
     s="${s% }"
     printf '%s' "$s"
 }
-match_cmd="$(normalize_for_match "$cmd")"
+match_cmd="$(normalize_for_match "$cmd" command)"
+
+# When a dispatcher-shaped relative invocation is NOT normalized (cwd is not
+# physically the workspace root), the silent outcome would be a bare host
+# prompt with no explanation. Teach instead: an ask that names the cause —
+# either an agent drifted out of the root, or something is impersonating the
+# dispatcher, and a human should look either way.
+case "$cmd" in
+    "bash ./scripts/"*|"bash scripts/"*|"./scripts/"*|"scripts/"*)
+        _dispatch_cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P)" || _dispatch_cwd_real=""
+        _dispatch_root_real="$(cd "$_trusted_root" 2>/dev/null && pwd -P)" || _dispatch_root_real=""
+        if [[ -z "$_dispatch_cwd_real" || "$_dispatch_cwd_real" != "$_dispatch_root_real" ]]; then
+            ask "A scripts/-relative dispatcher call from outside the workspace root does not inherit workspace permissions — the relative path may resolve to a different script entirely. Run it from the workspace root (or via the PATH-installed \`ws\`), or approve this call if the relative script here is genuinely intended."
+        fi
+        ;;
+esac
 
 # The committed direct-bats allow is only for focused tests under tests/.
 # Bash glob `*` crosses slashes and `..`, so validate every argument before
@@ -1479,7 +1435,8 @@ esac
 # Git's global execution modifiers and remote-helper transports run programs
 # before/under otherwise read-looking subcommands. They are never safe to
 # inherit from a broad `git diff`/`git show` allow pattern.
-if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
+if [[ "$match_cmd" == git || "$match_cmd" == git\ * \
+    || "$match_cmd" =~ ^ws[[:space:]]+exec[[:space:]]+[^[:space:]]+[[:space:]]+git($|[[:space:]]) ]]; then
     # Git accepts unambiguous prefixes of long options. Match each visible
     # option token as a prefix of the dangerous spelling, not just the full
     # spelling, so e.g. --uplo= cannot inherit a broad git-fetch allow as an
@@ -1487,7 +1444,7 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
     # candidate. Tokens longer than or unrelated to these names do not match.
     _git_dangerous_long_options=(
         --config-env --upload-pack --exec --exec-path --extcmd --ext-diff
-        --output --output-directory --open-files-in-pager
+        --textconv --output --output-directory --open-files-in-pager
     )
     _git_words=()
     read -r -a _git_words <<< "$match_cmd"
@@ -1500,7 +1457,7 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
             fi
         done
     done
-    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--exec-path($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
+    if [[ "$match_cmd" =~ (^|[[:space:]])(-c|--config-env($|=|[[:space:]])|--exec-path($|=|[[:space:]])|--upload-pack($|=|[[:space:]])|--exec($|=|[[:space:]])|--extcmd($|=|[[:space:]])|--ext-diff($|[[:space:]])|--textconv($|[[:space:]])|--output($|=|[[:space:]])|--output-directory($|=|[[:space:]])) ]]; then
         deny "Git execution modifier rejected before permission matching. Use the reviewed ws wrapper or a plain read-only Git invocation."
     fi
     if [[ "$match_cmd" =~ (^|[[:space:]])grep([[:space:]]|$) ]] \
@@ -1510,6 +1467,135 @@ if [[ "$match_cmd" == git || "$match_cmd" == git\ * ]]; then
     if [[ "$match_cmd" =~ (^|[[:space:]])(ext|fd):: ]]; then
         deny "Executable Git remote helper syntax is not allowed by read-oriented Git permissions."
     fi
+fi
+
+# Restore low-friction read-only Git inspection without granting a middle-glob
+# path wildcard in settings.json. The hook owns both decisions that the static
+# matcher cannot express safely: the `-C` target must resolve to this workspace
+# root or a root/operator-declared component, and the effective subcommand must
+# be a read-only shape. Realm and hoard targets deliberately fall through until
+# target resolution carries a typed, independently verified trust decision.
+_git_component_declared_by_root_or_local() {
+    local name="$1" config
+    command -v yq >/dev/null 2>&1 || return 1
+    for config in "$_trusted_root/ecosystem.yaml" "$_trusted_root/ecosystem.local.yaml"; do
+        [[ -f "$config" ]] || continue
+        if COMPONENT_NAME="$name" yq -e '.components[strenv(COMPONENT_NAME)] != null' "$config" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_git_read_target_is_trusted() {
+    local target="$1" target_path="" target_real="" root_real=""
+    local components_real="" component_name=""
+    case "$target" in
+        ""|-*|*'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+    esac
+    target_path="$(_normalize_host_path "$target")"
+    if [[ "$target_path" != /* ]]; then
+        target_path="$cwd/$target_path"
+    fi
+    case "/$target_path/" in
+        */../*) return 1 ;;
+    esac
+    target_real="$(cd -P -- "$target_path" 2>/dev/null && pwd -P)" || return 1
+    root_real="$(cd -P -- "$_trusted_root" 2>/dev/null && pwd -P)" || return 1
+    [[ -e "$target_real/.git" ]] || return 1
+    [[ "$target_real" == "$root_real" ]] && return 0
+
+    components_real="$(cd "$root_real/components" 2>/dev/null && pwd -P)" || return 1
+    [[ "$(dirname "$target_real")" == "$components_real" ]] || return 1
+    component_name="${target_real##*/}"
+    [[ "$component_name" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] || return 1
+    _git_component_declared_by_root_or_local "$component_name"
+}
+
+_git_read_tokens_are_literal() {
+    local token
+    for token in "$@"; do
+        case "$token" in
+            *'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
+_git_read_shape_is_safe() {
+    local verb="$1" argument_count="$2"
+    shift 2
+    local first_argument="${1:-}" token
+    # `git diff --no-index <a> <b>` compares arbitrary filesystem paths,
+    # escaping the validated -C target entirely. No allowed verb needs the
+    # flag, so reject the token wherever it appears in the tail.
+    for token in "$@"; do
+        [[ "$token" == "--no-index" ]] && return 1
+    done
+    case "$verb" in
+        # ls-files, show-ref, describe, merge-base, and range-diff are the
+        # same class as the original set: local repository reads with no
+        # network or working-tree mutation, used routinely in review work
+        # (ancestry checks, patch-equivalence comparisons). The dangerous
+        # git-modifier deny above already screens pager/output options.
+        show|grep|log|diff|ls-tree|rev-parse|ls-files|show-ref|describe|merge-base|range-diff) return 0 ;;
+        status)
+            [[ "$argument_count" -eq 0 ]] && return 0
+            [[ "$argument_count" -eq 1 && ( "$first_argument" == "-s" || "$first_argument" == "--short" ) ]]
+            return
+            ;;
+        remote)
+            [[ "$argument_count" -eq 1 && "$first_argument" == "-v" ]]
+            return
+            ;;
+        branch)
+            [[ "$argument_count" -eq 1 && "$first_argument" == "--show-current" ]]
+            return
+            ;;
+    esac
+    return 1
+}
+
+_git_c_read_is_safe() {
+    local -a words=()
+    local count target verb first_argument=""
+    read -r -a words <<< "$match_cmd"
+    count=${#words[@]}
+    [[ "$count" -ge 4 ]] || return 1
+    [[ "${words[0]}" == "git" && "${words[1]}" == "-C" ]] || return 1
+    _git_read_tokens_are_literal "${words[@]}" || return 1
+    target="${words[2]}"
+    verb="${words[3]}"
+    _git_read_target_is_trusted "$target" || return 1
+    _git_read_shape_is_safe "$verb" "$((count - 4))" "${words[@]:4}"
+}
+
+_ws_exec_git_read_is_safe() {
+    local -a words=()
+    local count target verb target_path first_argument=""
+    read -r -a words <<< "$match_cmd"
+    count=${#words[@]}
+    [[ "$count" -ge 5 ]] || return 1
+    [[ "${words[0]}" == "ws" && "${words[1]}" == "exec" && "${words[3]}" == "git" ]] || return 1
+    _git_read_tokens_are_literal "${words[@]}" || return 1
+    target="${words[2]}"
+    verb="${words[4]}"
+    if [[ "$target" == "yggdrasil" ]]; then
+        target_path="$_trusted_root"
+    else
+        [[ "$target" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] || return 1
+        if [[ -d "$_trusted_root/realms/$target/.git" || -d "$_trusted_root/hoards/$target/.git" ]]; then
+            return 1
+        fi
+        _git_component_declared_by_root_or_local "$target" || return 1
+        target_path="$_trusted_root/components/$target"
+    fi
+    _git_read_target_is_trusted "$target_path" || return 1
+    _git_read_shape_is_safe "$verb" "$((count - 5))" "${words[@]:5}"
+}
+
+if _git_c_read_is_safe || _ws_exec_git_read_is_safe; then
+    allow "validated read-only Git target and subcommand"
 fi
 
 # ─── Tier 2: Redirect deny — raw commands with a `ws` equivalent ────

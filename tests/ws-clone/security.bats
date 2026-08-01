@@ -14,6 +14,10 @@ setup() {
 
     cat > "$TEST_BIN/git" <<'SH'
 #!/usr/bin/env bash
+if [[ "${1:-}" == "hash-object" ]]; then
+    printf '%s\n' "${GIT_HASH_OBJECT_RESULT:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+    exit 0
+fi
 printf '%s\n' "$*" >> "$GIT_LOG"
 exit 0
 SH
@@ -59,6 +63,248 @@ YAML
 
     [ "$status" -eq 0 ]
     [[ "$(<"$GIT_LOG")" == *"clone"*"$source"* ]]
+}
+
+@test "explicit URL mode rejects a different repo under a declared component name" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode checks a URL-derived component name for collisions" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode permits the declared repo under its component name" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url git@github.com:example/widget.git --name widget
+
+    [ "$status" -eq 0 ]
+    [[ "$(<"$GIT_LOG")" == *"clone"*"example/widget.git"* ]]
+}
+
+@test "explicit URL mode preserves non-default SSH ports in repository identity" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: ssh://git@github.example:22/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url ssh://git@github.example:2222/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode preserves meaningful SSH usernames in repository identity" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: ssh://alice@github.example:22/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url ssh://bob@github.example:22/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode keeps IPv6 hosts distinct from SSH port suffixes" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: ssh://git@[2001:db8::1:2222]/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url ssh://git@[2001:db8::1]:2222/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode permits default-port SSH for the declared HTTPS repo" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.example/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url ssh://git@github.example:22/example/widget.git --name widget
+
+    [ "$status" -eq 0 ]
+    [[ "$(<"$GIT_LOG")" == *"clone"*"example/widget.git"* ]]
+}
+
+@test "explicit URL mode rejects a defaults gitOrg repo collision" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+defaults:
+  gitOrg: https://github.com/example
+components:
+  widget:
+    tier: supporting
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode ignores an unapproved realm for a unique clone" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components: {}
+YAML
+    mkdir -p "$WORK/realms/realm-stale"
+    cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
+components:
+  realm-widget:
+    repo: https://github.com/example/realm-widget.git
+YAML
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+realm: realm-stale
+YAML
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/example/unique.git --name unique
+
+    [ "$status" -eq 0 ]
+    [[ "$(<"$GIT_LOG")" == *"clone"*"example/unique.git"* ]]
+}
+
+@test "explicit URL mode ignores a stale realm declaration for the same name" {
+    # The direct proof of exclusion: a DIFFERENT repo may claim a name the
+    # stale realm declares, because that declaration no longer counts.
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components: {}
+YAML
+    mkdir -p "$WORK/realms/realm-stale"
+    cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
+components:
+  approved-widget:
+    repo: https://github.com/example/approved-widget.git
+YAML
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+realm: realm-stale
+_gdd:
+  realmTrust:
+    realm: realm-stale
+    fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+YAML
+    # Simulate realm content changing after approval. The git fixture returns
+    # the changed fingerprint for the clone invocation below.
+    cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
+components:
+  realm-widget:
+    repo: https://github.com/example/realm-widget.git
+YAML
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" "GIT_HASH_OBJECT_RESULT=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/other/realm-widget.git --name realm-widget
+
+    [ "$status" -eq 0 ]
+    [[ "$(<"$GIT_LOG")" == *"clone"*"other/realm-widget.git"* ]]
+}
+
+@test "explicit URL mode errors on a declared component with no repository URL" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    tier: supporting
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"without a repository URL"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode refuses credential-bearing URLs before identity comparison" {
+    # Deliberate design: embedded HTTPS credentials are rejected at remote
+    # validation with a token-hygiene message — they would persist into
+    # .git/config. The identity comparison never sees such URLs.
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.example/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://user:token@github.example/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"embedded credentials"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode still rejects a root declaration when realm trust is stale" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+    mkdir -p "$WORK/realms/realm-stale"
+    cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
+components: {}
+YAML
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+realm: realm-stale
+YAML
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode includes declarations from a currently trusted realm" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components: {}
+YAML
+    mkdir -p "$WORK/realms/realm-current"
+    cat > "$WORK/realms/realm-current/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.com/example/widget.git
+YAML
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+realm: realm-current
+_gdd:
+  realmTrust:
+    realm: realm-current
+    fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+YAML
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/attacker/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"declared component"* ]]
+    [ ! -s "$GIT_LOG" ]
 }
 
 @test "canonical ecosystem flag adds an explicit URL clone to local config" {

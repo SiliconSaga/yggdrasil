@@ -26,6 +26,8 @@ Kuttl does not have a native Windows binary (as of v0.15). To run tests on Windo
 3.  **Path Resolution**: Kuttl inside Docker may have trouble with relative paths or symlinks if not mirrored exactly. Prefer absolute paths or running from a common root.
 4.  **PowerShell Wrapper**: Create a `test.ps1` that wraps `docker run --rm -v ... kudo-test/kuttl ...`.
 
+In a GDD workspace, invoke the wrapper through the adapter route — `ws test <component> [suite]` — with the realm's adapter file wiring `commands.test` to the wrapper (e.g. `powershell -File test.ps1`). Raw PowerShell tool calls are deny-by-default; a realm-approved adapter is the trust decision that makes the wrapper runnable without prompts, and `ws hook-bypass powershell` remains the audited exception for one-off debugging.
+
 ## Critical Gotcha: One-Shot Pods
 
 **`kubectl run --restart=Never` pods become `Succeeded`/`Failed`, never `Ready`.**

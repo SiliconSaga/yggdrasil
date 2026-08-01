@@ -171,6 +171,16 @@ EOF
         [[ "$output" == BLOCK:context:* ]]
     done
 }
+@test "TLS connection overrides are blocked in split equals and Boolean forms" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods --tls-server-name attacker-controlled
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods --tls-server-name=attacker-controlled
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods --insecure-skip-tls-verify
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods --insecure-skip-tls-verify=true
+    [[ "$output" == BLOCK:context:* ]]
+}
 @test "unknown verb is treated as write (fail-safe)" {
     run_guard "kind-practice" "alice-sandbox" kubectl frobnicate -n prod
     [[ "$output" == BLOCK:* ]]

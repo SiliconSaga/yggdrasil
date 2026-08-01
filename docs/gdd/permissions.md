@@ -89,6 +89,12 @@ The PreToolUse hook has a separate **Tier 3 adapter-redirect** for raw test/lint
 
 Tier 3 is a separate classification from Tier 2 ([redirect-commands]) because the unwired-adapter state is a legitimate intermediate — conflating would either over-deny (force every component to wire an adapter first) or under-deny (defeat the wrapper-first reflex contract).
 
+### Hook-owned Git reads
+
+Read-only Git inspection with `git -C <path> ...` cannot be represented safely by a static `Bash(git -C * ...)` permission: the middle wildcard can absorb both path and command tokens. The hook instead parses the command positionally and allows only `show`, `grep`, `log`, `diff`, `ls-tree`, and `rev-parse`, plus the exact read forms of `status`, `remote -v`, and `branch --show-current`. The target must resolve physically to the workspace root or an immediate component declared by root or operator-local ecosystem configuration. Traversal, external repositories, realm-only or hoard targets, mutating shapes, pathname-expansion metacharacters in any token, and execution-capable modifiers such as `--ext-diff` and `--textconv` fall through or deny.
+
+The same narrow parser runs before the general `ws exec *` ask rule for `ws exec <target> git ...`, preserving the wrapper-first workflow for validated root and component reads. A same-named realm or hoard disables the component exception because the current resolver gives those target kinds precedence. Other `ws exec` commands still prompt.
+
 ## Pattern shapes
 
 Four shapes appear in this workspace's `.claude/settings.json`:
@@ -98,16 +104,14 @@ Four shapes appear in this workspace's `.claude/settings.json`:
 ```text
 Bash(ws status)
 Bash(ws status --verbose)
-Bash(git -C * branch --show-current)
+Bash(ws mcp-status)
 ```
 
-The literal string after the command name must match exactly. The `*` inside `git -C * branch --show-current` is a wildcard for the path slot only; the trailing `branch --show-current` is a literal. A command of `git -C . branch --list` does NOT match — `--list` ≠ `--show-current`. Non-matches produce a permission prompt.
+The literal string after the command name must match exactly. A command of `ws status --verbose` does not match `Bash(ws status)`; it needs its own entry or an intentionally broader form. Non-matches produce a permission prompt.
 
 ### Prefix wildcards
 
 ```text
-Bash(git -C * show *)
-Bash(git -C * log *)
 Bash(bash scripts/ws clone *)
 Bash(bash tests/vendor/bats-core/bin/bats tests/*)
 ```
@@ -143,18 +147,18 @@ Every allow pattern in `.claude/settings.json` should be safe even if a single l
 
 ### Layer 1: subcommand-level
 
-The chosen subcommand for each pattern is read-only at the porcelain level. `git show`, `git log`, `git diff`, `git status`, `git ls-tree`, `git grep` — all read-only, with no flag combination that mutates state. We deliberately don't grant a wildcard pattern to subcommands that DO have mutating flag-forms — `git branch -d` (deletes branches), `git remote add` (adds a remote), `git push` (writes to a remote). For those, we either pin to an exact safe form (`git -C * branch --show-current`, `git -C * remote -v`) or don't grant at all.
+The chosen subcommand for each static pattern is read-only or constrained by an earlier hook tier. Path-sensitive Git reads are not static patterns: the hook validates their target, effective subcommand, and execution-capable modifiers before allowing them. Commands with mutating flag-forms stay exact or prompt.
 
 ### Layer 2: matcher-level
 
 The matcher scopes wildcards correctly:
 
-- **Compound commands** (`|`, `&&`, `||`, `;`) are validated per-segment. `git -C . show HEAD | xxd` is two segments: the left matches `Bash(git -C * show *)` and is allowed; the right is `xxd` alone and prompts. The wildcards in the left side don't extend across the pipe.
-- **Command substitution** (`$(...)` and backticks) is rejected by the matcher. `git -C $(echo .) show HEAD --stat` does NOT match `Bash(git -C * show *)` — the matcher prompts and offers no "don't ask again" option. Substitution is too dynamic for any static pattern to safely allowlist.
-- **Exact-form pinning is literal.** `git -C . branch --list` does not match `Bash(git -C * branch --show-current)` because the trailing literals differ.
+- **Compound commands** (`|`, `&&`, `||`, `;`) are denied by Tier 1 before any allow pattern or Git-read fast path is considered.
+- **Command substitution** (`$(...)` and backticks) is denied before matching. `git -C $(echo .) show HEAD --stat` cannot reach the read fast path.
+- **Exact-form pinning is literal.** `git -C . branch --list` does not match the hook-owned `branch --show-current` read shape.
 - **Stdout-redirect-to-file (`> file`, `>> file`) prompts regardless of the LHS.** Even when the producing command is read-only and individually auto-allowed, the redirect-to-file is treated as a side-effect operation because the destination path is opaque to static analysis (could be `/tmp/foo`, `~/.bashrc`, `/etc/...`). The right design path for "save output for later grep" is a wrapper-side `--output <phrase>` flag validating the destination against a workspace-internal scratch dir like `.outputs/` — see `ws review --output` for the reference implementation.
 
-Both layers must hold. If Claude Code's matcher behavior changes — for instance, if compound commands stopped being per-segment validated — a "safe" pattern could become unsafe. That's the case for automated regression testing tracked at issue #46.
+Both layers must hold. If either Claude Code's matcher behavior or the hook's normalization and tier ordering changes, a formerly safe pattern can become unsafe. Regression tests therefore cover close-but-not-quite command shapes as well as positive matches.
 
 ---
 
@@ -164,11 +168,11 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 
 | Pattern | Command | Expected outcome | Notes |
 |---------|---------|------------------|-------|
-| `Bash(git -C * show *)` | `git -C . show HEAD --stat` | Allowed without prompt | Baseline |
-| `Bash(git -C * show *)` | `git -C . show HEAD --stat \| xxd` | Right side prompts; left is allowed | Per-segment |
-| `Bash(git -C * show *)` | `git -C $(echo .) show HEAD --stat` | Prompted; no don't-ask offer | Substitution rejected |
-| `Bash(git -C * branch --show-current)` | `git -C . branch --list` | Prompted; don't-ask offer is the exact command | Exact-form pinning honored |
-| `Bash(git -C * remote -v)` | `git -C . remote` | Prompted; don't-ask offer is the exact command | Same — exact-form |
+| Hook Git-read fast path | `git -C . show HEAD --stat` | Allowed without prompt | Physical target and read subcommand validated by the hook |
+| Hook Git-read fast path | `git -C components/undeclared show HEAD` | Prompted | Target is not a root/operator-declared component |
+| Hook Git-read fast path | `git -C . diff --textconv HEAD` | Denied | Text conversion can execute a configured filter |
+| Hook Git-read fast path | `git -C . branch --list` | Prompted | Only `branch --show-current` is a read-approved shape |
+| Hook `ws exec` Git-read fast path | `ws exec yggdrasil git status` | Allowed without prompt | Narrow exception to the general `ws exec *` ask rule |
 | `Bash(ws hoard cadence)` | `ws hoard cadence` | Allowed without prompt | Exact-form for the cadence reporter |
 | `Bash(ws hoard cadence)` | `ws hoard cadence --debug` | Prompted | Exact-form pinning — extra arg doesn't match |
 | `Bash(ws hoard thalamus-path)` | `ws hoard thalamus-path` | Allowed without prompt | Exact-form for path resolution |
@@ -206,15 +210,15 @@ When you add a new allow pattern, also add at least one positive case (matches �
 A decision tree for adding a new `Bash(...)` pattern:
 
 1. **Is the command already auto-allowed by Claude Code?** (`cat`, `ls`, `pwd`, `git status`, `git log` without `-C`, `gh pr view`, etc.) If yes, don't add a pattern — it's redundant.
-2. **Does the command's subcommand have any mutating flag-form?**
-   - No (e.g. `git show`, `git diff`, `git ls-tree`): a prefix-wildcard pattern (`Bash(<command> <subcommand> *)`) is fine.
-   - Yes (e.g. `git branch -d`, `git remote add`): pin to the exact safe form (`Bash(git -C * branch --show-current)`).
+2. **Does the command's subcommand have any mutating or execution-capable flag-form?**
+   - No: a prefix-wildcard pattern may be appropriate when every argument tail is equally trusted.
+   - Yes: pin the exact safe form or add a hook-owned positional classifier. Never use a middle path wildcard for `git -C`; extend its validated read classifier instead.
 3. **Is the command an arbitrary-execution shell?** (`bash *`, `python *`, `node *`, `npx *`, `bunx *`, `uvx *`, `make *`, `npm run *`, `bun run *`, `gh api *`.) Never widen these. An exact `Bash(bash -n some-specific-script.sh)` is fine; wildcards aren't.
 4. **Does the command write to a shared system?** (push, deploy, publish, send). These are Side-effect tier in `docs/ws-cli-guide.md` — never auto-allow; let the user decide case-by-case.
 
 When in doubt, narrower wins — you can always widen later. Narrowing post-hoc is harder, since you've already trained yourself to expect the wide form.
 
-`ws exec` is intentionally ask-gated rather than allowlisted. If a `ws exec` shape becomes common enough that you want it to run without a human prompt, treat that as a design signal: promote the behavior into an adapter-backed `ws test` / `ws lint` / `ws build` path, a focused `ws` subcommand, or a reviewed component-local script behind a narrower wrapper.
+`ws exec` is intentionally ask-gated rather than broadly allowlisted. Its sole hook-owned exception is a validated read-only Git command against the workspace root or a root/operator-declared component. If another `ws exec` shape becomes common enough that you want it to run without a human prompt, treat that as a design signal: promote the behavior into an adapter-backed `ws test` / `ws lint` / `ws build` path, a focused `ws` subcommand, or a reviewed component-local script behind a narrower wrapper.
 
 ---
 
