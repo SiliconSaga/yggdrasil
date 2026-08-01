@@ -36,6 +36,11 @@ YAML
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${GITLAB_HOST:-}" != "${GLAB_EXPECTED_HOST:-}" ]]; then
+    echo "unexpected GitLab host: ${GITLAB_HOST:-unset}" >&2
+    exit 2
+fi
+
 if [[ "${1:-}" != "api" ]]; then
     echo "unexpected glab command: $*" >&2
     exit 1
@@ -104,6 +109,8 @@ run_ws_review() {
         "ECOSYSTEM=$WORK/ecosystem.yaml" \
         "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" \
         "GITLAB_TOKEN=dummy-token" \
+        "GITLAB_HOST=ambient.example" \
+        "GLAB_EXPECTED_HOST=gitlab.com" \
         "GLAB_BODY_LOG=$BODY_LOG" \
         bash "$WS_BIN" review "$@"
 }
