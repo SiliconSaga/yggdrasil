@@ -138,6 +138,8 @@ EOF
         GH_PAGER \
         GLAB_PAGER \
         GH_DEBUG \
+        LD_AUDIT \
+        XDG_CONFIG_HOME \
         HOME \
         CDPATH; do
         local env_file="$BATS_TEST_TMPDIR/$key.env"
