@@ -1396,6 +1396,21 @@ normalize_for_match() {
 }
 match_cmd="$(normalize_for_match "$cmd" command)"
 
+# When a dispatcher-shaped relative invocation is NOT normalized (cwd is not
+# physically the workspace root), the silent outcome would be a bare host
+# prompt with no explanation. Teach instead: an ask that names the cause —
+# either an agent drifted out of the root, or something is impersonating the
+# dispatcher, and a human should look either way.
+case "$cmd" in
+    "bash ./scripts/"*|"bash scripts/"*|"./scripts/"*|"scripts/"*)
+        _dispatch_cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P)" || _dispatch_cwd_real=""
+        _dispatch_root_real="$(cd "$_trusted_root" 2>/dev/null && pwd -P)" || _dispatch_root_real=""
+        if [[ -z "$_dispatch_cwd_real" || "$_dispatch_cwd_real" != "$_dispatch_root_real" ]]; then
+            ask "A scripts/-relative dispatcher call from outside the workspace root does not inherit workspace permissions — the relative path may resolve to a different script entirely. Run it from the workspace root (or via the PATH-installed \`ws\`), or approve this call if the relative script here is genuinely intended."
+        fi
+        ;;
+esac
+
 # The committed direct-bats allow is only for focused tests under tests/.
 # Bash glob `*` crosses slashes and `..`, so validate every argument before
 # settings.json matching; otherwise `tests/../.tmp/evil.bats` inherits the
@@ -1508,9 +1523,22 @@ _git_read_tokens_are_literal() {
 }
 
 _git_read_shape_is_safe() {
-    local verb="$1" argument_count="$2" first_argument="${3:-}"
+    local verb="$1" argument_count="$2"
+    shift 2
+    local first_argument="${1:-}" token
+    # `git diff --no-index <a> <b>` compares arbitrary filesystem paths,
+    # escaping the validated -C target entirely. No allowed verb needs the
+    # flag, so reject the token wherever it appears in the tail.
+    for token in "$@"; do
+        [[ "$token" == "--no-index" ]] && return 1
+    done
     case "$verb" in
-        show|grep|log|diff|ls-tree|rev-parse) return 0 ;;
+        # ls-files, show-ref, describe, merge-base, and range-diff are the
+        # same class as the original set: local repository reads with no
+        # network or working-tree mutation, used routinely in review work
+        # (ancestry checks, patch-equivalence comparisons). The dangerous
+        # git-modifier deny above already screens pager/output options.
+        show|grep|log|diff|ls-tree|rev-parse|ls-files|show-ref|describe|merge-base|range-diff) return 0 ;;
         status)
             [[ "$argument_count" -eq 0 ]] && return 0
             [[ "$argument_count" -eq 1 && ( "$first_argument" == "-s" || "$first_argument" == "--short" ) ]]
@@ -1539,8 +1567,7 @@ _git_c_read_is_safe() {
     target="${words[2]}"
     verb="${words[3]}"
     _git_read_target_is_trusted "$target" || return 1
-    [[ "$count" -gt 4 ]] && first_argument="${words[4]}"
-    _git_read_shape_is_safe "$verb" "$((count - 4))" "$first_argument"
+    _git_read_shape_is_safe "$verb" "$((count - 4))" "${words[@]:4}"
 }
 
 _ws_exec_git_read_is_safe() {
@@ -1564,8 +1591,7 @@ _ws_exec_git_read_is_safe() {
         target_path="$_trusted_root/components/$target"
     fi
     _git_read_target_is_trusted "$target_path" || return 1
-    [[ "$count" -gt 5 ]] && first_argument="${words[5]}"
-    _git_read_shape_is_safe "$verb" "$((count - 5))" "$first_argument"
+    _git_read_shape_is_safe "$verb" "$((count - 5))" "${words[@]:5}"
 }
 
 if _git_c_read_is_safe || _ws_exec_git_read_is_safe; then

@@ -256,6 +256,10 @@ setup() {
         run_hook "$command" "$WORK/nested"
         [ "$status" -eq 0 ]
         [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+        # Not a silent host prompt: the hook teaches why the relative
+        # dispatcher call did not inherit workspace permissions.
+        [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+        [[ "$output" == *"outside the workspace root"* ]]
     done
 }
 
@@ -280,6 +284,11 @@ setup() {
         "branch --show-current"
         "ls-tree HEAD"
         "rev-parse HEAD"
+        "ls-files"
+        "show-ref --verify refs/heads/main"
+        "describe --tags"
+        "merge-base HEAD HEAD"
+        "range-diff HEAD...HEAD"
     )
 
     for command_tail in "${command_tails[@]}"; do
@@ -315,6 +324,28 @@ YAML
     [[ "$output" != *'"permissionDecision":"allow"'* ]]
 
     run_hook "git -C $BATS_TEST_TMPDIR/outside status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C read fast path accepts only branch --show-current" {
+    write_project_settings ''
+    mkdir -p "$WORK/.git"
+
+    run_hook "git -C $WORK branch --show-current"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+
+    run_hook "git -C $WORK branch --list"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+}
+
+@test "security: git -C diff --no-index cannot escape the validated target" {
+    write_project_settings ''
+    mkdir -p "$WORK/.git"
+
+    run_hook "git -C $WORK diff --no-index /etc/passwd /etc/shadow"
     [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"allow"'* ]]
 }

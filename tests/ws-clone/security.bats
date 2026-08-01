@@ -197,6 +197,59 @@ YAML
     [[ "$(<"$GIT_LOG")" == *"clone"*"example/unique.git"* ]]
 }
 
+@test "explicit URL mode ignores a stale realm declaration for the same name" {
+    # The direct proof of exclusion: a DIFFERENT repo may claim a name the
+    # stale realm declares, because that declaration no longer counts.
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components: {}
+YAML
+    mkdir -p "$WORK/realms/realm-stale"
+    cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
+components:
+  realm-widget:
+    repo: https://github.com/example/realm-widget.git
+YAML
+    cat > "$WORK/ecosystem.local.yaml" <<'YAML'
+realm: realm-stale
+YAML
+
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/other/realm-widget.git --name realm-widget
+
+    [ "$status" -eq 0 ]
+    [[ "$(<"$GIT_LOG")" == *"clone"*"other/realm-widget.git"* ]]
+}
+
+@test "explicit URL mode errors on a declared component with no repository URL" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    tier: supporting
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://github.com/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"without a repository URL"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode refuses credential-bearing URLs before identity comparison" {
+    # Deliberate design: embedded HTTPS credentials are rejected at remote
+    # validation with a token-hygiene message — they would persist into
+    # .git/config. The identity comparison never sees such URLs.
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  widget:
+    repo: https://github.example/example/widget.git
+YAML
+
+    run bash "$WORK/scripts/ws-clone.sh" --url https://user:token@github.example/example/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"embedded credentials"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
 @test "explicit URL mode still rejects a root declaration when realm trust is stale" {
     cat > "$WORK/ecosystem.yaml" <<'YAML'
 components:

@@ -100,6 +100,9 @@ Bash(curl https://example.com/api)"
     [[ "$output" == *"pattern: 'Bash(sudo:*)'"* ]]
     [[ "$output" == *"severity: critical"* ]]
     [[ "$output" == *"Privilege escalation"* ]]
+    # Exactly one finding: the continuation equivalence must not add a
+    # duplicate on top of the direct match.
+    [ "$(grep -F -c "pattern: 'Bash(sudo:*)'" <<< "$output")" -eq 1 ]
 }
 
 @test "detect: Bash(eval *) is critical" {

@@ -60,6 +60,6 @@
 # yq *
 # find for searching/listing is read-only and safe to allow broadly.
 # Its deleting, executing, and file-writing primaries (-delete, -exec*,
-# -ok*, -fprint*, and -fls) are on the ask-list in hook-rules. Tier 3
-# (ask) runs before Tier 5 (allow-extras), so those forms still prompt.
+# -ok*, -fprint*, and -fls) are on the ask-list in hook-rules. Tier 4
+# (ask) runs before Tier 6 (allow-extras), so those forms still prompt.
 # find *

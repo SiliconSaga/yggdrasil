@@ -116,6 +116,12 @@ repository_identity_from_url() {
             if [[ "$scheme" == "ssh" && "$hostport" == *@* ]]; then
                 user="${hostport%%@*}"
                 hostport="${hostport#*@}"
+            elif [[ "$scheme" == "https" && "$hostport" == *@* ]]; then
+                # HTTPS userinfo is credentials, never repository identity.
+                # Unreachable in practice — git_remote_validate refuses
+                # embedded-credential URLs before any identity comparison —
+                # but stripped here so this helper stays standalone-correct.
+                hostport="${hostport#*@}"
             fi
             if [[ "$hostport" == \[*\]* ]]; then
                 host="${hostport#\[}"

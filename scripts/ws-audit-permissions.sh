@@ -276,8 +276,10 @@ scan_file() {
         local literal_pattern _literal_severity _literal_rationale
         while IFS='|' read -r literal_pattern _literal_severity _literal_rationale; do
             [[ -z "$literal_pattern" ]] && continue
-            # shellcheck disable=SC2053
-            if [[ "$match_entry" == $literal_pattern ]]; then
+            # Quoted RHS: this loop asks whether the entry IS a watchlist
+            # line verbatim, not whether it glob-matches one — a glob here
+            # could suppress a continuation finding for a different entry.
+            if [[ "$match_entry" == "$literal_pattern" ]]; then
                 literal_watchlist_match=1
                 break
             fi
