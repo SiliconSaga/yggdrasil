@@ -15,7 +15,7 @@ setup() {
     cat > "$TEST_BIN/git" <<'SH'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "hash-object" ]]; then
-    printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    printf '%s\n' "${GIT_HASH_OBJECT_RESULT:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
     exit 0
 fi
 printf '%s\n' "$*" >> "$GIT_LOG"
@@ -206,14 +206,25 @@ YAML
     mkdir -p "$WORK/realms/realm-stale"
     cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
 components:
-  realm-widget:
-    repo: https://github.com/example/realm-widget.git
+  approved-widget:
+    repo: https://github.com/example/approved-widget.git
 YAML
     cat > "$WORK/ecosystem.local.yaml" <<'YAML'
 realm: realm-stale
+_gdd:
+  realmTrust:
+    realm: realm-stale
+    fingerprint: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+YAML
+    # Simulate realm content changing after approval. The git fixture returns
+    # the changed fingerprint for the clone invocation below.
+    cat > "$WORK/realms/realm-stale/ecosystem.yaml" <<'YAML'
+components:
+  realm-widget:
+    repo: https://github.com/example/realm-widget.git
 YAML
 
-    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/other/realm-widget.git --name realm-widget
+    run env "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" "REALMS_DIR=$WORK/realms" "GIT_HASH_OBJECT_RESULT=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" bash "$WORK/scripts/ws-clone.sh" --url https://github.com/other/realm-widget.git --name realm-widget
 
     [ "$status" -eq 0 ]
     [[ "$(<"$GIT_LOG")" == *"clone"*"other/realm-widget.git"* ]]
