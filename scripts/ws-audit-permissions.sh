@@ -257,6 +257,32 @@ scan_file() {
                 -e "$BATS_NORM_RE")
         fi
 
+        # Claude's `:*` suffix means "this command, optionally followed by
+        # more arguments". Tier 5 therefore treats `Bash(sudo:*)` like the
+        # dangerous `Bash(sudo *)` family. Keep the literal spelling as one
+        # comparison candidate (needed for watchlist entries such as
+        # `Bash(ws:*)`) and add the space-glob equivalent as a second one.
+        # Findings still report the user's original entry.
+        local continuation_match_entry=""
+        if [[ "$match_entry" == *':*)' ]]; then
+            continuation_match_entry="${match_entry%:\*)} *)"
+        fi
+
+        # Prefer an explicit watchlist spelling when one exists. For example,
+        # `Bash(kubectl:*)` deliberately has a high-severity rule; its
+        # continuation equivalent must not add a second medium finding from
+        # `Bash(kubectl *)`.
+        local literal_watchlist_match=0
+        local literal_pattern _literal_severity _literal_rationale
+        while IFS='|' read -r literal_pattern _literal_severity _literal_rationale; do
+            [[ -z "$literal_pattern" ]] && continue
+            # shellcheck disable=SC2053
+            if [[ "$match_entry" == $literal_pattern ]]; then
+                literal_watchlist_match=1
+                break
+            fi
+        done <<< "$WATCHLIST_RAW"
+
         # Test entry against every watchlist pattern.
         #
         # Pattern is UNQUOTED on the RHS — bash treats it as a glob
@@ -271,7 +297,8 @@ scan_file() {
         while IFS='|' read -r pattern severity rationale; do
             [[ -z "$pattern" ]] && continue
             # shellcheck disable=SC2053
-            if [[ "$match_entry" == $pattern ]]; then
+            if [[ "$match_entry" == $pattern ]] \
+                || [[ "$literal_watchlist_match" -eq 0 && -n "$continuation_match_entry" && "$continuation_match_entry" == $pattern ]]; then
                 local ack="false"
                 is_acknowledged "$entry" && ack="true"
                 FINDINGS+=("$scope|$file|$entry|$severity|$rationale|$ack")

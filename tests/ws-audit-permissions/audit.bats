@@ -91,6 +91,17 @@ Bash(curl https://example.com/api)"
     [[ "$output" == *"Privilege escalation"* ]]
 }
 
+@test "detect: Bash(sudo:*) continuation form is critical" {
+    write_settings user "Bash(sudo:*)"
+
+    run_audit
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"pattern: 'Bash(sudo:*)'"* ]]
+    [[ "$output" == *"severity: critical"* ]]
+    [[ "$output" == *"Privilege escalation"* ]]
+}
+
 @test "detect: Bash(eval *) is critical" {
     write_settings project "Bash(eval *)"
     run_audit
