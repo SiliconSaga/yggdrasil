@@ -92,6 +92,14 @@ ws_component_init() {
     fi
     shift
 
+    # A flavor is one direct template-directory name, never a path. Resolve
+    # it physically as well so a local symlink cannot turn the reviewed
+    # template root into an arbitrary copy source.
+    if [[ ! "$flavor" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid component flavor '$flavor'; expected one safe path segment." >&2
+        exit 1
+    fi
+
     # Validate flavor exists
     local template_dir="$TEMPLATES_DIR/components/$flavor"
     if [[ ! -d "$template_dir" ]]; then
@@ -108,6 +116,22 @@ ws_component_init() {
         fi
         exit 1
     fi
+    local template_root_real template_dir_real
+    template_root_real="$(cd "$TEMPLATES_DIR/components" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: cannot resolve the component template root." >&2
+        exit 1
+    }
+    template_dir_real="$(cd "$template_dir" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: cannot resolve component flavor '$flavor'." >&2
+        exit 1
+    }
+    case "$template_dir_real/" in
+        "$template_root_real/"?*) template_dir="$template_dir_real" ;;
+        *)
+            echo "ERROR: Component flavor '$flavor' escapes the component template root." >&2
+            exit 1
+            ;;
+    esac
 
     # Resolve name — first non-flag arg, prompt if missing on a tty
     local name="${1:-}"
