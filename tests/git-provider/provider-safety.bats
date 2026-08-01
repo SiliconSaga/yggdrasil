@@ -109,6 +109,25 @@ YAML
     [ "$GITLAB_TOKEN" = "glpat-example" ]
 }
 
+@test "gp_set_token_for_url exports mapped GitHub credentials to GH_TOKEN" {
+    local eco="$BATS_TEST_TMPDIR/ecosystem-github.yaml"
+    cat > "$eco" <<'YAML'
+defaults:
+  gitProviders:
+    github.example.com: github
+  gitTokens:
+    github.example.com/team/project: GITHUB_TEAM_TOKEN
+YAML
+
+    export GITHUB_TEAM_TOKEN="ghp_example"
+    unset GH_TOKEN GITLAB_TOKEN
+
+    gp_set_token_for_url "https://github.example.com/team/project.git" "$eco"
+
+    [ "$GH_TOKEN" = "ghp_example" ]
+    [ "${GITLAB_TOKEN:-}" = "" ]
+}
+
 @test "realm-only gitTokens mappings cannot authorize credential attachment" {
     local work="$BATS_TEST_TMPDIR/work"
     mkdir -p "$work/realms/realm-untrusted"

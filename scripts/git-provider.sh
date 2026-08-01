@@ -297,7 +297,7 @@ gp_detect_and_load() {
 
 # Select and export the appropriate authentication token for a URL.
 # Reads defaults.gitTokens from ecosystem config using longest-prefix match.
-# For GitLab: exports GITLAB_TOKEN. No-op for GitHub (uses GH_TOKEN directly).
+# Exports the selected value through the destination provider's CLI variable.
 # Usage: gp_set_token_for_url URL [ECO]
 gp_set_token_for_url() {
     local url="$1"
@@ -327,7 +327,22 @@ gp_set_token_for_url() {
         ws_require_provider_token_var "$best_var" || return 1
         local token_value="${!best_var:-}"
         if [[ -n "$token_value" ]]; then
-            export GITLAB_TOKEN="$token_value"
+            local provider
+            provider="$(gp_detect "$url" "$eco" 2>/dev/null || true)"
+            if [[ -z "$provider" ]]; then
+                case "$best_var" in
+                    GITLAB_*) provider="gitlab" ;;
+                    GITHUB_*|GH_*) provider="github" ;;
+                esac
+            fi
+            case "$provider" in
+                github) export GH_TOKEN="$token_value" ;;
+                gitlab) export GITLAB_TOKEN="$token_value" ;;
+                *)
+                    echo "ERROR: Cannot attach a mapped token to unsupported provider '$provider'." >&2
+                    return 1
+                    ;;
+            esac
         else
             echo "WARNING: gitTokens maps '$normalized' to env var '$best_var', but it is not set." >&2
             echo "  Add it to .env (see docs/git-provider-setup.md)." >&2
