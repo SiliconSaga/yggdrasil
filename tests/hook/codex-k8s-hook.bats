@@ -127,13 +127,31 @@ assert_denied() {
     done
 }
 
+@test "untrusted wrapper paths cannot inherit direct kubectl read routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+    local fake_wrapper="$WORK/timeout"
+    printf '#!/bin/sh\nexec "$@"\n' > "$fake_wrapper"
+    chmod +x "$fake_wrapper"
+
+    run_codex_hook "$fake_wrapper 10s kubectl get pods"
+
+    assert_denied
+}
+
 @test "quoted kubectl command words in unsafe forms remain denied" {
     seed_scope codex-test kind-practice alice-sandbox
     local command
     for command in \
         'echo safe; "kubectl" delete namespace prod' \
         'VAR=value "kubectl" delete namespace prod; echo unsafe' \
-        'env "kubectl" delete namespace prod; echo unsafe'; do
+        'env "kubectl" delete namespace prod; echo unsafe' \
+        'setsid -f "kubectl" delete namespace prod; true' \
+        'time -o timing.log "kubectl" delete namespace prod; true' \
+        'timeout -k 1s 10s "kubectl" delete namespace prod; true' \
+        'nice -n 5 "kubectl" delete namespace prod; true' \
+        'ionice -c 2 -n 0 "kubectl" delete namespace prod; true' \
+        'stdbuf -o L "kubectl" delete namespace prod; true' \
+        'nohup timeout 10s "kubectl" delete namespace prod; true'; do
         run_codex_hook "$command"
         assert_denied
         [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
@@ -329,6 +347,81 @@ assert_denied() {
     run_codex_hook 'kubectl delete pod foo -n prod'
     assert_denied
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"REJECTED by the k8s scope guard"* ]]
+}
+
+@test "transparent wrappers preserve an out-of-scope write denial" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup timeout 10s kubectl delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"REJECTED by the k8s scope guard"* ]]
+}
+
+@test "quoted wrapper command words cannot evade Kubernetes inspection" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\nkubectl delete pod foo -n prod\n' > "$WORK/danger.sh"
+    local command
+    for command in \
+        'nohup "xargs" "kubectl" delete pod foo -n prod' \
+        "nohup \"bash\" $WORK/danger.sh" \
+        'nohup "kubectl" delete pod foo -n prod; true'; do
+        run_codex_hook "$command"
+        assert_denied
+    done
+}
+
+@test "env launch and split-string options cannot bypass Kubernetes inspection" {
+    seed_scope codex-test kind-practice alice-sandbox
+    local command
+    for command in \
+        'env -C /tmp kubectl delete pod foo -n prod' \
+        'env -a kubectl-probe kubectl delete pod foo -n prod' \
+        'env -S "kubectl delete pod foo -n prod"' \
+        'env --split-string="kubectl delete pod foo -n prod"'; do
+        run_codex_hook "$command"
+        assert_denied
+    done
+}
+
+@test "xargs Kubernetes construction is denied as unclassifiable" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'xargs kubectl delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"composition-free command"* ]]
+}
+
+@test "quoted xargs and kubectl command words remain denied" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook '"xargs" "kubectl" delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"composition-free command"* ]]
+}
+
+@test "quoted kubectl data after xargs does not trigger the guard" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'xargs echo "kubectl"'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "transparent wrapper chains preserve quoted xargs command words" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup timeout 10s xargs "kubectl" delete pod foo -n prod'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"composition-free command"* ]]
+}
+
+@test "transparent wrapper chains keep quoted xargs data inert" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup timeout 10s xargs echo "kubectl"'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "unrelated transparent wrapper defers to normal Codex routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'nohup sleep 1'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 @test "guarded out-of-scope ws k8s write uses the shared guard message" {

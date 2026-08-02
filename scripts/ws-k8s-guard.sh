@@ -6,6 +6,7 @@
 # Every consumer recognizes this fixed sentinel and handles Kubernetes-looking
 # payloads as a fail-closed decision rather than inspecting only the first line.
 K8S_GUARD_UNSAFE_COMMAND_SENTINEL="__GDD_K8S_UNSAFE_COMMAND__"
+K8S_GUARD_NO_XARGS_SENTINEL="__GDD_K8S_NO_XARGS__"
 
 # Normalize a filesystem path for the -f on-disk check. Claude Code passes
 # native Windows paths (C:\Users\…\m.yaml) on Windows; Git Bash's `[[ -f ]]`
@@ -17,15 +18,52 @@ _k8s_normalize_path() {
     printf '%s' "${1//\\//}"
 }
 
+# True when shell evaluation can change the argv that the guard classifies.
+# Single-quoted and backslash-escaped dollars/backticks are literal data;
+# unquoted or double-quoted forms are live expansions and must fail closed.
+k8s_guard_has_live_shell_expansion() {
+    local input="$1" char state="plain"
+    local i=0 length=${#1}
+    while [[ $i -lt $length ]]; do
+        char="${input:i:1}"
+        case "$state:$char" in
+            plain:"\\") i=$((i + 2)); continue ;;
+            plain:"'") state="single" ;;
+            plain:'"') state="double" ;;
+            plain:'$'|plain:'`') return 0 ;;
+            single:"'") state="plain" ;;
+            double:"\\") i=$((i + 2)); continue ;;
+            double:'"') state="plain" ;;
+            double:'$'|double:'`') return 0 ;;
+        esac
+        i=$((i + 1))
+    done
+    return 1
+}
+
+# Slash-qualified wrapper names are trusted only when they identify the same
+# executable the ambient PATH would select. Otherwise an arbitrary local file
+# could borrow a transparent wrapper's parsing rules and evade classification.
+k8s_guard_executable_path_is_trusted() {
+    local candidate="$1" executable="$2" expected
+    [[ "$candidate" == */* ]] || return 0
+    expected="$(type -P "$executable" 2>/dev/null)" || return 1
+    [[ -n "$expected" && -e "$candidate" && "$candidate" -ef "$expected" ]]
+}
+
 # Normalize common transparent command wrappers before hook matching. This is
 # deliberately a small shell-token subset, not a general shell parser: GDD is
 # catching common mistakes, while complex composition belongs in reviewed
 # scripts. Values containing shell-significant whitespace remain outside this
 # helper's guarantee.
 k8s_guard_normalize_command() {
-    local command="$1" token base
+    local command="$1" mode="${2:-classify}" token base saw_xargs=0
+    if k8s_guard_has_live_shell_expansion "$command"; then
+        printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+        return 0
+    fi
     case "$command" in
-        *$'\n'*|*$'\r'*|*"&&"*|*"||"*|*";"*|*"|"*|*"&"*|*">"*|*"<"*|*'`'*|*'$('* )
+        *$'\n'*|*$'\r'*|*"&&"*|*"||"*|*";"*|*"|"*|*"&"*|*">"*|*"<"* )
             printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
             return 0
             ;;
@@ -44,9 +82,31 @@ k8s_guard_normalize_command() {
     read -r -a words <<< "$command"
     [[ ${#words[@]} -gt 0 ]] || return 0
 
+    # `read -a` deliberately avoids shell evaluation, but it also retains
+    # harmless whole-word quoting. Normalize only balanced, whitespace-free
+    # word quotes so wrapper and interpreter names share one representation;
+    # quoted multi-word data stays untouched and cannot be retokenized.
+    local word_index word
+    for ((word_index = 0; word_index < ${#words[@]}; word_index++)); do
+        word="${words[word_index]}"
+        case "$word" in
+            \"*\") [[ ${#word} -ge 2 ]] && words[word_index]="${word:1:${#word}-2}" ;;
+            \'*\') [[ ${#word} -ge 2 ]] && words[word_index]="${word:1:${#word}-2}" ;;
+        esac
+    done
+
     local i=0
     while [[ $i -lt ${#words[@]} ]]; do
         token="${words[$i]}"
+        base="${token##*/}"
+        case "$base" in
+            env|command|nohup|setsid|time|timeout|gtimeout|nice|ionice|stdbuf|xargs)
+                if ! k8s_guard_executable_path_is_trusted "$token" "$base"; then
+                    printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                    return 0
+                fi
+                ;;
+        esac
         case "$token" in
             [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
             env|*/env)
@@ -55,8 +115,24 @@ k8s_guard_normalize_command() {
                     token="${words[$i]}"
                     case "$token" in
                         --) i=$((i + 1)); break ;;
-                        -u|--unset) i=$((i + 2)) ;;
-                        --unset=*|-i|--ignore-environment|-[^-]*) i=$((i + 1)) ;;
+                        -u|--unset|-C|--chdir|-a|--argv0|-P)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -u?*|-C?*|-a?*|-P?*|--unset=*|--chdir=*|--argv0=*) i=$((i + 1)) ;;
+                        -S|--split-string|-S?*|--split-string=*)
+                            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                            return 0
+                            ;;
+                        -i|--ignore-environment) i=$((i + 1)) ;;
+                        --help|--version) printf '%s' "$command"; return 0 ;;
+                        -*)
+                            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                            return 0
+                            ;;
                         [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
                         *) break ;;
                     esac
@@ -66,14 +142,236 @@ k8s_guard_normalize_command() {
                 while [[ $i -lt ${#words[@]} ]]; do
                     case "${words[i]}" in --|-p) i=$((i + 1)) ;; *) break ;; esac
                 done ;;
+            nohup|*/nohup)
+                i=$((i + 1))
+                if [[ $i -lt ${#words[@]} ]]; then
+                    case "${words[i]}" in
+                        --) i=$((i + 1)) ;;
+                        --help|--version) printf '%s' "$command"; return 0 ;;
+                        -*) printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"; return 0 ;;
+                    esac
+                fi
+                ;;
+            setsid|*/setsid)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -c|-f|-w|--ctty|--fork|--wait) i=$((i + 1)) ;;
+                        -h|--help|-V|--version) printf '%s' "$command"; return 0 ;;
+                        -*)
+                            if [[ "$token" =~ ^-[cfw]+$ ]]; then
+                                i=$((i + 1))
+                            else
+                                printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                                return 0
+                            fi
+                            ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            time|*/time)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -a|-p|-q|-v|--append|--portability|--quiet|--verbose) i=$((i + 1)) ;;
+                        -o|-f|--output|--format)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$command"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -o?*|-f?*|--output=*|--format=*) i=$((i + 1)) ;;
+                        -h|--help|-V|--version) printf '%s' "$command"; return 0 ;;
+                        -*)
+                            if [[ "$token" =~ ^-[apqv]+$ ]]; then
+                                i=$((i + 1))
+                            else
+                                printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                                return 0
+                            fi
+                            ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            timeout|*/timeout|gtimeout|*/gtimeout)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        --foreground|--preserve-status|--verbose) i=$((i + 1)) ;;
+                        -k|-s|--kill-after|--signal)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$command"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -k?*|-s?*|--kill-after=*|--signal=*) i=$((i + 1)) ;;
+                        --help|--version) printf '%s' "$command"; return 0 ;;
+                        -*) printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"; return 0 ;;
+                        *) break ;;
+                    esac
+                done
+                # timeout consumes one duration before the child command.
+                if [[ $i -lt ${#words[@]} ]]; then
+                    i=$((i + 1))
+                fi
+                ;;
+            nice|*/nice)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -n|--adjustment)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$command"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        --adjustment=*) i=$((i + 1)) ;;
+                        --help|--version) printf '%s' "$command"; return 0 ;;
+                        -*)
+                            if [[ "$token" =~ ^-[0-9]+$ ]]; then
+                                i=$((i + 1))
+                            else
+                                printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                                return 0
+                            fi
+                            ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            ionice|*/ionice)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -p|-P|-u|-p?*|-P?*|-u?*|--pid|--pgid|--uid|--pid=*|--pgid=*|--uid=*) printf '%s' "$command"; return 0 ;;
+                        -c|-n|--class|--classdata)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$command"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -c?*|-n?*|--class=*|--classdata=*|-t|--ignore) i=$((i + 1)) ;;
+                        -h|--help|-V|--version) printf '%s' "$command"; return 0 ;;
+                        -*) printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"; return 0 ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            stdbuf|*/stdbuf)
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -i|-o|-e|--input|--output|--error)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$command"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -i?*|-o?*|-e?*|--input=*|--output=*|--error=*) i=$((i + 1)) ;;
+                        --help|--version) printf '%s' "$command"; return 0 ;;
+                        -*) printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"; return 0 ;;
+                        *) break ;;
+                    esac
+                done
+                ;;
+            xargs|*/xargs)
+                if [[ "$mode" != "xargs-child" ]]; then
+                    printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                    return 0
+                fi
+                saw_xargs=1
+                i=$((i + 1))
+                while [[ $i -lt ${#words[@]} ]]; do
+                    token="${words[i]}"
+                    case "$token" in
+                        --) i=$((i + 1)); break ;;
+                        -0|-o|-p|-r|-t|-x|--null|--open-tty|--interactive|--no-run-if-empty|--verbose|--exit|--show-limits)
+                            i=$((i + 1)) ;;
+                        -a|-d|-E|-I|-J|-L|-n|-P|-R|-S|-s|--arg-file|--delimiter|--eof|--replace|--max-lines|--max-args|--max-procs|--max-replacements|--replsize|--max-chars|--process-slot-var)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -a?*|-d?*|-E?*|-I?*|-J?*|-L?*|-n?*|-P?*|-R?*|-S?*|-s?*|--arg-file=*|--delimiter=*|--eof=*|--replace=*|--max-lines=*|--max-args=*|--max-procs=*|--max-replacements=*|--replsize=*|--max-chars=*|--process-slot-var=*)
+                            i=$((i + 1)) ;;
+                        -e|-i|-l|-e?*|-i?*|-l?*) i=$((i + 1)) ;;
+                        --help|--version)
+                            printf '%s' "$K8S_GUARD_NO_XARGS_SENTINEL"
+                            return 0
+                            ;;
+                        -*)
+                            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                            return 0
+                            ;;
+                        *) break ;;
+                    esac
+                done
+                break
+                ;;
             *) break ;;
         esac
     done
+    if [[ "$mode" == "xargs-child" && "$saw_xargs" != "1" ]]; then
+        printf '%s' "$K8S_GUARD_NO_XARGS_SENTINEL"
+        return 0
+    fi
     [[ $i -lt ${#words[@]} ]] || return 0
 
-    base="${words[i]##*/}"
+    token="${words[i]}"
+    base="${token##*/}"
     [[ "$base" == "kubectl" ]] && words[i]="kubectl"
     printf '%s' "${words[*]:$i}"
+}
+
+# Inspect only the executable selected by an effective xargs wrapper. The
+# ordinary normalizer deliberately rejects xargs because it constructs argv;
+# this narrower pass exists solely to distinguish a quoted command word from
+# the same quoted text passed as inert data to a different xargs child.
+k8s_guard_xargs_child_contains_kubectl() {
+    local command="$1" child normalized word base
+    child="$(k8s_guard_normalize_command "$command" xargs-child)"
+    case "$child" in
+        ""|"$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"|"$K8S_GUARD_NO_XARGS_SENTINEL") return 1 ;;
+    esac
+
+    local -a words=()
+    read -r -a words <<< "$child"
+    [[ ${#words[@]} -gt 0 ]] || return 1
+    local i
+    for ((i = 0; i < ${#words[@]}; i++)); do
+        word="${words[i]}"
+        case "$word" in
+            \"*\"|\'*\') words[i]="${word:1:${#word}-2}" ;;
+        esac
+    done
+
+    normalized="$(k8s_guard_normalize_command "${words[*]}")"
+    [[ "$normalized" != "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]] || return 1
+    read -r -a words <<< "$normalized"
+    [[ ${#words[@]} -gt 0 ]] || return 1
+    base="${words[0]##*/}"
+    [[ "$base" == "kubectl" ]]
 }
 
 # Resolve the script executed by a common shell-launch form. The returned path
@@ -152,6 +450,7 @@ k8s_guard_script_content_exempt() {
 k8s_guard_mask_inert_quotes() {
     local input="$1" output="" char quote segment word=""
     local i=0 start length=${#1} closed live at_command_start=1 wrapper_operand=0
+    local wrapper_kind="" handled=0
     while [[ $i -lt $length ]]; do
         char="${input:i:1}"
         if [[ "$char" != "'" && "$char" != '"' ]]; then
@@ -167,23 +466,122 @@ k8s_guard_mask_inert_quotes() {
                             if [[ "$wrapper_operand" == "1" ]]; then
                                 wrapper_operand=0
                             else
-                                case "$word" in
-                                    [A-Za-z_][A-Za-z0-9_]*=*|env|*/env|command|*/command|--|-i|--ignore-environment|-p)
+                                handled=0
+                                case "$wrapper_kind" in
+                                    env)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -u|--unset|-C|--chdir|-a|--argv0|-P) wrapper_operand=1 ;;
+                                            -u?*|-C?*|-a?*|-P?*|--unset=*|--chdir=*|--argv0=*|-i|--ignore-environment|[A-Za-z_][A-Za-z0-9_]*=*) ;;
+                                            -S|--split-string|-S?*|--split-string=*) wrapper_kind="" ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    # Control-flow words keep the NEXT word in
-                                    # command position — `if true; then "kubectl"
-                                    # …` must not mask the quoted command word.
-                                    if|then|else|elif|fi|while|until|do|done|case|esac|'!'|'{'|'}')
+                                    xargs)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -0|-o|-p|-r|-t|-x|--null|--open-tty|--interactive|--no-run-if-empty|--verbose|--exit|--show-limits) ;;
+                                            -a|-d|-E|-I|-J|-L|-n|-P|-R|-S|-s|--arg-file|--delimiter|--eof|--replace|--max-lines|--max-args|--max-procs|--max-replacements|--replsize|--max-chars|--process-slot-var) wrapper_operand=1 ;;
+                                            -a?*|-d?*|-E?*|-I?*|-J?*|-L?*|-n?*|-P?*|-R?*|-S?*|-s?*|--arg-file=*|--delimiter=*|--eof=*|--replace=*|--max-lines=*|--max-args=*|--max-procs=*|--max-replacements=*|--replsize=*|--max-chars=*|--process-slot-var=*|-e|-i|-l|-e?*|-i?*|-l?*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    -u|--unset)
-                                        wrapper_operand=1
+                                    setsid)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -c|-f|-w|--ctty|--fork|--wait|-[cfw]*) ;;
+                                            -h|--help|-V|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    --unset=*)
+                                    time)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -a|-p|-q|-v|--append|--portability|--quiet|--verbose|-[apqv]*) ;;
+                                            -o|-f|--output|--format) wrapper_operand=1 ;;
+                                            -o?*|-f?*|--output=*|--format=*) ;;
+                                            -h|--help|-V|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    *)
-                                        at_command_start=0
+                                    timeout)
+                                        handled=1
+                                        case "$word" in
+                                            --|--foreground|--preserve-status|--verbose) ;;
+                                            -k|-s|--kill-after|--signal) wrapper_operand=1 ;;
+                                            -k?*|-s?*|--kill-after=*|--signal=*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind="" ;;
+                                        esac
+                                        ;;
+                                    nice)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -n|--adjustment) wrapper_operand=1 ;;
+                                            --adjustment=*|-[0-9]*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
+                                        ;;
+                                    ionice)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -p|-P|-u|-p?*|-P?*|-u?*|--pid|--pgid|--uid|--pid=*|--pgid=*|--uid=*) wrapper_kind=""; at_command_start=0 ;;
+                                            -c|-n|--class|--classdata) wrapper_operand=1 ;;
+                                            -c?*|-n?*|--class=*|--classdata=*|-t|--ignore) ;;
+                                            -h|--help|-V|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
+                                        ;;
+                                    stdbuf)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -i|-o|-e|--input|--output|--error) wrapper_operand=1 ;;
+                                            -i?*|-o?*|-e?*|--input=*|--output=*|--error=*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
                                 esac
+                                if [[ "$handled" != "1" ]]; then
+                                    case "$word" in
+                                        [A-Za-z_][A-Za-z0-9_]*=*|command|*/command|nohup|*/nohup|--|-p)
+                                            ;;
+                                        env|*/env) wrapper_kind="env" ;;
+                                        xargs|*/xargs) wrapper_kind="xargs" ;;
+                                        setsid|*/setsid) wrapper_kind="setsid" ;;
+                                        time|*/time) wrapper_kind="time" ;;
+                                        timeout|*/timeout|gtimeout|*/gtimeout) wrapper_kind="timeout" ;;
+                                        nice|*/nice) wrapper_kind="nice" ;;
+                                        ionice|*/ionice) wrapper_kind="ionice" ;;
+                                        stdbuf|*/stdbuf) wrapper_kind="stdbuf" ;;
+                                        # Control-flow words keep the NEXT word in
+                                        # command position — `if true; then "kubectl"
+                                        # …` must not mask the quoted command word.
+                                        if|then|else|elif|fi|while|until|do|done|'case'|'esac'|'!'|'{'|'}')
+                                            ;;
+                                        *)
+                                            at_command_start=0
+                                            ;;
+                                    esac
+                                fi
                             fi
                         fi
                         word=""
@@ -222,7 +620,38 @@ k8s_guard_mask_inert_quotes() {
         fi
 
         segment="${input:start:i-start}"
+        local quote_is_operand=0 quote_placeholder="q"
         if [[ "$at_command_start" == "1" ]]; then
+            if [[ "$wrapper_operand" == "1" ]]; then
+                quote_is_operand=1
+            elif [[ "$wrapper_kind" == "env" && -z "$word" ]]; then
+                case "${segment:1:${#segment}-2}" in
+                    [A-Za-z_][A-Za-z0-9_]*=*)
+                        quote_is_operand=1
+                        # Preserve assignment grammar for the state machine:
+                        # a generic placeholder would look like env's child
+                        # command and hide the executable that follows it.
+                        quote_placeholder="A="
+                        ;;
+                esac
+            else
+                case "$wrapper_kind:$word" in
+                    env:[A-Za-z_][A-Za-z0-9_]*=|env:-u|env:-C|env:-a|env:-P|env:--unset=|env:--chdir=|env:--argv0=)
+                        quote_is_operand=1
+                        ;;
+                    xargs:-a|xargs:-d|xargs:-E|xargs:-I|xargs:-J|xargs:-L|xargs:-n|xargs:-P|xargs:-R|xargs:-S|xargs:-s|xargs:--arg-file=|xargs:--delimiter=|xargs:--eof=|xargs:--replace=|xargs:--max-lines=|xargs:--max-args=|xargs:--max-procs=|xargs:--max-replacements=|xargs:--replsize=|xargs:--max-chars=|xargs:--process-slot-var=)
+                        quote_is_operand=1
+                        ;;
+                    timeout:|time:-o|time:-f|time:--output=|time:--format=|timeout:-k|timeout:-s|timeout:--kill-after=|timeout:--signal=|nice:-n|nice:--adjustment=|ionice:-c|ionice:-n|ionice:--class=|ionice:--classdata=|stdbuf:-i|stdbuf:-o|stdbuf:-e|stdbuf:--input=|stdbuf:--output=|stdbuf:--error=)
+                        quote_is_operand=1
+                        ;;
+                    :[A-Za-z_][A-Za-z0-9_]*=)
+                        quote_is_operand=1
+                        ;;
+                esac
+            fi
+        fi
+        if [[ "$at_command_start" == "1" && "$quote_is_operand" != "1" ]]; then
             output+="$segment"
             # Track the span's INNER text as word content: a quoted wrapper
             # word ("env", "command") must still match the wrapper case when
@@ -232,7 +661,7 @@ k8s_guard_mask_inert_quotes() {
             word+="${segment:1:${#segment}-2}"
         else
             output+="${segment//?/ }"
-            word+="q"
+            word+="$quote_placeholder"
         fi
     done
     printf '%s' "$output"
@@ -479,7 +908,7 @@ k8s_guard_evaluate() {
     else
         printf 'NOT_K8S'; return 0
     fi
-    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a all_ns_value
+    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a all_ns_value namespaced_value
     local ffiles=()
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
@@ -526,14 +955,48 @@ k8s_guard_evaluate() {
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
             # must not read `5s` as a second namespace). Attached (`-oyaml`) and
             # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
-            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir) i=$((i+2)); continue ;;
+            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout) i=$((i+2)); continue ;;
+            --request-timeout=*) ;;
+            --namespaced)
+                if [[ "$verb" != "api-resources" ]]; then
+                    printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
+                    return 0
+                fi
+                namespaced_value="${args[$((i+1))]:-}"
+                case "$namespaced_value" in
+                    true|True|TRUE|1|t|T|false|False|FALSE|0|f|F)
+                        i=$((i+2))
+                        ;;
+                    *)
+                        # A Boolean flag may omit its value. Do not consume an
+                        # arbitrary next token, especially a connection flag.
+                        i=$((i+1))
+                        ;;
+                esac
+                continue
+                ;;
+            --namespaced=*)
+                if [[ "$verb" != "api-resources" ]]; then
+                    printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
+                    return 0
+                fi
+                namespaced_value="${a#*=}"
+                case "$namespaced_value" in
+                    true|True|TRUE|1|t|T|false|False|FALSE|0|f|F) ;;
+                    *)
+                        printf 'BLOCK:precondition:invalid --namespaced boolean value'
+                        return 0
+                        ;;
+                esac
+                ;;
+            -w|--watch|--watch-only|--show-labels|--no-headers|--ignore-not-found|--show-kind|--recursive|-R|--client|--watch=*|--watch-only=*|--show-labels=*|--no-headers=*|--ignore-not-found=*|--show-kind=*|--recursive=*|--client=*) ;;
             -*)
-                # Unknown options before the verb are ambiguous: they may take
-                # the next token as a value, shifting a mutating verb into the
-                # slot we would otherwise classify as a read. Fail closed and
-                # let the hook surface the guard reason to the operator.
-                if [[ -z "$verb" ]]; then
-                    printf 'BLOCK:precondition:unrecognized option before kubectl verb: %s' "$a"
+                # Unknown options before the verb or its resource are ambiguous:
+                # they may take the next token as a value, shifting the command
+                # or resource into a slot with weaker classification. Fail closed
+                # and let the hook surface the guard reason to the operator.
+                if [[ -z "$verb" || -z "$verb2" ]]; then
+                    printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
                     return 0
                 fi
                 ;;
@@ -569,6 +1032,16 @@ k8s_guard_evaluate() {
                 *) [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
                    printf 'BLOCK:unbounded:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
             esac ;;
+        cluster-info)
+            if [[ -z "$verb2" ]]; then
+                printf '%s' "$read_verdict"
+            elif [[ -z "$scope_ctx" ]]; then
+                printf 'WRITE_NO_SCOPE'
+            else
+                printf 'BLOCK:unbounded:kubectl cluster-info %s is not a bounded read' "$verb2"
+            fi
+            return 0
+            ;;
     esac
     if _k8s_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
     if [[ $raw_api -eq 1 ]]; then

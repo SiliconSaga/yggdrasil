@@ -958,10 +958,12 @@ elif [[ -n "$_PEEK_CR" ]]; then
     for i in "${!_CANDIDATE_SLUGS[@]}"; do
         _slug="${_CANDIDATE_SLUGS[$i]}"
         _prov="${_CANDIDATE_PROVIDERS[$i]}"
-        _key="${_prov}:${_slug}"
+        _candidate_host="$(git_remote_host "${_CANDIDATE_URLS[$i]}" 2>/dev/null)" || continue
+        _key="${_prov}:${_candidate_host}:${_slug}"
         [[ "$_seen" == *"|${_key}|"* ]] && continue
         _seen+="|${_key}|"
-        gp_load "$_prov" 2>/dev/null || continue
+        gp_detect_and_load "${_CANDIDATE_URLS[$i]}" "$_ECO" 2>/dev/null || continue
+        gp_set_token_for_url "${_CANDIDATE_URLS[$i]}" "$_AUTH_ECO"
         _probe_output=""
         if _probe_output="$(gp_review_summary "$_slug" "$_PEEK_CR" 2>&1)"; then
             _MATCH_SLUGS+=("$_slug")
@@ -1011,8 +1013,9 @@ else
     _SELECTED_URL="${_CANDIDATE_URLS[0]}"
 fi
 
-# Ensure the selected provider is loaded
-gp_load "$_SELECTED_PROVIDER"
+# Ensure the selected provider is loaded and its API authority is pinned to the
+# exact remote chosen above rather than an ambient CLI host.
+gp_detect_and_load "$_SELECTED_URL" "$_ECO"
 
 # Pre-populate the provider token from ecosystem config so gp_check_cli
 # doesn't fall through to glab auth status when only split tokens are set.

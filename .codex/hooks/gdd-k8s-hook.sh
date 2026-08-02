@@ -116,6 +116,7 @@ if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
     fi
     if [[ "$masked_match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
         || [[ "$masked_match_cmd" == *"ws k8s"* || "$masked_match_cmd" == *"scripts/ws k8s"* ]] \
+        || k8s_guard_xargs_child_contains_kubectl "$cmd" \
         || [[ "$unsafe_inline_shell" == "1" ]]; then
         deny "Kubernetes commands must be issued as one composition-free command. This compound or multiline form cannot be evaluated safely."
     fi

@@ -117,6 +117,7 @@ YAML
     [[ "$output" == *"https://git.example.com/team/app.git"* ]]
     [[ "$output" == *"uv run pytest"* ]]
     [[ "$output" == *"GITLAB_TEAM_TOKEN"* ]]
+    [[ "$output" == *$'    defaults.gddHome  →  https://docs.example.com/gdd\n    defaults.upstreamRemote  →  upstream'* ]]
     [[ "$output" == *"defaults.gddHome"*"https://docs.example.com/gdd"* ]]
     [[ "$output" == *"defaults.upstreamRemote"*"upstream"* ]]
     [[ "$output" == *"defaults.gitProviders.git.example.com"*"gitlab"* ]]
@@ -188,7 +189,7 @@ YAML
     printf 'components: {}\n' > "$work/realms/realm.test/ecosystem.yaml"
     cat > "$work/realms/realm.test/adapters/app.yaml" <<'YAML'
 commands:
-  test: "safe \x1b[2K\x1b[1A spoofed"
+  test: "safe \x1b[2K\x1b[1A \u009b2K spoofed"
 YAML
 
     run env \
@@ -203,6 +204,24 @@ YAML
     [ "$status" -eq 0 ]
     [[ "$output" == *"safe"*"spoofed"* ]]
     [[ "$output" != *$'\x1b'* ]]
+    [[ "$output" != *$'\u009b'* ]]
+}
+
+@test "ws realm use rejects an unsafe adapter filename before rendering it" {
+    work="$BATS_TEST_TMPDIR/work-adapter-name"
+    mkdir -p "$work/realms/realm.test/adapters" "$work/components" "$work/hoards"
+    printf 'components: {}\n' > "$work/ecosystem.yaml"
+    printf 'notes: keep\n' > "$work/ecosystem.local.yaml"
+    printf 'components: {}\n' > "$work/realms/realm.test/ecosystem.yaml"
+    local unsafe_adapter="$work/realms/realm.test/adapters/"$'app\n    forged-heading'".yaml"
+    printf 'commands:\n  test: uv run pytest\n' > "$unsafe_adapter"
+
+    run env "ROOT_DIR=$work" "REALMS_DIR=$work/realms" "COMPONENTS_DIR=$work/components" "HOARDS_DIR=$work/hoards" "ECOSYSTEM=$work/ecosystem.yaml" "ECOSYSTEM_LOCAL=$work/ecosystem.local.yaml" bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"adapter filename"* ]]
+    [[ "$output" != *"forged-heading"* ]]
+    [ "$(yq '.realm // ""' "$work/ecosystem.local.yaml")" = "" ]
 }
 
 @test "ws realm use avoids direct yq string interpolation" {

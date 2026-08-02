@@ -1719,6 +1719,18 @@ if [[ "$_k8s_floor_enabled" == "1" && "$_k8s_guard_loaded" != "1" ]]; then
 fi
 if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/null 2>&1; then
     _k8s_match_cmd="$(k8s_guard_normalize_command "$match_cmd")"
+    _k8s_unsafe_sentinel="${K8S_GUARD_UNSAFE_COMMAND_SENTINEL:-__GDD_K8S_UNSAFE_COMMAND__}"
+    if [[ "$_k8s_match_cmd" == "$_k8s_unsafe_sentinel" ]]; then
+        # Use the original command here: permission matching deliberately
+        # removes quotes, but the unsafe-form check must retain the distinction
+        # between an executable command word and inert quoted data.
+        _k8s_masked_match_cmd="$(k8s_guard_mask_inert_quotes "$cmd")"
+        if [[ "$_k8s_masked_match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
+            || [[ "$_k8s_masked_match_cmd" == *"ws k8s"* || "$_k8s_masked_match_cmd" == *"scripts/ws k8s"* ]] \
+            || { declare -F k8s_guard_xargs_child_contains_kubectl >/dev/null 2>&1 && k8s_guard_xargs_child_contains_kubectl "$cmd"; }; then
+            deny "Kubernetes commands must be issued as one composition-free command. This wrapped or constructed form cannot be evaluated safely."
+        fi
+    fi
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
     # The dispatcher and permission audit entrypoint legitimately mention
     # kubectl while handling unrelated commands. Keep this carve-out exact and
@@ -1795,7 +1807,11 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
         case "$_sr_verdict" in
-            READ_IN_SCOPE) allow "ws k8s in-scope read" ;;
+            READ_IN_SCOPE)
+                if [[ "$_k8s_literal_direct" == "1" ]]; then
+                    allow "ws k8s in-scope read"
+                fi
+                ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_verdict" "$_sr_ctx" "$_sr_slug")" ;;
             *) : ;;  # WRITE_IN_SCOPE / NO_SCOPE → normal flow (prompt)
         esac

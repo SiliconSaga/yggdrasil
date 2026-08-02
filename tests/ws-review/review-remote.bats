@@ -36,6 +36,11 @@ YAML
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${GITLAB_HOST:-}" != "${GLAB_EXPECTED_HOST:-}" ]]; then
+    echo "unexpected GitLab host: ${GITLAB_HOST:-unset}" >&2
+    exit 2
+fi
+
 if [[ "${1:-}" != "api" ]]; then
     echo "unexpected glab command: $*" >&2
     exit 1
@@ -104,6 +109,8 @@ run_ws_review() {
         "ECOSYSTEM=$WORK/ecosystem.yaml" \
         "ECOSYSTEM_LOCAL=$WORK/ecosystem.local.yaml" \
         "GITLAB_TOKEN=dummy-token" \
+        "GITLAB_HOST=gitlab.com" \
+        "GLAB_EXPECTED_HOST=gitlab.com" \
         "GLAB_BODY_LOG=$BODY_LOG" \
         bash "$WS_BIN" review "$@"
 }
@@ -123,6 +130,18 @@ probe_csi() { printf '\302\233'; }
     [[ "$output" == *"origin=upstream-group/project"* ]]
     [[ "$output" == *"fork=example-group/forked-project"* ]]
     [[ "$output" == *"--remote <name>"* ]]
+}
+
+@test "review deduplicates one host and project across remote transports" {
+    git -C "$WORK/components/app" remote remove fork
+    git -C "$WORK/components/app" remote add mirror git@gitlab.com:upstream-group/project.git
+
+    run_ws_review app 1 --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"=== CR #1 (upstream-group/project) ==="* ]]
+    [[ "$output" == *"Title: Upstream MR"* ]]
+    [[ "$output" != *"found on multiple remotes"* ]]
 }
 
 @test "review --remote selects a specific remote and queries its project" {

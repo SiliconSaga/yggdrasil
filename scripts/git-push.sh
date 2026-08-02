@@ -26,12 +26,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ws-realm.sh"
 
 # Auth-env injection is shared with clone/fetch/pull via git-auth.sh, which
-# ws-realm.sh (sourced above) pulls in. This thin shim maps the shared
-# GIT_AUTH_* outputs onto the GIT_PUSH_* names the push body already uses, so
-# the rest of this script is unchanged.
+# ws-realm.sh (sourced above) pulls in. This thin shim retains the push-specific
+# diagnostic labels while the command itself uses the shared scoped runner.
 git_push_auth_env_for_remote() {
   git_auth_env_for_url "$1"
-  GIT_PUSH_AUTH_ENV=(${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"})
   GIT_PUSH_AUTH_LABEL="$GIT_AUTH_LABEL"
   GIT_PUSH_AUTH_PROVIDER="$GIT_AUTH_PROVIDER"
 }
@@ -124,7 +122,6 @@ fi
 
 REMOTE_URL=$(git remote get-url "$REMOTE_NAME" 2>/dev/null || echo "")
 ORG_REPO=$(echo "$REMOTE_URL" | sed 's|^ssh://[^/]*/||; s|^https://[^/]*/||; s|^http://[^/]*/||; s|^git@[^:]*:||; s|\.git$||')
-GIT_PUSH_AUTH_ENV=()
 GIT_PUSH_AUTH_LABEL=""
 GIT_PUSH_AUTH_PROVIDER=""
 git_push_auth_env_for_remote "$REMOTE_URL"
@@ -142,7 +139,7 @@ if [[ "$TARGET_KIND" == "tag" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
+  git_auth_run git push "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
   exit 0
 fi
 
@@ -180,11 +177,11 @@ if [[ -n "$FORCE" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
+  git_auth_run git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
 else
   echo "Pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  env ${GIT_PUSH_AUTH_ENV[@]+"${GIT_PUSH_AUTH_ENV[@]}"} git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
+  git_auth_run git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
 fi

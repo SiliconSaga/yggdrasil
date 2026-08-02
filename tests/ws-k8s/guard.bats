@@ -59,6 +59,161 @@ EOF
     done
 }
 
+@test "command normalization rejects live expansion but preserves literal shell data" {
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" 'kubectl delete "$RESOURCE" prod -n alice-sandbox'
+    [ "$status" -eq 0 ]
+    [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" 'kubectl get pods -l '\''literal=$RESOURCE'\'''
+    [ "$status" -eq 0 ]
+    [ "$output" != "__GDD_K8S_UNSAFE_COMMAND__" ]
+}
+
+@test "transparent process wrappers preserve kubectl classification" {
+    local command expected="kubectl delete pod foo -n prod"
+    for command in \
+        'nohup kubectl delete pod foo -n prod' \
+        'setsid -f kubectl delete pod foo -n prod' \
+        'time -p kubectl delete pod foo -n prod' \
+        'timeout --signal TERM 10s kubectl delete pod foo -n prod' \
+        'nice -n 5 kubectl delete pod foo -n prod' \
+        'ionice -c 3 kubectl delete pod foo -n prod' \
+        'stdbuf -oL kubectl delete pod foo -n prod' \
+        'nohup timeout --kill-after=2s 10s nice -n 5 kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "$expected" ]
+    done
+}
+
+@test "slash-qualified wrappers must resolve to the ambient executable" {
+    local fake_wrapper="$BATS_TEST_TMPDIR/timeout"
+    printf '#!/bin/sh\nexec "$@"\n' > "$fake_wrapper"
+    chmod +x "$fake_wrapper"
+
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$fake_wrapper 10s kubectl get pods"
+    [ "$status" -eq 0 ]
+    [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+
+    local trusted_env
+    trusted_env="$(type -P env)"
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$trusted_env kubectl get pods"
+    [ "$status" -eq 0 ]
+    [ "$output" = "kubectl get pods" ]
+}
+
+@test "env launch options preserve child classification and constructed forms fail closed" {
+    local command expected="kubectl delete pod foo -n prod"
+    for command in \
+        'env -C /tmp kubectl delete pod foo -n prod' \
+        'env --chdir=/tmp kubectl delete pod foo -n prod' \
+        'env -a kubectl-probe kubectl delete pod foo -n prod' \
+        'env --argv0=kubectl-probe kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "$expected" ]
+    done
+
+    for command in \
+        'env -S "kubectl delete pod foo -n prod"' \
+        'env --split-string="kubectl delete pod foo -n prod"' \
+        'env --unknown kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+    done
+}
+
+@test "command-building and unknown wrapper forms fail closed" {
+    local command
+    for command in \
+        'xargs kubectl delete pod foo -n prod' \
+        'timeout --unrecognized 10s kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+    done
+}
+
+@test "wrapper modes that do not launch a child remain passthrough" {
+    local command
+    for command in \
+        'nohup --help kubectl delete pod foo -n prod' \
+        'setsid --help kubectl delete pod foo -n prod' \
+        'time --version kubectl delete pod foo -n prod' \
+        'ionice -p 123 kubectl delete pod foo -n prod' \
+        'ionice -p123 kubectl delete pod foo -n prod' \
+        'ionice -P123 kubectl delete pod foo -n prod' \
+        'ionice -u123 kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "$command" ]
+    done
+}
+
+@test "unsafe xargs inspection distinguishes a quoted command from quoted data through wrapper chains" {
+    run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
+        'nohup timeout 10s xargs -d "\\n" -n 1 "kubectl" delete pod foo -n prod'
+    [ "$status" -eq 0 ]
+
+    run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
+        'nohup timeout 10s xargs -d "\\n" -n 1 echo "kubectl"'
+    [ "$status" -eq 1 ]
+
+    run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
+        'nohup "xargs" "kubectl" delete pod foo -n prod'
+    [ "$status" -eq 0 ]
+}
+
+@test "script resolver follows quoted transparent wrappers" {
+    mkdir -p "$BATS_TEST_TMPDIR/work/scripts"
+    printf '#!/bin/bash\nkubectl get pods\n' > "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh"
+
+    run bash -c 'source "$1"; k8s_guard_script_path "$2" "$3"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/work" 'nohup "bash" scripts/direct-danger.sh'
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh" ]
+}
+
+@test "quote masking tracks transparent wrapper operands before a quoted child" {
+    local command
+    for command in \
+        'setsid -f "kubectl" delete namespace prod; true' \
+        'time -o timing.log "kubectl" delete namespace prod; true' \
+        'timeout -k 1s 10s "kubectl" delete namespace prod; true' \
+        'nice -n 5 "kubectl" delete namespace prod; true' \
+        'ionice -c 2 -n 0 "kubectl" delete namespace prod; true' \
+        'stdbuf -o L "kubectl" delete namespace prod; true' \
+        'nohup timeout 10s "kubectl" delete namespace prod; true'; do
+        run bash -c 'source "$1"; k8s_guard_mask_inert_quotes "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *'"kubectl"'* ]]
+    done
+}
+
+@test "quote masking keeps wrapper child data inert" {
+    local command
+    for command in \
+        'env -C "/tmp/kubectl" printf ok; true' \
+        'env LABEL="kubectl" printf ok; true' \
+        'env "FOO=kubectl" printf ok; true' \
+        'xargs -I "kubectl" echo value; true' \
+        'time -o "kubectl.time" printf ok; true' \
+        'timeout "kubectl" printf ok; true' \
+        'stdbuf -o "kubectl" printf ok; true' \
+        'setsid -f printf "%s\\n" "kubectl"; true' \
+        'time -o timing.log printf "%s\\n" "kubectl"; true' \
+        'timeout -k 1s 10s printf "%s\\n" "kubectl"; true' \
+        'timeout 10s "printf" "%s\\n" "kubectl"; true' \
+        'nice -n 5 printf "%s\\n" "kubectl"; true' \
+        'ionice -c 2 -n 0 printf "%s\\n" "kubectl"; true' \
+        'stdbuf -o L printf "%s\\n" "kubectl"; true'; do
+        run bash -c 'source "$1"; k8s_guard_mask_inert_quotes "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" != *'kubectl'* ]]
+    done
+}
+
 @test "non-kubectl command is NOT_K8S" {
     run_guard "kind-practice" "alice-sandbox" ls -la
     [ "$output" = "NOT_K8S" ]
@@ -66,6 +221,40 @@ EOF
 @test "read is classified even when no scope is armed" {
     run_guard "" "" kubectl get pods
     [ "$output" = "READ_NO_SCOPE" ]
+}
+
+@test "known valueless read flags do not consume the kubectl resource slot" {
+    run_guard "" "" kubectl version --client
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    local flag
+    for flag in -w --watch --watch-only --show-labels --no-headers --ignore-not-found --show-kind --recursive -R; do
+        run_guard "kind-practice" "alice-sandbox" kubectl get "$flag" pods
+        [ "$output" = "READ_IN_SCOPE" ]
+    done
+}
+
+@test "verb-only reads accept bounded options without allowing cluster-info dump" {
+    run_guard "" "" kubectl api-resources --namespaced=false
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "" "" kubectl api-resources --namespaced false
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl api-resources --namespaced --server attacker.example
+    [[ "$output" == BLOCK:context:* ]]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl api-resources --namespaced --context attacker-context
+    [[ "$output" == BLOCK:context:* ]]
+
+    run_guard "" "" kubectl cluster-info --request-timeout=5s
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "" "" kubectl cluster-info --request-timeout 5s
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl cluster-info dump
+    [[ "$output" == BLOCK:unbounded:* ]]
 }
 @test "write is classified even when no scope is armed" {
     run_guard "" "" kubectl apply -k overlays/plain
@@ -94,6 +283,18 @@ EOF
 @test "post-verb cache-dir value cannot hide a cluster-scoped resource" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete --cache-dir /tmp/cache nodes worker1
     [[ "$output" == BLOCK:unbounded:* ]]
+}
+@test "space-form patch type cannot hide a cluster-scoped resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl patch --type merge clusterrolebinding/example -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
+@test "space-form patch type preserves an in-scope namespaced resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl patch --type merge deployment/example -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "unknown space-form option before a resource fails closed" {
+    run_guard "kind-practice" "alice-sandbox" kubectl patch --future-mode merge deployment/example -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
 }
 @test "write to in-scope namespace is WRITE_IN_SCOPE" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete pod foo -n alice-sandbox
