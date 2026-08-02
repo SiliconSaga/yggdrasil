@@ -59,6 +59,16 @@ EOF
     done
 }
 
+@test "command normalization rejects live expansion but preserves literal shell data" {
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" 'kubectl delete "$RESOURCE" prod -n alice-sandbox'
+    [ "$status" -eq 0 ]
+    [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" 'kubectl get pods -l '\''literal=$RESOURCE'\'''
+    [ "$status" -eq 0 ]
+    [ "$output" != "__GDD_K8S_UNSAFE_COMMAND__" ]
+}
+
 @test "transparent process wrappers preserve kubectl classification" {
     local command expected="kubectl delete pod foo -n prod"
     for command in \
@@ -74,6 +84,22 @@ EOF
         [ "$status" -eq 0 ]
         [ "$output" = "$expected" ]
     done
+}
+
+@test "slash-qualified wrappers must resolve to the ambient executable" {
+    local fake_wrapper="$BATS_TEST_TMPDIR/timeout"
+    printf '#!/bin/sh\nexec "$@"\n' > "$fake_wrapper"
+    chmod +x "$fake_wrapper"
+
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$fake_wrapper 10s kubectl get pods"
+    [ "$status" -eq 0 ]
+    [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+
+    local trusted_env
+    trusted_env="$(type -P env)"
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$trusted_env kubectl get pods"
+    [ "$status" -eq 0 ]
+    [ "$output" = "kubectl get pods" ]
 }
 
 @test "env launch options preserve child classification and constructed forms fail closed" {
@@ -170,6 +196,7 @@ EOF
     for command in \
         'env -C "/tmp/kubectl" printf ok; true' \
         'env LABEL="kubectl" printf ok; true' \
+        'env "FOO=kubectl" printf ok; true' \
         'xargs -I "kubectl" echo value; true' \
         'time -o "kubectl.time" printf ok; true' \
         'timeout "kubectl" printf ok; true' \
@@ -213,6 +240,12 @@ EOF
 
     run_guard "" "" kubectl api-resources --namespaced false
     [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl api-resources --namespaced --server attacker.example
+    [[ "$output" == BLOCK:context:* ]]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl api-resources --namespaced --context attacker-context
+    [[ "$output" == BLOCK:context:* ]]
 
     run_guard "" "" kubectl cluster-info --request-timeout=5s
     [ "$output" = "READ_NO_SCOPE" ]

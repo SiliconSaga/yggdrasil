@@ -127,6 +127,17 @@ assert_denied() {
     done
 }
 
+@test "untrusted wrapper paths cannot inherit direct kubectl read routing" {
+    seed_scope codex-test kind-practice alice-sandbox
+    local fake_wrapper="$WORK/timeout"
+    printf '#!/bin/sh\nexec "$@"\n' > "$fake_wrapper"
+    chmod +x "$fake_wrapper"
+
+    run_codex_hook "$fake_wrapper 10s kubectl get pods"
+
+    assert_denied
+}
+
 @test "quoted kubectl command words in unsafe forms remain denied" {
     seed_scope codex-test kind-practice alice-sandbox
     local command

@@ -18,6 +18,39 @@ _k8s_normalize_path() {
     printf '%s' "${1//\\//}"
 }
 
+# True when shell evaluation can change the argv that the guard classifies.
+# Single-quoted and backslash-escaped dollars/backticks are literal data;
+# unquoted or double-quoted forms are live expansions and must fail closed.
+k8s_guard_has_live_shell_expansion() {
+    local input="$1" char state="plain"
+    local i=0 length=${#1}
+    while [[ $i -lt $length ]]; do
+        char="${input:i:1}"
+        case "$state:$char" in
+            plain:"\\") i=$((i + 2)); continue ;;
+            plain:"'") state="single" ;;
+            plain:'"') state="double" ;;
+            plain:'$'|plain:'`') return 0 ;;
+            single:"'") state="plain" ;;
+            double:"\\") i=$((i + 2)); continue ;;
+            double:'"') state="plain" ;;
+            double:'$'|double:'`') return 0 ;;
+        esac
+        i=$((i + 1))
+    done
+    return 1
+}
+
+# Slash-qualified wrapper names are trusted only when they identify the same
+# executable the ambient PATH would select. Otherwise an arbitrary local file
+# could borrow a transparent wrapper's parsing rules and evade classification.
+k8s_guard_executable_path_is_trusted() {
+    local candidate="$1" executable="$2" expected
+    [[ "$candidate" == */* ]] || return 0
+    expected="$(type -P "$executable" 2>/dev/null)" || return 1
+    [[ -n "$expected" && -e "$candidate" && "$candidate" -ef "$expected" ]]
+}
+
 # Normalize common transparent command wrappers before hook matching. This is
 # deliberately a small shell-token subset, not a general shell parser: GDD is
 # catching common mistakes, while complex composition belongs in reviewed
@@ -25,8 +58,12 @@ _k8s_normalize_path() {
 # helper's guarantee.
 k8s_guard_normalize_command() {
     local command="$1" mode="${2:-classify}" token base saw_xargs=0
+    if k8s_guard_has_live_shell_expansion "$command"; then
+        printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+        return 0
+    fi
     case "$command" in
-        *$'\n'*|*$'\r'*|*"&&"*|*"||"*|*";"*|*"|"*|*"&"*|*">"*|*"<"*|*'`'*|*'$('* )
+        *$'\n'*|*$'\r'*|*"&&"*|*"||"*|*";"*|*"|"*|*"&"*|*">"*|*"<"* )
             printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
             return 0
             ;;
@@ -61,6 +98,15 @@ k8s_guard_normalize_command() {
     local i=0
     while [[ $i -lt ${#words[@]} ]]; do
         token="${words[$i]}"
+        base="${token##*/}"
+        case "$base" in
+            env|command|nohup|setsid|time|timeout|gtimeout|nice|ionice|stdbuf|xargs)
+                if ! k8s_guard_executable_path_is_trusted "$token" "$base"; then
+                    printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                    return 0
+                fi
+                ;;
+        esac
         case "$token" in
             [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
             env|*/env)
@@ -292,7 +338,8 @@ k8s_guard_normalize_command() {
     fi
     [[ $i -lt ${#words[@]} ]] || return 0
 
-    base="${words[i]##*/}"
+    token="${words[i]}"
+    base="${token##*/}"
     [[ "$base" == "kubectl" ]] && words[i]="kubectl"
     printf '%s' "${words[*]:$i}"
 }
@@ -573,10 +620,20 @@ k8s_guard_mask_inert_quotes() {
         fi
 
         segment="${input:start:i-start}"
-        local quote_is_operand=0
+        local quote_is_operand=0 quote_placeholder="q"
         if [[ "$at_command_start" == "1" ]]; then
             if [[ "$wrapper_operand" == "1" ]]; then
                 quote_is_operand=1
+            elif [[ "$wrapper_kind" == "env" && -z "$word" ]]; then
+                case "${segment:1:${#segment}-2}" in
+                    [A-Za-z_][A-Za-z0-9_]*=*)
+                        quote_is_operand=1
+                        # Preserve assignment grammar for the state machine:
+                        # a generic placeholder would look like env's child
+                        # command and hide the executable that follows it.
+                        quote_placeholder="A="
+                        ;;
+                esac
             else
                 case "$wrapper_kind:$word" in
                     env:[A-Za-z_][A-Za-z0-9_]*=|env:-u|env:-C|env:-a|env:-P|env:--unset=|env:--chdir=|env:--argv0=)
@@ -604,7 +661,7 @@ k8s_guard_mask_inert_quotes() {
             word+="${segment:1:${#segment}-2}"
         else
             output+="${segment//?/ }"
-            word+="q"
+            word+="$quote_placeholder"
         fi
     done
     printf '%s' "$output"
@@ -851,7 +908,7 @@ k8s_guard_evaluate() {
     else
         printf 'NOT_K8S'; return 0
     fi
-    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a all_ns_value
+    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a all_ns_value namespaced_value
     local ffiles=()
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
@@ -901,15 +958,36 @@ k8s_guard_evaluate() {
             -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout) i=$((i+2)); continue ;;
             --request-timeout=*) ;;
             --namespaced)
-                if [[ "$verb" == "api-resources" ]]; then i=$((i+2)); continue; fi
-                printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
-                return 0
+                if [[ "$verb" != "api-resources" ]]; then
+                    printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
+                    return 0
+                fi
+                namespaced_value="${args[$((i+1))]:-}"
+                case "$namespaced_value" in
+                    true|True|TRUE|1|t|T|false|False|FALSE|0|f|F)
+                        i=$((i+2))
+                        ;;
+                    *)
+                        # A Boolean flag may omit its value. Do not consume an
+                        # arbitrary next token, especially a connection flag.
+                        i=$((i+1))
+                        ;;
+                esac
+                continue
                 ;;
             --namespaced=*)
                 if [[ "$verb" != "api-resources" ]]; then
                     printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
                     return 0
                 fi
+                namespaced_value="${a#*=}"
+                case "$namespaced_value" in
+                    true|True|TRUE|1|t|T|false|False|FALSE|0|f|F) ;;
+                    *)
+                        printf 'BLOCK:precondition:invalid --namespaced boolean value'
+                        return 0
+                        ;;
+                esac
                 ;;
             -w|--watch|--watch-only|--show-labels|--no-headers|--ignore-not-found|--show-kind|--recursive|-R|--client|--watch=*|--watch-only=*|--show-labels=*|--no-headers=*|--ignore-not-found=*|--show-kind=*|--recursive=*|--client=*) ;;
             -*)
