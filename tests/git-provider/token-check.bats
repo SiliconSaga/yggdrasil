@@ -76,6 +76,21 @@ SH
     [ "$output" = "octocat" ]
 }
 
+@test "GitHub Enterprise api probe exposes only the supplied enterprise token" {
+    cat > "$STUB_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+printf '%s|%s|%s|%s\n' "${GH_TOKEN-unset}" "${GITHUB_TOKEN-unset}" "${GH_ENTERPRISE_TOKEN-unset}" "${GITHUB_ENTERPRISE_TOKEN-unset}"
+SH
+    chmod +x "$STUB_DIR/gh"
+    PATH="$STUB_DIR:$PATH"
+    export GH_TOKEN="ambient-standard" GITHUB_TOKEN="ambient-standard-fallback" GH_ENTERPRISE_TOKEN="ambient-enterprise" GITHUB_ENTERPRISE_TOKEN="ambient-enterprise-fallback"
+
+    run gp_token_api_login github ghe.example.com probe-secret
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "unset|unset|probe-secret|unset" ]
+}
+
 @test "api probe extracts the GitLab username when the provider accepts the token" {
     cat > "$STUB_DIR/glab" <<'SH'
 #!/usr/bin/env bash

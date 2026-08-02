@@ -45,6 +45,19 @@ k8s_guard_normalize_command() {
     read -r -a words <<< "$command"
     [[ ${#words[@]} -gt 0 ]] || return 0
 
+    # `read -a` deliberately avoids shell evaluation, but it also retains
+    # harmless whole-word quoting. Normalize only balanced, whitespace-free
+    # word quotes so wrapper and interpreter names share one representation;
+    # quoted multi-word data stays untouched and cannot be retokenized.
+    local word_index word
+    for ((word_index = 0; word_index < ${#words[@]}; word_index++)); do
+        word="${words[word_index]}"
+        case "$word" in
+            \"*\") [[ ${#word} -ge 2 ]] && words[word_index]="${word:1:${#word}-2}" ;;
+            \'*\') [[ ${#word} -ge 2 ]] && words[word_index]="${word:1:${#word}-2}" ;;
+        esac
+    done
+
     local i=0
     while [[ $i -lt ${#words[@]} ]]; do
         token="${words[$i]}"
@@ -56,8 +69,24 @@ k8s_guard_normalize_command() {
                     token="${words[$i]}"
                     case "$token" in
                         --) i=$((i + 1)); break ;;
-                        -u|--unset) i=$((i + 2)) ;;
-                        --unset=*|-i|--ignore-environment|-[^-]*) i=$((i + 1)) ;;
+                        -u|--unset|-C|--chdir|-a|--argv0|-P)
+                            if [[ $((i + 1)) -ge ${#words[@]} ]]; then
+                                printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                                return 0
+                            fi
+                            i=$((i + 2))
+                            ;;
+                        -u?*|-C?*|-a?*|-P?*|--unset=*|--chdir=*|--argv0=*) i=$((i + 1)) ;;
+                        -S|--split-string|-S?*|--split-string=*)
+                            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                            return 0
+                            ;;
+                        -i|--ignore-environment) i=$((i + 1)) ;;
+                        --help|--version) printf '%s' "$command"; return 0 ;;
+                        -*)
+                            printf '%s' "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL"
+                            return 0
+                            ;;
                         [A-Za-z_][A-Za-z0-9_]*=*) i=$((i + 1)) ;;
                         *) break ;;
                     esac
@@ -183,8 +212,7 @@ k8s_guard_normalize_command() {
                     token="${words[i]}"
                     case "$token" in
                         --) i=$((i + 1)); break ;;
-                        -p|-P|-u|--pid|--pgid|--uid) printf '%s' "$command"; return 0 ;;
-                        --pid=*|--pgid=*|--uid=*) printf '%s' "$command"; return 0 ;;
+                        -p|-P|-u|-p?*|-P?*|-u?*|--pid|--pgid|--uid|--pid=*|--pgid=*|--uid=*) printf '%s' "$command"; return 0 ;;
                         -c|-n|--class|--classdata)
                             if [[ $((i + 1)) -ge ${#words[@]} ]]; then
                                 printf '%s' "$command"
@@ -375,6 +403,7 @@ k8s_guard_script_content_exempt() {
 k8s_guard_mask_inert_quotes() {
     local input="$1" output="" char quote segment word=""
     local i=0 start length=${#1} closed live at_command_start=1 wrapper_operand=0
+    local wrapper_kind="" handled=0
     while [[ $i -lt $length ]]; do
         char="${input:i:1}"
         if [[ "$char" != "'" && "$char" != '"' ]]; then
@@ -390,23 +419,122 @@ k8s_guard_mask_inert_quotes() {
                             if [[ "$wrapper_operand" == "1" ]]; then
                                 wrapper_operand=0
                             else
-                                case "$word" in
-                                    [A-Za-z_][A-Za-z0-9_]*=*|env|*/env|command|*/command|xargs|*/xargs|--|-i|--ignore-environment|-p)
+                                handled=0
+                                case "$wrapper_kind" in
+                                    env)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -u|--unset|-C|--chdir|-a|--argv0|-P) wrapper_operand=1 ;;
+                                            -u?*|-C?*|-a?*|-P?*|--unset=*|--chdir=*|--argv0=*|-i|--ignore-environment|[A-Za-z_][A-Za-z0-9_]*=*) ;;
+                                            -S|--split-string|-S?*|--split-string=*) wrapper_kind="" ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    # Control-flow words keep the NEXT word in
-                                    # command position — `if true; then "kubectl"
-                                    # …` must not mask the quoted command word.
-                                    if|then|else|elif|fi|while|until|do|done|case|esac|'!'|'{'|'}')
+                                    xargs)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -0|-o|-p|-r|-t|-x|--null|--open-tty|--interactive|--no-run-if-empty|--verbose|--exit|--show-limits) ;;
+                                            -a|-d|-E|-I|-J|-L|-n|-P|-R|-S|-s|--arg-file|--delimiter|--eof|--replace|--max-lines|--max-args|--max-procs|--max-replacements|--replsize|--max-chars|--process-slot-var) wrapper_operand=1 ;;
+                                            -a?*|-d?*|-E?*|-I?*|-J?*|-L?*|-n?*|-P?*|-R?*|-S?*|-s?*|--arg-file=*|--delimiter=*|--eof=*|--replace=*|--max-lines=*|--max-args=*|--max-procs=*|--max-replacements=*|--replsize=*|--max-chars=*|--process-slot-var=*|-e|-i|-l|-e?*|-i?*|-l?*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    -u|--unset)
-                                        wrapper_operand=1
+                                    setsid)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -c|-f|-w|--ctty|--fork|--wait|-[cfw]*) ;;
+                                            -h|--help|-V|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    --unset=*)
+                                    time)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -a|-p|-q|-v|--append|--portability|--quiet|--verbose|-[apqv]*) ;;
+                                            -o|-f|--output|--format) wrapper_operand=1 ;;
+                                            -o?*|-f?*|--output=*|--format=*) ;;
+                                            -h|--help|-V|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
-                                    *)
-                                        at_command_start=0
+                                    timeout)
+                                        handled=1
+                                        case "$word" in
+                                            --|--foreground|--preserve-status|--verbose) ;;
+                                            -k|-s|--kill-after|--signal) wrapper_operand=1 ;;
+                                            -k?*|-s?*|--kill-after=*|--signal=*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind="" ;;
+                                        esac
+                                        ;;
+                                    nice)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -n|--adjustment) wrapper_operand=1 ;;
+                                            --adjustment=*|-[0-9]*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
+                                        ;;
+                                    ionice)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -p|-P|-u|-p?*|-P?*|-u?*|--pid|--pgid|--uid|--pid=*|--pgid=*|--uid=*) wrapper_kind=""; at_command_start=0 ;;
+                                            -c|-n|--class|--classdata) wrapper_operand=1 ;;
+                                            -c?*|-n?*|--class=*|--classdata=*|-t|--ignore) ;;
+                                            -h|--help|-V|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
+                                        ;;
+                                    stdbuf)
+                                        handled=1
+                                        case "$word" in
+                                            --) wrapper_kind="" ;;
+                                            -i|-o|-e|--input|--output|--error) wrapper_operand=1 ;;
+                                            -i?*|-o?*|-e?*|--input=*|--output=*|--error=*) ;;
+                                            --help|--version) wrapper_kind=""; at_command_start=0 ;;
+                                            -*) ;;
+                                            *) wrapper_kind=""; handled=0 ;;
+                                        esac
                                         ;;
                                 esac
+                                if [[ "$handled" != "1" ]]; then
+                                    case "$word" in
+                                        [A-Za-z_][A-Za-z0-9_]*=*|command|*/command|nohup|*/nohup|--|-p)
+                                            ;;
+                                        env|*/env) wrapper_kind="env" ;;
+                                        xargs|*/xargs) wrapper_kind="xargs" ;;
+                                        setsid|*/setsid) wrapper_kind="setsid" ;;
+                                        time|*/time) wrapper_kind="time" ;;
+                                        timeout|*/timeout|gtimeout|*/gtimeout) wrapper_kind="timeout" ;;
+                                        nice|*/nice) wrapper_kind="nice" ;;
+                                        ionice|*/ionice) wrapper_kind="ionice" ;;
+                                        stdbuf|*/stdbuf) wrapper_kind="stdbuf" ;;
+                                        # Control-flow words keep the NEXT word in
+                                        # command position — `if true; then "kubectl"
+                                        # …` must not mask the quoted command word.
+                                        if|then|else|elif|fi|while|until|do|done|case|esac|'!'|'{'|'}')
+                                            ;;
+                                        *)
+                                            at_command_start=0
+                                            ;;
+                                    esac
+                                fi
                             fi
                         fi
                         word=""
@@ -445,7 +573,28 @@ k8s_guard_mask_inert_quotes() {
         fi
 
         segment="${input:start:i-start}"
+        local quote_is_operand=0
         if [[ "$at_command_start" == "1" ]]; then
+            if [[ "$wrapper_operand" == "1" ]]; then
+                quote_is_operand=1
+            else
+                case "$wrapper_kind:$word" in
+                    env:[A-Za-z_][A-Za-z0-9_]*=|env:-u|env:-C|env:-a|env:-P|env:--unset=|env:--chdir=|env:--argv0=)
+                        quote_is_operand=1
+                        ;;
+                    xargs:-a|xargs:-d|xargs:-E|xargs:-I|xargs:-J|xargs:-L|xargs:-n|xargs:-P|xargs:-R|xargs:-S|xargs:-s|xargs:--arg-file=|xargs:--delimiter=|xargs:--eof=|xargs:--replace=|xargs:--max-lines=|xargs:--max-args=|xargs:--max-procs=|xargs:--max-replacements=|xargs:--replsize=|xargs:--max-chars=|xargs:--process-slot-var=)
+                        quote_is_operand=1
+                        ;;
+                    timeout:|time:-o|time:-f|time:--output=|time:--format=|timeout:-k|timeout:-s|timeout:--kill-after=|timeout:--signal=|nice:-n|nice:--adjustment=|ionice:-c|ionice:-n|ionice:--class=|ionice:--classdata=|stdbuf:-i|stdbuf:-o|stdbuf:-e|stdbuf:--input=|stdbuf:--output=|stdbuf:--error=)
+                        quote_is_operand=1
+                        ;;
+                    :[A-Za-z_][A-Za-z0-9_]*=)
+                        quote_is_operand=1
+                        ;;
+                esac
+            fi
+        fi
+        if [[ "$at_command_start" == "1" && "$quote_is_operand" != "1" ]]; then
             output+="$segment"
             # Track the span's INNER text as word content: a quoted wrapper
             # word ("env", "command") must still match the wrapper case when
@@ -750,6 +899,7 @@ k8s_guard_evaluate() {
             # must not read `5s` as a second namespace). Attached (`-oyaml`) and
             # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
             -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type) i=$((i+2)); continue ;;
+            -w|--watch|--watch-only|--show-labels|--no-headers|--ignore-not-found|--show-kind|--recursive|-R|--client|--watch=*|--watch-only=*|--show-labels=*|--no-headers=*|--ignore-not-found=*|--show-kind=*|--recursive=*|--client=*) ;;
             -*)
                 # Unknown options before the verb or its resource are ambiguous:
                 # they may take the next token as a value, shifting the command

@@ -76,6 +76,28 @@ EOF
     done
 }
 
+@test "env launch options preserve child classification and constructed forms fail closed" {
+    local command expected="kubectl delete pod foo -n prod"
+    for command in \
+        'env -C /tmp kubectl delete pod foo -n prod' \
+        'env --chdir=/tmp kubectl delete pod foo -n prod' \
+        'env -a kubectl-probe kubectl delete pod foo -n prod' \
+        'env --argv0=kubectl-probe kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "$expected" ]
+    done
+
+    for command in \
+        'env -S "kubectl delete pod foo -n prod"' \
+        'env --split-string="kubectl delete pod foo -n prod"' \
+        'env --unknown kubectl delete pod foo -n prod'; do
+        run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [ "$output" = "__GDD_K8S_UNSAFE_COMMAND__" ]
+    done
+}
+
 @test "command-building and unknown wrapper forms fail closed" {
     local command
     for command in \
@@ -93,7 +115,10 @@ EOF
         'nohup --help kubectl delete pod foo -n prod' \
         'setsid --help kubectl delete pod foo -n prod' \
         'time --version kubectl delete pod foo -n prod' \
-        'ionice -p 123 kubectl delete pod foo -n prod'; do
+        'ionice -p 123 kubectl delete pod foo -n prod' \
+        'ionice -p123 kubectl delete pod foo -n prod' \
+        'ionice -P123 kubectl delete pod foo -n prod' \
+        'ionice -u123 kubectl delete pod foo -n prod'; do
         run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "$command"
         [ "$status" -eq 0 ]
         [ "$output" = "$command" ]
@@ -108,6 +133,58 @@ EOF
     run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
         'nohup timeout 10s xargs -d "\\n" -n 1 echo "kubectl"'
     [ "$status" -eq 1 ]
+
+    run bash -c 'source "$1"; k8s_guard_xargs_child_contains_kubectl "$2"' _ "$GUARD_LIB" \
+        'nohup "xargs" "kubectl" delete pod foo -n prod'
+    [ "$status" -eq 0 ]
+}
+
+@test "script resolver follows quoted transparent wrappers" {
+    mkdir -p "$BATS_TEST_TMPDIR/work/scripts"
+    printf '#!/bin/bash\nkubectl get pods\n' > "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh"
+
+    run bash -c 'source "$1"; k8s_guard_script_path "$2" "$3"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/work" 'nohup "bash" scripts/direct-danger.sh'
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "$BATS_TEST_TMPDIR/work/scripts/direct-danger.sh" ]
+}
+
+@test "quote masking tracks transparent wrapper operands before a quoted child" {
+    local command
+    for command in \
+        'setsid -f "kubectl" delete namespace prod; true' \
+        'time -o timing.log "kubectl" delete namespace prod; true' \
+        'timeout -k 1s 10s "kubectl" delete namespace prod; true' \
+        'nice -n 5 "kubectl" delete namespace prod; true' \
+        'ionice -c 2 -n 0 "kubectl" delete namespace prod; true' \
+        'stdbuf -o L "kubectl" delete namespace prod; true' \
+        'nohup timeout 10s "kubectl" delete namespace prod; true'; do
+        run bash -c 'source "$1"; k8s_guard_mask_inert_quotes "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *'"kubectl"'* ]]
+    done
+}
+
+@test "quote masking keeps wrapper child data inert" {
+    local command
+    for command in \
+        'env -C "/tmp/kubectl" printf ok; true' \
+        'env LABEL="kubectl" printf ok; true' \
+        'xargs -I "kubectl" echo value; true' \
+        'time -o "kubectl.time" printf ok; true' \
+        'timeout "kubectl" printf ok; true' \
+        'stdbuf -o "kubectl" printf ok; true' \
+        'setsid -f printf "%s\\n" "kubectl"; true' \
+        'time -o timing.log printf "%s\\n" "kubectl"; true' \
+        'timeout -k 1s 10s printf "%s\\n" "kubectl"; true' \
+        'timeout 10s "printf" "%s\\n" "kubectl"; true' \
+        'nice -n 5 printf "%s\\n" "kubectl"; true' \
+        'ionice -c 2 -n 0 printf "%s\\n" "kubectl"; true' \
+        'stdbuf -o L printf "%s\\n" "kubectl"; true'; do
+        run bash -c 'source "$1"; k8s_guard_mask_inert_quotes "$2"' _ "$GUARD_LIB" "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" != *'kubectl'* ]]
+    done
 }
 
 @test "non-kubectl command is NOT_K8S" {
@@ -117,6 +194,17 @@ EOF
 @test "read is classified even when no scope is armed" {
     run_guard "" "" kubectl get pods
     [ "$output" = "READ_NO_SCOPE" ]
+}
+
+@test "known valueless read flags do not consume the kubectl resource slot" {
+    run_guard "" "" kubectl version --client
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    local flag
+    for flag in -w --watch --watch-only --show-labels --no-headers --ignore-not-found --show-kind --recursive -R; do
+        run_guard "kind-practice" "alice-sandbox" kubectl get "$flag" pods
+        [ "$output" = "READ_IN_SCOPE" ]
+    done
 }
 @test "write is classified even when no scope is armed" {
     run_guard "" "" kubectl apply -k overlays/plain

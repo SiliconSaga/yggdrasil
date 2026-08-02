@@ -36,17 +36,71 @@ source "$_GP_SCRIPT_DIR/git-auth.sh"
 _GP_AMBIENT_GH_HOST="${GH_HOST:-github.com}"
 _GP_AMBIENT_GITLAB_HOST="${GITLAB_HOST:-gitlab.com}"
 _GP_AMBIENT_GH_TOKEN_SET=0
+_GP_AMBIENT_GITHUB_TOKEN_SET=0
+_GP_AMBIENT_GH_ENTERPRISE_TOKEN_SET=0
+_GP_AMBIENT_GITHUB_ENTERPRISE_TOKEN_SET=0
 _GP_AMBIENT_GITLAB_TOKEN_SET=0
 _GP_AMBIENT_GH_TOKEN=""
+_GP_AMBIENT_GITHUB_TOKEN=""
+_GP_AMBIENT_GH_ENTERPRISE_TOKEN=""
+_GP_AMBIENT_GITHUB_ENTERPRISE_TOKEN=""
 _GP_AMBIENT_GITLAB_TOKEN=""
 if [[ -n "${GH_TOKEN:-}" ]]; then
     _GP_AMBIENT_GH_TOKEN_SET=1
     _GP_AMBIENT_GH_TOKEN="$GH_TOKEN"
 fi
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    _GP_AMBIENT_GITHUB_TOKEN_SET=1
+    _GP_AMBIENT_GITHUB_TOKEN="$GITHUB_TOKEN"
+fi
+if [[ -n "${GH_ENTERPRISE_TOKEN:-}" ]]; then
+    _GP_AMBIENT_GH_ENTERPRISE_TOKEN_SET=1
+    _GP_AMBIENT_GH_ENTERPRISE_TOKEN="$GH_ENTERPRISE_TOKEN"
+fi
+if [[ -n "${GITHUB_ENTERPRISE_TOKEN:-}" ]]; then
+    _GP_AMBIENT_GITHUB_ENTERPRISE_TOKEN_SET=1
+    _GP_AMBIENT_GITHUB_ENTERPRISE_TOKEN="$GITHUB_ENTERPRISE_TOKEN"
+fi
 if [[ -n "${GITLAB_TOKEN:-}" ]]; then
     _GP_AMBIENT_GITLAB_TOKEN_SET=1
     _GP_AMBIENT_GITLAB_TOKEN="$GITLAB_TOKEN"
 fi
+
+_gp_github_token_family() {
+    case "$1" in
+        github.com|*.ghe.com) printf '%s' "hosted" ;;
+        *) printf '%s' "enterprise" ;;
+    esac
+}
+
+_gp_clear_github_tokens() {
+    unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+}
+
+_gp_restore_ambient_github_tokens() {
+    local host="$1"
+    _gp_clear_github_tokens
+    [[ "$host" == "$_GP_AMBIENT_GH_HOST" ]] || return 0
+    case "$(_gp_github_token_family "$host")" in
+        hosted)
+            if [[ "$_GP_AMBIENT_GH_TOKEN_SET" -eq 1 ]]; then export GH_TOKEN="$_GP_AMBIENT_GH_TOKEN"; fi
+            if [[ "$_GP_AMBIENT_GITHUB_TOKEN_SET" -eq 1 ]]; then export GITHUB_TOKEN="$_GP_AMBIENT_GITHUB_TOKEN"; fi
+            ;;
+        enterprise)
+            if [[ "$_GP_AMBIENT_GH_ENTERPRISE_TOKEN_SET" -eq 1 ]]; then export GH_ENTERPRISE_TOKEN="$_GP_AMBIENT_GH_ENTERPRISE_TOKEN"; fi
+            if [[ "$_GP_AMBIENT_GITHUB_ENTERPRISE_TOKEN_SET" -eq 1 ]]; then export GITHUB_ENTERPRISE_TOKEN="$_GP_AMBIENT_GITHUB_ENTERPRISE_TOKEN"; fi
+            ;;
+    esac
+}
+
+_gp_export_github_token_for_host() {
+    local host="$1" token="$2"
+    _gp_clear_github_tokens
+    case "$(_gp_github_token_family "$host")" in
+        hosted) export GH_TOKEN="$token" ;;
+        enterprise) export GH_ENTERPRISE_TOKEN="$token" ;;
+    esac
+}
 
 # Pin a provider CLI to HOST and expose the user's ambient token only when it
 # was paired with that same host. On another host the CLI can still use its
@@ -56,11 +110,7 @@ _gp_bind_provider_host() {
     case "$provider" in
         github)
             export GH_HOST="$host"
-            if [[ "$_GP_AMBIENT_GH_TOKEN_SET" -eq 1 && "$host" == "$_GP_AMBIENT_GH_HOST" ]]; then
-                export GH_TOKEN="$_GP_AMBIENT_GH_TOKEN"
-            else
-                unset GH_TOKEN
-            fi
+            _gp_restore_ambient_github_tokens "$host"
             ;;
         gitlab)
             export GITLAB_HOST="$host"
@@ -241,7 +291,7 @@ gp_token_api_login() {
                 return 3
             fi
             out=$(
-                export GH_TOKEN="$tok"
+                _gp_export_github_token_for_host "$host" "$tok"
                 export GH_HOST="$host"
                 export GH_NO_UPDATE_NOTIFIER=1
                 ${to[@]+"${to[@]}"} gh api user --jq .login 2>"$stderr_file"
@@ -357,13 +407,11 @@ gp_set_token_for_url() {
     # between remotes. The already-loaded provider is authoritative when the
     # local auth config contains only token mappings rather than host mappings.
     local provider="${_GP_LOADED_PROVIDER:-}" host=""
+    host="$(git_remote_host "$url" 2>/dev/null || true)"
     if [[ -z "$provider" ]]; then
         provider="$(gp_detect "$url" "$eco" 2>/dev/null || true)"
     fi
-    if [[ -n "$provider" ]]; then
-        host="$(git_remote_host "$url" 2>/dev/null || true)"
-        [[ -n "$host" ]] && _gp_bind_provider_host "$provider" "$host"
-    fi
+    [[ -n "$provider" && -n "$host" ]] && _gp_bind_provider_host "$provider" "$host"
 
     [[ -z "$eco" ]] && return 0
 
@@ -399,8 +447,22 @@ gp_set_token_for_url() {
                 esac
             fi
             case "$provider" in
-                github) export GH_TOKEN="$token_value" ;;
-                gitlab) export GITLAB_TOKEN="$token_value" ;;
+                github)
+                    if [[ -z "$host" ]]; then
+                        echo "ERROR: Cannot bind a mapped GitHub token without a remote host." >&2
+                        return 1
+                    fi
+                    _gp_bind_provider_host "$provider" "$host"
+                    _gp_export_github_token_for_host "$host" "$token_value"
+                    ;;
+                gitlab)
+                    if [[ -z "$host" ]]; then
+                        echo "ERROR: Cannot bind a mapped GitLab token without a remote host." >&2
+                        return 1
+                    fi
+                    _gp_bind_provider_host "$provider" "$host"
+                    export GITLAB_TOKEN="$token_value"
+                    ;;
                 *)
                     echo "ERROR: Cannot attach a mapped token to unsupported provider '$provider'." >&2
                     return 1

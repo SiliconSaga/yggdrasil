@@ -133,7 +133,14 @@ assert_denied() {
     for command in \
         'echo safe; "kubectl" delete namespace prod' \
         'VAR=value "kubectl" delete namespace prod; echo unsafe' \
-        'env "kubectl" delete namespace prod; echo unsafe'; do
+        'env "kubectl" delete namespace prod; echo unsafe' \
+        'setsid -f "kubectl" delete namespace prod; true' \
+        'time -o timing.log "kubectl" delete namespace prod; true' \
+        'timeout -k 1s 10s "kubectl" delete namespace prod; true' \
+        'nice -n 5 "kubectl" delete namespace prod; true' \
+        'ionice -c 2 -n 0 "kubectl" delete namespace prod; true' \
+        'stdbuf -o L "kubectl" delete namespace prod; true' \
+        'nohup timeout 10s "kubectl" delete namespace prod; true'; do
         run_codex_hook "$command"
         assert_denied
         [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"compound or multiline"* ]]
@@ -336,6 +343,32 @@ assert_denied() {
     run_codex_hook 'nohup timeout 10s kubectl delete pod foo -n prod'
     assert_denied
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"REJECTED by the k8s scope guard"* ]]
+}
+
+@test "quoted wrapper command words cannot evade Kubernetes inspection" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\nkubectl delete pod foo -n prod\n' > "$WORK/danger.sh"
+    local command
+    for command in \
+        'nohup "xargs" "kubectl" delete pod foo -n prod' \
+        "nohup \"bash\" $WORK/danger.sh" \
+        'nohup "kubectl" delete pod foo -n prod; true'; do
+        run_codex_hook "$command"
+        assert_denied
+    done
+}
+
+@test "env launch and split-string options cannot bypass Kubernetes inspection" {
+    seed_scope codex-test kind-practice alice-sandbox
+    local command
+    for command in \
+        'env -C /tmp kubectl delete pod foo -n prod' \
+        'env -a kubectl-probe kubectl delete pod foo -n prod' \
+        'env -S "kubectl delete pod foo -n prod"' \
+        'env --split-string="kubectl delete pod foo -n prod"'; do
+        run_codex_hook "$command"
+        assert_denied
+    done
 }
 
 @test "xargs Kubernetes construction is denied as unclassifiable" {

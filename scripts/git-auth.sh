@@ -173,5 +173,5 @@ git_auth_run() (
   for entry in ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"}; do
     export "$entry"
   done
-  "$@"
+  builtin command "$@"
 )

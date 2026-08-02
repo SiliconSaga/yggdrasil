@@ -229,7 +229,7 @@ _ws_lexical_absolute_path() {
 }
 
 ws_realm_trust_fingerprint() {
-    local name="$1" realm_dir realm_file realm_real realm_lexical canonical adapter_file relative fingerprint
+    local name="$1" realm_dir realm_file realm_real realm_lexical canonical adapter_file adapter_basename relative fingerprint
     local commands target_name target_dir command word candidate candidate_path
     local candidate_lexical lexical_in_realm candidate_parent_real referenced_path referenced_relative content_hash
     local LC_ALL=C
@@ -259,11 +259,16 @@ ws_realm_trust_fingerprint() {
     records+=("ecosystem.yaml"$'\t'"$canonical")
     for adapter_file in "$realm_dir"/adapters/*.yaml; do
         [[ -e "$adapter_file" || -L "$adapter_file" ]] || continue
+        adapter_basename="${adapter_file##*/}"
+        if [[ ! "$adapter_basename" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.yaml$ ]]; then
+            echo "ERROR: Realm adapter filename must match <target>.yaml; refusing trust approval." >&2
+            return 1
+        fi
         if [[ ! -f "$adapter_file" || -L "$adapter_file" ]]; then
             echo "ERROR: Realm adapter trust input must be a regular file: $adapter_file" >&2
             return 1
         fi
-        relative="adapters/$(basename "$adapter_file")"
+        relative="adapters/$adapter_basename"
         if ! canonical="$(yq -o=json -I=0 'sort_keys(..)' "$adapter_file" 2>/dev/null)"; then
             echo "ERROR: Cannot canonicalize $adapter_file for trust approval." >&2
             return 1
@@ -274,7 +279,7 @@ ws_realm_trust_fingerprint() {
         # path-shaped tokens from that same cwd and bind only regular files
         # canonically contained by this realm. Unrelated realm files remain
         # outside the trust surface, preserving documentation-only pulls.
-        target_name="$(basename "$adapter_file" .yaml)"
+        target_name="${adapter_basename%.yaml}"
         case "$target_name" in
             yggdrasil) target_dir="$ROOT_DIR" ;;
             *)
@@ -662,20 +667,26 @@ HELP
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
-# The trust summary renders realm-controlled strings on the terminal at the
-# exact moment a human decides whether to trust the realm. Strip control
-# characters (keeping newline/tab structure) so ANSI escape sequences cannot
-# repaint or hide parts of the review being approved.
-_ws_realm_summary_text() {
-    printf '%s' "$1" | tr -d '\000-\010\013-\037\177'
-}
-
+# Render each realm-controlled field on one physical trust-summary line. The
+# record renderers add structural separators only after fields are escaped.
 _ws_realm_summary_inline_text() {
     local value="$1"
     value="${value//$'\r'/\\r}"
     value="${value//$'\n'/\\n}"
     value="${value//$'\t'/\\t}"
-    printf '%s' "$value" | tr -d '\000-\037\177'
+    printf '%s' "$value" | jq -jRs 'gsub("[\\x{0000}-\\x{001f}\\x{007f}-\\x{009f}]"; "")'
+}
+
+_ws_realm_render_key_value_records() {
+    local records="$1" value_prefix="${2:-}" record key value
+    while IFS= read -r record; do
+        [[ -n "$record" ]] || continue
+        if ! key="$(jq -er '.key | select(type == "string")' <<< "$record" 2>/dev/null)" ||
+           ! value="$(jq -er '.value | select(type == "string")' <<< "$record" 2>/dev/null)"; then
+            return 1
+        fi
+        printf '    %s  →  %s%s\n' "$(_ws_realm_summary_inline_text "$key")" "$value_prefix" "$(_ws_realm_summary_inline_text "$value")"
+    done <<< "$records"
 }
 
 ws_realm_trust_summary() {
@@ -683,7 +694,7 @@ ws_realm_trust_summary() {
     ws_validate_component_keys "$realm_file" || return 1
     echo "Realm trust summary: $name"
     echo "  Component repository routes:"
-    local found=0 component repo host route adapter_file commands routes
+    local found=0 component repo host route adapter_file adapter_basename adapter_name commands routes command_record command_key command_value
     if ! routes="$(yq -o=json -I=0 '.components // {} | to_entries | .[] | {"component": .key, "repo": (.value.repo // "")}' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
         return 1
@@ -708,24 +719,37 @@ ws_realm_trust_summary() {
     found=0
     for adapter_file in "$realm_dir"/adapters/*.yaml; do
         [[ -e "$adapter_file" || -L "$adapter_file" ]] || continue
+        adapter_basename="${adapter_file##*/}"
+        if [[ ! "$adapter_basename" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.yaml$ ]]; then
+            echo "ERROR: adapter filename must match <target>.yaml; refusing realm adoption." >&2
+            return 1
+        fi
+        adapter_name="${adapter_basename%.yaml}"
         if [[ ! -f "$adapter_file" || -L "$adapter_file" ]]; then
             echo "ERROR: adapter trust input must be a regular file: $adapter_file" >&2
             return 1
         fi
-        if ! commands="$(yq -r '.commands // {} | to_entries | .[] | "      " + (.key | @json) + "  " + (.value | @json)' "$adapter_file" 2>/dev/null)"; then
+        if ! commands="$(yq -o=json -I=0 '.commands // {} | to_entries | .[] | {"key": .key, "value": .value}' "$adapter_file" 2>/dev/null)"; then
             echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
             return 1
         fi
         if [[ -n "$commands" ]]; then
-            echo "    $(basename "$adapter_file" .yaml):"
-            echo "$(_ws_realm_summary_text "$commands")"
+            echo "    $adapter_name:"
+            while IFS= read -r command_record; do
+                if ! command_key="$(jq -er '.key | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
+                   ! command_value="$(jq -er '.value | select(type == "string")' <<< "$command_record" 2>/dev/null)"; then
+                    echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
+                    return 1
+                fi
+                printf '      %s  %s\n' "$(_ws_realm_summary_inline_text "$command_key")" "$(_ws_realm_summary_inline_text "$command_value")"
+            done <<< "$commands"
             found=1
         fi
     done
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
     echo "  Fork routing requests:"
-    if ! commands="$(yq -r '
+    if ! commands="$(yq -o=json -I=0 '
         ([
           {"key": "identity.forkRemote", "value": (.identity.forkRemote // "")},
           {"key": "identity.homes.fork.namespace", "value": (.identity.homes.fork.namespace // "")}
@@ -733,15 +757,22 @@ ws_realm_trust_summary() {
           .components // {} | to_entries | .[] |
           {"key": ("components." + .key + ".forkRepo"), "value": (.value.forkRepo // "")}
         ])
-        | .[] | select(.value != "") | "    " + (.key | @json) + "  →  " + (.value | @json)
+        | .[] | select(.value != "")
     ' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render fork routing from $realm_file; refusing realm adoption." >&2
         return 1
     fi
-    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+    if [[ -n "$commands" ]]; then
+        if ! _ws_realm_render_key_value_records "$commands"; then
+            echo "ERROR: cannot safely render fork routing from $realm_file; refusing realm adoption." >&2
+            return 1
+        fi
+    else
+        echo "    (none declared)"
+    fi
 
     echo "  Provider and workflow routing:"
-    if ! commands="$(yq -r '
+    if ! commands="$(yq -o=json -I=0 '
         ([
           {"key": "defaults.gddHome", "value": (.defaults.gddHome // "")},
           {"key": "defaults.upstreamRemote", "value": (.defaults.upstreamRemote // "")},
@@ -750,26 +781,53 @@ ws_realm_trust_summary() {
           .defaults.gitProviders // {} | to_entries | .[] |
           {"key": ("defaults.gitProviders." + .key), "value": .value}
         ])
-        | .[] | select(.value != "") | "    " + (.key | @json) + "  →  " + (.value | @json)
+        | .[] | select(.value != "")
     ' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render provider/workflow routing from $realm_file; refusing realm adoption." >&2
         return 1
     fi
-    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+    if [[ -n "$commands" ]]; then
+        if ! _ws_realm_render_key_value_records "$commands"; then
+            echo "ERROR: cannot safely render provider/workflow routing from $realm_file; refusing realm adoption." >&2
+            return 1
+        fi
+    else
+        echo "    (none declared)"
+    fi
 
     echo "  Credential-mapping requests (not authoritative until copied locally):"
-    if ! commands="$(yq -r '.defaults.gitTokens // {} | to_entries | .[] | "    " + (.key | @json) + "  →  $" + (.value | @json)' "$realm_file" 2>/dev/null)"; then
+    if ! commands="$(yq -o=json -I=0 '.defaults.gitTokens // {} | to_entries | .[] | {"key": .key, "value": .value}' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render credential mappings from $realm_file; refusing realm adoption." >&2
         return 1
     fi
-    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+    if [[ -n "$commands" ]]; then
+        if ! _ws_realm_render_key_value_records "$commands" '$'; then
+            echo "ERROR: cannot safely render credential mappings from $realm_file; refusing realm adoption." >&2
+            return 1
+        fi
+    else
+        echo "    (none declared)"
+    fi
 
     echo "  MCP endpoints:"
-    if ! commands="$(yq -r '.mcp.servers // {} | to_entries | .[] | "    " + (.key | @json) + "  →  transport=" + (.value.transport | @json) + " " + (.value.url | @json)' "$realm_file" 2>/dev/null)"; then
+    if ! commands="$(yq -o=json -I=0 '.mcp.servers // {} | to_entries | .[] | {"key": .key, "transport": .value.transport, "url": .value.url}' "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
         return 1
     fi
-    if [[ -n "$commands" ]]; then echo "$(_ws_realm_summary_text "$commands")"; else echo "    (none declared)"; fi
+    if [[ -n "$commands" ]]; then
+        while IFS= read -r command_record; do
+            [[ -n "$command_record" ]] || continue
+            if ! command_key="$(jq -er '.key | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
+               ! command_value="$(jq -er '.url | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
+               ! route="$(jq -er '.transport | select(type == "string")' <<< "$command_record" 2>/dev/null)"; then
+                echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
+                return 1
+            fi
+            printf '    %s  →  transport=%s %s\n' "$(_ws_realm_summary_inline_text "$command_key")" "$(_ws_realm_summary_inline_text "$route")" "$(_ws_realm_summary_inline_text "$command_value")"
+        done <<< "$commands"
+    else
+        echo "    (none declared)"
+    fi
 }
 
 ws_realm_use() {
