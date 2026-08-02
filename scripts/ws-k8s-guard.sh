@@ -528,7 +528,7 @@ k8s_guard_mask_inert_quotes() {
                                         # Control-flow words keep the NEXT word in
                                         # command position — `if true; then "kubectl"
                                         # …` must not mask the quoted command word.
-                                        if|then|else|elif|fi|while|until|do|done|case|esac|'!'|'{'|'}')
+                                        if|then|else|elif|fi|while|until|do|done|'case'|'esac'|'!'|'{'|'}')
                                             ;;
                                         *)
                                             at_command_start=0
@@ -898,7 +898,19 @@ k8s_guard_evaluate() {
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
             # must not read `5s` as a second namespace). Attached (`-oyaml`) and
             # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
-            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type) i=$((i+2)); continue ;;
+            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout) i=$((i+2)); continue ;;
+            --request-timeout=*) ;;
+            --namespaced)
+                if [[ "$verb" == "api-resources" ]]; then i=$((i+2)); continue; fi
+                printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
+                return 0
+                ;;
+            --namespaced=*)
+                if [[ "$verb" != "api-resources" ]]; then
+                    printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
+                    return 0
+                fi
+                ;;
             -w|--watch|--watch-only|--show-labels|--no-headers|--ignore-not-found|--show-kind|--recursive|-R|--client|--watch=*|--watch-only=*|--show-labels=*|--no-headers=*|--ignore-not-found=*|--show-kind=*|--recursive=*|--client=*) ;;
             -*)
                 # Unknown options before the verb or its resource are ambiguous:
@@ -942,6 +954,16 @@ k8s_guard_evaluate() {
                 *) [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
                    printf 'BLOCK:unbounded:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
             esac ;;
+        cluster-info)
+            if [[ -z "$verb2" ]]; then
+                printf '%s' "$read_verdict"
+            elif [[ -z "$scope_ctx" ]]; then
+                printf 'WRITE_NO_SCOPE'
+            else
+                printf 'BLOCK:unbounded:kubectl cluster-info %s is not a bounded read' "$verb2"
+            fi
+            return 0
+            ;;
     esac
     if _k8s_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
     if [[ $raw_api -eq 1 ]]; then

@@ -206,6 +206,23 @@ EOF
         [ "$output" = "READ_IN_SCOPE" ]
     done
 }
+
+@test "verb-only reads accept bounded options without allowing cluster-info dump" {
+    run_guard "" "" kubectl api-resources --namespaced=false
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "" "" kubectl api-resources --namespaced false
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "" "" kubectl cluster-info --request-timeout=5s
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "" "" kubectl cluster-info --request-timeout 5s
+    [ "$output" = "READ_NO_SCOPE" ]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl cluster-info dump
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
 @test "write is classified even when no scope is armed" {
     run_guard "" "" kubectl apply -k overlays/plain
     [ "$output" = "WRITE_NO_SCOPE" ]
