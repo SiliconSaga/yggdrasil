@@ -97,7 +97,18 @@ case "${1:-} ${2:-}" in
       printf ' %q' "$@"
       printf '\n'
     } > "$GH_LOG"
-    echo "https://github.com/alt/project/pull/1"
+    if [[ "${GH_PR_CREATE_ADVERSARIAL_OUTPUT:-}" == "1" ]]; then
+      printf 'provider printable diagnostic\n'
+      printf 'provider controls: ESC\033[31mred\033[0m BEL\007 C1\302\23331mgreen\302\2330m\n'
+      printf 'selected: <https://github.com/alt/project/pull/1\033[0m\047\042>.\n'
+      printf 'provider BEL hyperlink: \033]8;;https://github.com/alt/project/pull/999\007visible BEL link\033]8;;\007\n'
+      printf 'provider ST hyperlink: \033]8;;https://github.com/alt/project/pull/998\033\\visible café ST link\033]8;;\033\\\n'
+      printf 'provider UTF-8 C1 hyperlink: \302\2358;;https://github.com/alt/project/pull/997\302\234visible C1 link\302\2358;;\302\234\n'
+      printf 'userinfo decoy: https://attacker.example@github.com/alt/project/pull/666\n'
+      printf 'https://unrelated.example/not-the-created-pr\n'
+    else
+      echo "https://github.com/alt/project/pull/1"
+    fi
     exit 0
     ;;
 esac
@@ -116,6 +127,40 @@ SH
     [[ "$output" == *"Opening CR for alt/project/feature/cr-remote-override"* ]]
     [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
     [[ "$(cat "$GH_LOG")" == *"--head feature/cr-remote-override"* ]]
+}
+
+@test "ws cr sanitizes provider output and promotes only a selected-host URL" {
+    export GH_PR_CREATE_ADVERSARIAL_OUTPUT=1
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: safe CR output" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    local esc bel c1_csi failures=""
+    esc="$(printf '\033')"
+    bel="$(printf '\007')"
+    c1_csi="$(printf '\302\233')"
+    [[ "$output" != *"$esc"* ]] || failures="${failures} ESC"
+    [[ "$output" != *"$bel"* ]] || failures="${failures} BEL"
+    [[ "$output" != *"$c1_csi"* ]] || failures="${failures} UTF-8-C1-CSI"
+    [[ "$output" == *"provider printable diagnostic"* ]] || failures="${failures} printable-text-missing"
+    [[ "$output" == *"visible BEL link"* ]] || failures="${failures} BEL-link-label-missing"
+    [[ "$output" == *"visible café ST link"* ]] || failures="${failures} Unicode-ST-link-label-missing"
+    [[ "$output" == *"visible C1 link"* ]] || failures="${failures} C1-link-label-missing"
+    [[ "$output" != *"[0m"* ]] || failures="${failures} SGR-remnant"
+    [[ "$output" != *"]8;;"* ]] || failures="${failures} OSC-remnant"
+    [[ "$output" != *"/pull/999"* ]] || failures="${failures} BEL-hidden-target-replayed"
+    [[ "$output" != *"/pull/998"* ]] || failures="${failures} ST-hidden-target-replayed"
+    [[ "$output" != *"/pull/997"* ]] || failures="${failures} C1-hidden-target-replayed"
+    [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1" ]] || failures="${failures} clean-selected-host-URL-missing"
+    [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1[0m)."* ]] || failures="${failures} decorated-URL-promoted"
+    [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1)."* ]] || failures="${failures} trailing-punctuation-promoted"
+    [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1'\">"* ]] || failures="${failures} closing-delimiters-promoted"
+    [[ "$output" != *"✓ CR ready: https://attacker.example@github.com/alt/project/pull/666"* ]] || failures="${failures} userinfo-URL-promoted"
+    [[ "$output" != *"✓ CR ready: https://unrelated.example/not-the-created-pr"* ]] || failures="${failures} unrelated-host-promoted"
+    [[ -z "$failures" ]] || {
+        printf 'unsafe provider-output behavior:%s\n' "$failures"
+        printf '%s\n' "$output"
+        false
+    }
 }
 
 @test "GIT_CR_REMOTE selects an alternate fork remote" {

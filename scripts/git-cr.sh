@@ -38,14 +38,40 @@ if [[ -f "$SCRIPT_DIR/ws-realm.sh" ]]; then
   _AUTH_ECO=$(ws_resolve_local_ecosystem 2>/dev/null) || _AUTH_ECO=""
 fi
 
+# Provider CLI output is untrusted terminal input. Keep ordinary text, tabs,
+# and newlines intact while removing C0 controls that could ring bells, rewrite
+# the current line, or introduce terminal escape sequences.
+_sanitize_provider_text() {
+  # Remove complete common terminal sequences before deleting individual
+  # controls, or their printable payload (for example "[0m" or an OSC-8 URL)
+  # would survive after only the introducer/terminator bytes were removed.
+  LC_ALL=C sed -E \
+    -e $'s/\033\\][^\033]*\033\\\\//g' \
+    -e $'s/\033\\][^\007]*\007//g' \
+    -e $'s/\235[^\234]*\234//g' \
+    -e $'s/\235[^\007]*\007//g' \
+    -e $'s/\302\235(\302[^\234]|[^\302])*\302\234//g' \
+    -e $'s/\302\235[^\007]*\007//g' \
+    -e $'s/\033\\[[0-?]*[ -\\/]*[@-~]//g' \
+    -e $'s/\233[0-?]*[ -\\/]*[@-~]//g' \
+    -e $'s/\302\233[0-?]*[ -\\/]*[@-~]//g' |
+  # C0 controls and DEL drop byte-wise; UTF-8-encoded C1 controls
+  # (U+0080–U+009F, e.g. the CSI code point U+009B) are the 0xC2 0x80–0x9F
+  # sequences — strip those as pairs so legit multibyte text (whose
+  # continuation bytes share the 0x80–0x9F range) is untouched.
+  LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
+}
+
 # Wrapper around gp_create_pr that captures the URL output and re-emits
 # it with a prominent "CR ready:" line. The URL was easy to lose in the
 # preceding "Opening CR..." chatter — this surfaces it as a dedicated
 # line at the end so the operator (or a follow-up `ws review` call)
 # can grab it at a glance.
 _create_pr_with_prominent_url() {
+  local fork_host="$1"
+  shift
   local rc=0
-  local output
+  local output sanitized_output
   # `output=$(...)` buffers stdout until gp_create_pr finishes
   # — the user sees nothing during the call, then the whole
   # captured text at once. That's a small UX regression vs
@@ -54,20 +80,25 @@ _create_pr_with_prominent_url() {
   # CR-creation call that takes a couple of seconds; would
   # need a tee-style approach if it ever became long-running.
   output=$(gp_create_pr "$@") || rc=$?
-  # Replay the captured output so existing downstream parsers /
-  # log scrapers see the same text they would have seen without
-  # the wrapper.
-  printf '%s\n' "$output"
+  if ! sanitized_output=$(printf '%s' "$output" | _sanitize_provider_text); then
+    echo "WARNING: Provider output could not be sanitized and was not replayed." >&2
+    return $rc
+  fi
+  # Replay only sanitized output so existing downstream parsers / log
+  # scrapers retain printable provider diagnostics without terminal controls.
+  printf '%s\n' "$sanitized_output"
   if [[ $rc -eq 0 ]]; then
-    # `grep -o ... | tail -1` returns nonzero if no match. Under
-    # `set -euo pipefail`, that nonzero would propagate through the
-    # pipe and fail the whole script — turning "PR succeeded but
-    # output had no URL we recognized" into a false-positive
-    # failure. The `|| true` neutralizes that; the `[[ -n "$url" ]]`
-    # guard already skips the prominent line cleanly when no URL is
-    # extracted.
-    local url
-    url=$(printf '%s\n' "$output" | grep -oE 'https?://[^[:space:]]+' | tail -1 || true)
+    local authority candidate candidate_host url=""
+    while IFS= read -r candidate; do
+      candidate=$(printf '%s' "$candidate" | LC_ALL=C sed -e $'s/[])}.,;:!?\'">]*$//') || continue
+      authority="${candidate#https://}"
+      authority="${authority%%/*}"
+      [[ -n "$authority" && "$authority" != *"@"* ]] || continue
+      candidate_host=$(git_remote_host "$candidate" 2>/dev/null) || continue
+      if [[ "$candidate_host" == "$fork_host" ]]; then
+        url="$candidate"
+      fi
+    done < <(printf '%s\n' "$sanitized_output" | grep -oE 'https://[^[:space:]]+' || true)
     if [[ -n "$url" ]]; then
       echo ""
       echo "✓ CR ready: $url"
@@ -259,6 +290,10 @@ if [[ -z "$FORK_URL" ]]; then
   echo "ERROR: remote '$FORK_REMOTE' has no configured URL." >&2
   exit 1
 fi
+FORK_HOST=$(git_remote_host "$FORK_URL") || {
+  echo "ERROR: Cannot determine host for fork remote '$FORK_REMOTE'." >&2
+  exit 1
+}
 
 if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
@@ -392,10 +427,6 @@ if [[ -n "$UPSTREAM" ]]; then
   # remotes on one host; refusing a hand-wired cross-host layout is safer than
   # swapping to the upstream token while the provider CLI remains pinned to
   # the fork host.
-  FORK_HOST=$(git_remote_host "$FORK_URL") || {
-    echo "ERROR: Cannot determine host for fork remote '$FORK_REMOTE'." >&2
-    exit 1
-  }
   UPSTREAM_HOST=$(git_remote_host "$UPSTREAM_URL") || {
     echo "ERROR: Cannot determine host for upstream remote '$UPSTREAM_REMOTE'." >&2
     exit 1
@@ -424,7 +455,7 @@ if [[ -n "$UPSTREAM" ]]; then
   # glab ≥1.65 with --head POSTs to the fork project — switch to fork write token
   gp_set_token_for_url "$FORK_URL" "$_AUTH_ECO"
 
-  _create_pr_with_prominent_url \
+  _create_pr_with_prominent_url "$FORK_HOST" \
     --repo "$UPSTREAM_SLUG" \
     --base "$UPSTREAM_DEFAULT" \
     --head "$BRANCH" \
@@ -444,7 +475,7 @@ else
   echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
   echo ""
 
-  _create_pr_with_prominent_url \
+  _create_pr_with_prominent_url "$FORK_HOST" \
     --repo "$FORK_SLUG" \
     --base "$DEFAULT_BRANCH" \
     --head "$BRANCH" \
