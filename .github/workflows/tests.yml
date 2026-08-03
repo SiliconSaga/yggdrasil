@@ -1,0 +1,69 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly cross-platform drift check (Monday 05:17 UTC) — the Windows job
+    # only runs here and on manual dispatch; Windows runners are slow and the
+    # suite is serial there, so per-PR Windows runs would cost more than they catch.
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Full suite — Ubuntu (parallel)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GNU parallel
+        # flock ships with Ubuntu; adding GNU parallel activates ws test's
+        # auto-parallel bats path, so CI exercises the same code owners use.
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes parallel
+      - name: Ensure yq
+        # Runner images ship mikefarah yq; this is a pinned fallback in case
+        # an image revision drops it (ws target resolution requires yq).
+        run: |
+          if ! command -v yq >/dev/null 2>&1; then
+            sudo curl -sSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          fi
+      - name: Run the full bats suite
+        run: bash scripts/ws test yggdrasil
+
+  windows:
+    name: Full suite — Windows Git Bash (serial)
+    # Guards the suite's green-on-Windows property (#133). Serial by design:
+    # bats parallelization requires flock/shlock, which Git Bash has neither of.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Force LF checkout
+        # The vendored bats scripts and *.bats files break under CRLF; pair
+        # with .gitattributes so both fresh clones and this runner stay LF.
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - name: Ensure yq
+        run: |
+          if ! command -v yq >/dev/null 2>&1; then
+            mkdir -p "$HOME/bin"
+            curl -sSL -o "$HOME/bin/yq.exe" https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_windows_amd64.exe
+            echo "$HOME/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Run the full bats suite (serial)
+        run: bash scripts/ws test yggdrasil
