@@ -85,6 +85,23 @@ setup() {
     grep -qF '"trigger_on_file_creation": false' "$settings"
 }
 
+@test "shipped plugin manifests lock every executable release asset" {
+    source "$REPO_ROOT/scripts/ws-hoard-upgrade.sh"
+    local template manifest
+    for template in obsidian-vault thalami; do
+        manifest="$REPO_ROOT/templates/hoards/$template/.upgrade/upgrade.yaml"
+        [ "$(yq '.version // 0' "$manifest")" -ge 1 ] || {
+            echo "$template plugin manifest requires a positive upgrade version" >&2
+            return 1
+        }
+        run _ws_hoard_validate_plugin_manifest "$manifest"
+        [ "$status" -eq 0 ] || {
+            echo "$template plugin lock is invalid: $output" >&2
+            return 1
+        }
+    done
+}
+
 @test "standard flow: obsidian-vault Welcome explains explicit templates and informed opt-in" {
     run_hoard_init obsidian-vault --name test-templater-welcome
     [ "$status" -eq 0 ]
