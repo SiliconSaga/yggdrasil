@@ -1108,25 +1108,73 @@ k8s_guard_evaluate() {
     # (-f Namespace manifests stay conservative — handled in the -f block.)
     # Extract the namespace type and an optional inline name, so the slash form
     # `delete ns/alice-sandbox` is treated like `delete ns alice-sandbox`.
-    local _ns_type="$verb2" _ns_inline=""
+    local _ns_type="$verb2" _ns_inline="" _ns_lifecycle_tuples_in_scope=0
     if [[ "$verb2" == */* ]]; then _ns_type="${verb2%%/*}"; _ns_inline="${verb2#*/}"; fi
     if [[ ${#ffiles[@]} -eq 0 ]] && _k8s_is_namespace_type "$_ns_type" \
         && { [[ "$verb" == "create" || "$verb" == "delete" ]]; }; then
         local -a _targets=()
+        local _nm _ns_tuple_type _ns_tuple_name _ns_typed_mismatch=0
         [[ -n "$_ns_inline" ]] && _targets+=("$_ns_inline")
-        [[ ${#rest_pos[@]} -gt 0 ]] && _targets+=("${rest_pos[@]}")
+        # Bare later operands remain namespace names. A slash-form tuple must
+        # itself use a namespace type; otherwise general delete parsing owns it.
+        for _nm in ${rest_pos[@]+"${rest_pos[@]}"}; do
+            if [[ "$_nm" == */* ]]; then
+                _ns_tuple_type="${_nm%%/*}"
+                _ns_tuple_name="${_nm#*/}"
+                if _k8s_is_namespace_type "$_ns_tuple_type" && [[ -n "$_ns_tuple_name" ]]; then
+                    _targets+=("$_ns_tuple_name")
+                else
+                    _ns_typed_mismatch=1
+                fi
+            else
+                _targets+=("$_nm")
+            fi
+        done
         if [[ ${#_targets[@]} -gt 0 ]]; then
-            local _nm _bad=""
+            local _bad=""
             for _nm in "${_targets[@]}"; do
                 _k8s_ns_in_csv "$_nm" "$scope_ns_csv" || { _bad="$_nm"; break; }
             done
-            [[ -z "$_bad" ]] && { printf 'WRITE_IN_SCOPE'; return 0; }
-            printf 'BLOCK:scope:%s namespace %s is outside the guard scope (%s)' "$verb" "$_bad" "$scope_ns_csv"; return 0
+            if [[ -z "$_bad" && "$_ns_typed_mismatch" -eq 0 ]]; then
+                printf 'WRITE_IN_SCOPE'; return 0
+            fi
+            if [[ -n "$_bad" ]]; then
+                printf 'BLOCK:scope:%s namespace %s is outside the guard scope (%s)' "$verb" "$_bad" "$scope_ns_csv"; return 0
+            fi
+            if [[ "$verb" == "delete" ]]; then _ns_lifecycle_tuples_in_scope=1; fi
         fi
         # No name (label selector / --all) → fall through to the cluster-scoped block.
     fi
-    if [[ ${#ffiles[@]} -eq 0 && -n "$verb2" ]] && _k8s_is_cluster_scoped "$verb2"; then
-        printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "${verb2%%/*}"; return 0
+    if [[ ${#ffiles[@]} -eq 0 && -n "$verb2" ]]; then
+        local _resource_segment _resource_type _typed_operand
+        local -a _resource_segments=()
+        IFS=',' read -ra _resource_segments <<< "$verb2"
+        for _resource_segment in "${_resource_segments[@]}"; do
+            _resource_type="${_resource_segment%%/*}"
+            if [[ "$_ns_lifecycle_tuples_in_scope" -eq 1 ]] && _k8s_is_namespace_type "$_resource_type"; then
+                continue
+            fi
+            if _k8s_is_cluster_scoped "$_resource_type"; then
+                printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "$_resource_type"; return 0
+            fi
+        done
+        # label/annotate accept extra resource tuples before their first key
+        # assignment or removal; everything from that data operand onward is inert.
+        if [[ "$verb" == "delete" || "$verb" == "label" || "$verb" == "annotate" ]]; then
+            for _typed_operand in ${rest_pos[@]+"${rest_pos[@]}"}; do
+                if [[ "$verb" == "label" || "$verb" == "annotate" ]]; then
+                    [[ "$_typed_operand" == *=* || "$_typed_operand" == *- ]] && break
+                fi
+                [[ "$_typed_operand" == */* ]] || continue
+                _resource_type="${_typed_operand%%/*}"
+                if [[ "$_ns_lifecycle_tuples_in_scope" -eq 1 ]] && _k8s_is_namespace_type "$_resource_type"; then
+                    continue
+                fi
+                if _k8s_is_cluster_scoped "$_resource_type"; then
+                    printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "$_resource_type"; return 0
+                fi
+            done
+        fi
     fi
 
     # -f manifest resolution (writes only). Any unresolved input is a BLOCK.

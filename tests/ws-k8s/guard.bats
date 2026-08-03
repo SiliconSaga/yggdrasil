@@ -642,6 +642,42 @@ YAML
     run_guard "kind-practice" "alice-sandbox" kubectl delete namespace prod -n alice-sandbox
     [[ "$output" == BLOCK:* ]]
 }
+@test "comma-separated resource types block when any primary type is cluster-scoped" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete namespaces,pods victim -n alice-sandbox
+    [ "$output" = "BLOCK:unbounded:namespaces is a cluster-scoped resource; writes to it are not namespace-scope-bounded" ]
+}
+@test "slash-form later operands block when their type is cluster-scoped" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod/x namespace/victim -n alice-sandbox
+    [ "$output" = "BLOCK:unbounded:namespace is a cluster-scoped resource; writes to it are not namespace-scope-bounded" ]
+}
+@test "bare later operands remain ordinary resource names" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod namespace -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "qualified label keys remain command data" {
+    run_guard "kind-practice" "alice-sandbox" kubectl label pod/x namespace/owner=team -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "label scans typed resource operands before assignment data" {
+    run_guard "kind-practice" "alice-sandbox" kubectl label pod/x namespace/victim owner=team -n alice-sandbox
+    [ "$output" = "BLOCK:unbounded:namespace is a cluster-scoped resource; writes to it are not namespace-scope-bounded" ]
+}
+@test "qualified label removal keys remain command data" {
+    run_guard "kind-practice" "alice-sandbox" kubectl label pod/x namespace/owner- -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "qualified annotation keys remain command data" {
+    run_guard "kind-practice" "alice-sandbox" kubectl annotate pod/x namespace/owner=team -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "annotate scans typed resource operands before assignment data" {
+    run_guard "kind-practice" "alice-sandbox" kubectl annotate pod/x namespace/victim owner=team -n alice-sandbox
+    [ "$output" = "BLOCK:unbounded:namespace is a cluster-scoped resource; writes to it are not namespace-scope-bounded" ]
+}
+@test "post-double-dash exec arguments remain command data" {
+    run_guard "kind-practice" "alice-sandbox" kubectl exec pod/x -n alice-sandbox -- namespace/foo
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
 @test "delete ns short alias is blocked (cluster-scoped)" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete ns prod
     [[ "$output" == BLOCK:* ]]
@@ -711,6 +747,18 @@ YAML
 }
 @test "delete ns/<name> slash form IN scope is allowed" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete ns/alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "namespace lifecycle rejects a typed later cluster-scoped resource under wildcard scope" {
+    run_guard "kind-practice" "*" kubectl delete namespace/victim namespace/other clusterrole/admin
+    [ "$output" = "BLOCK:unbounded:clusterrole is a cluster-scoped resource; writes to it are not namespace-scope-bounded" ]
+}
+@test "namespace lifecycle accepts multiple in-scope namespace tuples" {
+    run_guard "kind-practice" "alice-sandbox,bob-sandbox" kubectl delete namespace/alice-sandbox namespace/bob-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "namespace lifecycle handoff exempts approved namespace tuples from later delete scanning" {
+    run_guard "kind-practice" "alice-sandbox,bob-sandbox" kubectl delete namespace/alice-sandbox namespace/bob-sandbox pod/x -n alice-sandbox
     [ "$output" = "WRITE_IN_SCOPE" ]
 }
 @test "delete namespace/<name> slash form OUT of scope is classed 'scope'" {
