@@ -355,6 +355,26 @@ _emit_one_adapter() {
             any=1
         fi
     done
+    # ai_context pointers. Rendered here rather than checked by a
+    # separate command: a dead pointer is only a problem at the moment
+    # someone is about to follow it, which is exactly now. Paths are
+    # relative to the component root, matching how the adapter's own
+    # commands are interpreted.
+    #
+    # One tab-delimited emit rather than indexed lookups — array
+    # indexing syntax differs between yq builds, and this needs none.
+    local ctx_path ctx_desc
+    while IFS=$'\t' read -r ctx_path ctx_desc; do
+        [[ -n "$ctx_path" ]] || continue
+        ctx_path="$(_ws_orient_display_text "$ctx_path")"
+        ctx_desc="$(_ws_orient_display_text "$ctx_desc")"
+        if [[ -e "$COMPONENTS_DIR/$comp/$ctx_path" ]]; then
+            printf '    → %s — %s\n' "$ctx_path" "$ctx_desc"
+        else
+            printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc"
+        fi
+    done < <(yq -r '.ai_context // [] | .[] | (.path // "") + "\t" + (.description // "")' "$adapter_file" 2>/dev/null)
+
     if [[ $parse_failed -eq 1 ]]; then
         echo "    (adapter present but YAML parse failed — fix $adapter_file)"
     elif [[ $any -eq 0 ]]; then
@@ -364,7 +384,8 @@ _emit_one_adapter() {
 
 # Skill index — workspace + active-realm scopes only. Component
 # skills are surfaced indirectly via the component's adapter rows
-# above (the ai_context paths); listing them here would explode the
+# above, which render each ai_context pointer and flag any that no
+# longer resolve; listing component skills here would explode the
 # section into noise. Frontmatter-only parsing — the SKILL.md body
 # stays unread, so the index is cheap even on a workspace with
 # dozens of skills.

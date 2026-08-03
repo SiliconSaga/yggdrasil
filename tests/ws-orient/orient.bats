@@ -528,3 +528,66 @@ MD
     [ "$status" -eq 0 ]
     [[ "$output" == *"Change-note style: terse"* ]]
 }
+
+# ─── adapter ai_context rendering ───────────────────────────────────
+
+# A component only counts as cloned when it has a .git entry
+# (emit_component_adapters), so the fixture needs one or the adapter
+# block renders nothing and every assertion below fails for the wrong
+# reason.
+_fixture_ai_context() {
+    mkdir -p "$WORK/components/demo/.git" "$WORK/components/demo/docs"
+    printf '# real\n' > "$WORK/components/demo/docs/real.md"
+    mkdir -p "$WORK/realms/realm-fixture/adapters"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
+commands:
+  test: "echo test"
+ai_context:
+  - path: "docs/real.md"
+    description: "A doc that exists"
+  - path: "docs/gone.md"
+    description: "A doc that does not"
+YAML
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ] || return 1
+}
+
+@test "ws orient: renders ai_context rows under the component" {
+    _fixture_ai_context
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"→ docs/real.md — A doc that exists"* ]]
+}
+
+@test "ws orient: marks an ai_context path that does not resolve" {
+    _fixture_ai_context
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"→ docs/gone.md — A doc that does not (MISSING)"* ]]
+}
+
+@test "ws orient: does not mark a resolvable ai_context path as missing" {
+    # A blanket "(MISSING)" absence check would pass even if every row
+    # were marked, so pin the resolvable row's exact rendering instead.
+    _fixture_ai_context
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"docs/real.md — A doc that exists (MISSING)"* ]]
+}
+
+@test "ws orient: an adapter with no ai_context still renders its commands" {
+    # Regression guard: the ai_context loop must not disturb the
+    # existing commands rendering when the key is absent entirely.
+    mkdir -p "$WORK/components/bare/.git" "$WORK/realms/realm-fixture/adapters"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    cat > "$WORK/realms/realm-fixture/adapters/bare.yaml" <<'YAML'
+commands:
+  test: "echo bare"
+YAML
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ws test [runs: echo bare]"* ]]
+}
