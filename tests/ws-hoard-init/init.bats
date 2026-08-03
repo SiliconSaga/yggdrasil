@@ -79,6 +79,40 @@ setup() {
     [ -d "$HOARDS_DIR/test-obsidian/.git" ]
 }
 
+@test "obsidian-vault ships automatic Templater processing disabled by default" {
+    local settings="$REPO_ROOT/templates/hoards/obsidian-vault/.upgrade/data/templater-obsidian/data.json"
+    [ -f "$settings" ]
+    grep -qF '"trigger_on_file_creation": false' "$settings"
+}
+
+@test "shipped plugin manifests lock every executable release asset" {
+    source "$REPO_ROOT/scripts/ws-realm.sh"
+    source "$REPO_ROOT/scripts/ws-hoard-upgrade.sh"
+    local template manifest
+    for template in obsidian-vault thalami; do
+        manifest="$REPO_ROOT/templates/hoards/$template/.upgrade/upgrade.yaml"
+        [ "$(yq '.version // 0' "$manifest")" -ge 1 ] || {
+            echo "$template plugin manifest requires a positive upgrade version" >&2
+            return 1
+        }
+        run _ws_hoard_validate_plugin_manifest "$manifest"
+        [ "$status" -eq 0 ] || {
+            echo "$template plugin lock is invalid: $output" >&2
+            return 1
+        }
+    done
+}
+
+@test "standard flow: obsidian-vault Welcome explains explicit templates and informed opt-in" {
+    run_hoard_init obsidian-vault --name test-templater-welcome
+    [ "$status" -eq 0 ]
+
+    local welcome="$HOARDS_DIR/test-templater-welcome/00_Inbox/Welcome.md"
+    grep -qF "Create new note from template" "$welcome"
+    grep -qF "Trigger Templater on new file creation" "$welcome"
+    grep -qF "imported or clipped notes" "$welcome"
+}
+
 @test "standard flow: basic template scaffolds and git-inits" {
     run_hoard_init basic --name test-basic
     [ "$status" -eq 0 ]

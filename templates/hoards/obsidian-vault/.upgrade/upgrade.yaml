@@ -16,8 +16,10 @@
 # in templates/hoards/obsidian-vault/.gitignore). Either way,
 # manifest.json + data.json are always tracked.
 
+version: 1
 description: |
-  Templater + folder→template auto-apply, Periodic Notes (daily,
+  Templater with explicit Project/Area creation and optional folder
+  auto-apply, Periodic Notes (daily,
   weekly, monthly), Calendar sidebar, Linter (auto-format on save),
   Filename Heading Sync, Dataview, Tasks. Targets vaults laid out
   with PARA folders 00_Inbox / 10_Projects / 20_Areas / etc. and
@@ -30,42 +32,71 @@ description: |
 #   repo        — owner/repo on GitHub
 #   pin         — release tag. Upgrade tries this verbatim first,
 #                 then v<pin> as fallback (some repos use v-prefix).
+#   assets      — exact release files + SHA-256 locks. Refresh after a pin
+#                 change with `ws hoard lock obsidian-vault --plugin <id>`,
+#                 then increment the top-level version after review.
 plugins:
   - id: templater-obsidian
     name: Templater
-    description: Folder→template auto-apply on file creation; powers `<% tp.* %>` syntax in `10_Projects/` and `20_Areas/`.
+    description: Explicit Project/Area template creation with optional folder auto-apply; powers `<% tp.* %>` syntax.
     repo: SilentVoid13/Templater
     pin: "2.18.1"
+    assets:
+      "main.js": "sha256:390be01a6e5b78ffb21b79dce296564c126972c32a4ef94deff81fe2c43ec5c6"
+      "manifest.json": "sha256:bef3e826246535ad45c698f375e3f2d8adf082e97ef4389622e60e7c3da569ab"
+      "styles.css": "sha256:f7d4ee5bd4ec1d032eda1f4e1da481e713c57af964ec1e55d31494f086068d1e"
   - id: periodic-notes
     name: Periodic Notes
     description: Daily / weekly / monthly notes from the matching templates. Replaces core daily-notes (which is disabled).
     repo: liamcain/obsidian-periodic-notes
     pin: "0.0.17"
+    assets:
+      "main.js": "sha256:ccf1a18673693d1036fc7614c3af9d23e5edfe425d1053df81dddcc29b1f8b0e"
+      "manifest.json": "sha256:bda29323f75d3b3fcbda489335825b97fe4b574914d04635e9a7e67f2414049c"
+      "styles.css": "sha256:613f3985d4c84900ed2e25d8a46efb7b3ace6889fb71217055084084eb146238"
   - id: calendar
     name: Calendar
     description: Sidebar calendar widget; click a date to open or create that day's note.
     repo: liamcain/obsidian-calendar-plugin
     pin: "1.5.10"
+    assets:
+      "main.js": "sha256:7fb339e9cf9fdbe5a801fa2b8ab85b366b5b3777fbd193cbc8728bc27711d125"
+      "manifest.json": "sha256:f3e9581338648512baa12d5b458490f7fd367918f7bdb6bd86171ce57be7d08b"
   - id: dataview
     name: Dataview
     description: Query engine for live tables and dashboards. Powers `Dashboard.md`.
     repo: blacksmithgu/obsidian-dataview
     pin: "0.5.68"
+    assets:
+      "main.js": "sha256:794e9eaede73920bb8d54b0eda4f5de2182d698cc638774500f24f14bcd4da0b"
+      "manifest.json": "sha256:9235db47112da81b85591c79ecb9ae2574e5e72207056e976472f90616286185"
+      "styles.css": "sha256:3306dd9032e00f989ba7233a37fd255bc4d3f4340cee661762e952f3f6aa1de9"
   - id: obsidian-tasks-plugin
     name: Tasks
     description: "`- [ ]` query engine; due dates, recurring, filters."
     repo: obsidian-tasks-group/obsidian-tasks
     pin: "7.22.0"
+    assets:
+      "main.js": "sha256:b76c5e61de3731b1de1b9ff1a47c5045b63051f31167cb31a20aa40bc84e63f5"
+      "manifest.json": "sha256:e836405e0a7cc6c4de429dc1a2da2342efd9345f0a7d22ae7e757548fbec514a"
+      "styles.css": "sha256:925d5ddc534027426c298ef78e34e6409ec697e7de8308658bebbbb1616bce88"
   - id: obsidian-linter
     name: Linter
     description: Auto-format on save — frontmatter, headings, spacing. Keeps the vault machine-readable.
     repo: platers/obsidian-linter
     pin: "1.30.0"
+    assets:
+      "main.js": "sha256:86039acf8f38abb9e5307345c063951cc27420724692cc9a5dff6c62a689e442"
+      "manifest.json": "sha256:c9e8a627e4a50884298145aca95104103fc8b49630f3a5c594acdeab5d1bd77e"
+      "styles.css": "sha256:0ccf508b05a9445dc7c433b1acfcae9f40b2d8e218d53fdffeadd74d413c22db"
   - id: obsidian-filename-heading-sync
     name: Filename Heading Sync
     description: Keeps each note's filename and `# H1` in lockstep. Templates folder + `README.md` are excluded.
     repo: dvcrn/obsidian-filename-heading-sync
     pin: "1.10.3"
+    assets:
+      "main.js": "sha256:465576f3076ccc9d603519e7ac4b9fb08d206d70319f92c1cf9e7a2c010d4dae"
+      "manifest.json": "sha256:6e5137bb53ac1be5468da1aec1b427fb3f4eb404998817f5338cdcfe849ec776"
 
 # Core Obsidian plugins to disable (they conflict with replacements
 # installed above). Patches `.obsidian/core-plugins.json`.

@@ -4,6 +4,485 @@ load test_helper
 
 setup() { setup_dirs; }
 
+make_lock_refresh_template() {
+    local template="${1:-thalami}"
+    local main_digest="${2:-sha256:0000000000000000000000000000000000000000000000000000000000000000}"
+    local manifest_digest="${3:-sha256:0000000000000000000000000000000000000000000000000000000000000000}"
+    make_template "$template" "version: 1
+plugins:
+  - id: dataview
+    name: Dataview
+    description: Query engine.
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      \"main.js\": \"$main_digest\"
+      \"manifest.json\": \"$manifest_digest\"
+  - id: calendar
+    name: Calendar
+    description: Calendar view.
+    repo: example/calendar
+    pin: \"2.0.0\"
+    assets:
+      \"main.js\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"
+      \"manifest.json\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\""
+}
+
+@test "plugin manifest requires an asset lock before download" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\""
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"asset lock"* ]]
+}
+
+@test "plugin manifest rejects malformed SHA-256 digests" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:not-a-digest
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid SHA-256 lock"* ]]
+}
+
+@test "plugin manifest requires executable and metadata assets" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d"
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"requires"* ]]
+    [[ "$output" == *"manifest.json"* ]]
+}
+
+@test "plugin manifest rejects unsupported release asset names" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c
+      plugin.zip: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d"
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Unsupported plugin asset"* ]]
+}
+
+@test "plugin manifest rejects option-like release pins" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"--repo\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid release pin"* ]]
+}
+
+@test "plugin manifest rejects duplicate plugin ids before staging" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/first
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c
+  - id: dataview
+    repo: example/second
+    pin: \"2.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Duplicate plugin id 'dataview'"* ]]
+}
+
+@test "plugin manifest rejects plugin ids that alias on case-insensitive filesystems" {
+    make_template thalami "version: 1
+plugins:
+  - id: Dataview
+    repo: example/first
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c
+  - id: dataview
+    repo: example/second
+    pin: \"2.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+
+    run _ws_hoard_validate_plugin_manifest "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Plugin ids 'Dataview' and 'dataview' alias"* ]]
+}
+
+@test "SHA-256 helper hashes release assets portably" {
+    printf 'stub\n' > "$BATS_TEST_TMPDIR/main.js"
+
+    run _ws_hoard_sha256 "$BATS_TEST_TMPDIR/main.js"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d" ]
+}
+
+@test "SHA-256 helper explains when no supported utility exists" {
+    local empty_path="$BATS_TEST_TMPDIR/empty-bin"
+    mkdir -p "$empty_path"
+    printf 'stub\n' > "$BATS_TEST_TMPDIR/main.js"
+
+    run bash -c 'PATH="$1"; source "$2"; _ws_hoard_sha256 "$3"' _ "$empty_path" "$REPO_ROOT/scripts/ws-hoard-upgrade.sh" "$BATS_TEST_TMPDIR/main.js"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"requires sha256sum or shasum"* ]]
+}
+
+@test "checksum mismatch leaves the installed plugin unchanged" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview"
+    printf 'trusted\n' > "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js"
+    export TMPDIR="$BATS_TEST_TMPDIR/plugin-tmp"
+    mkdir -p "$TMPDIR"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"checksum mismatch"* ]]
+    [ "$(cat "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js")" = "trusted" ]
+    [ -z "$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print -quit)" ]
+}
+
+@test "a later plugin verification failure leaves every installed plugin unchanged" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c
+  - id: calendar
+    repo: example/calendar
+    pin: \"2.0.0\"
+    assets:
+      main.js: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview" "$HOARDS_DIR/h1/.obsidian/plugins/calendar"
+    printf 'first-before\n' > "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js"
+    printf 'second-before\n' > "$HOARDS_DIR/h1/.obsidian/plugins/calendar/main.js"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [ "$(cat "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js")" = "first-before" ]
+    [ "$(cat "$HOARDS_DIR/h1/.obsidian/plugins/calendar/main.js")" = "second-before" ]
+}
+
+@test "missing required release asset leaves the installed plugin unchanged" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview"
+    printf 'trusted\n' > "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js"
+    make_fake_gh
+    export FAKE_GH_OMIT_MANIFEST=1
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"missing locked asset"* ]]
+    [ "$(cat "$HOARDS_DIR/h1/.obsidian/plugins/dataview/main.js")" = "trusted" ]
+}
+
+@test "downloaded stylesheet must be declared in the asset lock" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    make_hoard h1
+    make_fake_gh
+    export FAKE_GH_WRITE_STYLES=1
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"undeclared asset"*"styles.css"* ]]
+}
+
+@test "verified release without a stylesheet installs successfully" {
+    make_template thalami "version: 1
+plugins:
+  - id: calendar
+    repo: example/calendar
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    make_hoard h1
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -eq 0 ]
+    [ -f "$HOARDS_DIR/h1/.obsidian/plugins/calendar/main.js" ]
+    [ ! -e "$HOARDS_DIR/h1/.obsidian/plugins/calendar/styles.css" ]
+}
+
+@test "verified release installs its locked stylesheet" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    repo: example/dataview
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c
+      styles.css: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d"
+    make_hoard h1
+    make_fake_gh
+    export FAKE_GH_WRITE_STYLES=1
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -eq 0 ]
+    [ "$(cat "$HOARDS_DIR/h1/.obsidian/plugins/dataview/styles.css")" = "stub" ]
+}
+
+@test "successful verified replacement removes a stale stylesheet" {
+    make_template thalami "version: 1
+plugins:
+  - id: calendar
+    repo: example/calendar
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    make_hoard h1
+    mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/calendar"
+    printf 'old-style\n' > "$HOARDS_DIR/h1/.obsidian/plugins/calendar/styles.css"
+    make_fake_gh
+
+    run _ws_hoard_apply_manifest "$TEMPLATES_DIR/hoards/thalami" "$HOARDS_DIR/h1"
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$HOARDS_DIR/h1/.obsidian/plugins/calendar/styles.css" ]
+}
+
+@test "lock refresh rejects an unknown template" {
+    make_fake_gh
+
+    run ws_hoard_lock missing-template
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Unknown hoard template"* ]]
+}
+
+@test "hoard lock help exits cleanly without downloading" {
+    export FAKE_GH_CALLS="$BATS_TEST_TMPDIR/gh-calls"
+    make_fake_gh
+
+    run bash "$REPO_ROOT/scripts/ws-hoard.sh" lock --help
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws hoard lock <template> [--plugin <id>]"* ]]
+    [ ! -e "$FAKE_GH_CALLS" ]
+}
+
+@test "lock refresh rejects an unknown plugin" {
+    make_lock_refresh_template
+    make_fake_gh
+
+    run ws_hoard_lock thalami --plugin missing-plugin
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Unknown plugin"* ]]
+}
+
+@test "lock refresh is a clean no-op for a template without plugins under system Bash" {
+    make_template empty "version: 1
+plugins: []"
+
+    run /bin/bash -c 'set -u; source "$1"; ws_hoard_lock empty' _ "$REPO_ROOT/scripts/ws-hoard-upgrade.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No plugins to lock"* ]]
+}
+
+@test "lock refresh bootstraps a missing asset mapping for a new plugin" {
+    make_template thalami "version: 1
+plugins:
+  - id: dataview
+    name: Dataview
+    repo: example/dataview
+    pin: \"1.0.0\""
+    make_fake_gh
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    run ws_hoard_lock thalami --plugin dataview
+
+    [ "$status" -eq 0 ]
+    [ "$(yq '.plugins[0].assets."main.js"' "$manifest")" = "sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d" ]
+    [ "$(yq '.plugins[0].assets."manifest.json"' "$manifest")" = "sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c" ]
+    grep -qF '      "main.js": "sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d"' "$manifest"
+}
+
+@test "single-plugin lock refresh updates only the selected asset mapping" {
+    local refreshed_main="sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d"
+    local refreshed_manifest="sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
+    local expected="$BATS_TEST_TMPDIR/expected-upgrade.yaml"
+    make_lock_refresh_template thalami "$refreshed_main" "$refreshed_manifest"
+    cp "$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml" "$expected"
+    make_lock_refresh_template
+    make_fake_gh
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    run ws_hoard_lock thalami --plugin dataview
+
+    [ "$status" -eq 0 ]
+    cmp "$manifest" "$expected"
+}
+
+@test "complete lock refresh updates every plugin atomically" {
+    make_lock_refresh_template
+    make_fake_gh
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    run ws_hoard_lock thalami
+
+    [ "$status" -eq 0 ]
+    [ "$(yq '[.plugins[].assets."main.js"] | unique | .[]' "$manifest")" = "sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d" ]
+    [ "$(yq '[.plugins[].assets."manifest.json"] | unique | .[]' "$manifest")" = "sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c" ]
+}
+
+@test "lock refresh keeps asset mappings readable in block style" {
+    make_lock_refresh_template
+    make_fake_gh
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+
+    run ws_hoard_lock thalami --plugin dataview
+
+    [ "$status" -eq 0 ]
+    grep -q '^    assets:$' "$manifest"
+    ! grep -q 'assets: {' "$manifest"
+}
+
+@test "failed lock refresh leaves the manifest byte-for-byte unchanged" {
+    make_lock_refresh_template
+    make_fake_gh
+    export FAKE_GH_FAIL_REPO=example/calendar
+    export TMPDIR="$BATS_TEST_TMPDIR/lock-tmp"
+    mkdir -p "$TMPDIR"
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+    local before
+    before="$(cat "$manifest")"
+
+    run ws_hoard_lock thalami
+
+    [ "$status" -ne 0 ]
+    [ "$(cat "$manifest")" = "$before" ]
+    [ -z "$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print -quit)" ]
+}
+
+@test "lock refresh validates the rewritten manifest before replacing the trust anchor" {
+    make_lock_refresh_template
+    make_fake_gh
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+    local before="$BATS_TEST_TMPDIR/upgrade-before.yaml"
+    cp "$manifest" "$before"
+    _ws_hoard_replace_plugin_asset_lock() {
+        printf 'plugins: [unterminated\n' > "$4"
+    }
+
+    run ws_hoard_lock thalami --plugin dataview
+
+    [ "$status" -ne 0 ]
+    cmp "$manifest" "$before"
+}
+
+@test "lock refresh falls back to a v-prefixed release tag" {
+    make_lock_refresh_template
+    make_fake_gh
+    export FAKE_GH_FAIL_TAG=1.0.0
+    export FAKE_GH_CALLS="$BATS_TEST_TMPDIR/gh-calls"
+
+    run ws_hoard_lock thalami --plugin dataview
+
+    [ "$status" -eq 0 ]
+    [ "$(awk 'NR == 1 { print $2 }' "$FAKE_GH_CALLS")" = "1.0.0" ]
+    [ "$(awk 'NR == 2 { print $2 }' "$FAKE_GH_CALLS")" = "v1.0.0" ]
+}
+
+@test "hoard help advertises the lock refresh command" {
+    run bash "$REPO_ROOT/scripts/ws-hoard.sh" --help
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"lock <template> [--plugin <id>]"* ]]
+}
+
+@test "hoard lock dispatches through the public command" {
+    make_lock_refresh_template
+    make_fake_gh
+
+    run bash "$REPO_ROOT/scripts/ws-hoard.sh" lock thalami --plugin dataview
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Updated plugin asset lock"* ]]
+}
+
 @test "provenance rejects a template name that traverses outside hoards templates" {
     make_hoard h1
     mkdir -p "$TEMPLATES_DIR/outside/.upgrade"
@@ -105,7 +584,10 @@ plugins:
 plugins:
   - id: dataview
     repo: example/dataview
-    pin: \"1.0.0\""
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
     make_hoard h1
     mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins" "$BATS_TEST_TMPDIR/outside-plugin"
     printf 'preserve\n' > "$BATS_TEST_TMPDIR/outside-plugin/marker.txt"
@@ -126,7 +608,10 @@ plugins:
 plugins:
   - id: dataview
     repo: example/dataview
-    pin: \"1.0.0\""
+    pin: \"1.0.0\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
     make_hoard h1
     mkdir -p "$HOARDS_DIR/h1/.obsidian/plugins/dataview"
     local outside_asset="$BATS_TEST_TMPDIR/outside-main.js"
@@ -281,7 +766,10 @@ plugins:
   - id: obsidian-meta-bind-plugin
     name: Meta Bind
     repo: mProjectsCode/obsidian-meta-bind-plugin
-    pin: \"1.4.1\""
+    pin: \"1.4.1\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
     make_hoard h1
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     run _ws_hoard_upgrade_plan "$HOARDS_DIR/h1" "$TEMPLATES_DIR/hoards/thalami"
@@ -341,7 +829,10 @@ plugins:
   - id: obsidian-meta-bind-plugin
     name: Meta Bind
     repo: mProjectsCode/obsidian-meta-bind-plugin
-    pin: \"1.4.1\""
+    pin: \"1.4.1\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
     make_hoard h1
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     before="$(cat "$HOARDS_DIR/h1/.obsidian/community-plugins.json")"
@@ -569,6 +1060,9 @@ plugins:
     description: x
     repo: mProjectsCode/obsidian-meta-bind-plugin
     pin: \"1.4.1\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c
 managed_regions:
   - file: ArcDashboard.md
     id: controls
@@ -607,7 +1101,10 @@ plugins:
   - id: obsidian-meta-bind-plugin
     name: Meta Bind
     repo: mProjectsCode/obsidian-meta-bind-plugin
-    pin: \"1.4.1\""
+    pin: \"1.4.1\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
     make_hoard h1
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     run ws_hoard_upgrade h1 --plan
@@ -674,7 +1171,10 @@ plugins:
   - id: dataview
     name: Dataview
     repo: blacksmithgu/obsidian-dataview
-    pin: \"0.5.68\""
+    pin: \"0.5.68\"
+    assets:
+      main.js: sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d
+      manifest.json: sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c"
     make_hoard h1
     _ws_hoard_provenance_write "$HOARDS_DIR/h1" thalami 1
     printf '["dataview","some-extra-plugin"]\n' > "$HOARDS_DIR/h1/.obsidian/community-plugins.json"

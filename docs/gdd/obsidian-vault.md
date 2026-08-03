@@ -13,8 +13,8 @@ ws hoard init obsidian-vault --name <your-vault-name>
 What this does for you:
 
 1. Copies the template content (PARA folders, base templates, `Dashboard.md`, `README.md`, `00_Inbox/Welcome.md`) into `hoards/<your-vault-name>/`
-2. Fetches seven Obsidian community plugins from their GitHub releases at pinned versions and installs them under `.obsidian/plugins/`
-3. Seeds each plugin's `data.json` with sane defaults aligned to PARA layout — Templater folder mappings, Periodic Notes wiring for daily/weekly/monthly, Linter rules, etc.
+2. Fetches seven Obsidian community plugins from their GitHub releases at pinned versions, verifies every executable asset against its committed SHA-256 lock, and installs them under `.obsidian/plugins/` only after the complete set passes
+3. Seeds each plugin's `data.json` with sane defaults aligned to PARA layout — explicit Templater creation with optional folder mappings, Periodic Notes wiring for daily/weekly/monthly, Linter rules, etc.
 4. Disables the core daily-notes plugin (Periodic Notes supersedes it) and removes its now-redundant config file
 5. Initializes a git repo and creates the initial commit
 
@@ -24,11 +24,11 @@ The first time you open the vault in Obsidian, you'll be prompted to trust the c
 
 ## What's installed
 
-Seven community plugins, all auto-installed on init and pinned to known-working versions:
+Seven community plugins, all auto-installed on init and pinned to known-working versions and release-asset hashes:
 
 | Plugin | Why |
 |--------|-----|
-| **Templater** | Folder→template auto-apply on file creation; scripted dates and titles via `<% tp.* %>`. Powers the magic where creating a note in `10_Projects/` auto-applies Project Note. |
+| **Templater** | Explicit Project/Area note creation with scripted dates and titles via `<% tp.* %>`. Automatic folder application is an informed opt-in during first-time setup. |
 | **Periodic Notes** | Daily / weekly / monthly notes from templates. Replaces the core daily-notes plugin (which is disabled). |
 | **Calendar** | Sidebar calendar widget; clicking a date opens-or-creates that day's daily note. Defers configuration to Periodic Notes when both are active. |
 | **Linter** | Auto-format on save — keeps frontmatter, headings, and spacing consistent so the vault stays machine-readable. |
@@ -45,8 +45,8 @@ Folder roles, applied by both the human and the `gdd-scribe` skill:
 | Folder | Role |
 |--------|------|
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. Process weekly to under 20 items. |
-| `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Templater auto-applies Project Note here. |
-| `20_Areas/` | Ongoing responsibilities without an end date. Templater auto-applies Area Note here. |
+| `10_Projects/` | Time-bound initiatives with a clear completion criterion. Each project gets its own subfolder. Create Project Note explicitly with Templater by default. |
+| `20_Areas/` | Ongoing responsibilities without an end date. Create Area Note explicitly with Templater by default. |
 | `30_Resources/` | Reference material organized by topic. Curated, refined. |
 | `40_Archive/` | Completed projects and inactive notes. |
 | `50_Attachments/` | Binary attachments (images, PDFs). |
@@ -66,13 +66,15 @@ Some templates ship in `60_Metadata/Templates/`. Two different substitution synt
 | `Daily Note.md` | Periodic Notes | `{{date:YYYY-MM-DD}}` (core Templates) |
 | `Weekly Review.md` | Periodic Notes | `{{date:fmt}}` + Templater JS (`<%* ... _%>`) for week-range computation |
 | `Monthly Review.md` | Periodic Notes | Same as Weekly — Templater JS for month-range |
-| `Project Note.md` | Templater (folder template) | `<% tp.date.now() %>`, `<% tp.file.title %>` |
-| `Area Note.md` | Templater (folder template) | Same |
+| `Project Note.md` | Templater (explicit; optional folder mapping) | `<% tp.date.now() %>`, `<% tp.file.title %>` |
+| `Area Note.md` | Templater (explicit; optional folder mapping) | Same |
 | `Meeting Note.md` | Templater (manual insert) | Same |
 
 **The two-syntax rule of thumb:** `{{...}}` for templates that Periodic Notes / core Templates plugin own; `<% ... %>` for templates that Templater owns. Mixing within a single template breaks YAML — putting `{{date:fmt}}` in a Templater-owned template produces invalid frontmatter (the curly braces parse as a YAML flow mapping).
 
 When the `gdd-scribe` skill creates notes via Claude (not via Obsidian's UI), it substitutes literal dates — neither plugin runs from outside Obsidian.
+
+Templater's global **Trigger Templater on new file creation** setting ships disabled. Use **Create new note from template** for the safe default workflow. The Welcome checklist explains how to opt into automatic Project/Area folder templates, along with the vault-wide consequence: imported or clipped notes are also processed as templates when that trigger is enabled.
 
 **Every template carries an `# H1` at the top mirroring its filename.** Filename Heading Sync (bundled, enabled) keeps filename and first heading in lockstep bidirectionally — renaming the file rewrites the H1 on save; changing the first heading renames the file on save. *Templates must therefore give FHS a matching H1 right after the frontmatter, before any body section headings*; without it, FHS picks the first body heading (e.g., `## Journal & Capture` in Daily Note) and renames the file to match. Custom framing for periodic reviews (e.g., "Weekly review for 2026-05-06 to 2026-05-12") goes in an italic body line below the H1, not in the H1.
 
@@ -157,17 +159,18 @@ Cross-platform safe (Windows / Mac / Linux):
 
 ## Refresh / upgrade
 
-`ws hoard upgrade <vault-name>` allows you to re-baseline the hoard against the template, for instance if new plugin versions have been pinned:
+`ws hoard upgrade <vault-name>` allows you to re-baseline the hoard against the template, for instance if new plugin versions have been pinned. Preview first, then apply after reviewing the plan:
 
 ```bash
-ws hoard upgrade <your-vault-name>
+ws hoard upgrade <your-vault-name> --plan
+ws hoard upgrade <your-vault-name> --apply
 ```
 
 Run it any time you want to re-sync the vault to the template's current state — typically after pulling a yggdrasil update that bumps plugin pins. New vaults commit plugin code by default, so a fresh `git clone` of an existing vault arrives plugin-code-included and Obsidian works without `ws hoard upgrade` running first; upgrade is for *intentional* re-baselines.
 
 What upgrade does:
 
-- Re-downloads each plugin's `main.js` / `styles.css` from its pinned GitHub release
+- Re-downloads each plugin's `main.js`, `manifest.json`, and optional `styles.css` from its pinned GitHub release into temporary staging, verifies their committed SHA-256 locks, then replaces the installed set
 - Re-seeds each plugin's `data.json` from the template
 - Disables the core daily-notes plugin (in case it's been re-enabled)
 - Refreshes the auto-managed "Installed plugins" table in `README.md` between sentinel markers — versions track upgrade.yaml, descriptions track upgrade.yaml. Edits outside the marker block are preserved.
@@ -178,9 +181,11 @@ Upgrade is idempotent — safe to run repeatedly.
 
 Plugin pins live in `templates/hoards/obsidian-vault/.upgrade/upgrade.yaml`. To bump:
 
-1. Edit the `pin:` field for the relevant plugin
-2. `ws hoard upgrade <vault-name>` — re-fetches at the new tag
-3. Plugin code is replaced; `data.json` is *also* re-overwritten (V1 limitation — see [#58](https://github.com/SiliconSaga/yggdrasil/issues/58) for the JSON-merge followup that will preserve user customizations)
+1. Edit the `pin:` field for the relevant plugin.
+2. Run `ws hoard lock obsidian-vault --plugin <id>` to download the selected release and refresh its `assets:` SHA-256 mapping atomically.
+3. Review the manifest diff so the new release identity and hashes are an intentional trust decision.
+4. Increment the template's top-level `version:` so existing hoards see a pending upgrade; `ws hoard lock` deliberately changes only the selected asset mapping.
+5. Run `ws hoard upgrade <vault-name> --plan`, review the classified changes, then run `ws hoard upgrade <vault-name> --apply` to re-fetch, verify, and install the locked release. Plugin code is replaced; `data.json` is *also* re-overwritten (V1 limitation — see [#58](https://github.com/SiliconSaga/yggdrasil/issues/58) for the JSON-merge followup that will preserve user customizations).
 
 If you've customized a plugin's `data.json` (e.g. added Templater folder mappings, modified Linter rules), back it up before upgrading until #58 lands.
 

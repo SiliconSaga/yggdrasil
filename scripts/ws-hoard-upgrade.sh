@@ -80,10 +80,128 @@ _ws_hoard_contained_path() {
     esac
 }
 
+# Print the SHA-256 digest for FILE using the native utility available on the
+# current platform. Git Bash and most Linux systems ship sha256sum; macOS ships
+# shasum. Release integrity is mandatory, so there is no unhashed fallback.
+_ws_hoard_sha256() {
+    local file="$1" output digest
+    if command -v sha256sum >/dev/null 2>&1; then
+        output="$(sha256sum "$file")" || return 1
+    elif command -v shasum >/dev/null 2>&1; then
+        output="$(shasum -a 256 "$file")" || return 1
+    else
+        echo "ERROR: SHA-256 verification requires sha256sum or shasum." >&2
+        return 1
+    fi
+    digest="${output%% *}"
+    if [[ ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "ERROR: SHA-256 utility returned an invalid digest for $file." >&2
+        return 1
+    fi
+    printf '%s\n' "$digest"
+}
+
+# Validate the release identity fields needed both to generate and consume a
+# lock. Lock refresh deliberately calls this narrower helper because it must be
+# able to bootstrap a manifest whose asset mappings are absent or stale.
+_ws_hoard_validate_plugin_metadata() {
+    local upgrade_yaml="$1"
+    local count i id repo pin id_folded prior_index prior_id prior_folded
+    count="$(yq '.plugins // [] | length' "$upgrade_yaml")" || return 1
+    i=0
+    while [[ $i -lt $count ]]; do
+        id="$(yq ".plugins[$i].id // \"\"" "$upgrade_yaml")"
+        repo="$(yq ".plugins[$i].repo // \"\"" "$upgrade_yaml")"
+        pin="$(yq ".plugins[$i].pin // \"\"" "$upgrade_yaml")"
+        if [[ ! "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "ERROR: Invalid plugin id '$id'; expected one safe path segment." >&2
+            return 1
+        fi
+        id_folded="$(printf '%s' "$id" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+        prior_index=0
+        while [[ $prior_index -lt $i ]]; do
+            prior_id="$(yq ".plugins[$prior_index].id // \"\"" "$upgrade_yaml")"
+            if [[ "$id" == "$prior_id" ]]; then
+                echo "ERROR: Duplicate plugin id '$id'." >&2
+                return 1
+            fi
+            prior_folded="$(printf '%s' "$prior_id" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+            if [[ "$id_folded" == "$prior_folded" ]]; then
+                echo "ERROR: Plugin ids '$prior_id' and '$id' alias on case-insensitive filesystems." >&2
+                return 1
+            fi
+            prior_index=$((prior_index + 1))
+        done
+        if [[ ! "$repo" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo "ERROR: Invalid plugin repository '$repo' for $id; expected owner/repo." >&2
+            return 1
+        fi
+        if [[ ! "$pin" =~ ^[A-Za-z0-9][A-Za-z0-9._/+:-]*$ ]]; then
+            echo "ERROR: Invalid release pin for plugin $id." >&2
+            return 1
+        fi
+        i=$((i + 1))
+    done
+}
+
+# Validate the committed asset lock for every plugin in a template manifest.
+# Asset names are deliberately closed: these are the files Obsidian loads, and
+# accepting arbitrary manifest-controlled paths would undermine the destination
+# containment checks below.
+_ws_hoard_validate_plugin_manifest() {
+    local upgrade_yaml="$1"
+    local count i id assets_type asset_count asset_index asset digest required
+    _ws_hoard_validate_plugin_metadata "$upgrade_yaml" || return 1
+    count="$(yq '.plugins // [] | length' "$upgrade_yaml")" || return 1
+    i=0
+    while [[ $i -lt $count ]]; do
+        id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
+
+        assets_type="$(yq ".plugins[$i].assets | type" "$upgrade_yaml" 2>/dev/null)"
+        if [[ "$assets_type" != "!!map" ]]; then
+            echo "ERROR: Plugin $id is missing its asset lock." >&2
+            return 1
+        fi
+        asset_count="$(yq ".plugins[$i].assets | length" "$upgrade_yaml")" || return 1
+        if [[ "$asset_count" -lt 2 ]]; then
+            echo "ERROR: Plugin $id asset lock requires main.js and manifest.json." >&2
+            return 1
+        fi
+        for required in main.js manifest.json; do
+            digest="$(yq ".plugins[$i].assets.\"$required\" // \"\"" "$upgrade_yaml")"
+            if [[ -z "$digest" ]]; then
+                echo "ERROR: Plugin $id asset lock requires $required." >&2
+                return 1
+            fi
+        done
+
+        asset_index=0
+        while [[ $asset_index -lt $asset_count ]]; do
+            asset="$(yq ".plugins[$i].assets | to_entries | .[$asset_index].key" "$upgrade_yaml")"
+            digest="$(yq ".plugins[$i].assets | to_entries | .[$asset_index].value" "$upgrade_yaml")"
+            case "$asset" in
+                main.js|manifest.json|styles.css) ;;
+                *)
+                    echo "ERROR: Unsupported plugin asset '$asset' for $id." >&2
+                    return 1
+                    ;;
+            esac
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                echo "ERROR: Invalid SHA-256 lock for $id/$asset." >&2
+                return 1
+            fi
+            asset_index=$((asset_index + 1))
+        done
+        i=$((i + 1))
+    done
+}
+
 _ws_hoard_validate_manifest_paths() {
     local hoard_dir="$1" template_dir="$2"
     local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
     [[ -f "$upgrade_yaml" ]] || return 0
+
+    _ws_hoard_validate_plugin_manifest "$upgrade_yaml" || return 1
 
     local count i rel rfile rsrc plugin_id plugin_asset
     count="$(yq '.plugins // [] | length' "$upgrade_yaml")"
@@ -492,6 +610,7 @@ _ws_hoard_upgrade_gh_download() {
     local pin="$1" repo="$2" out_dir="$3"
     local tag
     for tag in "$pin" "v$pin"; do
+        rm -f -- "$out_dir/main.js" "$out_dir/manifest.json" "$out_dir/styles.css" || return 1
         if gh release download "$tag" -R "$repo" \
             --pattern "main.js" --pattern "manifest.json" --pattern "styles.css" \
             --dir "$out_dir" --clobber 2>/dev/null; then
@@ -500,6 +619,354 @@ _ws_hoard_upgrade_gh_download() {
     done
     return 1
 }
+
+# Verify one plugin's staged release against its committed asset lock. The
+# downloader requests only the three supported Obsidian assets, so any
+# supported file that arrives without a lock is also an integrity error.
+_ws_hoard_verify_staged_plugin() {
+    local upgrade_yaml="$1" plugin_index="$2" stage_dir="$3"
+    local id asset expected actual staged
+    id="$(yq ".plugins[$plugin_index].id" "$upgrade_yaml")"
+    for asset in main.js manifest.json styles.css; do
+        expected="$(yq ".plugins[$plugin_index].assets.\"$asset\" // \"\"" "$upgrade_yaml")"
+        staged="$stage_dir/$asset"
+        if [[ -n "$expected" && ( ! -f "$staged" || -L "$staged" ) ]]; then
+            echo "ERROR: Plugin $id release is missing locked asset $asset." >&2
+            return 1
+        fi
+        if [[ -z "$expected" && ( -e "$staged" || -L "$staged" ) ]]; then
+            echo "ERROR: Plugin $id release contains undeclared asset $asset." >&2
+            return 1
+        fi
+        [[ -n "$expected" ]] || continue
+        actual="$(_ws_hoard_sha256 "$staged")" || return 1
+        if [[ "sha256:$actual" != "$expected" ]]; then
+            echo "ERROR: Plugin $id/$asset checksum mismatch." >&2
+            echo "  expected: $expected" >&2
+            echo "  actual:   sha256:$actual" >&2
+            return 1
+        fi
+    done
+}
+
+# Replace or insert exactly one plugin's assets mapping while preserving every
+# byte outside that mapping. Hoard templates keep plugins as a
+# two-space-indented block sequence so maintainers can review lock-only diffs.
+_ws_hoard_replace_plugin_asset_lock() {
+    local input="$1" plugin_index="$2" lock_file="$3" output="$4"
+    local main_digest manifest_digest styles_digest
+    main_digest="$(jq -r '."main.js" // ""' "$lock_file")" || return 1
+    manifest_digest="$(jq -r '."manifest.json" // ""' "$lock_file")" || return 1
+    styles_digest="$(jq -r '."styles.css" // ""' "$lock_file")" || return 1
+
+    awk \
+        -v target="$plugin_index" \
+        -v main_digest="$main_digest" \
+        -v manifest_digest="$manifest_digest" \
+        -v styles_digest="$styles_digest" '
+        function indentation(line, first) {
+            first = match(line, /[^ ]/)
+            return first == 0 ? length(line) : first - 1
+        }
+        function emit_lock() {
+            print "    assets:"
+            print "      \"main.js\": \"" main_digest "\""
+            print "      \"manifest.json\": \"" manifest_digest "\""
+            if (styles_digest != "") {
+                print "      \"styles.css\": \"" styles_digest "\""
+            }
+        }
+        BEGIN {
+            in_plugins = 0
+            current_plugin = -1
+            replacing = 0
+            replaced = 0
+            pending_blank = ""
+        }
+        {
+            line = $0
+            if (replacing) {
+                if (line ~ /^[[:space:]]*$/) {
+                    pending_blank = pending_blank line ORS
+                    next
+                }
+                if (indentation(line) > 4) {
+                    pending_blank = ""
+                    next
+                }
+                printf "%s", pending_blank
+                pending_blank = ""
+                replacing = 0
+            }
+            if (!in_plugins) {
+                if (line ~ /^plugins:[[:space:]]*(#.*)?$/) {
+                    in_plugins = 1
+                }
+                print line
+                next
+            }
+            if (in_plugins && current_plugin == target && replaced == 0 &&
+                (line ~ /^  -[[:space:]]/ || line ~ /^[^[:space:]#]/)) {
+                emit_lock()
+                replaced++
+            }
+            if (line ~ /^[^[:space:]#]/ && line !~ /^plugins:/) {
+                in_plugins = 0
+            }
+            if (in_plugins && line ~ /^  -[[:space:]]/) {
+                current_plugin++
+            }
+            if (in_plugins && current_plugin == target && line ~ /^    assets:[[:space:]]*(#.*)?$/) {
+                emit_lock()
+                replacing = 1
+                replaced++
+                next
+            }
+            print line
+        }
+        END {
+            printf "%s", pending_blank
+            if (replaced == 0 && current_plugin == target) {
+                emit_lock()
+                replaced++
+            }
+            if (replaced != 1) {
+                exit 42
+            }
+        }
+    ' "$input" > "$output"
+}
+
+# Download and verify the complete plugin set before changing any destination.
+# A subshell contains the EXIT trap so staging is cleaned without disturbing a
+# caller's traps when this library is sourced by ws-hoard.sh or Bats.
+_ws_hoard_apply_plugins() (
+    local upgrade_yaml="$1" hoard_dir="$2"
+    local plugin_count i id repo pin stage_root stage_dir
+    local plugin_rel plugin_dir asset asset_count asset_index
+    plugin_count="$(yq '.plugins // [] | length' "$upgrade_yaml")" || return 1
+    [[ "$plugin_count" -gt 0 ]] || return 0
+
+    if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+        echo "ERROR: SHA-256 verification requires sha256sum or shasum." >&2
+        return 1
+    fi
+    stage_root="$(mktemp -d "${TMPDIR:-/tmp}/ws-hoard-plugins.XXXXXX")" || {
+        echo "ERROR: Could not create plugin download staging directory." >&2
+        return 1
+    }
+    trap 'rm -rf -- "$stage_root"' EXIT HUP INT TERM
+
+    echo "Downloading and verifying $plugin_count plugin(s) from GitHub releases..."
+    i=0
+    while [[ $i -lt $plugin_count ]]; do
+        id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
+        repo="$(yq ".plugins[$i].repo" "$upgrade_yaml")"
+        pin="$(yq ".plugins[$i].pin" "$upgrade_yaml")"
+        stage_dir="$stage_root/$id"
+        mkdir -p "$stage_dir" || return 1
+        printf "  [%d/%d] %s @ %s — " $((i + 1)) "$plugin_count" "$id" "$pin"
+        if ! _ws_hoard_upgrade_gh_download "$pin" "$repo" "$stage_dir"; then
+            echo "FAILED"
+            echo "    Could not download from $repo at tag '$pin' or 'v$pin'." >&2
+            return 1
+        fi
+        if ! _ws_hoard_verify_staged_plugin "$upgrade_yaml" "$i" "$stage_dir"; then
+            echo "FAILED"
+            return 1
+        fi
+        echo "verified"
+        i=$((i + 1))
+    done
+
+    # Every download is trusted now. Revalidate destination containment at the
+    # final write boundary, clear the controlled asset set, and copy only the
+    # files named by the lock so stale optional assets cannot survive a bump.
+    i=0
+    while [[ $i -lt $plugin_count ]]; do
+        id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
+        plugin_rel=".obsidian/plugins/$id"
+        plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$plugin_rel" "hoard")" || return 1
+        mkdir -p "$plugin_dir" || return 1
+        plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$plugin_rel" "hoard")" || return 1
+        for asset in main.js manifest.json styles.css; do
+            _ws_hoard_contained_path "$hoard_dir" "$plugin_rel/$asset" "hoard" >/dev/null || return 1
+            rm -f -- "$plugin_dir/$asset" || return 1
+        done
+        asset_count="$(yq ".plugins[$i].assets | length" "$upgrade_yaml")" || return 1
+        asset_index=0
+        while [[ $asset_index -lt $asset_count ]]; do
+            asset="$(yq ".plugins[$i].assets | to_entries | .[$asset_index].key" "$upgrade_yaml")"
+            cp "$stage_root/$id/$asset" "$plugin_dir/$asset" || return 1
+            asset_index=$((asset_index + 1))
+        done
+        i=$((i + 1))
+    done
+    echo ""
+)
+
+# Refresh the committed asset locks for one hoard template. This is a
+# maintainer operation: it trusts the selected upstream release long enough to
+# calculate a new local trust anchor, but never installs the downloaded files.
+# The manifest replacement happens only after every selected plugin succeeds.
+ws_hoard_lock() (
+    local template="${1:-}" selected_plugin=""
+    case "$template" in
+        help|--help|-h)
+            echo "Usage: ws hoard lock <template> [--plugin <id>]"
+            return 0
+            ;;
+    esac
+    [[ -n "$template" ]] || {
+        echo "Usage: ws hoard lock <template> [--plugin <id>]" >&2
+        return 2
+    }
+    shift
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --plugin)
+                [[ $# -ge 2 && -n "$2" ]] || {
+                    echo "ERROR: --plugin requires a plugin id." >&2
+                    return 2
+                }
+                selected_plugin="$2"
+                shift 2
+                ;;
+            *)
+                echo "ERROR: Unknown lock option: $1" >&2
+                return 2
+                ;;
+        esac
+    done
+    if [[ ! "$template" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Invalid hoard template name '$template'." >&2
+        return 1
+    fi
+
+    local template_dir="$TEMPLATES_DIR/hoards/$template"
+    local upgrade_yaml="$template_dir/.upgrade/upgrade.yaml"
+    if [[ ! -f "$upgrade_yaml" ]]; then
+        echo "ERROR: Unknown hoard template '$template' or missing .upgrade/upgrade.yaml." >&2
+        return 1
+    fi
+    _ws_hoard_validate_plugin_metadata "$upgrade_yaml" || return 1
+
+    local plugin_count i id repo pin selected_count=0
+    local stage_root stage_dir main_digest manifest_digest styles_digest assets_json
+    local manifest_tmp rewrite_tmp lock_file
+    local selected_indices=()
+    plugin_count="$(yq '.plugins // [] | length' "$upgrade_yaml")" || return 1
+    i=0
+    while [[ $i -lt $plugin_count ]]; do
+        id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
+        if [[ -z "$selected_plugin" || "$id" == "$selected_plugin" ]]; then
+            selected_indices+=("$i")
+            selected_count=$((selected_count + 1))
+        fi
+        i=$((i + 1))
+    done
+    if [[ -n "$selected_plugin" && "$selected_count" -eq 0 ]]; then
+        echo "ERROR: Unknown plugin '$selected_plugin' in template '$template'." >&2
+        return 1
+    fi
+    if [[ "$selected_count" -eq 0 ]]; then
+        echo "No plugins to lock in template '$template'."
+        return 0
+    fi
+
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "ERROR: gh (GitHub CLI) is required to refresh plugin locks." >&2
+        return 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "ERROR: jq is required to refresh plugin locks." >&2
+        return 1
+    fi
+    if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+        echo "ERROR: SHA-256 verification requires sha256sum or shasum." >&2
+        return 1
+    fi
+
+    stage_root="$(mktemp -d "${TMPDIR:-/tmp}/ws-hoard-lock.XXXXXX")" || {
+        echo "ERROR: Could not create plugin lock staging directory." >&2
+        return 1
+    }
+    manifest_tmp=""
+    rewrite_tmp=""
+    trap 'rm -rf -- "$stage_root"; [[ -z "$manifest_tmp" ]] || rm -f -- "$manifest_tmp"; [[ -z "$rewrite_tmp" ]] || rm -f -- "$rewrite_tmp"' EXIT HUP INT TERM
+
+    local selected_index
+    for selected_index in "${selected_indices[@]}"; do
+        id="$(yq ".plugins[$selected_index].id" "$upgrade_yaml")"
+        repo="$(yq ".plugins[$selected_index].repo" "$upgrade_yaml")"
+        pin="$(yq ".plugins[$selected_index].pin" "$upgrade_yaml")"
+        stage_dir="$stage_root/$id"
+        mkdir -p "$stage_dir" || return 1
+        printf 'Locking %s @ %s — ' "$id" "$pin"
+        if ! _ws_hoard_upgrade_gh_download "$pin" "$repo" "$stage_dir"; then
+            echo "FAILED"
+            echo "ERROR: Could not download from $repo at tag '$pin' or 'v$pin'." >&2
+            return 1
+        fi
+        if [[ ! -f "$stage_dir/main.js" || -L "$stage_dir/main.js" ]]; then
+            echo "FAILED"
+            echo "ERROR: Plugin $id release is missing required asset main.js." >&2
+            return 1
+        fi
+        if [[ ! -f "$stage_dir/manifest.json" || -L "$stage_dir/manifest.json" ]]; then
+            echo "FAILED"
+            echo "ERROR: Plugin $id release is missing required asset manifest.json." >&2
+            return 1
+        fi
+        main_digest="$(_ws_hoard_sha256 "$stage_dir/main.js")" || return 1
+        manifest_digest="$(_ws_hoard_sha256 "$stage_dir/manifest.json")" || return 1
+        styles_digest=""
+        if [[ -e "$stage_dir/styles.css" || -L "$stage_dir/styles.css" ]]; then
+            if [[ ! -f "$stage_dir/styles.css" || -L "$stage_dir/styles.css" ]]; then
+                echo "FAILED"
+                echo "ERROR: Plugin $id release asset styles.css is not a regular file." >&2
+                return 1
+            fi
+            styles_digest="$(_ws_hoard_sha256 "$stage_dir/styles.css")" || return 1
+        fi
+        assets_json="$(jq -n \
+            --arg main "sha256:$main_digest" \
+            --arg manifest "sha256:$manifest_digest" \
+            --arg styles "${styles_digest:+sha256:$styles_digest}" \
+            '{"main.js": $main, "manifest.json": $manifest} + (if $styles == "" then {} else {"styles.css": $styles} end)')" || return 1
+        lock_file="$stage_dir/assets.json"
+        printf '%s\n' "$assets_json" > "$lock_file" || return 1
+        echo "ok"
+    done
+
+    manifest_tmp="$(mktemp "$template_dir/.upgrade/upgrade.yaml.lock.XXXXXX")" || {
+        echo "ERROR: Could not create temporary plugin manifest." >&2
+        return 1
+    }
+    cp -p "$upgrade_yaml" "$manifest_tmp" || return 1
+    for selected_index in "${selected_indices[@]}"; do
+        id="$(yq ".plugins[$selected_index].id" "$upgrade_yaml")"
+        lock_file="$stage_root/$id/assets.json"
+        rewrite_tmp="$(mktemp "$template_dir/.upgrade/upgrade.yaml.rewrite.XXXXXX")" || {
+            echo "ERROR: Could not create temporary plugin manifest rewrite." >&2
+            return 1
+        }
+        cp -p "$manifest_tmp" "$rewrite_tmp" || return 1
+        if ! _ws_hoard_replace_plugin_asset_lock "$manifest_tmp" "$selected_index" "$lock_file" "$rewrite_tmp"; then
+            echo "ERROR: Could not locate the assets block for plugin $id." >&2
+            return 1
+        fi
+        mv "$rewrite_tmp" "$manifest_tmp" || return 1
+        rewrite_tmp=""
+    done
+    if ! _ws_hoard_validate_plugin_manifest "$manifest_tmp"; then
+        echo "ERROR: Rewritten plugin asset lock failed validation; the original manifest was preserved." >&2
+        return 1
+    fi
+    mv "$manifest_tmp" "$upgrade_yaml" || return 1
+    manifest_tmp=""
+    echo "Updated plugin asset lock: $upgrade_yaml"
+)
 
 # Internal: run an upgrade given resolved paths. Used by both the
 # public `ws hoard upgrade` command and ws_hoard_init's post-copy
@@ -534,39 +1001,8 @@ _ws_hoard_apply_manifest() {
         return 1
     fi
 
-    # 1. Download each plugin's release assets.
-    local plugin_count
-    plugin_count="$(yq '.plugins | length' "$upgrade_yaml")"
-    if [[ "$plugin_count" -gt 0 ]]; then
-        echo "Downloading $plugin_count plugin(s) from GitHub releases..."
-        local i=0 plugin_asset
-        while [[ $i -lt $plugin_count ]]; do
-            local id repo pin
-            id="$(yq ".plugins[$i].id" "$upgrade_yaml")"
-            repo="$(yq ".plugins[$i].repo" "$upgrade_yaml")"
-            pin="$(yq ".plugins[$i].pin" "$upgrade_yaml")"
-            local plugin_rel=".obsidian/plugins/$id" plugin_dir
-            plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$plugin_rel" "hoard")" || return 1
-            mkdir -p "$plugin_dir" || return 1
-            # Revalidate after creation and immediately before the download so
-            # an existing or newly introduced per-plugin symlink cannot turn
-            # the release client's --dir into an out-of-hoard write.
-            plugin_dir="$(_ws_hoard_contained_path "$hoard_dir" "$plugin_rel" "hoard")" || return 1
-            for plugin_asset in main.js manifest.json styles.css; do
-                _ws_hoard_contained_path "$hoard_dir" "$plugin_rel/$plugin_asset" "hoard" >/dev/null || return 1
-            done
-            printf "  [%d/%d] %s @ %s — " $((i+1)) "$plugin_count" "$id" "$pin"
-            if _ws_hoard_upgrade_gh_download "$pin" "$repo" "$plugin_dir"; then
-                echo "ok"
-            else
-                echo "FAILED"
-                echo "    Could not download from $repo at tag '$pin' or 'v$pin'." >&2
-                return 1
-            fi
-            i=$((i+1))
-        done
-        echo ""
-    fi
+    # 1. Stage and verify the complete release set before installing any code.
+    _ws_hoard_apply_plugins "$upgrade_yaml" "$hoard_dir" || return 1
 
     # 2. Overlay template's data/<id>/data.json files into the hoard.
     if [[ -d "$template_dir/.upgrade/data" ]]; then

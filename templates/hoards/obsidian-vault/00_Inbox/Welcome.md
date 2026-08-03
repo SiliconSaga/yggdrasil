@@ -43,11 +43,13 @@ Recommended setup is Calendar above `Dashboard.md` in the same pane (both visibl
 
 **Don't link tabs** between Calendar and Dashboard. Linking causes one tab's navigation to replace the other's content — opposite of what you want for a stable pinned dashboard.
 
-### 5. Test the magic
+### 5. Create a note from a template
 
-Create a note in `10_Projects/` (any name). Templater should auto-apply the Project Note template — frontmatter with today's date, H1 = filename. Same in `20_Areas/`.
+Templater starts in explicit mode so newly imported notes are not interpreted as templates. Right-click `10_Projects/` and choose **Create new note from template**, then select **Project Note**. Use **Area Note** in `20_Areas/`. The result should include frontmatter with today's date and an H1 matching the filename.
 
 If `created:` shows up as something weird like `{"...":null}`, the Templater configuration is wrong — file an issue.
+
+**Optional automatic folder templates:** Settings → Templater → enable **Trigger Templater on new file creation**. The Project and Area folder mappings are already configured. This setting applies vault-wide: imported or clipped notes can contain Templater JavaScript and will be processed when created. Leave it disabled if this vault receives Web Clipper, sync, or other externally sourced notes.
 
 Try wikilinking too: in any note, type `[[` and you'll get an autocomplete picker — for example `[[Dashboard]]` opens this vault's dashboard, `[[Welcome]]` jumps back here.
 

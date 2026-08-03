@@ -46,7 +46,7 @@ The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. D
 
 7. **Intentional hook bypass for local operators:** `WS_HOOK_DISABLE=1` disables the committed PreToolUse hook checks for a session. This is an explicit local-operator escape hatch for recovery, debugging, or temporarily working outside GDD's guardrails; using it gives up the hook's deny, redirect, and force-ask behavior until the variable is cleared.
 
-8. **Supply-chain exposure in auxiliary tooling:** Docs builds, vendored test tools, hoard templates, Obsidian vault plugins, and future hoard upgrades may fetch or execute external code. Current mitigations are conservative template workflows, human review, direct dependency pins for the docs workflow, and explicit trust assumptions. Stronger checksum or lockfile enforcement is future hardening, not the current baseline.
+8. **Supply-chain exposure in auxiliary tooling:** Docs builds, vendored test tools, hoard templates, Obsidian vault plugins, and future hoard upgrades may fetch or execute external code. Obsidian plugin release assets are pinned by tag and committed SHA-256, downloaded into temporary staging, and installed only after the complete set verifies; lock refresh remains an explicit maintainer action whose diff is reviewed. Conservative template workflows, human review, direct dependency pins for the docs workflow, and explicit trust assumptions cover the remaining auxiliary surfaces. Full transitive locking for the informational docs pipeline remains a future hardening option rather than the current baseline.
 
 ## Critical Security Assumptions
 

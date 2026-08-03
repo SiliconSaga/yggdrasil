@@ -109,6 +109,8 @@ Templates evolve — a new plugin, a new managed block on a dashboard — and `w
 - `ws hoard upgrade <hoard> --apply` snapshots the whole hoard to `.upgrade-backup/<timestamp>/` first, then applies the plan and bumps `applied_version`. If the backup can't be taken, it aborts before changing anything.
 - `ws hoard upgrade <hoard> --rollback` restores the most recent snapshot, so you can apply, inspect in Obsidian, and retry until it's clean.
 
+Templates that install Obsidian plugins carry an `assets:` lock beside each release pin. Init and upgrade download every declared `main.js`, `manifest.json`, and optional `styles.css` into temporary staging, verify their committed SHA-256 values, and leave the installed plugin set untouched if any download or digest fails. Maintainers bump a plugin by editing its `pin:`, running `ws hoard lock <template> --plugin <id>`, reviewing the resulting lock-only diff, incrementing the template's top-level `version:`, then running `ws hoard upgrade <hoard> --plan` and approving `--apply`; omitting `--plugin` refreshes the complete template lock atomically. The lock command deliberately changes only `assets:` values and never advances the upgrade version itself.
+
 The `gdd-hoard-upgrade` skill drives the loop: it runs `--plan`, proposes the destructive and region changes to you for approval (additive changes are safe), and only then runs `--apply`. A hoard without `.hoard.yaml` is adopted with `--template <name>`, which records provenance one version behind the template so only the newest change applies rather than re-applying the whole recipe.
 
 (Plugin `data.json` is currently overwritten on apply rather than merged, so per-hoard plugin-setting tweaks don't yet survive an upgrade — tracked as future work.)

@@ -339,6 +339,9 @@ ws_hoard_help() {
     echo "                           --apply backs up then applies; --rollback" >&2
     echo "                           restores the last backup. The gdd-hoard-upgrade" >&2
     echo "                           skill drives the propose-then-apply flow." >&2
+    echo "  lock <template> [--plugin <id>]" >&2
+    echo "                           Refresh committed SHA-256 locks for a template's" >&2
+    echo "                           pinned plugin release assets." >&2
 }
 
 # Read staleness_days from a hoard's `.ws-cadence.yaml`. Defaults to 2
@@ -1009,6 +1012,9 @@ case "$SUBCMD" in
         ;;
     upgrade)
         ws_hoard_upgrade "$@"
+        ;;
+    lock)
+        ws_hoard_lock "$@"
         ;;
     *)
         ws_hoard_clone_url "$SUBCMD" "$@"

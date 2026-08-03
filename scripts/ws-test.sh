@@ -232,7 +232,7 @@ for arg in "$@"; do
     if [[ "$arg" == -* ]]; then
         runner_args+=("$arg")
         # Flags that consume the next arg as a value.
-        # Boolean flags like --parallel, --info, --debug are NOT listed.
+        # Boolean flags like --info and --debug are NOT listed.
         case "$arg" in
             # Shared / Go / Gradle / pytest
             -run|--tests|-k|-m|-o|--maxfail|--tb|-timeout|\
@@ -286,16 +286,79 @@ reject_multiple_keyword_selectors() {
     exit 1
 }
 
+_ws_bats_probe_cleanup() {
+    local probe_pid="${1:-}" watchdog_pid="${2:-}" output_file="${3:-}"
+    if [[ -n "$probe_pid" ]]; then
+        kill -KILL -- "-$probe_pid" 2>/dev/null || true
+        wait "$probe_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$watchdog_pid" ]]; then
+        kill -KILL -- "-$watchdog_pid" 2>/dev/null || true
+        wait "$watchdog_pid" 2>/dev/null || true
+    fi
+    if [[ -n "$output_file" ]]; then
+        rm -f "$output_file"
+    fi
+}
+
+_ws_bats_probe_backend() (
+    local backend_path="$1"
+    local output_file="" probe_pid="" watchdog_pid="" probe_status=1 probe_output=""
+    local probe_budget_seconds=3
+
+    output_file="$(mktemp "${TMPDIR:-/tmp}/ws-bats-probe.XXXXXX" 2>/dev/null)" || return 1
+    trap '_ws_bats_probe_cleanup "$probe_pid" "$watchdog_pid" "$output_file"' EXIT
+    trap 'exit 1' HUP INT TERM
+
+    # Job control gives both the candidate and watchdog isolated process
+    # groups, so timeout cleanup reaches their ordinary descendants too.
+    set -m
+    "$backend_path" --keep-order --jobs 1 -- : '&&' printf 'verified:%s' '{}' \
+        <<< 'ws-bats-probe' >"$output_file" 2>/dev/null &
+    probe_pid=$!
+    (
+        sleep "$probe_budget_seconds"
+        if kill -TERM -- "-$probe_pid" 2>/dev/null; then
+            sleep 1
+            kill -KILL -- "-$probe_pid" 2>/dev/null || true
+        fi
+    ) &
+    watchdog_pid=$!
+    set +m
+
+    if wait "$probe_pid"; then
+        probe_status=0
+    else
+        probe_status=$?
+    fi
+    # The leader may accept TERM while an ordinary descendant ignores it.
+    # Finish the candidate group before forgetting its ID or canceling the
+    # watchdog, so no same-group work survives a rejected probe.
+    kill -KILL -- "-$probe_pid" 2>/dev/null || true
+    probe_pid=""
+
+    kill -TERM -- "-$watchdog_pid" 2>/dev/null || true
+    wait "$watchdog_pid" 2>/dev/null || true
+    watchdog_pid=""
+
+    [[ "$probe_status" -eq 0 ]] || return 1
+    probe_output="$(<"$output_file")"
+    [[ "$probe_output" == "verified:ws-bats-probe" ]]
+)
+
 _ws_bats_parallel_backend() {
-    local backend_name backend_path probe_output
+    local backend_name backend_path
     for backend_name in rush parallel; do
         backend_path="$(type -P "$backend_name" 2>/dev/null)" || continue
-        probe_output="$("$backend_path" --keep-order --jobs 1 -- 'printf "verified:%s\n" "{}"' <<< 'ws-bats-probe' 2>/dev/null)" || continue
-        [[ "$probe_output" == "verified:ws-bats-probe" ]] || continue
+        _ws_bats_probe_backend "$backend_path" || continue
         printf '%s\n' "$backend_name"
         return 0
     done
     return 1
+}
+
+_ws_bats_lock_helper_available() {
+    type -P flock >/dev/null 2>&1 || type -P shlock >/dev/null 2>&1
 }
 
 _ws_bats_job_count() {
@@ -331,7 +394,7 @@ _ws_bats_file_count() {
         if [[ "$recursive" == true ]]; then
             while IFS= read -r -d '' file; do
                 count=$((count + 1))
-            done < <(find -L "$path" -type f -name "*.$extension" -print0)
+            done < <(find -L "$path" -type f -name "*.$extension" -print0 2>/dev/null)
         else
             shopt -s nullglob
             direct_files=("$path"/*."$extension")
@@ -498,7 +561,7 @@ case "$runner" in
         fi
 
         _bats_recursive=false
-        for _bats_arg in "${runner_args[@]}"; do
+        for _bats_arg in ${runner_args[@]+"${runner_args[@]}"}; do
             case "$_bats_arg" in
                 -r|--recursive) _bats_recursive=true ;;
             esac
@@ -508,7 +571,12 @@ case "$runner" in
         # A same-name executable is not enough: exercise the small command
         # contract Bats relies on before selecting an optional backend.
         _bats_parallel_bin=""
-        if [[ "$bats_user_set_backend" != true ]] && \
+        _bats_parallel_allowed=false
+        if [[ "$bats_user_set_jobs" == true ]] || _ws_bats_lock_helper_available; then
+            _bats_parallel_allowed=true
+        fi
+        if [[ "$_bats_parallel_allowed" == true ]] && \
+           [[ "$bats_user_set_backend" != true ]] && \
            [[ "$bats_user_set_jobs" == true || $_bats_file_count -gt 1 ]]; then
             _bats_parallel_bin="$(_ws_bats_parallel_backend)" || _bats_parallel_bin=""
             if [[ -n "$_bats_parallel_bin" ]]; then
@@ -529,7 +597,7 @@ case "$runner" in
             fi
         fi
 
-        bats_argv+=("${runner_args[@]}" "${bats_files[@]}")
+        bats_argv+=(${runner_args[@]+"${runner_args[@]}"} "${bats_files[@]}")
         "${bats_argv[@]}"
         ;;
 esac

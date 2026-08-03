@@ -60,7 +60,7 @@ Follow these steps, or better yet see the shortcut at the end.
 
 Obsidian creates a `.obsidian/` directory the first time you open the vault; that's gitignored by default since it's a per-machine UI preference store, not shared state.
 
-**Shortcut:** instead of installing the two plugins by hand, `ws hoard upgrade thalami --apply` downloads and enables the pinned Dataview + Meta Bind releases into this vault's `.obsidian/` for you. You still do steps 1, 4, and 5.
+**Shortcut:** instead of installing the two plugins by hand, preview with `ws hoard upgrade thalami --plan`, then approve `ws hoard upgrade thalami --apply` to download the pinned Dataview + Meta Bind releases, verify their template-owned SHA-256 locks, and enable them in this vault's `.obsidian/` only after the complete set passes. You still do steps 1, 4, and 5.
 
 ---
 

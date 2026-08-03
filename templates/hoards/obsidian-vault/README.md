@@ -7,8 +7,8 @@ Personal Obsidian vault, scaffolded as a hoard inside a GDD workspace. PARA-laid
 | Folder | Role |
 |--------|------|
 | `00_Inbox/` | Capture point. Daily / weekly / monthly notes land here. |
-| `10_Projects/` | Time-bound initiatives. Templater auto-applies Project Note. |
-| `20_Areas/` | Ongoing responsibilities. Templater auto-applies Area Note. |
+| `10_Projects/` | Time-bound initiatives. Create Project Note explicitly with Templater; automatic folder templates are an optional setup choice. |
+| `20_Areas/` | Ongoing responsibilities. Create Area Note explicitly with Templater; automatic folder templates are an optional setup choice. |
 | `30_Resources/` | Reference material. Curated, refined. |
 | `40_Archive/` | Completed projects and inactive notes. |
 | `50_Attachments/` | Binary attachments (images, PDFs). |
@@ -20,7 +20,7 @@ Personal Obsidian vault, scaffolded as a hoard inside a GDD workspace. PARA-laid
 - **First-time setup:** see [[Welcome]] (process and archive when done)
 - **Mobile sync (Android):** the Welcome doc has a dedicated "Mobile setup" section walking through the Obsidian Git plugin install + clone dance
 - **Full overview:** [obsidian-vault hoard docs](https://siliconsaga.github.io/yggdrasil/gdd/obsidian-vault) — plugin rationale, template syntax, daily/weekly/monthly cadence, customization, mobile sync architecture
-- **Refresh plugins:** `ws hoard upgrade <this-vault-name>` from the workspace root
+- **Refresh verified plugins:** run `ws hoard upgrade <this-vault-name> --plan` from the workspace root, review it, then use `--apply`; releases must match the SHA-256 locks shipped by the source template
 - **Capture / review workflows:** the `scribe` skill knows this vault — say *"jot this in my inbox"*, *"do a daily review"*, *"weekly synthesis"*, etc.
 - **GDD bridge (if your vault sits in a GDD workspace):** scribe ceremonies propose moving `#gdd`-tagged daily-note bullets to the thalami hoard's `Intake.md`. See [[PKM/Ceremony Layers]] and the [organization-stack model](https://siliconsaga.github.io/yggdrasil/gdd/organization-stack).
 - **Live dashboard:** [[Dashboard]] — pin it next to your Calendar view

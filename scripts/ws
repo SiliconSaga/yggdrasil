@@ -40,6 +40,7 @@
 #   hoard <url>                Clone an existing hoard
 #   hoard list                 Show hoards and which thalami hoard is active
 #   hoard upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]  Provenance-tracked plugin/config upgrade
+#   hoard lock <template> [--plugin <id>]  Refresh pinned plugin release SHA-256 locks
 #   component init <flavor> [name]   Scaffold a new component from a template
 #   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component

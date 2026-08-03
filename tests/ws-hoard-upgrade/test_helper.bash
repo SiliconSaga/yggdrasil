@@ -34,19 +34,41 @@ make_hoard() {
     printf '[]\n' > "$dir/.obsidian/community-plugins.json"
 }
 
-# Put a fake `gh` on PATH that emulates `gh release download ... --dir D`
-# by writing dummy main.js + manifest.json into D. No network.
+# Put a configurable fake `gh` on PATH that emulates
+# `gh release download <tag> -R <repo> ... --dir D`. No network.
 make_fake_gh() {
     local bindir="$BATS_TEST_TMPDIR/bin"
     mkdir -p "$bindir"
-    cat > "$bindir/gh" <<'SH'
+cat > "$bindir/gh" <<'SH'
 #!/usr/bin/env bash
-dir=""; prev=""
-for a in "$@"; do [[ "$prev" == "--dir" ]] && dir="$a"; prev="$a"; done
+dir=""; repo=""; tag="${3:-}"; prev=""
+for a in "$@"; do
+  [[ "$prev" == "--dir" ]] && dir="$a"
+  [[ "$prev" == "-R" ]] && repo="$a"
+  prev="$a"
+done
+if [[ -n "${FAKE_GH_CALLS:-}" ]]; then
+  printf '%s\t%s\n' "$repo" "$tag" >> "$FAKE_GH_CALLS"
+fi
+if [[ -n "${FAKE_GH_FAIL_REPO:-}" && "$repo" == "$FAKE_GH_FAIL_REPO" ]]; then
+  exit 1
+fi
+if [[ -n "${FAKE_GH_FAIL_TAG:-}" && "$tag" == "$FAKE_GH_FAIL_TAG" ]]; then
+  exit 1
+fi
 if [[ -n "$dir" ]]; then
   mkdir -p "$dir"
-  printf 'stub\n' > "$dir/main.js"
-  printf '{"id":"stub"}\n' > "$dir/manifest.json"
+  if [[ "${FAKE_GH_OMIT_MAIN:-0}" != "1" ]]; then
+    printf '%s\n' "${FAKE_GH_MAIN_BODY:-stub}" > "$dir/main.js"
+  fi
+  if [[ "${FAKE_GH_OMIT_MANIFEST:-0}" != "1" ]]; then
+    manifest_body="${FAKE_GH_MANIFEST_BODY:-}"
+    [[ -n "$manifest_body" ]] || manifest_body='{"id":"stub"}'
+    printf '%s\n' "$manifest_body" > "$dir/manifest.json"
+  fi
+  if [[ "${FAKE_GH_WRITE_STYLES:-0}" == "1" ]]; then
+    printf '%s\n' "${FAKE_GH_STYLES_BODY:-stub}" > "$dir/styles.css"
+  fi
 fi
 exit 0
 SH
