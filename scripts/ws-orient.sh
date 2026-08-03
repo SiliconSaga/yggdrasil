@@ -49,7 +49,7 @@ fi
 # helpful diagnostic at startup. Deliberately AFTER the --help
 # short-circuit so a fresh-machine user can still discover `ws orient`
 # before installing every prerequisite.
-if ! type -P yq &>/dev/null; then
+if ! type -P yq &>/dev/null || ! type -P jq &>/dev/null; then
     # Fresh machine: ws orient can't read the ecosystem config without yq.
     # Rather than a bare error, flow straight into preflight (which runs
     # WITHOUT yq) so the user gets the full per-OS install hints in one
@@ -336,6 +336,44 @@ _ws_orient_display_text() {
     printf '%s' "$1" | tr '\011\012\015' '   ' | tr -d '\000-\010\013-\037\177'
 }
 
+# Classify one realm-declared component context path without allowing the
+# existence probe to leave the component through traversal or symlinks.
+_ws_orient_component_context_status() {
+    local component_dir="$1" relative="$2" remaining segment candidate
+    if [[ -z "$relative" || "$relative" == /* || "$relative" == *\\* || "$relative" =~ [[:cntrl:]] ]]; then
+        echo "invalid"
+        return 0
+    fi
+
+    candidate="$component_dir"
+    remaining="$relative"
+    while [[ -n "$remaining" ]]; do
+        segment="${remaining%%/*}"
+        if [[ "$remaining" == */* ]]; then
+            remaining="${remaining#*/}"
+        else
+            remaining=""
+        fi
+        case "$segment" in
+            ""|.|..)
+                echo "invalid"
+                return 0
+                ;;
+        esac
+        candidate="$candidate/$segment"
+        if [[ -L "$candidate" ]]; then
+            echo "invalid"
+            return 0
+        fi
+    done
+
+    if [[ -e "$candidate" ]]; then
+        echo "present"
+    else
+        echo "missing"
+    fi
+}
+
 _emit_one_adapter() {
     local comp="$1" active_realm="$2"
     echo "  $comp"
@@ -361,19 +399,24 @@ _emit_one_adapter() {
     # relative to the component root, matching how the adapter's own
     # commands are interpreted.
     #
-    # One tab-delimited emit rather than indexed lookups — array
-    # indexing syntax differs between yq builds, and this needs none.
-    local ctx_path ctx_desc
-    while IFS=$'\t' read -r ctx_path ctx_desc; do
-        [[ -n "$ctx_path" ]] || continue
-        ctx_path="$(_ws_orient_display_text "$ctx_path")"
-        ctx_desc="$(_ws_orient_display_text "$ctx_desc")"
-        if [[ -e "$COMPONENTS_DIR/$comp/$ctx_path" ]]; then
-            printf '    → %s — %s\n' "$ctx_path" "$ctx_desc"
-        else
-            printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc"
-        fi
-    done < <(yq -r '.ai_context // [] | .[] | (.path // "") + "\t" + (.description // "")' "$adapter_file" 2>/dev/null)
+    # Compact JSON keeps embedded tabs/newlines inside one record so they can
+    # be neutralized before rendering instead of forging peer rows.
+    local ctx_record ctx_path_raw ctx_desc_raw ctx_path ctx_desc ctx_status
+    while IFS= read -r ctx_record; do
+        ctx_path_raw="$(jq -r '(.path // "" | tostring) + "\u001f"' <<< "$ctx_record" 2>/dev/null)" || continue
+        ctx_desc_raw="$(jq -r '(.description // "" | tostring) + "\u001f"' <<< "$ctx_record" 2>/dev/null)" || continue
+        ctx_path_raw="${ctx_path_raw%$'\037'}"
+        ctx_desc_raw="${ctx_desc_raw%$'\037'}"
+        [[ -n "$ctx_path_raw" ]] || continue
+        ctx_path="$(_ws_orient_display_text "$ctx_path_raw")"
+        ctx_desc="$(_ws_orient_display_text "$ctx_desc_raw")"
+        ctx_status="$(_ws_orient_component_context_status "$COMPONENTS_DIR/$comp" "$ctx_path_raw")"
+        case "$ctx_status" in
+            present) printf '    → %s — %s\n' "$ctx_path" "$ctx_desc" ;;
+            missing) printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc" ;;
+            *) printf '    → %s — %s (INVALID PATH)\n' "$ctx_path" "$ctx_desc" ;;
+        esac
+    done < <(yq -o=json -I=0 '.ai_context // [] | .[]' "$adapter_file" 2>/dev/null)
 
     if [[ $parse_failed -eq 1 ]]; then
         echo "    (adapter present but YAML parse failed — fix $adapter_file)"

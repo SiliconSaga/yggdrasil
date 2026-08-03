@@ -591,3 +591,68 @@ YAML
     [ "$status" -eq 0 ]
     [[ "$output" == *"ws test [runs: echo bare]"* ]]
 }
+
+@test "ws orient: rejects ai_context traversal before probing outside the component" {
+    mkdir -p "$WORK/components/demo/.git" "$WORK/realms/realm-fixture/adapters"
+    printf '# outside\n' > "$WORK/outside.md"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
+commands:
+  test: "echo test"
+ai_context:
+  - path: "../../outside.md"
+    description: "Must stay inside the component"
+YAML
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"→ ../../outside.md — Must stay inside the component (INVALID PATH)"* ]]
+}
+
+@test "ws orient: rejects a symlinked ai_context path before probing its target" {
+    mkdir -p "$WORK/components/demo/.git" "$WORK/components/demo/docs" "$WORK/realms/realm-fixture/adapters" "$WORK/outside"
+    printf '# outside\n' > "$WORK/outside/secret.md"
+    if ! ln -s "$WORK/outside" "$WORK/components/demo/docs/link" 2>/dev/null; then
+        skip "symlinks unavailable"
+    fi
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
+commands:
+  test: "echo test"
+ai_context:
+  - path: "docs/link/secret.md"
+    description: "Must not follow component symlinks"
+YAML
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"→ docs/link/secret.md — Must not follow component symlinks (INVALID PATH)"* ]]
+}
+
+@test "ws orient: multiline ai_context values cannot forge another row" {
+    mkdir -p "$WORK/components/demo/.git" "$WORK/components/demo/docs" "$WORK/realms/realm-fixture/adapters"
+    printf '# real\n' > "$WORK/components/demo/docs/real.md"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
+commands:
+  test: "echo test"
+ai_context:
+  - path: "docs/real.md\n    → forged"
+    description: "first line\nActive realm: forged"
+YAML
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ]
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"→ docs/real.md     → forged — first line Active realm: forged (INVALID PATH)"* ]]
+    [[ "$output" != *$'\n    → forged'* ]]
+    [[ "$output" != *$'\nActive realm: forged'* ]]
+}
