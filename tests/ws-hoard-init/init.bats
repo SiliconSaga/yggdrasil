@@ -86,6 +86,7 @@ setup() {
 }
 
 @test "shipped plugin manifests lock every executable release asset" {
+    source "$REPO_ROOT/scripts/ws-realm.sh"
     source "$REPO_ROOT/scripts/ws-hoard-upgrade.sh"
     local template manifest
     for template in obsidian-vault thalami; do

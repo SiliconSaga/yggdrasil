@@ -30,7 +30,11 @@ teardown() {
     local child_pid=""
     if [[ -n "${TERM_IGNORING_CHILD_PID_FILE:-}" && -s "$TERM_IGNORING_CHILD_PID_FILE" ]]; then
         child_pid="$(<"$TERM_IGNORING_CHILD_PID_FILE")"
-        kill -KILL "$child_pid" 2>/dev/null || true
+        rm -f -- "$TERM_IGNORING_CHILD_PID_FILE"
+        TERM_IGNORING_CHILD_PID_FILE=""
+        if [[ "$child_pid" =~ ^[1-9][0-9]*$ ]]; then
+            kill -KILL "$child_pid" 2>/dev/null || true
+        fi
     fi
 }
 
@@ -88,7 +92,7 @@ if [[ "$#" -ne 9 || "$1" != "--keep-order" || "$2" != "--jobs" || "$3" != "1" ||
     exit 64
 fi
 IFS= read -r input
-sleep 2
+sleep 1
 printf 'verified:%s' "$input"
 EOF
     chmod +x "$FAKE_BIN/$name"
@@ -181,6 +185,7 @@ EOF
 
 @test "bats runner rejects a compatible backend that exceeds the probe budget" {
     write_slow_compatible_backend rush
+    write_lock_helper shlock
 
     run_ws_test yggdrasil
 

@@ -42,10 +42,11 @@ fi
 # and newlines intact while removing C0 controls that could ring bells, rewrite
 # the current line, or introduce terminal escape sequences.
 _sanitize_provider_text() {
+  local sequence_stripped="" utf8_text=""
   # Remove complete common terminal sequences before deleting individual
   # controls, or their printable payload (for example "[0m" or an OSC-8 URL)
   # would survive after only the introducer/terminator bytes were removed.
-  LC_ALL=C sed -E \
+  sequence_stripped="$(LC_ALL=C sed -E \
     -e $'s/\033\\][^\033]*\033\\\\//g' \
     -e $'s/\033\\][^\234]*\234//g' \
     -e $'s/\033\\](\302[^\234]|[^\302])*\302\234//g' \
@@ -60,15 +61,25 @@ _sanitize_provider_text() {
     -e $'s/\302\235[^\007]*\007//g' \
     -e $'s/\033\\[[0-?]*[ -\\/]*[@-~]//g' \
     -e $'s/\233[0-?]*[ -\\/]*[@-~]//g' \
-    -e $'s/\302\233[0-?]*[ -\\/]*[@-~]//g' |
+    -e $'s/\302\233[0-?]*[ -\\/]*[@-~]//g')" || return 1
   # Invalid standalone bytes, including raw 8-bit C1 controls, are discarded
   # without corrupting valid UTF-8 text whose continuation bytes overlap that
   # range. C0 controls and DEL then drop byte-wise; UTF-8-encoded C1 controls
   # (U+0080–U+009F, e.g. the CSI code point U+009B) are the 0xC2 0x80–0x9F
   # sequences — strip those as pairs so legit multibyte text (whose
   # continuation bytes share the 0x80–0x9F range) is untouched.
-  LC_ALL=C iconv -f UTF-8 -t UTF-8 -c 2>/dev/null |
-  LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
+  if command -v iconv >/dev/null 2>&1 &&
+      utf8_text="$(printf '%s' "$sequence_stripped" | LC_ALL=C iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)"; then
+    printf '%s' "$utf8_text" |
+      LC_ALL=C tr -d '\000-\010\013-\037\177' |
+      LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
+    return
+  fi
+
+  # iconv is optional. Its conservative fallback keeps the provider's ASCII
+  # URL and diagnostics while dropping every byte that could be malformed
+  # UTF-8 or an 8-bit terminal control.
+  printf '%s' "$sequence_stripped" | LC_ALL=C tr -d '\000-\010\013-\037\177-\377'
 }
 
 # Wrapper around gp_create_pr that captures the URL output and re-emits
@@ -104,14 +115,13 @@ _create_pr_with_prominent_url() (
     echo "WARNING: Provider stdout could not be sanitized and was not replayed." >&2
     return $rc
   fi
+  # Replay independently validated stdout before handling stderr. A failure in
+  # one provider stream must not suppress safe diagnostics or the created URL
+  # from the other stream.
+  printf '%s\n' "$sanitized_output"
   if ! sanitized_error=$(printf '%s' "$error_output" | _sanitize_provider_text); then
     echo "WARNING: Provider stderr could not be sanitized and was not replayed." >&2
-    return $rc
-  fi
-  # Replay only sanitized output so existing downstream parsers / log
-  # scrapers retain printable provider diagnostics without terminal controls.
-  printf '%s\n' "$sanitized_output"
-  if [[ -n "$sanitized_error" ]]; then
+  elif [[ -n "$sanitized_error" ]]; then
     printf '%s\n' "$sanitized_error" >&2
   fi
   if [[ $rc -eq 0 ]]; then

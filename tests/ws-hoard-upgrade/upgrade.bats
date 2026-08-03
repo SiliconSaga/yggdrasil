@@ -16,16 +16,16 @@ plugins:
     repo: example/dataview
     pin: \"1.0.0\"
     assets:
-      main.js: $main_digest
-      manifest.json: $manifest_digest
+      \"main.js\": \"$main_digest\"
+      \"manifest.json\": \"$manifest_digest\"
   - id: calendar
     name: Calendar
     description: Calendar view.
     repo: example/calendar
     pin: \"2.0.0\"
     assets:
-      main.js: sha256:1111111111111111111111111111111111111111111111111111111111111111
-      manifest.json: sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      \"main.js\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"
+      \"manifest.json\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\""
 }
 
 @test "plugin manifest requires an asset lock before download" {
@@ -352,6 +352,16 @@ plugins:
     [[ "$output" == *"Unknown plugin"* ]]
 }
 
+@test "lock refresh is a clean no-op for a template without plugins under system Bash" {
+    make_template empty "version: 1
+plugins: []"
+
+    run /bin/bash -c 'set -u; source "$1"; ws_hoard_lock empty' _ "$REPO_ROOT/scripts/ws-hoard-upgrade.sh"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No plugins to lock"* ]]
+}
+
 @test "lock refresh bootstraps a missing asset mapping for a new plugin" {
     make_template thalami "version: 1
 plugins:
@@ -367,6 +377,7 @@ plugins:
     [ "$status" -eq 0 ]
     [ "$(yq '.plugins[0].assets."main.js"' "$manifest")" = "sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d" ]
     [ "$(yq '.plugins[0].assets."manifest.json"' "$manifest")" = "sha256:770ec444d1f087cb3f957201681779d599e9174819a012dc2895a7699df2d35c" ]
+    grep -qF '      "main.js": "sha256:25cf54c697a69632c5952486ec189be371ddddc422bca30910f17b2c3a0ba31d"' "$manifest"
 }
 
 @test "single-plugin lock refresh updates only the selected asset mapping" {
@@ -382,7 +393,7 @@ plugins:
     run ws_hoard_lock thalami --plugin dataview
 
     [ "$status" -eq 0 ]
-    cmp -s "$manifest" "$expected"
+    cmp "$manifest" "$expected"
 }
 
 @test "complete lock refresh updates every plugin atomically" {
@@ -424,6 +435,22 @@ plugins:
     [ "$status" -ne 0 ]
     [ "$(cat "$manifest")" = "$before" ]
     [ -z "$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -print -quit)" ]
+}
+
+@test "lock refresh validates the rewritten manifest before replacing the trust anchor" {
+    make_lock_refresh_template
+    make_fake_gh
+    local manifest="$TEMPLATES_DIR/hoards/thalami/.upgrade/upgrade.yaml"
+    local before="$BATS_TEST_TMPDIR/upgrade-before.yaml"
+    cp "$manifest" "$before"
+    _ws_hoard_replace_plugin_asset_lock() {
+        printf 'plugins: [unterminated\n' > "$4"
+    }
+
+    run ws_hoard_lock thalami --plugin dataview
+
+    [ "$status" -ne 0 ]
+    cmp "$manifest" "$before"
 }
 
 @test "lock refresh falls back to a v-prefixed release tag" {

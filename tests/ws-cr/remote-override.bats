@@ -82,6 +82,7 @@ MD
 
     GH_STUB_DIR="$BATS_TEST_TMPDIR/gh-stub"
     GH_LOG="$BATS_TEST_TMPDIR/gh.log"
+    REAL_TR="$(type -P tr)"
     mkdir -p "$GH_STUB_DIR"
     cat > "$GH_STUB_DIR/gh" <<'SH'
 #!/usr/bin/env bash
@@ -127,7 +128,28 @@ exit 1
 SH
     chmod +x "$GH_STUB_DIR/gh"
     export GH_LOG
+    export REAL_TR
     export PATH="$GH_STUB_DIR:$PATH"
+}
+
+write_failing_iconv() {
+    cat > "$GH_STUB_DIR/iconv" <<'SH'
+#!/usr/bin/env bash
+exit 127
+SH
+    chmod +x "$GH_STUB_DIR/iconv"
+}
+
+write_stderr_rejecting_tr() {
+    cat > "$GH_STUB_DIR/tr" <<'SH'
+#!/usr/bin/env bash
+input="$(</dev/stdin)"
+if [[ "$input" == *"provider stderr printable diagnostic"* ]]; then
+    exit 70
+fi
+printf '%s' "$input" | "$REAL_TR" "$@"
+SH
+    chmod +x "$GH_STUB_DIR/tr"
 }
 
 @test "ws cr --remote selects an alternate fork remote" {
@@ -204,6 +226,33 @@ SH
         printf 'stdout:\n%s\nstderr:\n%s\n' "$output" "$stderr"
         false
     }
+}
+
+@test "ws cr preserves safe ASCII provider output when iconv is unavailable" {
+    write_failing_iconv
+    export GH_PR_CREATE_ADVERSARIAL_OUTPUT=1
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: safe CR fallback" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"provider printable diagnostic"* ]]
+    [[ "$output" == *"provider Unicode diagnostic: quoted text"* ]]
+    [[ "$output" != *"“"* ]]
+    [[ "$output" != *"”"* ]]
+    [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1"* ]]
+}
+
+@test "ws cr preserves safe stdout and its URL when stderr sanitization fails" {
+    write_stderr_rejecting_tr
+    export GH_PR_CREATE_ADVERSARIAL_STDERR=1
+
+    run --separate-stderr bash "$WS_BIN" cr yggdrasil --remote alt "test: partial sanitizer failure" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"https://github.com/alt/project/pull/1"* ]]
+    [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1"* ]]
+    [[ "$stderr" == *"Provider stderr could not be sanitized and was not replayed"* ]]
+    [[ "$stderr" != *"provider stderr printable diagnostic"* ]]
 }
 
 @test "GIT_CR_REMOTE selects an alternate fork remote" {

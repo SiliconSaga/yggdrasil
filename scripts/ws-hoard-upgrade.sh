@@ -670,10 +670,10 @@ _ws_hoard_replace_plugin_asset_lock() {
         }
         function emit_lock() {
             print "    assets:"
-            print "      main.js: " main_digest
-            print "      manifest.json: " manifest_digest
+            print "      \"main.js\": \"" main_digest "\""
+            print "      \"manifest.json\": \"" manifest_digest "\""
             if (styles_digest != "") {
-                print "      styles.css: " styles_digest
+                print "      \"styles.css\": \"" styles_digest "\""
             }
         }
         BEGIN {
@@ -850,18 +850,6 @@ ws_hoard_lock() (
         return 1
     fi
     _ws_hoard_validate_plugin_metadata "$upgrade_yaml" || return 1
-    if ! command -v gh >/dev/null 2>&1; then
-        echo "ERROR: gh (GitHub CLI) is required to refresh plugin locks." >&2
-        return 1
-    fi
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "ERROR: jq is required to refresh plugin locks." >&2
-        return 1
-    fi
-    if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
-        echo "ERROR: SHA-256 verification requires sha256sum or shasum." >&2
-        return 1
-    fi
 
     local plugin_count i id repo pin selected_count=0
     local stage_root stage_dir main_digest manifest_digest styles_digest assets_json
@@ -879,6 +867,23 @@ ws_hoard_lock() (
     done
     if [[ -n "$selected_plugin" && "$selected_count" -eq 0 ]]; then
         echo "ERROR: Unknown plugin '$selected_plugin' in template '$template'." >&2
+        return 1
+    fi
+    if [[ "$selected_count" -eq 0 ]]; then
+        echo "No plugins to lock in template '$template'."
+        return 0
+    fi
+
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "ERROR: gh (GitHub CLI) is required to refresh plugin locks." >&2
+        return 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "ERROR: jq is required to refresh plugin locks." >&2
+        return 1
+    fi
+    if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+        echo "ERROR: SHA-256 verification requires sha256sum or shasum." >&2
         return 1
     fi
 
@@ -954,6 +959,10 @@ ws_hoard_lock() (
         mv "$rewrite_tmp" "$manifest_tmp" || return 1
         rewrite_tmp=""
     done
+    if ! _ws_hoard_validate_plugin_manifest "$manifest_tmp"; then
+        echo "ERROR: Rewritten plugin asset lock failed validation; the original manifest was preserved." >&2
+        return 1
+    fi
     mv "$manifest_tmp" "$upgrade_yaml" || return 1
     manifest_tmp=""
     echo "Updated plugin asset lock: $upgrade_yaml"
