@@ -12,7 +12,9 @@ init_push_repo() {
     REPO_DIR="$BATS_TEST_TMPDIR/repo"
     REMOTE_DIR="$BATS_TEST_TMPDIR/remote.git"
 
-    git init -q "$REPO_DIR"
+    # -b main: tests push the literal branch "main", so the initial branch
+    # must not depend on the host's init.defaultBranch (unset on CI runners).
+    git init -q -b main "$REPO_DIR"
     git -C "$REPO_DIR" config user.name "Test User"
     git -C "$REPO_DIR" config user.email "test@example.local"
 
