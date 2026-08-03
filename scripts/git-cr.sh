@@ -47,18 +47,27 @@ _sanitize_provider_text() {
   # would survive after only the introducer/terminator bytes were removed.
   LC_ALL=C sed -E \
     -e $'s/\033\\][^\033]*\033\\\\//g' \
+    -e $'s/\033\\][^\234]*\234//g' \
+    -e $'s/\033\\](\302[^\234]|[^\302])*\302\234//g' \
     -e $'s/\033\\][^\007]*\007//g' \
     -e $'s/\235[^\234]*\234//g' \
+    -e $'s/\235[^\033]*\033\\\\//g' \
+    -e $'s/\235(\302[^\234]|[^\302])*\302\234//g' \
     -e $'s/\235[^\007]*\007//g' \
     -e $'s/\302\235(\302[^\234]|[^\302])*\302\234//g' \
+    -e $'s/\302\235[^\033]*\033\\\\//g' \
+    -e $'s/\302\235[^\234]*\234//g' \
     -e $'s/\302\235[^\007]*\007//g' \
     -e $'s/\033\\[[0-?]*[ -\\/]*[@-~]//g' \
     -e $'s/\233[0-?]*[ -\\/]*[@-~]//g' \
     -e $'s/\302\233[0-?]*[ -\\/]*[@-~]//g' |
-  # C0 controls and DEL drop byte-wise; UTF-8-encoded C1 controls
+  # Invalid standalone bytes, including raw 8-bit C1 controls, are discarded
+  # without corrupting valid UTF-8 text whose continuation bytes overlap that
+  # range. C0 controls and DEL then drop byte-wise; UTF-8-encoded C1 controls
   # (U+0080–U+009F, e.g. the CSI code point U+009B) are the 0xC2 0x80–0x9F
   # sequences — strip those as pairs so legit multibyte text (whose
   # continuation bytes share the 0x80–0x9F range) is untouched.
+  LC_ALL=C iconv -f UTF-8 -t UTF-8 -c 2>/dev/null |
   LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
 }
 
@@ -67,26 +76,44 @@ _sanitize_provider_text() {
 # preceding "Opening CR..." chatter — this surfaces it as a dedicated
 # line at the end so the operator (or a follow-up `ws review` call)
 # can grab it at a glance.
-_create_pr_with_prominent_url() {
+_create_pr_with_prominent_url() (
   local fork_host="$1"
   shift
   local rc=0
-  local output sanitized_output
-  # `output=$(...)` buffers stdout until gp_create_pr finishes
-  # — the user sees nothing during the call, then the whole
-  # captured text at once. That's a small UX regression vs
-  # streaming, but the trade is letting us extract the URL
-  # afterwards and emit a prominent line. Acceptable for a
-  # CR-creation call that takes a couple of seconds; would
-  # need a tee-style approach if it ever became long-running.
-  output=$(gp_create_pr "$@") || rc=$?
+  local capture_dir="" output="" error_output=""
+  local sanitized_output="" sanitized_error=""
+  capture_dir=$(mktemp -d "${TMPDIR:-/tmp}/ws-cr-provider-output.XXXXXX") || {
+    echo "ERROR: Could not create a provider-output capture directory." >&2
+    return 1
+  }
+  trap 'rm -rf "$capture_dir"' EXIT
+  trap 'exit 1' HUP INT TERM
+
+  # Buffer both streams until gp_create_pr finishes. That's a small UX
+  # regression versus streaming, but it lets us neutralize untrusted provider
+  # text and extract the URL. A tee-style sanitizer would be warranted if CR
+  # creation ever became long-running.
+  if gp_create_pr "$@" >"$capture_dir/stdout" 2>"$capture_dir/stderr"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  output=$(<"$capture_dir/stdout")
+  error_output=$(<"$capture_dir/stderr")
   if ! sanitized_output=$(printf '%s' "$output" | _sanitize_provider_text); then
-    echo "WARNING: Provider output could not be sanitized and was not replayed." >&2
+    echo "WARNING: Provider stdout could not be sanitized and was not replayed." >&2
+    return $rc
+  fi
+  if ! sanitized_error=$(printf '%s' "$error_output" | _sanitize_provider_text); then
+    echo "WARNING: Provider stderr could not be sanitized and was not replayed." >&2
     return $rc
   fi
   # Replay only sanitized output so existing downstream parsers / log
   # scrapers retain printable provider diagnostics without terminal controls.
   printf '%s\n' "$sanitized_output"
+  if [[ -n "$sanitized_error" ]]; then
+    printf '%s\n' "$sanitized_error" >&2
+  fi
   if [[ $rc -eq 0 ]]; then
     local authority candidate candidate_host url=""
     while IFS= read -r candidate; do
@@ -105,7 +132,7 @@ _create_pr_with_prominent_url() {
     fi
   fi
   return $rc
-}
+)
 
 # Parse flags
 UPSTREAM=""

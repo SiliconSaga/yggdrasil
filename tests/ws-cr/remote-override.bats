@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+bats_require_minimum_version 1.5.0
+
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     WS_BIN="$REPO_ROOT/scripts/ws"
@@ -100,14 +102,22 @@ case "${1:-} ${2:-}" in
     if [[ "${GH_PR_CREATE_ADVERSARIAL_OUTPUT:-}" == "1" ]]; then
       printf 'provider printable diagnostic\n'
       printf 'provider controls: ESC\033[31mred\033[0m BEL\007 C1\302\23331mgreen\302\2330m\n'
+      printf 'provider raw C1 controls: DCS\220 APC\237 PM\236 SOS\230\n'
+      printf 'provider Unicode diagnostic: “quoted text”\n'
       printf 'selected: <https://github.com/alt/project/pull/1\033[0m\047\042>.\n'
       printf 'provider BEL hyperlink: \033]8;;https://github.com/alt/project/pull/999\007visible BEL link\033]8;;\007\n'
       printf 'provider ST hyperlink: \033]8;;https://github.com/alt/project/pull/998\033\\visible café ST link\033]8;;\033\\\n'
       printf 'provider UTF-8 C1 hyperlink: \302\2358;;https://github.com/alt/project/pull/997\302\234visible C1 link\302\2358;;\302\234\n'
+      printf 'provider mixed C1 hyperlink: \2358;;https://github.com/alt/project/pull/996\033\\visible mixed C1 link\2358;;\033\\\n'
       printf 'userinfo decoy: https://attacker.example@github.com/alt/project/pull/666\n'
       printf 'https://unrelated.example/not-the-created-pr\n'
     else
       echo "https://github.com/alt/project/pull/1"
+    fi
+    if [[ "${GH_PR_CREATE_ADVERSARIAL_STDERR:-}" == "1" ]]; then
+      printf 'provider stderr printable diagnostic\n' >&2
+      printf 'provider stderr controls: ESC\033[31mred\033[0m DCS\220 APC\237\n' >&2
+      printf 'provider stderr hyperlink: \2358;;https://github.com/alt/project/pull/995\033\\visible stderr link\2358;;\033\\\n' >&2
     fi
     exit 0
     ;;
@@ -134,22 +144,29 @@ SH
     run bash "$WS_BIN" cr yggdrasil --remote alt "test: safe CR output" .crs/body.md
 
     [ "$status" -eq 0 ]
-    local esc bel c1_csi failures=""
+    local esc bel c1_csi raw_dcs raw_apc failures=""
     esc="$(printf '\033')"
     bel="$(printf '\007')"
     c1_csi="$(printf '\302\233')"
+    raw_dcs="$(printf '\220')"
+    raw_apc="$(printf '\237')"
     [[ "$output" != *"$esc"* ]] || failures="${failures} ESC"
     [[ "$output" != *"$bel"* ]] || failures="${failures} BEL"
     [[ "$output" != *"$c1_csi"* ]] || failures="${failures} UTF-8-C1-CSI"
+    [[ "$output" != *"$raw_dcs"* ]] || failures="${failures} raw-C1-DCS"
+    [[ "$output" != *"$raw_apc"* ]] || failures="${failures} raw-C1-APC"
     [[ "$output" == *"provider printable diagnostic"* ]] || failures="${failures} printable-text-missing"
+    [[ "$output" == *"provider Unicode diagnostic: “quoted text”"* ]] || failures="${failures} Unicode-text-missing"
     [[ "$output" == *"visible BEL link"* ]] || failures="${failures} BEL-link-label-missing"
     [[ "$output" == *"visible café ST link"* ]] || failures="${failures} Unicode-ST-link-label-missing"
     [[ "$output" == *"visible C1 link"* ]] || failures="${failures} C1-link-label-missing"
+    [[ "$output" == *"visible mixed C1 link"* ]] || failures="${failures} mixed-C1-link-label-missing"
     [[ "$output" != *"[0m"* ]] || failures="${failures} SGR-remnant"
     [[ "$output" != *"]8;;"* ]] || failures="${failures} OSC-remnant"
     [[ "$output" != *"/pull/999"* ]] || failures="${failures} BEL-hidden-target-replayed"
     [[ "$output" != *"/pull/998"* ]] || failures="${failures} ST-hidden-target-replayed"
     [[ "$output" != *"/pull/997"* ]] || failures="${failures} C1-hidden-target-replayed"
+    [[ "$output" != *"/pull/996"* ]] || failures="${failures} mixed-C1-hidden-target-replayed"
     [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1" ]] || failures="${failures} clean-selected-host-URL-missing"
     [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1[0m)."* ]] || failures="${failures} decorated-URL-promoted"
     [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1)."* ]] || failures="${failures} trailing-punctuation-promoted"
@@ -159,6 +176,32 @@ SH
     [[ -z "$failures" ]] || {
         printf 'unsafe provider-output behavior:%s\n' "$failures"
         printf '%s\n' "$output"
+        false
+    }
+}
+
+@test "ws cr sanitizes provider stderr without changing its stream" {
+    export GH_PR_CREATE_ADVERSARIAL_STDERR=1
+    run --separate-stderr bash "$WS_BIN" cr yggdrasil --remote alt "test: safe CR stderr" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    local esc raw_dcs raw_apc failures=""
+    esc="$(printf '\033')"
+    raw_dcs="$(printf '\220')"
+    raw_apc="$(printf '\237')"
+    [[ "$stderr" != *"$esc"* ]] || failures="${failures} stderr-ESC"
+    [[ "$stderr" != *"$raw_dcs"* ]] || failures="${failures} stderr-raw-C1-DCS"
+    [[ "$stderr" != *"$raw_apc"* ]] || failures="${failures} stderr-raw-C1-APC"
+    [[ "$stderr" == *"provider stderr printable diagnostic"* ]] || failures="${failures} stderr-printable-text-missing"
+    [[ "$stderr" == *"visible stderr link"* ]] || failures="${failures} stderr-link-label-missing"
+    [[ "$stderr" != *"[0m"* ]] || failures="${failures} stderr-SGR-remnant"
+    [[ "$stderr" != *"]8;;"* ]] || failures="${failures} stderr-OSC-remnant"
+    [[ "$stderr" != *"/pull/995"* ]] || failures="${failures} stderr-hidden-target-replayed"
+    [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1"* ]] || failures="${failures} stdout-ready-URL-missing"
+    [[ "$output" != *"provider stderr printable diagnostic"* ]] || failures="${failures} stderr-replayed-on-stdout"
+    [[ -z "$failures" ]] || {
+        printf 'unsafe provider-stderr behavior:%s\n' "$failures"
+        printf 'stdout:\n%s\nstderr:\n%s\n' "$output" "$stderr"
         false
     }
 }
