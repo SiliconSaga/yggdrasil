@@ -17,3 +17,7 @@ How to get set up — whether you're here to contribute to SiliconSaga component
 
 ### [GDD Case Studies](gdd/case-studies/index.md)
 GDD on real work — [reviewing a contributor's PR one-handed from a phone](gdd/case-studies/terasology-contributor-review.md), a non-technical owner's campaign site, parallel-workspace development, a greenfield platform component end to end. [Early GDD](gdd/case-studies/early-gdd.md) preserves transcripts from GDD's first sessions.
+
+## License
+
+Yggdrasil — the workspace, the `ws` CLI, the skills, and these docs — is licensed under the [Apache License, Version 2.0](https://github.com/SiliconSaga/yggdrasil/blob/main/LICENSE). Components, realms, and hoards are independent repositories that carry their own licenses, but the general spirit is Apache 2 everywhere unless explicitly stated otherwise for whichever reason.

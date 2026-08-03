@@ -27,11 +27,14 @@ WS_COMMIT_BIN="$REPO_ROOT/scripts/ws-commit.sh"
 init_synthetic_repo() {
     REPO_DIR="$BATS_TEST_TMPDIR/repo"
     git init -q "$REPO_DIR"
+    # Repo-level identity: the real (non-dry-run) commit path runs a plain
+    # `git commit`, which fails on hosts with no global identity (CI runners).
+    git -C "$REPO_DIR" config user.name "Test User"
+    git -C "$REPO_DIR" config user.email "test@example.local"
 
     echo "hello" > "$REPO_DIR/test.md"
     git -C "$REPO_DIR" add test.md
-    git -C "$REPO_DIR" -c user.name=seed -c user.email=seed@local \
-        commit -q -m "seed commit"
+    git -C "$REPO_DIR" commit -q -m "seed commit"
 
     export ROOT_DIR="$REPO_DIR"
 

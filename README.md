@@ -40,3 +40,7 @@ This ecosystem is built with heavy AI assistance (Claude Code, among others). Ge
 ### The PreToolUse hook
 
 This repo ships a Claude Code PreToolUse hook (`.claude/hooks/gdd-permission-hook.sh`) that channels agent Bash calls toward the `ws` CLI and away from opaque shell composition. Corrective "deny" messages early in a session are the hook teaching conventions, not errors. Full details live in [`.claude/hooks/README.md`](.claude/hooks/README.md) (the technical spec) and [`docs/gdd/agent-training.md`](docs/gdd/agent-training.md) (why it exists, in plain terms). Opt out for a session with `WS_HOOK_DISABLE=1`.
+
+## License
+
+Yggdrasil — the workspace, the `ws` CLI, the skills, and the documentation — is licensed under the [Apache License, Version 2.0](LICENSE). Components, realms, and hoards are independent repositories that carry their own licenses, but the general spirit is Apache 2 everywhere unless explicitly stated otherwise for whichever reason.

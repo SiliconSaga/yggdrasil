@@ -3,3 +3,9 @@
 # "command not found" errors from invisible \r characters.
 *.sh text eol=lf
 scripts/ws text eol=lf
+
+# The test suite has the same constraint: bats test files, the bats-core library, and its extensionless launcher/libexec scripts all run in bash.
+*.bats text eol=lf
+*.bash text eol=lf
+tests/vendor/bats-core/bin/* text eol=lf
+tests/vendor/bats-core/libexec/** text eol=lf
