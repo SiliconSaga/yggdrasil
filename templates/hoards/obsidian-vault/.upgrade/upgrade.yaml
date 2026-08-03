@@ -17,7 +17,8 @@
 # manifest.json + data.json are always tracked.
 
 description: |
-  Templater + folder→template auto-apply, Periodic Notes (daily,
+  Templater with explicit Project/Area creation and optional folder
+  auto-apply, Periodic Notes (daily,
   weekly, monthly), Calendar sidebar, Linter (auto-format on save),
   Filename Heading Sync, Dataview, Tasks. Targets vaults laid out
   with PARA folders 00_Inbox / 10_Projects / 20_Areas / etc. and
@@ -33,7 +34,7 @@ description: |
 plugins:
   - id: templater-obsidian
     name: Templater
-    description: Folder→template auto-apply on file creation; powers `<% tp.* %>` syntax in `10_Projects/` and `20_Areas/`.
+    description: Explicit Project/Area template creation with optional folder auto-apply; powers `<% tp.* %>` syntax.
     repo: SilentVoid13/Templater
     pin: "2.18.1"
   - id: periodic-notes

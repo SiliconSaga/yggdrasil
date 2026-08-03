@@ -79,6 +79,22 @@ setup() {
     [ -d "$HOARDS_DIR/test-obsidian/.git" ]
 }
 
+@test "obsidian-vault ships automatic Templater processing disabled by default" {
+    local settings="$REPO_ROOT/templates/hoards/obsidian-vault/.upgrade/data/templater-obsidian/data.json"
+    [ -f "$settings" ]
+    grep -qF '"trigger_on_file_creation": false' "$settings"
+}
+
+@test "standard flow: obsidian-vault Welcome explains explicit templates and informed opt-in" {
+    run_hoard_init obsidian-vault --name test-templater-welcome
+    [ "$status" -eq 0 ]
+
+    local welcome="$HOARDS_DIR/test-templater-welcome/00_Inbox/Welcome.md"
+    grep -qF "Create new note from template" "$welcome"
+    grep -qF "Trigger Templater on new file creation" "$welcome"
+    grep -qF "imported or clipped notes" "$welcome"
+}
+
 @test "standard flow: basic template scaffolds and git-inits" {
     run_hoard_init basic --name test-basic
     [ "$status" -eq 0 ]
