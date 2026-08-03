@@ -20,4 +20,4 @@ GDD on real work — [reviewing a contributor's PR one-handed from a phone](gdd/
 
 ## License
 
-Yggdrasil — the workspace, the `ws` CLI, and these docs — is licensed under the [Apache License, Version 2.0](https://github.com/SiliconSaga/yggdrasil/blob/main/LICENSE). Components, realms, and hoards are independent repositories that carry their own licenses.
+Yggdrasil — the workspace, the `ws` CLI, the skills, and these docs — is licensed under the [Apache License, Version 2.0](https://github.com/SiliconSaga/yggdrasil/blob/main/LICENSE). Components, realms, and hoards are independent repositories that carry their own licenses, but the general spirit is Apache 2 everywhere unless explicitly stated otherwise for whichever reason.
