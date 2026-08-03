@@ -322,6 +322,17 @@ EOF
     run_guard "kind-practice" "alice-sandbox" kubectl get pods --context other-cluster
     [[ "$output" == BLOCK:* ]]
 }
+@test "explicit empty context is blocked in split and equals forms" {
+    make_kubectl_stub "alice-sandbox"
+
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod example --context=
+    [[ "$output" == BLOCK:context:* ]]
+    [[ "$output" == *"explicit --context cannot be empty"* ]]
+
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod example --context ""
+    [[ "$output" == BLOCK:context:* ]]
+    [[ "$output" == *"explicit --context cannot be empty"* ]]
+}
 @test "write with no -n uses the context default namespace" {
     make_kubectl_stub "alice-sandbox"
     run_guard "kind-practice" "alice-sandbox" kubectl scale deploy/foo --replicas=2

@@ -908,7 +908,7 @@ k8s_guard_evaluate() {
     else
         printf 'NOT_K8S'; return 0
     fi
-    local verb="" verb2="" ctx_arg="" ns_arg="" all_ns=0 raw_api=0 a all_ns_value namespaced_value
+    local verb="" verb2="" ctx_arg="" ctx_arg_present=0 ns_arg="" all_ns=0 raw_api=0 a all_ns_value namespaced_value
     local ffiles=()
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
@@ -917,8 +917,8 @@ k8s_guard_evaluate() {
     while [[ $i -lt ${#args[@]} ]]; do
         a="${args[$i]}"
         case "$a" in
-            --context) ctx_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
-            --context=*) ctx_arg="${a#--context=}";;
+            --context) ctx_arg_present=1; ctx_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
+            --context=*) ctx_arg_present=1; ctx_arg="${a#--context=}";;
             -n|--namespace) ns_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
             -n=*|--namespace=*) ns_arg="${a#*=}";;
             -n?*) ns_arg="${a#-n}";;        # attached short form: -n<ns>
@@ -1010,6 +1010,9 @@ k8s_guard_evaluate() {
     # permission flow instead of blocking it as an unrecognized write verb.
     if [[ "$verb" == "scope" ]]; then printf 'NOT_K8S'; return 0; fi
 
+    if [[ -n "$scope_ctx" && "$ctx_arg_present" -eq 1 && -z "$ctx_arg" ]]; then
+        printf 'BLOCK:context:explicit --context cannot be empty'; return 0
+    fi
     if [[ -n "$scope_ctx" && -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:context:explicit --context %s != the guard-scope context %s' "$ctx_arg" "$scope_ctx"; return 0
     fi
