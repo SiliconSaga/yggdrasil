@@ -209,11 +209,25 @@ fi
 test_selectors=()
 runner_args=()
 expect_value=false
+bats_user_set_jobs=false
+bats_user_set_backend=false
 for arg in "$@"; do
     if [[ "$expect_value" == true ]]; then
         runner_args+=("$arg")
         expect_value=false
         continue
+    fi
+    if [[ "$runner" == "bats" ]]; then
+        case "$arg" in
+            --jobs=*)
+                runner_args+=(--jobs "${arg#*=}")
+                bats_user_set_jobs=true
+                continue ;;
+            --parallel-binary-name=*)
+                runner_args+=(--parallel-binary-name "${arg#*=}")
+                bats_user_set_backend=true
+                continue ;;
+        esac
     fi
     if [[ "$arg" == -* ]]; then
         runner_args+=("$arg")
@@ -238,11 +252,16 @@ for arg in "$@"; do
             # treats it as boolean (--recursive). Same swallow risk.
             -r)
                 [[ "$runner" == "python" ]] && expect_value=true ;;
-            # -j/--jobs takes a value for bats (parallel job count) and Go
-            # (-p N is Go's parallelism flag, already listed above; bats has
-            # no boolean flag spelled -j/--jobs, so this is unambiguous).
             -j|--jobs)
-                [[ "$runner" == "bats" ]] && expect_value=true ;;
+                if [[ "$runner" == "bats" ]]; then
+                    expect_value=true
+                    bats_user_set_jobs=true
+                fi ;;
+            --parallel-binary-name)
+                if [[ "$runner" == "bats" ]]; then
+                    expect_value=true
+                    bats_user_set_backend=true
+                fi ;;
         esac
     else
         test_selectors+=("$arg")
@@ -265,6 +284,62 @@ reject_multiple_keyword_selectors() {
     echo "ERROR: Multiple positional selectors for $runner_name are not supported in this form." >&2
     echo "  Pass one keyword expression, or use the runner's native selector flag explicitly." >&2
     exit 1
+}
+
+_ws_bats_parallel_backend() {
+    local backend_name backend_path probe_output
+    for backend_name in rush parallel; do
+        backend_path="$(type -P "$backend_name" 2>/dev/null)" || continue
+        probe_output="$("$backend_path" --keep-order --jobs 1 -- 'printf "verified:%s\n" "{}"' <<< 'ws-bats-probe' 2>/dev/null)" || continue
+        [[ "$probe_output" == "verified:ws-bats-probe" ]] || continue
+        printf '%s\n' "$backend_name"
+        return 0
+    done
+    return 1
+}
+
+_ws_bats_job_count() {
+    local count=""
+    if type -P nproc >/dev/null 2>&1; then
+        count="$(nproc 2>/dev/null)" || count=""
+        if [[ "$count" =~ ^[1-9][0-9]*$ ]]; then
+            printf '%s\n' "$count"
+            return 0
+        fi
+    fi
+    if type -P sysctl >/dev/null 2>&1; then
+        count="$(sysctl -n hw.logicalcpu 2>/dev/null)" || count=""
+        if [[ "$count" =~ ^[1-9][0-9]*$ ]]; then
+            printf '%s\n' "$count"
+            return 0
+        fi
+    fi
+    printf '4\n'
+}
+
+_ws_bats_file_count() {
+    local recursive="$1"
+    shift
+    local count=0 path file
+    local extension="${BATS_FILE_EXTENSION:-bats}"
+    local -a direct_files=()
+    for path in "$@"; do
+        if [[ ! -d "$path" ]]; then
+            count=$((count + 1))
+            continue
+        fi
+        if [[ "$recursive" == true ]]; then
+            while IFS= read -r -d '' file; do
+                count=$((count + 1))
+            done < <(find -L "$path" -type f -name "*.$extension" -print0)
+        else
+            shopt -s nullglob
+            direct_files=("$path"/*."$extension")
+            shopt -u nullglob
+            count=$((count + ${#direct_files[@]}))
+        fi
+    done
+    printf '%s\n' "$count"
 }
 
 # --- Parse adapter command into an array for safe exec ---
@@ -422,30 +497,35 @@ case "$runner" in
             bats_argv+=(--filter "$test_filter")
         fi
 
-        # Auto-enable bats' parallel mode when a backend is on PATH and the
-        # caller didn't already pass -j/--jobs themselves. bats defaults to
-        # looking for a binary literally named "parallel" (GNU parallel);
-        # rush is preferred when both are present since it has no citation
-        # nag and no Perl dependency. Single-file runs skip this — the
-        # cross-process fan-out only pays off with multiple files.
-        _bats_user_set_jobs=false
-        for _a in "${runner_args[@]}"; do
-            case "$_a" in
-                -j|--jobs) _bats_user_set_jobs=true; break ;;
+        _bats_recursive=false
+        for _bats_arg in "${runner_args[@]}"; do
+            case "$_bats_arg" in
+                -r|--recursive) _bats_recursive=true ;;
             esac
         done
-        if [[ "$_bats_user_set_jobs" != true && ${#bats_files[@]} -gt 1 ]]; then
-            _bats_parallel_bin=""
-            if command -v rush >/dev/null 2>&1; then
-                _bats_parallel_bin="rush"
-            elif command -v parallel >/dev/null 2>&1; then
-                _bats_parallel_bin="parallel"
-            fi
+        _bats_file_count="$(_ws_bats_file_count "$_bats_recursive" "${bats_files[@]}")"
+
+        # A same-name executable is not enough: exercise the small command
+        # contract Bats relies on before selecting an optional backend.
+        _bats_parallel_bin=""
+        if [[ "$bats_user_set_backend" != true ]] && \
+           [[ "$bats_user_set_jobs" == true || $_bats_file_count -gt 1 ]]; then
+            _bats_parallel_bin="$(_ws_bats_parallel_backend)" || _bats_parallel_bin=""
             if [[ -n "$_bats_parallel_bin" ]]; then
-                _bats_jobs=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-                echo "(running ${#bats_files[@]} test files in parallel: --jobs $_bats_jobs via $_bats_parallel_bin)" >&2
-                bats_argv+=(--jobs "$_bats_jobs")
-                [[ "$_bats_parallel_bin" == "rush" ]] && bats_argv+=(--parallel-binary-name rush)
+                bats_argv+=(--parallel-binary-name "$_bats_parallel_bin")
+            fi
+        fi
+
+        # Automatic fan-out only applies across multiple files. An explicit
+        # job count is preserved for single-file, within-file parallelism.
+        if [[ "$bats_user_set_jobs" != true && $_bats_file_count -gt 1 ]] && \
+           [[ "$bats_user_set_backend" == true || -n "$_bats_parallel_bin" ]]; then
+            _bats_jobs="$(_ws_bats_job_count)"
+            bats_argv+=(--jobs "$_bats_jobs")
+            if [[ -n "$_bats_parallel_bin" ]]; then
+                echo "(running $_bats_file_count test files in parallel: --jobs $_bats_jobs via $_bats_parallel_bin)" >&2
+            else
+                echo "(running $_bats_file_count test files in parallel: --jobs $_bats_jobs via requested backend)" >&2
             fi
         fi
 
