@@ -138,6 +138,9 @@ EOF
         GH_PAGER \
         GLAB_PAGER \
         GH_DEBUG \
+        GH_HOST \
+        GH_CONFIG_DIR \
+        GLAB_CONFIG_DIR \
         LD_AUDIT \
         XDG_CONFIG_HOME \
         HOME \
