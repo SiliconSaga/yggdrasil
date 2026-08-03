@@ -304,6 +304,7 @@ _ws_bats_probe_cleanup() {
 _ws_bats_probe_backend() (
     local backend_path="$1"
     local output_file="" probe_pid="" watchdog_pid="" probe_status=1 probe_output=""
+    local probe_budget_seconds=3
 
     output_file="$(mktemp "${TMPDIR:-/tmp}/ws-bats-probe.XXXXXX" 2>/dev/null)" || return 1
     trap '_ws_bats_probe_cleanup "$probe_pid" "$watchdog_pid" "$output_file"' EXIT
@@ -316,7 +317,7 @@ _ws_bats_probe_backend() (
         <<< 'ws-bats-probe' >"$output_file" 2>/dev/null &
     probe_pid=$!
     (
-        sleep 1
+        sleep "$probe_budget_seconds"
         if kill -TERM -- "-$probe_pid" 2>/dev/null; then
             sleep 1
             kill -KILL -- "-$probe_pid" 2>/dev/null || true

@@ -74,6 +74,20 @@ if [[ "$#" -ne 9 || "$1" != "--keep-order" || "$2" != "--jobs" || "$3" != "1" ||
     exit 64
 fi
 IFS= read -r input
+sleep 5
+printf 'verified:%s' "$input"
+EOF
+    chmod +x "$FAKE_BIN/$name"
+}
+
+write_briefly_delayed_compatible_backend() {
+    local name="$1"
+    cat > "$FAKE_BIN/$name" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$#" -ne 9 || "$1" != "--keep-order" || "$2" != "--jobs" || "$3" != "1" || "$4" != "--" || "$5" != ":" || "$6" != "&&" || "$7" != "printf" || "$8" != "verified:%s" || "$9" != "{}" ]]; then
+    exit 64
+fi
+IFS= read -r input
 sleep 2
 printf 'verified:%s' "$input"
 EOF
@@ -173,6 +187,15 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" != *"BATS_ARG=<--jobs>"* ]]
     [[ "$output" != *"BATS_ARG=<--parallel-binary-name>"* ]]
+}
+
+@test "bats runner tolerates brief backend probe scheduling delays" {
+    write_briefly_delayed_compatible_backend rush
+
+    run_ws_test yggdrasil -j 2
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'BATS_ARG=<--parallel-binary-name>\nBATS_ARG=<rush>'* ]]
 }
 
 @test "bats backend watchdog kills a TERM-ignoring ordinary descendant" {
