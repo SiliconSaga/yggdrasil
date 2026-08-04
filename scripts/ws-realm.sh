@@ -118,6 +118,87 @@ ws_validate_component_keys() {
     fi
 }
 
+# Classify every workspace target kind matched by a name before choosing a
+# directory. Callers use the flags and ordered kind list below to reject
+# ambiguity instead of silently applying resolver precedence.
+WS_TARGET_MATCH_WORKSPACE=false
+WS_TARGET_MATCH_REALM=false
+WS_TARGET_MATCH_HOARD=false
+WS_TARGET_MATCH_COMPONENT=false
+WS_TARGET_MATCH_KINDS=()
+
+# Read configuration layers without granting authority from them. This helper
+# is only for detecting namespace collisions; executable component resolution
+# still goes through ws_resolve_ecosystem and its realm-trust gate.
+ws_component_name_is_declared_for_collision() {
+    local name="$1" active_realm="" local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
+    local file="" declared="false"
+    local -a layer_files=("${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}")
+
+    active_realm="$(ws_detect_realm)" || return 2
+    if [[ -n "$active_realm" ]]; then
+        layer_files+=("$REALMS_DIR/$active_realm/ecosystem.yaml")
+    fi
+    layer_files+=("$local_file")
+
+    for file in "${layer_files[@]}"; do
+        [[ -f "$file" ]] || continue
+        if ! yq '.' "$file" >/dev/null 2>&1; then
+            echo "ERROR: Cannot inspect component declarations in malformed ecosystem config: $file" >&2
+            return 2
+        fi
+        if COMPONENT_NAME="$name" yq -e '(((.components // {}) | select(kind == "map") | has(strenv(COMPONENT_NAME))) // false)' "$file" >/dev/null 2>&1; then
+            if COMPONENT_NAME="$name" yq -e '.components[strenv(COMPONENT_NAME)] != null' "$file" >/dev/null 2>&1; then
+                declared="true"
+            else
+                declared="false"
+            fi
+        fi
+    done
+
+    [[ "$declared" == "true" ]]
+}
+
+ws_classify_target_name() {
+    local name="$1" declaration_status=0
+
+    WS_TARGET_MATCH_WORKSPACE=false
+    WS_TARGET_MATCH_REALM=false
+    WS_TARGET_MATCH_HOARD=false
+    WS_TARGET_MATCH_COMPONENT=false
+    WS_TARGET_MATCH_KINDS=()
+
+    if [[ "$name" == "yggdrasil" ]]; then
+        WS_TARGET_MATCH_WORKSPACE=true
+        WS_TARGET_MATCH_KINDS+=("workspace")
+    fi
+
+    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        if [[ -d "$REALMS_DIR/$name/.git" ]]; then
+            WS_TARGET_MATCH_REALM=true
+            WS_TARGET_MATCH_KINDS+=("realm")
+        fi
+        if [[ -d "$HOARDS_DIR/$name/.git" ]]; then
+            WS_TARGET_MATCH_HOARD=true
+            WS_TARGET_MATCH_KINDS+=("hoard")
+        fi
+    fi
+
+    if ws_component_name_is_valid "$name"; then
+        if ! type -P yq &>/dev/null; then
+            echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+            return 1
+        fi
+        if ws_component_name_is_declared_for_collision "$name"; then
+            WS_TARGET_MATCH_COMPONENT=true
+            WS_TARGET_MATCH_KINDS+=("component")
+        else
+            declaration_status=$?
+            [[ "$declaration_status" -eq 1 ]] || return 1
+        fi
+    fi
+}
+
 # Resolve a workspace target name to its directory.
 # Usage: ws_resolve_target <name>
 # Sets: COMPONENT_DIR to the resolved path.
@@ -127,21 +208,30 @@ ws_validate_component_keys() {
 ws_resolve_target() {
     local name="$1"
 
-    # "yggdrasil" refers to the workspace root, not a component
-    if [[ "$name" == "yggdrasil" ]]; then
+    ws_classify_target_name "$name" || exit 1
+
+    if [[ "${#WS_TARGET_MATCH_KINDS[@]}" -gt 1 ]]; then
+        local kind kinds=""
+        for kind in "${WS_TARGET_MATCH_KINDS[@]}"; do
+            [[ -z "$kinds" ]] || kinds+=", "
+            kinds+="$kind"
+        done
+        echo "ERROR: Ambiguous target name '$name' matches: $kinds." >&2
+        echo "  Rename the colliding realm or hoard before running a target command." >&2
+        exit 1
+    fi
+
+    if [[ "$WS_TARGET_MATCH_WORKSPACE" == "true" ]]; then
         COMPONENT_DIR="$ROOT_DIR"
         return 0
     fi
 
-    # Check if name is a realm directory (uses broader name pattern)
-    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$REALMS_DIR/$name/.git" ]]; then
+    if [[ "$WS_TARGET_MATCH_REALM" == "true" ]]; then
         COMPONENT_DIR="$REALMS_DIR/$name"
         return 0
     fi
 
-    # Check if name is a hoard directory (same broader name pattern as realms,
-    # since hoards are personal containers cloned with arbitrary repo names).
-    if [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && [[ -d "$HOARDS_DIR/$name/.git" ]]; then
+    if [[ "$WS_TARGET_MATCH_HOARD" == "true" ]]; then
         COMPONENT_DIR="$HOARDS_DIR/$name"
         return 0
     fi
@@ -154,18 +244,19 @@ ws_resolve_target() {
         exit 1
     fi
 
-    # Check yq is available
-    if ! type -P yq &>/dev/null; then
-        echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
-        exit 1
+    if [[ "$WS_TARGET_MATCH_COMPONENT" == "true" ]]; then
+        local eco="" component_declared="false"
+        eco="$(ws_resolve_ecosystem)" || exit 1
+        if ! component_declared="$(COMPONENT_NAME="$name" yq -r '(((.components // {}) | select(kind == "map") | has(strenv(COMPONENT_NAME))) // false)' "$eco" 2>/dev/null)"; then
+            echo "ERROR: Cannot inspect component declarations in ecosystem config." >&2
+            exit 1
+        fi
+        if [[ "$component_declared" != "true" ]]; then
+            WS_TARGET_MATCH_COMPONENT=false
+        fi
     fi
 
-    # Check component exists in merged ecosystem config
-    local eco
-    eco="$(ws_resolve_ecosystem)"
-    local exists
-    exists=$(COMPONENT_NAME="$name" yq '.components[strenv(COMPONENT_NAME)] // "missing"' "$eco")
-    if [[ "$exists" == "missing" ]]; then
+    if [[ "$WS_TARGET_MATCH_COMPONENT" != "true" ]]; then
         echo "ERROR: no such target '$name' (looked for a component, realm, or hoard)." >&2
         echo "  Components must be declared in ecosystem config — run 'ws list'." >&2
         echo "  Realms live under realms/, hoards under hoards/ (must be cloned)." >&2

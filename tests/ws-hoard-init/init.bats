@@ -169,6 +169,41 @@ setup() {
     [ "$(cat "$HOARDS_DIR/already-here/sentinel.txt")" = "preserved" ]
 }
 
+@test "init refuses a hoard name declared as a component" {
+    declare_component widget
+
+    run_hoard_init basic --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Hoard name 'widget' conflicts"* ]]
+    [[ "$output" == *"component"* ]]
+    [ ! -e "$HOARDS_DIR/widget" ]
+}
+
+@test "init refuses a hoard name used by a realm" {
+    create_realm community
+
+    run_hoard_init basic --name community
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Hoard name 'community' conflicts"* ]]
+    [[ "$output" == *"realm"* ]]
+    [ ! -e "$HOARDS_DIR/community" ]
+}
+
+@test "URL clone refuses a component collision before invoking Git" {
+    declare_component widget
+    install_failing_git
+
+    run_hoard_clone https://example.invalid/widget.git --name widget
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Hoard name 'widget' conflicts"* ]]
+    [[ "$output" == *"component"* ]]
+    [[ "$output" != *"UNEXPECTED GIT INVOCATION"* ]]
+    [ ! -e "$HOARDS_DIR/widget" ]
+}
+
 # ---------------------------------------------------------------------------
 # Unknown template
 # ---------------------------------------------------------------------------
