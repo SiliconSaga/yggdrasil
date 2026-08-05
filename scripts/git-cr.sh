@@ -41,27 +41,226 @@ fi
 # Provider CLI output is untrusted terminal input. Keep ordinary text, tabs,
 # and newlines intact while removing C0 controls that could ring bells, rewrite
 # the current line, or introduce terminal escape sequences.
+# Strip whole terminal control strings before deleting their control bytes, so
+# a hidden payload cannot become ordinary text. The pre-iconv pass also treats
+# standalone C1 bytes as controls while preserving strictly valid UTF-8.
+_strip_terminal_sequences() {
+  local recognize_raw_c1="${1:-false}"
+  local state="normal" osc_string="false" char="" reprocess="false"
+  local pending_index=0 pending_count=0 utf8_remaining=0 utf8_position=0 i=0
+  local LC_ALL=C
+  local esc=$'\033' bel=$'\007' c2=$'\302' backslash=$'\\'
+  local e0=$'\340' ed=$'\355' f0=$'\360' f4=$'\364'
+  local cont_min=$'\200' cont_max=$'\277'
+  local utf8_second_min="$cont_min" utf8_second_max="$cont_max"
+  local raw_dcs=$'\220' raw_sos=$'\230' raw_csi=$'\233' raw_st=$'\234'
+  local raw_osc=$'\235' raw_pm=$'\236' raw_apc=$'\237'
+  local -a pending=() utf8_chars=()
+
+  while true; do
+    if [[ "$pending_index" -lt "$pending_count" ]]; then
+      char="${pending[$pending_index]}"
+      pending_index=$((pending_index + 1))
+    else
+      pending=()
+      pending_index=0
+      pending_count=0
+      char=""
+      if IFS= read -r -n 1 char; then
+        :
+      elif [[ -n "$char" ]]; then
+        :
+      else
+        break
+      fi
+      [[ -n "$char" ]] || char=$'\n'
+    fi
+
+    reprocess="true"
+    while [[ "$reprocess" == "true" ]]; do
+      reprocess="false"
+      case "$state" in
+        normal)
+          if [[ "$recognize_raw_c1" == "true" && "$char" > "$c2" && "$char" < "$e0" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=1
+            utf8_position=2
+            utf8_second_min="$cont_min"
+            utf8_second_max="$cont_max"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" == "$e0" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=2
+            utf8_position=2
+            utf8_second_min=$'\240'
+            utf8_second_max="$cont_max"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" > "$e0" && "$char" < "$ed" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=2
+            utf8_position=2
+            utf8_second_min="$cont_min"
+            utf8_second_max="$cont_max"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" == "$ed" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=2
+            utf8_position=2
+            utf8_second_min="$cont_min"
+            utf8_second_max=$'\237'
+          elif [[ "$recognize_raw_c1" == "true" && "$char" > "$ed" && "$char" < "$f0" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=2
+            utf8_position=2
+            utf8_second_min="$cont_min"
+            utf8_second_max="$cont_max"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" == "$f0" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=3
+            utf8_position=2
+            utf8_second_min=$'\220'
+            utf8_second_max="$cont_max"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" > "$f0" && "$char" < "$f4" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=3
+            utf8_position=2
+            utf8_second_min="$cont_min"
+            utf8_second_max="$cont_max"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" == "$f4" ]]; then
+            state="utf8"
+            utf8_chars=("$char")
+            utf8_remaining=3
+            utf8_position=2
+            utf8_second_min="$cont_min"
+            utf8_second_max=$'\217'
+          else
+            case "$char" in
+              "$esc") state="esc" ;;
+              "$c2") state="c2" ;;
+              "$raw_csi")
+                if [[ "$recognize_raw_c1" == "true" ]]; then state="csi"; else printf '%s' "$char"; fi
+                ;;
+              "$raw_dcs"|"$raw_sos"|"$raw_osc"|"$raw_pm"|"$raw_apc")
+                if [[ "$recognize_raw_c1" == "true" ]]; then
+                  state="string"
+                  if [[ "$char" == "$raw_osc" ]]; then osc_string="true"; else osc_string="false"; fi
+                else
+                  printf '%s' "$char"
+                fi
+                ;;
+              "$raw_st")
+                [[ "$recognize_raw_c1" == "true" ]] || printf '%s' "$char"
+                ;;
+              *) printf '%s' "$char" ;;
+            esac
+          fi
+          ;;
+        esc)
+          state="normal"
+          case "$char" in
+            '[') state="csi" ;;
+            ']') state="string"; osc_string="true" ;;
+            'P'|'X'|'^'|'_') state="string"; osc_string="false" ;;
+            "$backslash") ;;
+            *) reprocess="true" ;;
+          esac
+          ;;
+        c2)
+          state="normal"
+          case "$char" in
+            "$raw_csi") state="csi" ;;
+            "$raw_dcs"|"$raw_sos"|"$raw_osc"|"$raw_pm"|"$raw_apc")
+              state="string"
+              if [[ "$char" == "$raw_osc" ]]; then osc_string="true"; else osc_string="false"; fi
+              ;;
+            "$raw_st") ;;
+            *) printf '%s' "$c2"; reprocess="true" ;;
+          esac
+          ;;
+        csi)
+          case "$char" in
+            "$esc") state="esc" ;;
+            "$c2") state="c2" ;;
+            "$raw_csi")
+              [[ "$recognize_raw_c1" == "true" ]] && state="csi"
+              ;;
+            "$raw_dcs"|"$raw_sos"|"$raw_osc"|"$raw_pm"|"$raw_apc")
+              if [[ "$recognize_raw_c1" == "true" ]]; then
+                state="string"
+                if [[ "$char" == "$raw_osc" ]]; then osc_string="true"; else osc_string="false"; fi
+              fi
+              ;;
+            "$raw_st")
+              [[ "$recognize_raw_c1" == "true" ]] && state="normal"
+              ;;
+            [@-~]) state="normal" ;;
+          esac
+          ;;
+        string)
+          if [[ "$osc_string" == "true" && "$char" == "$bel" ]]; then
+            state="normal"
+          elif [[ "$char" == "$esc" ]]; then
+            state="string_esc"
+          elif [[ "$char" == "$c2" ]]; then
+            state="string_c2"
+          elif [[ "$recognize_raw_c1" == "true" && "$char" == "$raw_st" ]]; then
+            state="normal"
+          fi
+          ;;
+        string_esc)
+          if [[ "$char" == "$backslash" ]]; then
+            state="normal"
+          else
+            state="string"
+            reprocess="true"
+          fi
+          ;;
+        string_c2)
+          if [[ "$char" == "$raw_st" ]]; then
+            state="normal"
+          else
+            state="string"
+            reprocess="true"
+          fi
+          ;;
+        utf8)
+          if { [[ "$utf8_position" -eq 2 ]] &&
+                { [[ "$char" < "$utf8_second_min" ]] || [[ "$char" > "$utf8_second_max" ]]; }; } ||
+              { [[ "$utf8_position" -ne 2 ]] &&
+                { [[ "$char" < "$cont_min" ]] || [[ "$char" > "$cont_max" ]]; }; }; then
+            pending=()
+            pending_count=0
+            for ((i = 1; i < ${#utf8_chars[@]}; i++)); do
+              pending[$pending_count]="${utf8_chars[$i]}"
+              pending_count=$((pending_count + 1))
+            done
+            pending[$pending_count]="$char"
+            pending_count=$((pending_count + 1))
+            pending_index=0
+            state="normal"
+          else
+            utf8_chars[${#utf8_chars[@]}]="$char"
+            utf8_remaining=$((utf8_remaining - 1))
+            utf8_position=$((utf8_position + 1))
+            if [[ "$utf8_remaining" -eq 0 ]]; then
+              printf '%s' "${utf8_chars[@]}"
+              state="normal"
+            fi
+          fi
+          ;;
+      esac
+    done
+  done
+}
+
 _sanitize_provider_text() {
-  local sequence_stripped="" utf8_text=""
-  # Remove complete common terminal sequences before deleting individual
-  # controls, or their printable payload (for example "[0m" or an OSC-8 URL)
-  # would survive after only the introducer/terminator bytes were removed.
-  sequence_stripped="$(LC_ALL=C sed -E \
-    -e $'s/\033\\][^\033]*\033\\\\//g' \
-    -e $'s/\033\\][^\234]*\234//g' \
-    -e $'s/\033\\](\302[^\234]|[^\302])*\302\234//g' \
-    -e $'s/\033\\][^\007]*\007//g' \
-    -e $'s/\235[^\234]*\234//g' \
-    -e $'s/\235[^\033]*\033\\\\//g' \
-    -e $'s/\235(\302[^\234]|[^\302])*\302\234//g' \
-    -e $'s/\235[^\007]*\007//g' \
-    -e $'s/\302\235(\302[^\234]|[^\302])*\302\234//g' \
-    -e $'s/\302\235[^\033]*\033\\\\//g' \
-    -e $'s/\302\235[^\234]*\234//g' \
-    -e $'s/\302\235[^\007]*\007//g' \
-    -e $'s/\033\\[[0-?]*[ -\\/]*[@-~]//g' \
-    -e $'s/\233[0-?]*[ -\\/]*[@-~]//g' \
-    -e $'s/\302\233[0-?]*[ -\\/]*[@-~]//g')" || return 1
+  local provider_text="" sequence_stripped="" utf8_text=""
+  provider_text="$(LC_ALL=C sed -e '')" || return 1
+  sequence_stripped="$(printf '%s' "$provider_text" | _strip_terminal_sequences true)" || return 1
   # Invalid standalone bytes, including raw 8-bit C1 controls, are discarded
   # without corrupting valid UTF-8 text whose continuation bytes overlap that
   # range. C0 controls and DEL then drop byte-wise; UTF-8-encoded C1 controls
@@ -70,7 +269,8 @@ _sanitize_provider_text() {
   # continuation bytes share the 0x80–0x9F range) is untouched.
   if command -v iconv >/dev/null 2>&1 &&
       utf8_text="$(printf '%s' "$sequence_stripped" | LC_ALL=C iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)"; then
-    printf '%s' "$utf8_text" |
+    sequence_stripped="$(printf '%s' "$utf8_text" | _strip_terminal_sequences false)" || return 1
+    printf '%s' "$sequence_stripped" |
       LC_ALL=C tr -d '\000-\010\013-\037\177' |
       LC_ALL=C sed -e $'s/\xc2[\x80-\x9f]//g'
     return

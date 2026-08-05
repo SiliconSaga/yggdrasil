@@ -103,15 +103,33 @@ case "${1:-} ${2:-}" in
     if [[ "${GH_PR_CREATE_ADVERSARIAL_OUTPUT:-}" == "1" ]]; then
       printf 'provider printable diagnostic\n'
       printf 'provider controls: ESC\033[31mred\033[0m BEL\007 C1\302\23331mgreen\302\2330m\n'
-      printf 'provider raw C1 controls: DCS\220 APC\237 PM\236 SOS\230\n'
+      printf 'provider raw C1 controls: DCS\220\234 APC\237\234 PM\236\234 SOS\230\234\n'
       printf 'provider Unicode diagnostic: “quoted text”\n'
       printf 'selected: <https://github.com/alt/project/pull/1\033[0m\047\042>.\n'
       printf 'provider BEL hyperlink: \033]8;;https://github.com/alt/project/pull/999\007visible BEL link\033]8;;\007\n'
       printf 'provider ST hyperlink: \033]8;;https://github.com/alt/project/pull/998\033\\visible café ST link\033]8;;\033\\\n'
       printf 'provider UTF-8 C1 hyperlink: \302\2358;;https://github.com/alt/project/pull/997\302\234visible C1 link\302\2358;;\302\234\n'
       printf 'provider mixed C1 hyperlink: \2358;;https://github.com/alt/project/pull/996\033\\visible mixed C1 link\2358;;\033\\\n'
+      printf 'provider ESC DCS: \033Phttps://github.com/alt/project/pull/990\033\\\n'
+      printf 'provider raw DCS: \220https://github.com/alt/project/pull/989\234\n'
+      printf 'provider UTF-8 DCS: \302\220https://github.com/alt/project/pull/988\302\234\n'
+      printf 'provider ESC SOS: \033Xhttps://github.com/alt/project/pull/987\033\\\n'
+      printf 'provider raw SOS: \230https://github.com/alt/project/pull/986\234\n'
+      printf 'provider UTF-8 SOS: \302\230https://github.com/alt/project/pull/985\302\234\n'
+      printf 'provider ESC PM: \033^https://github.com/alt/project/pull/984\033\\\n'
+      printf 'provider raw PM: \236https://github.com/alt/project/pull/983\234\n'
+      printf 'provider UTF-8 PM: \302\236https://github.com/alt/project/pull/982\302\234\n'
+      printf 'provider ESC APC: \033_https://github.com/alt/project/pull/981\033\\\n'
+      printf 'provider raw APC: \237https://github.com/alt/project/pull/980\234\n'
+      printf 'provider UTF-8 APC: \302\237https://github.com/alt/project/pull/979\302\234\n'
+      printf 'provider malformed UTF-8 before raw APC: \355\237xhttps://github.com/alt/project/pull/977\234\n'
+      printf 'provider CSI to ESC OSC: \033[\033]8;;https://github.com/alt/project/pull/976\033\\\n'
+      printf 'provider CSI to raw OSC: \033[\2358;;https://github.com/alt/project/pull/975\234\n'
+      printf 'provider CSI to UTF-8 OSC: \033[\302\2358;;https://github.com/alt/project/pull/974\302\234\n'
       printf 'userinfo decoy: https://attacker.example@github.com/alt/project/pull/666\n'
       printf 'https://unrelated.example/not-the-created-pr\n'
+      # Keep this last: an unterminated string control consumes every later byte.
+      printf 'provider unterminated APC: \033_https://github.com/alt/project/pull/978\n'
     else
       echo "https://github.com/alt/project/pull/1"
     fi
@@ -189,6 +207,10 @@ SH
     [[ "$output" != *"/pull/998"* ]] || failures="${failures} ST-hidden-target-replayed"
     [[ "$output" != *"/pull/997"* ]] || failures="${failures} C1-hidden-target-replayed"
     [[ "$output" != *"/pull/996"* ]] || failures="${failures} mixed-C1-hidden-target-replayed"
+    local hidden_id
+    for hidden_id in {974..990}; do
+        [[ "$output" != *"/pull/$hidden_id"* ]] || failures="${failures} string-control-target-$hidden_id-replayed"
+    done
     [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1" ]] || failures="${failures} clean-selected-host-URL-missing"
     [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1[0m)."* ]] || failures="${failures} decorated-URL-promoted"
     [[ "$output" != *"✓ CR ready: https://github.com/alt/project/pull/1)."* ]] || failures="${failures} trailing-punctuation-promoted"

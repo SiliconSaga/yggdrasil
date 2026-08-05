@@ -90,6 +90,23 @@ ws_resolve_machine_name() {
     echo "$sanitized"
 }
 
+ws_require_hoard_name_available() {
+    local name="$1" kind conflicts=""
+
+    ws_classify_target_name "$name" || return 1
+    for kind in "${WS_TARGET_MATCH_KINDS[@]}"; do
+        [[ "$kind" == "hoard" ]] && continue
+        [[ -z "$conflicts" ]] || conflicts+=", "
+        conflicts+="$kind"
+    done
+
+    if [[ -n "$conflicts" ]]; then
+        echo "ERROR: Hoard name '$name' conflicts with existing target kind(s): $conflicts." >&2
+        echo "  Choose a different --name so ws commands remain unambiguous." >&2
+        return 1
+    fi
+}
+
 # Detect the active thalami hoard.
 # Returns the hoard directory name (not full path), or empty.
 #
@@ -722,6 +739,7 @@ ws_hoard_init() {
         echo "  Remove it first if you want to start over." >&2
         exit 1
     fi
+    ws_require_hoard_name_available "$hoard_name" || exit 1
 
     # thalami-specific validation
     case "$template" in
@@ -902,6 +920,7 @@ ws_hoard_clone_url() {
         echo "ERROR: Hoard '$repo_name' already exists at $target." >&2
         exit 1
     fi
+    ws_require_hoard_name_available "$repo_name" || exit 1
 
     mkdir -p "$HOARDS_DIR"
     echo "CLONE: hoard -> $target"

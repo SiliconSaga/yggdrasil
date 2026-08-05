@@ -24,13 +24,15 @@ FIXTURES_DIR="$BATS_TEST_DIRNAME/fixtures"
 #   $HOARDS_DIR, $TEMPLATES_DIR, $ECOSYSTEM, $ECOSYSTEM_LOCAL — exported
 init_workspace() {
     WORK="$BATS_TEST_TMPDIR/work"
-    mkdir -p "$WORK/hoards"
+    mkdir -p "$WORK/components" "$WORK/hoards" "$WORK/realms"
 
     # Default to the real templates dir so the standard cp -R flow can
     # be tested against the actually-shipped obsidian-vault template.
     # Tests that need synthetic templates overwrite TEMPLATES_DIR after
     # calling init_workspace.
     export HOARDS_DIR="$WORK/hoards"
+    export COMPONENTS_DIR="$WORK/components"
+    export REALMS_DIR="$WORK/realms"
     export TEMPLATES_DIR="$REPO_ROOT/templates"
     export ROOT_DIR="$WORK"
 
@@ -40,7 +42,7 @@ init_workspace() {
     cat > "$ECOSYSTEM" <<'YAML'
 identity:
   human_account: ""
-components: []
+components: {}
 YAML
 
     # Local override providing identity.human_account
@@ -101,4 +103,29 @@ bare_head_for_url() {
 # Run ws-hoard.sh init with the propagating env. Args are forwarded.
 run_hoard_init() {
     run bash "$WS_HOARD_BIN" init "$@"
+}
+
+declare_component() {
+    local name="$1"
+    COMPONENT_NAME="$name" yq -i '.components[strenv(COMPONENT_NAME)] = {"repo": "https://example.invalid/repo.git"}' "$ECOSYSTEM"
+}
+
+create_realm() {
+    mkdir -p "$REALMS_DIR/$1/.git"
+}
+
+install_failing_git() {
+    local fake_bin="$BATS_TEST_TMPDIR/fake-bin"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/git" <<'SH'
+#!/usr/bin/env bash
+echo "UNEXPECTED GIT INVOCATION: $*" >&2
+exit 99
+SH
+    chmod +x "$fake_bin/git"
+    export PATH="$fake_bin:$PATH"
+}
+
+run_hoard_clone() {
+    run bash "$WS_HOARD_BIN" "$@"
 }
