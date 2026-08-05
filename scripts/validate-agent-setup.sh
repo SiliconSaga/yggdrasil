@@ -2,7 +2,7 @@
 # validate-agent-setup.sh — verify agent tooling prerequisites are correctly configured
 #
 # Run at the start of any session where agent will push code or file issues:
-#   source .env && ./scripts/validate-agent-setup.sh
+#   ./scripts/validate-agent-setup.sh
 #
 # Checks:
 #   1. GH_TOKEN set and gh authenticated
@@ -12,11 +12,22 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ws-env.sh
+source "$SCRIPT_DIR/ws-env.sh"
+ENV_FILE="$SCRIPT_DIR/../.env"
+
+if [[ -z "${GH_TOKEN:-}" && -f "$ENV_FILE" ]]; then
+  ws_load_env "$ENV_FILE"
+  ENV_FILE="$SCRIPT_DIR/../.env"
+  GH_TOKEN_LOAD_SOURCE="dotenv"
+else
+  GH_TOKEN_LOAD_SOURCE="environment"
+fi
+
 # Prevent MSYS / Git Bash from converting /api-style paths to C:/… filesystem paths
 export MSYS_NO_PATHCONV=1
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
 PASS="✓"
 FAIL="✗"
 WARN="⚠"
@@ -36,14 +47,18 @@ check() {
 echo "[ gh auth ]"
 
 if [[ -z "${GH_TOKEN:-}" ]]; then
-  if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck source=/dev/null
-    source "$ENV_FILE"
-    echo "  $WARN GH_TOKEN loaded from .env (not in environment — add 'source .env' to shell profile)"
+  if [[ "$GH_TOKEN_LOAD_SOURCE" == "dotenv" ]]; then
+    echo "  $FAIL GH_TOKEN missing or empty after loading $ENV_FILE"
   else
     echo "  $FAIL GH_TOKEN not set and $ENV_FILE not found"
-    ERRORS=$((ERRORS + 1))
   fi
+  echo ""
+  echo "Cannot continue without a nonempty GH_TOKEN. Set it in the environment or .env."
+  exit 1
+fi
+
+if [[ "$GH_TOKEN_LOAD_SOURCE" == "dotenv" ]]; then
+  echo "  $WARN GH_TOKEN loaded from .env as literal assignment data for this validation run"
 else
   echo "  $PASS GH_TOKEN set in environment"
 fi
