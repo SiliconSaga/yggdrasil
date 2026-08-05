@@ -17,6 +17,7 @@ setup() {
     [[ "$output" == *"Ambiguous target name 'widget'"* ]]
     [[ "$output" == *"component"* ]]
     [[ "$output" == *"hoard"* ]]
+    [[ "$output" == *"Rename or remove one of the colliding targets"* ]]
     [[ "$output" != *"$HOARDS_DIR/widget"* ]]
 }
 

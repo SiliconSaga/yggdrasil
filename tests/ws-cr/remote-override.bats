@@ -128,6 +128,7 @@ case "${1:-} ${2:-}" in
       printf 'provider CSI to UTF-8 OSC: \033[\302\2358;;https://github.com/alt/project/pull/974\302\234\n'
       printf 'userinfo decoy: https://attacker.example@github.com/alt/project/pull/666\n'
       printf 'https://unrelated.example/not-the-created-pr\n'
+      # Keep this last: an unterminated string control consumes every later byte.
       printf 'provider unterminated APC: \033_https://github.com/alt/project/pull/978\n'
     else
       echo "https://github.com/alt/project/pull/1"

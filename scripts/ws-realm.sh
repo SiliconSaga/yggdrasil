@@ -224,7 +224,7 @@ ws_resolve_target() {
             kinds+="$kind"
         done
         echo "ERROR: Ambiguous target name '$name' matches: $kinds." >&2
-        echo "  Rename the colliding realm or hoard before running a target command." >&2
+        echo "  Rename or remove one of the colliding targets before running a target command." >&2
         exit 1
     fi
 
