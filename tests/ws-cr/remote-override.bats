@@ -123,6 +123,9 @@ case "${1:-} ${2:-}" in
       printf 'provider raw APC: \237https://github.com/alt/project/pull/980\234\n'
       printf 'provider UTF-8 APC: \302\237https://github.com/alt/project/pull/979\302\234\n'
       printf 'provider malformed UTF-8 before raw APC: \355\237xhttps://github.com/alt/project/pull/977\234\n'
+      printf 'provider CSI to ESC OSC: \033[\033]8;;https://github.com/alt/project/pull/976\033\\\n'
+      printf 'provider CSI to raw OSC: \033[\2358;;https://github.com/alt/project/pull/975\234\n'
+      printf 'provider CSI to UTF-8 OSC: \033[\302\2358;;https://github.com/alt/project/pull/974\302\234\n'
       printf 'userinfo decoy: https://attacker.example@github.com/alt/project/pull/666\n'
       printf 'https://unrelated.example/not-the-created-pr\n'
       printf 'provider unterminated APC: \033_https://github.com/alt/project/pull/978\n'
@@ -204,7 +207,7 @@ SH
     [[ "$output" != *"/pull/997"* ]] || failures="${failures} C1-hidden-target-replayed"
     [[ "$output" != *"/pull/996"* ]] || failures="${failures} mixed-C1-hidden-target-replayed"
     local hidden_id
-    for hidden_id in {977..990}; do
+    for hidden_id in {974..990}; do
         [[ "$output" != *"/pull/$hidden_id"* ]] || failures="${failures} string-control-target-$hidden_id-replayed"
     done
     [[ "$output" == *"✓ CR ready: https://github.com/alt/project/pull/1" ]] || failures="${failures} clean-selected-host-URL-missing"

@@ -59,6 +59,36 @@ YAML
     [[ "$output" != *"$COMPONENTS_DIR/widget"* ]]
 }
 
+@test "an unapproved realm tombstone cannot erase a component collision" {
+    declare_component widget
+    create_realm community
+    cat > "$REALMS_DIR/community/ecosystem.yaml" <<'YAML'
+components:
+  widget: null
+YAML
+    printf 'realm: community\n' > "$ECOSYSTEM_LOCAL"
+    create_hoard widget
+
+    run_ws exec widget pwd
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Ambiguous target name 'widget'"* ]]
+    [[ "$output" == *"component"* ]]
+    [[ "$output" == *"hoard"* ]]
+    [[ "$output" != *"$HOARDS_DIR/widget"* ]]
+}
+
+@test "a local tombstone can remove a base component collision" {
+    declare_component widget
+    COMPONENT_NAME=widget yq -i '.components[strenv(COMPONENT_NAME)] = null' "$ECOSYSTEM_LOCAL"
+    create_hoard widget
+
+    run_ws exec widget pwd
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"$HOARDS_DIR/widget"* ]]
+}
+
 @test "ws exec still resolves a unique realm" {
     create_realm community
 

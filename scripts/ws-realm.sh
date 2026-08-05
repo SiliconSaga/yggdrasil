@@ -132,12 +132,14 @@ WS_TARGET_MATCH_KINDS=()
 # still goes through ws_resolve_ecosystem and its realm-trust gate.
 ws_component_name_is_declared_for_collision() {
     local name="$1" active_realm="" local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
-    local file="" declared="false"
+    local file="" realm_file="" realm_trust_state="missing" declared="false"
     local -a layer_files=("${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}")
 
     active_realm="$(ws_detect_realm)" || return 2
     if [[ -n "$active_realm" ]]; then
-        layer_files+=("$REALMS_DIR/$active_realm/ecosystem.yaml")
+        realm_file="$REALMS_DIR/$active_realm/ecosystem.yaml"
+        realm_trust_state="$(ws_realm_trust_state "$active_realm")"
+        layer_files+=("$realm_file")
     fi
     layer_files+=("$local_file")
 
@@ -150,6 +152,11 @@ ws_component_name_is_declared_for_collision() {
         if COMPONENT_NAME="$name" yq -e '(((.components // {}) | select(kind == "map") | has(strenv(COMPONENT_NAME))) // false)' "$file" >/dev/null 2>&1; then
             if COMPONENT_NAME="$name" yq -e '.components[strenv(COMPONENT_NAME)] != null' "$file" >/dev/null 2>&1; then
                 declared="true"
+            elif [[ "$file" == "$realm_file" && "$realm_trust_state" != "current" ]]; then
+                # Untrusted realm additions count as possible collisions, but
+                # removals cannot erase a trusted declaration before the
+                # executable resolver reaches the realm-trust gate.
+                continue
             else
                 declared="false"
             fi

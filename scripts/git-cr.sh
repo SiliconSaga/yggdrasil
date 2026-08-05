@@ -182,7 +182,23 @@ _strip_terminal_sequences() {
           esac
           ;;
         csi)
-          if [[ "$char" == [@-~] ]]; then state="normal"; fi
+          case "$char" in
+            "$esc") state="esc" ;;
+            "$c2") state="c2" ;;
+            "$raw_csi")
+              [[ "$recognize_raw_c1" == "true" ]] && state="csi"
+              ;;
+            "$raw_dcs"|"$raw_sos"|"$raw_osc"|"$raw_pm"|"$raw_apc")
+              if [[ "$recognize_raw_c1" == "true" ]]; then
+                state="string"
+                if [[ "$char" == "$raw_osc" ]]; then osc_string="true"; else osc_string="false"; fi
+              fi
+              ;;
+            "$raw_st")
+              [[ "$recognize_raw_c1" == "true" ]] && state="normal"
+              ;;
+            [@-~]) state="normal" ;;
+          esac
           ;;
         string)
           if [[ "$osc_string" == "true" && "$char" == "$bel" ]]; then
