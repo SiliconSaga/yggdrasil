@@ -58,36 +58,40 @@ _ws_env_parse_value() {
 }
 
 ws_load_env() {
-    local env_file="$1"
-    [[ -f "$env_file" ]] || return 0
+    local __WS_ENV_FILE="$1"
+    [[ -f "$__WS_ENV_FILE" ]] || return 0
 
-    local line line_number=0 key raw_value value
-    local assignment_re='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line_number=$((line_number + 1))
-        line="${line%$'\r'}"
-        [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
+    local __WS_ENV_LINE __WS_ENV_LINE_NUMBER=0 __WS_ENV_KEY __WS_ENV_RAW_VALUE __WS_ENV_VALUE
+    local __WS_ENV_ASSIGNMENT_RE='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
+    while IFS= read -r __WS_ENV_LINE || [[ -n "$__WS_ENV_LINE" ]]; do
+        __WS_ENV_LINE_NUMBER=$((__WS_ENV_LINE_NUMBER + 1))
+        __WS_ENV_LINE="${__WS_ENV_LINE%$'\r'}"
+        [[ "$__WS_ENV_LINE" =~ ^[[:space:]]*$ || "$__WS_ENV_LINE" =~ ^[[:space:]]*# ]] && continue
 
-        if [[ ! "$line" =~ $assignment_re ]]; then
-            echo "ERROR: invalid .env line $line_number in $env_file; expected KEY=value or export KEY=value." >&2
+        if [[ ! "$__WS_ENV_LINE" =~ $__WS_ENV_ASSIGNMENT_RE ]]; then
+            echo "ERROR: invalid .env line $__WS_ENV_LINE_NUMBER in $__WS_ENV_FILE; expected KEY=value or export KEY=value." >&2
             return 1
         fi
 
-        key="${BASH_REMATCH[2]}"
-        raw_value="${BASH_REMATCH[3]}"
-        case "$key" in
+        __WS_ENV_KEY="${BASH_REMATCH[2]}"
+        __WS_ENV_RAW_VALUE="${BASH_REMATCH[3]}"
+        case "$__WS_ENV_KEY" in
+            __WS_ENV_*)
+                echo "ERROR: refusing to set reserved variable '$__WS_ENV_KEY' from .env line $__WS_ENV_LINE_NUMBER in $__WS_ENV_FILE." >&2
+                return 1
+                ;;
             PATH|LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT|DYLD_INSERT_LIBRARIES|DYLD_LIBRARY_PATH|BASH_ENV|ENV|IFS|PS4|PROMPT_COMMAND|SHELLOPTS|BASHOPTS|GIT_CONFIG*|GIT_SSH*|GIT_ASKPASS|SSH_ASKPASS|GIT_EXEC_PATH|GIT_EXTERNAL_DIFF|GIT_PROXY_COMMAND|GIT_TEMPLATE_DIR|GIT_COMMON_DIR|GIT_TRACE*|GIT_CURL_VERBOSE|GIT_ALLOW_PROTOCOL|GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_NAMESPACE|GIT_EDITOR|GIT_SEQUENCE_EDITOR|GIT_PAGER|PAGER|EDITOR|VISUAL|LESSOPEN|LESSCLOSE|GH_PAGER|GLAB_PAGER|GH_DEBUG|GH_HOST|GH_CONFIG_DIR|GLAB_CONFIG_DIR|XDG_CONFIG_HOME|HOME|CDPATH|SCRIPT_DIR|ROOT_DIR|ECOSYSTEM|ECOSYSTEM_LOCAL|REALMS_DIR|COMPONENTS_DIR|HOARDS_DIR|TEMPLATES_DIR)
-                echo "ERROR: refusing to set reserved variable '$key' from .env line $line_number in $env_file." >&2
+                echo "ERROR: refusing to set reserved variable '$__WS_ENV_KEY' from .env line $__WS_ENV_LINE_NUMBER in $__WS_ENV_FILE." >&2
                 return 1
                 ;;
         esac
-        if ! value="$(_ws_env_parse_value "$raw_value" "$env_file" "$line_number")"; then
+        if ! __WS_ENV_VALUE="$(_ws_env_parse_value "$__WS_ENV_RAW_VALUE" "$__WS_ENV_FILE" "$__WS_ENV_LINE_NUMBER")"; then
             return 1
         fi
 
-        printf -v "$key" '%s' "$value"
-        export "$key"
-    done < "$env_file"
+        printf -v "$__WS_ENV_KEY" '%s' "$__WS_ENV_VALUE"
+        export "$__WS_ENV_KEY"
+    done < "$__WS_ENV_FILE"
 }
 
 # Provider-token names are prefix-allowlisted: a gitTokens mapping may only

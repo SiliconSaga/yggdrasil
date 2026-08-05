@@ -33,6 +33,36 @@ EOF
     [ ! -e "$marker" ]
 }
 
+@test "ws_load_env keeps ordinary local-name assignments literal across lines" {
+    local env_file="$BATS_TEST_TMPDIR/local-name.env"
+    local marker="$BATS_TEST_TMPDIR/local-name-command-ran"
+    local payload="REPO_ERRORS[\$(touch $marker)0]"
+    local REPO_ERRORS=0
+    local line_number=""
+    cat > "$env_file" <<EOF
+line_number=$payload
+GH_TOKEN=token
+EOF
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    [ ! -e "$marker" ]
+    [ "$line_number" = "$payload" ]
+    [ "$GH_TOKEN" = "token" ]
+}
+
+@test "ws_load_env rejects assignments in its reserved internal namespace" {
+    local env_file="$BATS_TEST_TMPDIR/internal-name.env"
+    echo "__WS_ENV_LINE=attacker-controlled" > "$env_file"
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"refusing to set reserved variable '__WS_ENV_LINE'"* ]]
+}
+
 @test "ws_load_env strips whitespace-delimited inline comments from unquoted values" {
     local env_file="$BATS_TEST_TMPDIR/inline-comments.env"
     cat > "$env_file" <<'EOF'
