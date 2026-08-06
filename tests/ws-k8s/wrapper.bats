@@ -58,6 +58,14 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [ "$status" -eq 0 ]
     grep -q -- '--context kind-practice' "$ROOT_DIR/kubectl.log"
 }
+@test "in-scope server dry-run is allowed and forces --context" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$ROOT_DIR/m.yaml"
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s apply -f "$ROOT_DIR/m.yaml" --dry-run=server
+    [ "$status" -eq 0 ]
+    grep -q -- '--context kind-practice apply' "$ROOT_DIR/kubectl.log"
+}
 @test "out-of-scope write is rejected, kubectl not called" {
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox
     : > "$ROOT_DIR/kubectl.log"

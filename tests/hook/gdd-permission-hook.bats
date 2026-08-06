@@ -3248,6 +3248,22 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
+@test "scoped-redirect: in-scope ws k8s server dry-run auto-approves" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
+    run_hook_with_session "ws k8s apply -f $WORK/m.yaml --dry-run=server" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: in-scope raw kubectl server dry-run auto-approves" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
+    run_hook_with_session "kubectl apply -f $WORK/m.yaml --dry-run=server" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
 @test "scoped-redirect: normalized ws k8s aliases cannot inherit the read auto-allow" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"

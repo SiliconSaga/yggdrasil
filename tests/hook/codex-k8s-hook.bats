@@ -327,6 +327,22 @@ assert_denied() {
     [ -z "$output" ]
 }
 
+@test "guarded ws k8s server dry-run defers under an active scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
+    run_codex_hook "ws k8s apply -f $WORK/m.yaml --dry-run=server"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "raw kubectl server dry-run defers under an active scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
+    run_codex_hook "kubectl apply -f $WORK/m.yaml --dry-run=server"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
 @test "verbose guarded ws k8s write defers under an active scope" {
     seed_scope codex-test kind-practice alice-sandbox
     run_codex_hook 'bash scripts/ws k8s delete pod foo -n alice-sandbox'

@@ -161,7 +161,7 @@ if [[ "$k8s_match_cmd" == ws\ k8s\ * || "$k8s_match_cmd" == k8s\ * ]]; then
         BLOCK:*) deny "$(k8s_render_block "$verdict" "$ctx" k8s)" ;;
         WRITE_NO_SCOPE)
             deny "No Kubernetes guard scope is active. Arm one with 'ws k8s scope set --context <ctx> --namespace <ns,...>', or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session." ;;
-        READ_NO_SCOPE|READ_IN_SCOPE|WRITE_IN_SCOPE|NOT_K8S) exit 0 ;;
+        READ_NO_SCOPE|READ_IN_SCOPE|DRY_RUN_IN_SCOPE|WRITE_IN_SCOPE|NOT_K8S) exit 0 ;;
         *) deny "Kubernetes guard evaluation failed; the guarded command was not run." ;;
     esac
 fi
@@ -169,7 +169,7 @@ fi
 if [[ "$k8s_match_cmd" == kubectl || "$k8s_match_cmd" == kubectl\ * ]]; then
     verdict="$(evaluate_command "$k8s_match_cmd" 2>/dev/null || true)"
     case "$verdict" in
-        READ_NO_SCOPE|READ_IN_SCOPE) exit 0 ;;
+        READ_NO_SCOPE|READ_IN_SCOPE|DRY_RUN_IN_SCOPE) exit 0 ;;
         WRITE_NO_SCOPE)
             deny "No Kubernetes guard scope is active. Arm one with 'ws k8s scope set --context <ctx> --namespace <ns,...>', or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session." ;;
         WRITE_IN_SCOPE)
