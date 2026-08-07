@@ -50,6 +50,17 @@ setup() {
     [[ "$output" == *"Shell composition"* ]]
 }
 
+@test "deny: composition message names the component-scoped alternative" {
+    # Stating the rule without naming a way to obey it leaves an agent stuck:
+    # one that had read the whole subcommand survey still retried the same
+    # `cd <dir>; <cmd>` shape and then gave up. The refusal is where the
+    # alternative has to appear.
+    run_hook "cd components/ken-site ; git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws exec <component> <command>"* ]]
+}
+
 @test "deny: | triggers pipes message" {
     run_hook "ls -la | head"
     [ "$status" -eq 0 ]

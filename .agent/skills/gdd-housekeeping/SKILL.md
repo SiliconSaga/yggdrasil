@@ -133,6 +133,16 @@ If the active thalami hoard has an `Intake.md` whose `## Items` section contains
 
 `Intake.md` is meant to stay short. If it keeps growing audit-over-audit, the GDD ceremony is not draining often enough — surface that to the human as a process observation.
 
+### Step 2.7: Mine harvested sandbox notes, then delete them
+
+If the active thalami hoard has a `sandboxes/` directory containing any files, each one is the Thalamus of a **sandboxed workspace that no longer exists** — `ws`-side tooling harvests those notes at the moment the sandbox is recycled, so a file being there means the container and its volumes are already gone. Nothing else holds a copy.
+
+Read each file with the human and treat its contents as ordinary audit input: an observation worth keeping moves to this host's `*-thalamus.md`, a concern is raised, a recurring friction feeds Step 3's pattern check. A tenant agent sees things the operator never does — which tools it could not use, what the person kept asking for, where it got stuck.
+
+**Then delete the file.** Not archive, not leave for next time: the sandbox is gone, so the notes are not memory any more — they are an inbox item, and an inbox that is never emptied stops being read. Anything worth keeping is in the host's Thalamus by then; anything not worth keeping was not worth carrying.
+
+Harvested files may also appear under the workspace `.tmp/sandbox-harvest/`, which is where harvesting falls back when no hoard is active. Same treatment — and `ws clean` sweeps that directory, so mine it before it is swept.
+
 ### Step 3: Check for Pattern Accumulation
 
 After reviewing individual items, look across them:
