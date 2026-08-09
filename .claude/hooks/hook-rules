@@ -99,6 +99,18 @@ gh-checkout      | ws gh pr checkout* | `ws gh` runs at the workspace ROOT — `
 gh-checkout-raw  | gh pr checkout*    | `gh pr checkout` mutates whatever repo it stands in — from the workspace root that is the workspace itself. Run it inside the target: `ws exec <comp> gh pr checkout <n>` (component `yggdrasil` if the workspace repo is intended). `ws hook-bypass gh-checkout-raw` for a session-scoped bypass.
 gh-repo-sync     | ws gh repo sync*   | `ws gh` runs at the workspace ROOT — `gh repo sync` here syncs the workspace repo, not the component you meant. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync` for a session-scoped bypass.
 gh-repo-sync-raw | gh repo sync*      | `gh repo sync` mutates the repo it stands in. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync-raw` for a session-scoped bypass.
+# Review READING has a wrapper; reaching past it costs the thread ids, the
+# resolved/unresolved state and `--since <ref>` filtering, and then a reply has
+# nothing to resolve against. Scoped to the comment-fetching forms only: a plain
+# `pr view` status check is deliberately left alone (see the non-mutating-ws-gh
+# test), and anything ws review genuinely cannot do — checks, diffs, arbitrary
+# API — must stay reachable, because denying with no alternative is worse than
+# the reflex. When one of these bypasses gets requested, treat it as a feature
+# request for `ws review` rather than a nuisance: that is the gap showing itself.
+gh-pr-comments   | *gh pr view*--comments*        | Use `ws review <comp> <cr#>` — it carries thread ids, resolved state and `--since <ref>` filtering that `gh pr view --comments` cannot, and `ws review reply` needs those ids. `ws hook-bypass gh-pr-comments` for a session-scoped bypass; if you needed it because `ws review` lacks something, say so — that is worth adding.
+gh-pr-comments-api | *gh api *pulls/*/comments*   | Use `ws review <comp> <cr#>` — the raw endpoint returns comments with no thread grouping or resolution state, which is most of what makes review triage tractable. `ws hook-bypass gh-pr-comments-api` for a session-scoped bypass.
+gh-pr-reviews-api  | *gh api *pulls/*/reviews*    | Use `ws review <comp> <cr#>` — it renders reviews alongside their inline comments and threads. `ws hook-bypass gh-pr-reviews-api` for a session-scoped bypass.
+glab-mr-note       | *glab mr note*               | Use `ws review <comp> reply <cr#> <thread-id> <msg> [--resolve]` — replying through the raw note API leaves the thread unresolved and unattributed. `ws hook-bypass glab-mr-note` for a session-scoped bypass.
 gh-cli       | gh *           | Use `ws gh <args>` — injects the workspace GH_TOKEN from .env so the command authenticates without interactive `gh auth login`. Any `gh` subcommand passes through. `ws hook-bypass gh-cli` for a session-scoped bypass.
 glab-cli     | glab *         | Use `ws glab <args>` — injects the workspace GitLab token from .env so the command authenticates without interactive login. Any `glab` subcommand passes through. `ws hook-bypass glab-cli` for a session-scoped bypass.
 

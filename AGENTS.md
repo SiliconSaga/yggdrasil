@@ -47,6 +47,8 @@ The PreToolUse hook denies `git commit` / `git push` / `gh pr create` at Tier 2 
 
 **Review phase — prefer `ws review`.** Now that `ws` injects tokens, the `ws gh` / `ws glab` one-off wrappers make raw `gh pr` / `glab mr` API calls easy to reach for — but for reading or triaging code-review feedback, start with `ws review <comp> [cr#]`. It handles thread resolution, `--since <ref>` filtering, and attribution that the raw provider calls (and their `ws gh` / `ws glab` wrappers) don't. Drop to `ws gh` / `ws glab` only for something `ws review` genuinely can't express.
 
+The comment-fetching forms are enforced rather than merely advised — `gh pr view --comments`, the `pulls/*/comments` and `pulls/*/reviews` endpoints, and `glab mr note` all deny with a pointer at `ws review`. Things `ws review` genuinely cannot do (checks, diffs, unrelated API endpoints) stay reachable, because a prohibition with no alternative is worse than the habit it prevents. **If you need a bypass here, that is a feature request for `ws review`** — say what was missing rather than routing around it quietly, since a silent fallback is exactly how the gap stays invisible.
+
 Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint) also accept realm and hoard names, not just components.
 
 **Adapter-routed verbs — consult `ws orient` first:** `ws test` / `ws lint` / `ws build`.

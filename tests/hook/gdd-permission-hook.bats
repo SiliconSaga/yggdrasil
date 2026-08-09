@@ -1533,6 +1533,36 @@ JSON
     [[ "$output" != *"workspace ROOT"* ]]
 }
 
+@test "redirect: fetching review comments points at ws review" {
+    # The reflex `ws gh` made easy: pulling CR details through the provider CLI,
+    # which returns comments with no thread ids and no resolved state — so the
+    # triage is worse AND a later `ws review reply` has nothing to resolve.
+    seed_real_project_config
+
+    run_hook 'ws gh pr view 3 --comments'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+
+    run_hook 'ws gh api repos/SiliconSaga/gdd-sandbox/pulls/3/comments'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+}
+
+@test "redirect: what ws review cannot do stays reachable" {
+    # Denying with no alternative is worse than the reflex it prevents. Checks,
+    # diffs and unrelated API endpoints have no ws review equivalent today, so
+    # they must not be caught by the review redirects.
+    seed_real_project_config
+
+    run_hook 'ws gh pr checks 3'
+    [[ "$output" != *"ws review"* ]]
+    run_hook 'ws gh pr diff 3'
+    [[ "$output" != *"ws review"* ]]
+    run_hook 'ws gh api repos/SiliconSaga/ken-site/actions/runs'
+    [[ "$output" != *"ws review"* ]]
+}
+
 @test "allow-path: non-mutating ws gh subcommands are untouched by the guard" {
     seed_real_project_config
 
