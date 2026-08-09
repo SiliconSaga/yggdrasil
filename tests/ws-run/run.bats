@@ -1,9 +1,8 @@
 #!/usr/bin/env bats
 
-# Tests for `ws run`. It resolves commands.<action> from the active realm
+# Tests for `ws run`. It resolves commands.run from the active realm
 # adapter, runs it in the component directory, passes extra args through,
-# rejects reserved verbs and malformed action names, and errors helpfully
-# when the action is not configured.
+# and errors helpfully when no run command is configured.
 
 load test_helper
 
@@ -12,65 +11,61 @@ setup() {
 }
 
 @test "run refuses stale active-realm trust for workspace targets" {
-    write_adapter_action clean "./actionstub"
-    CLEAN_CMD="./actionstub --deep" yq -i \
-        '.commands.clean = strenv(CLEAN_CMD)' \
+    write_adapter_run "./runstub"
+    RUN_CMD="./runstub --windowed" yq -i \
+        '.commands.run = strenv(RUN_CMD)' \
         "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml"
 
-    run_ws_run yggdrasil clean
+    run_ws_run yggdrasil
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"trust reapproval is required"* ]]
-    [ ! -f "$ROOT_DIR/action_ran.marker" ]
+    [ ! -f "$ROOT_DIR/run_ran.marker" ]
 }
 
-@test "run executes the adapter's named action" {
-    write_adapter_action clean "./actionstub"
-    run_ws_run yggdrasil clean
+@test "run executes the adapter's commands.run" {
+    write_adapter_run "./runstub"
+    run_ws_run yggdrasil
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ACTION_ARGS:"* ]]
+    [[ "$output" == *"RUN_ARGS:"* ]]
 }
 
-@test "run passes extra args through to the action" {
-    write_adapter_action clean "./actionstub"
-    run_ws_run yggdrasil clean --deep
+@test "run passes extra args through to the run target" {
+    write_adapter_run "./runstub"
+    run_ws_run yggdrasil --port 3001
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ACTION_ARGS:--deep"* ]]
+    [[ "$output" == *"RUN_ARGS:--port 3001"* ]]
 }
 
 @test "run executes in the component directory" {
-    write_adapter_action clean "./actionstub"
-    run_ws_run yggdrasil clean
-    [ "$status" -eq 0 ]
-    [ -f "$ROOT_DIR/action_ran.marker" ]
-}
-
-@test "run rejects reserved verbs with a pointer to the dedicated command" {
-    write_adapter_action test "./actionstub"
-    run_ws_run yggdrasil test
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"dedicated verb"* ]]
-    [[ "$output" == *"ws test yggdrasil"* ]]
-    [ ! -f "$ROOT_DIR/action_ran.marker" ]
-}
-
-@test "run rejects a malformed action name before any lookup" {
-    write_adapter_action clean "./actionstub"
-    run_ws_run yggdrasil 'clean; rm -rf /'
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid action name"* ]]
-    [ ! -f "$ROOT_DIR/action_ran.marker" ]
-}
-
-@test "run errors helpfully when the action is not configured" {
-    write_adapter_action clean "./actionstub"
-    run_ws_run yggdrasil deploy
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"No 'deploy' action configured"* ]]
-}
-
-@test "run with too few args prints usage and exits nonzero" {
+    write_adapter_run "./runstub"
     run_ws_run yggdrasil
+    [ "$status" -eq 0 ]
+    [ -f "$ROOT_DIR/run_ran.marker" ]
+}
+
+@test "run errors helpfully when no commands.run is configured" {
+    # Adapter exists but declares only a test command, no run.
+    cat > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml" <<'EOF'
+commands:
+  test: "true"
+EOF
+    approve_synthetic_realm
+    run_ws_run yggdrasil
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"No run command configured"* ]]
+}
+
+@test "run rejects malformed adapter YAML as stale trust" {
+    # An unterminated flow mapping cannot match the content that was approved.
+    printf 'commands: {\n' > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml"
+    run_ws_run yggdrasil
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"trust reapproval is required"* ]]
+}
+
+@test "run with no component prints usage and exits nonzero" {
+    run_ws_run
     [ "$status" -ne 0 ]
     [[ "$output" == *"Usage: ws run"* ]]
 }
