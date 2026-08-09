@@ -1032,7 +1032,7 @@ case "$tier1_cmd" in
         # `cd components/<c>; git ...`, was refused, retried the same shape, and
         # gave up — the corrective text told it the rule without naming a way to
         # obey it. The moment of refusal is where the alternative gets learned.
-        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. To run something inside a component, use 'ws exec <component> <command>' — one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next."
+        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. Reach for the dedicated verb first — ws commit, ws push, ws cr, ws test, ws lint — and use 'ws exec <component> <command>' only where no wrapper exists: one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next."
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."

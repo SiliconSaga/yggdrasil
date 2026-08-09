@@ -50,6 +50,38 @@ setup() {
     [[ "$output" == *"Shell composition"* ]]
 }
 
+@test "deny: ws exec cannot smuggle a redirected verb past its wrapper" {
+    # Measured before this rule existed: the raw form was DENIED with the
+    # corrective pointer, while the ws exec form only reached ASK — a softer
+    # path to the same act, ending in a rubber-stamped prompt and a commit with
+    # no Co-Authored-By trailer and none of the bodyfile staging.
+    seed_real_project_config
+    run_hook "ws exec ken-site git commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "deny: ws exec cannot smuggle a push or a pull request past its wrapper" {
+    seed_real_project_config
+    run_hook "ws exec ken-site git push"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws push"* ]]
+    run_hook "ws exec ken-site gh pr create --title x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws cr"* ]]
+}
+
+@test "ask: ws exec still carries the commands that have no wrapper" {
+    # The point is ordering, not prohibition. A command with no wrapper keeps
+    # its ordinary treatment — the baseline ask-list still force-prompts on
+    # `ws exec *`, which is a separate decision from these redirects.
+    seed_real_project_config
+    run_hook "ws exec ken-site bundle exec jekyll build"
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" != *"ws commit"* ]]
+}
+
 @test "deny: composition message names the component-scoped alternative" {
     # Stating the rule without naming a way to obey it leaves an agent stuck:
     # one that had read the whole subcommand survey still retried the same

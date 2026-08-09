@@ -39,9 +39,11 @@ A fresh agent's instinct is to reach for raw `git`, `gh`, `glab`, or test runner
 | `gh pr view` / `gh pr checks` / `glab mr note` (reading or replying to review) | `ws review <comp> [cr#]` |
 | `gh issue create` / `glab issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` |
 | `git clone <fork>` + manual remote-wiring | `ws clone <comp>` (or `ws clone-fork <comp>` for fork-as-origin) |
-| One-off command inside a component dir | `ws exec <comp> <cmd…>` |
+| One-off command inside a component dir — *only where no verb above fits* | `ws exec <comp> <cmd…>` |
 
 The PreToolUse hook denies `git commit` / `git push` / `gh pr create` at Tier 2 with a corrective pointer to the `ws` wrapper. Don't bypass — use the wrapper.
+
+**`ws exec` is the fallback, not the shortcut.** It exists for commands with no wrapper; wrapping a verb that *has* one — `ws exec <comp> git commit …` — skips exactly what the wrapper is for (the attribution trailer, bodyfile staging, remote and token selection), so those forms are denied too. If reaching for `ws exec` and a verb in the table above would both work, the verb is the right answer.
 
 **Review phase — prefer `ws review`.** Now that `ws` injects tokens, the `ws gh` / `ws glab` one-off wrappers make raw `gh pr` / `glab mr` API calls easy to reach for — but for reading or triaging code-review feedback, start with `ws review <comp> [cr#]`. It handles thread resolution, `--since <ref>` filtering, and attribution that the raw provider calls (and their `ws gh` / `ws glab` wrappers) don't. Drop to `ws gh` / `ws glab` only for something `ws review` genuinely can't express.
 
