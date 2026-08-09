@@ -2,7 +2,7 @@
 #
 # Mirrors the ws-build harness: synthetic workspace under $BATS_TEST_TMPDIR,
 # the "yggdrasil" component name (→ COMPONENT_DIR=$ROOT_DIR), a single
-# realm-test realm with an adapter YAML, and a stub action that records
+# realm-test realm with an adapter YAML, and a stub run target that records
 # how it was invoked (args + that it ran in the component dir).
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -19,14 +19,14 @@ setup_synthetic_realm() {
     printf 'components: {}\n' > "$REALMS_DIR/realm-test/ecosystem.yaml"
     printf 'realm: realm-test\n' > "$ECOSYSTEM_LOCAL"
 
-    # Stub action: drops a marker in its cwd (proves it ran in the
+    # Stub run target: drops a marker in its cwd (proves it ran in the
     # component dir) and echoes the args it received.
-    cat > "$ROOT_DIR/actionstub" <<'EOF'
+    cat > "$ROOT_DIR/runstub" <<'EOF'
 #!/usr/bin/env bash
-touch action_ran.marker
-echo "ACTION_ARGS:$*"
+touch run_ran.marker
+echo "RUN_ARGS:$*"
 EOF
-    chmod +x "$ROOT_DIR/actionstub"
+    chmod +x "$ROOT_DIR/runstub"
 
     approve_synthetic_realm
 }
@@ -42,12 +42,12 @@ approve_synthetic_realm() {
     ' "$ECOSYSTEM_LOCAL"
 }
 
-# Write the realm adapter declaring the given action name and command.
-write_adapter_action() {
-    local action="$1" cmd="$2"
+# Write the realm adapter with the given commands.run value.
+write_adapter_run() {
+    local cmd="$1"
     cat > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml" <<EOF
 commands:
-  $action: "$cmd"
+  run: "$cmd"
 EOF
     approve_synthetic_realm
 }
