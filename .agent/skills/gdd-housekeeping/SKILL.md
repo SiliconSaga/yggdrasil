@@ -135,11 +135,11 @@ If the active thalami hoard has an `Intake.md` whose `## Items` section contains
 
 ### Step 2.7: Mine harvested sandbox notes, then delete them
 
-If the active thalami hoard has a `sandboxes/` directory containing any files, each one is the Thalamus of a **sandboxed workspace that no longer exists** — `ws`-side tooling harvests those notes at the moment the sandbox is recycled, so a file being there means the container and its volumes are already gone. Nothing else holds a copy.
+If the active thalami hoard has a `sandboxes/` directory containing any files, each one is the harvested Thalamus of a sandboxed workspace — the notes its agent kept across sessions. Harvesting normally happens as part of recycling that sandbox, in which case the file is the only surviving copy; a harvest run on its own destroys nothing, so the sandbox may still be running with those notes intact. Check before assuming which case you are in.
 
 Read each file with the human and treat its contents as ordinary audit input: an observation worth keeping moves to this host's `*-thalamus.md`, a concern is raised, a recurring friction feeds Step 3's pattern check. A tenant agent sees things the operator never does — which tools it could not use, what the person kept asking for, where it got stuck.
 
-**Then delete the file.** Not archive, not leave for next time: the sandbox is gone, so the notes are not memory any more — they are an inbox item, and an inbox that is never emptied stops being read. Anything worth keeping is in the host's Thalamus by then; anything not worth keeping was not worth carrying.
+**Then delete the file** — once its observations are recorded and that sandbox has actually been recycled. Not archive, not leave for next time: at that point the notes are not memory any more, they are an inbox item, and an inbox that is never emptied stops being read. Anything worth keeping is in the host's Thalamus by then; anything not worth keeping was not worth carrying. If the sandbox is still running, leave the file — mining it early is fine, but deleting it is housekeeping for a tenant that has not finished.
 
 Harvested files may also appear under the workspace `.tmp/sandbox-harvest/`, which is where harvesting falls back when no hoard is active. Same treatment — and `ws clean` sweeps that directory, so mine it before it is swept.
 
