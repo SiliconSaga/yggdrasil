@@ -107,6 +107,13 @@ gh-repo-sync-raw | gh repo sync*      | `gh repo sync` mutates the repo it stand
 # API — must stay reachable, because denying with no alternative is worse than
 # the reflex. When one of these bypasses gets requested, treat it as a feature
 # request for `ws review` rather than a nuisance: that is the gap showing itself.
+# Two are already known, and are why these patterns stay narrow — widening them
+# before the gaps close would only manufacture bypass requests:
+#   - No machine-readable output. `gh pr view --json reviewDecision,reviews --jq …`
+#     is a real fallback, not a reflex; `ws review` prints for humans only.
+#   - Needs a local clone. `ws review <comp> <cr#>` fails with "is not cloned
+#     locally", while `gh --repo owner/name` reads a PR without one — a clone the
+#     read does not actually require.
 gh-pr-comments   | *gh pr view*--comments*        | Use `ws review <comp> <cr#>` — it carries thread ids, resolved state and `--since <ref>` filtering that `gh pr view --comments` cannot, and `ws review reply` needs those ids. `ws hook-bypass gh-pr-comments` for a session-scoped bypass; if you needed it because `ws review` lacks something, say so — that is worth adding.
 gh-pr-comments-api | *gh api *pulls/*/comments*   | Use `ws review <comp> <cr#>` — the raw endpoint returns comments with no thread grouping or resolution state, which is most of what makes review triage tractable. `ws hook-bypass gh-pr-comments-api` for a session-scoped bypass.
 gh-pr-reviews-api  | *gh api *pulls/*/reviews*    | Use `ws review <comp> <cr#>` — it renders reviews alongside their inline comments and threads. `ws hook-bypass gh-pr-reviews-api` for a session-scoped bypass.
