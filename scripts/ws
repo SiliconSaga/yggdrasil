@@ -24,11 +24,12 @@
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
 #   build <comp> [args...] Run the component build (adapter commands.build; see 'ws actions <comp>')
-#   run <comp> <action> [args...] Run any other adapter-declared action (see 'ws actions <comp>')
+#   run <comp> [args...] Run the component itself — game, dev server, sandbox (adapter commands.run)
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
 #   log [comp] [--oneline] Show commits on current branch vs main
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
+#   clean <comp> [args...] Run the component's adapter clean (adapter commands.clean)
 #   k8s scope set|show|clear / k8s <args>   Guarded kubectl: prevalidate context + namespace
 #   docker <args>     Run docker with Windows/MSYS path conversion handled automatically
 #   whoami [--set "Name <email>"]  Show/set this session's commit identity
@@ -430,8 +431,48 @@ HELP
     fi
 }
 
+ws_clean_target() {
+    # Adapter form of clean: `ws clean <comp>` runs the component's
+    # `commands.clean` in its directory, mirroring ws build / ws run.
+    local comp="$1"
+    shift
+    ws_resolve_target "$comp"
+    cd "$COMPONENT_DIR"
+    local active_realm adapter_file clean_cmd=""
+    active_realm="$(ws_detect_realm)" || true
+    if [[ -n "$active_realm" ]]; then
+        adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
+        if [[ -f "$adapter_file" ]]; then
+            ws_require_active_realm_trust "$active_realm" || exit 1
+            # Guard the substitution: a non-zero yq exit (malformed adapter
+            # YAML) must not abort before the guidance below runs.
+            clean_cmd=$(yq -r '.commands.clean // ""' "$adapter_file" 2>/dev/null) || clean_cmd=""
+        fi
+    fi
+    if [[ -z "$clean_cmd" ]]; then
+        echo "ERROR: No clean command configured for '$comp'." >&2
+        echo "  Add 'commands.clean' to the realm adapter:" >&2
+        echo "    realms/<realm>/adapters/$comp.yaml" >&2
+        echo "  Run 'ws actions $comp' to see what's configured." >&2
+        echo "  (Bare 'ws clean' sweeps workspace draft files instead.)" >&2
+        exit 1
+    fi
+    # Adapter command contract mirrors ws-test.sh: whitespace-separated
+    # tokens only; use a wrapper script for complex quoting.
+    local clean_argv=()
+    # shellcheck disable=SC2206
+    read -r -a clean_argv <<< "$clean_cmd"
+    "${clean_argv[@]}" "$@"
+}
+
 ws_clean() {
-    # ws:use-when sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/
+    # ws:use-when sweeping draft files from .commits/ .crs/ .issues/ .outputs/ .tmp/ — or, with a component, running its adapter clean
+    # Target form first: a non-flag leading arg names a component whose
+    # adapter `commands.clean` should run. Bare/flag form sweeps drafts.
+    if [[ $# -gt 0 && "${1:0:1}" != "-" ]]; then
+        ws_clean_target "$@"
+        return $?
+    fi
     local force=0
     local clean_sessions=0
     local arg
@@ -442,9 +483,13 @@ ws_clean() {
             --sessions-all) clean_sessions=1 ;;
             -h|--help)
                 echo "Usage: ws clean [--force] [--sessions-all]"
+                echo "       ws clean <component> [args...]"
                 echo ""
                 echo "Remove draft files from .issues/, .crs/, .commits/, .outputs/,"
                 echo "and the workspace scratch area .tmp/."
+                echo ""
+                echo "With a component, run the adapter's 'commands.clean' in the"
+                echo "component directory instead (see 'ws actions <comp>')."
                 echo ""
                 echo "These scratch files double as mining material for the"
                 echo "housekeeping 'mine scratch dirs' step, so ws clean holds off"
