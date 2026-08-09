@@ -23,6 +23,8 @@
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkRemote)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
+#   build <comp> [args...] Run the component build (adapter commands.build; see 'ws actions <comp>')
+#   run <comp> <action> [args...] Run any other adapter-declared action (see 'ws actions <comp>')
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
 #   log [comp] [--oneline] Show commits on current branch vs main
@@ -1181,6 +1183,12 @@ case "$COMMAND" in
         ;;
     lint)
         bash "$SCRIPT_DIR/ws-lint.sh" "$@"
+        ;;
+    build)
+        bash "$SCRIPT_DIR/ws-build.sh" "$@"
+        ;;
+    run)
+        bash "$SCRIPT_DIR/ws-run.sh" "$@"
         ;;
     review)
         bash "$SCRIPT_DIR/ws-review.sh" "$@"
