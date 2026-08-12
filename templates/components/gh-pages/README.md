@@ -360,6 +360,7 @@ few common next steps, in roughly increasing complexity:
   with its own setup. Ask your agent for the typical patterns —
   Disqus or utterances for comments, GoatCounter or Plausible for
   cookieless analytics, lunr or Algolia for search.
+- **Shared CI: PR previews and visual diffs.** [Völundr](https://github.com/SiliconSaga/volundr) holds reusable workflows the SiliconSaga sites share, so every pull request gets its own preview URL and a screenshot diff against `main`, and your repo carries two thin caller stubs instead of a copy of the CI logic. Two things have to change first, and both contradict what Chapter 1 set up: the site needs a checked-in `Gemfile` using the `github-pages` gem, and Pages has to serve from a `gh-pages` branch rather than `main` — the deploy workflow publishes there. Adding the Gemfile also switches local preview to `bundle exec jekyll serve`, as noted under **Local preview** below. Your default branch has to be `main`. Ask your agent to walk you through it: the adoption steps live in Völundr's `aspect/SKILL.md`, and it can apply them for you.
 
 Each of these is more involved than the Chapter 1+2 loop and
 benefits from breaking into its own PR with its own review cycle.
