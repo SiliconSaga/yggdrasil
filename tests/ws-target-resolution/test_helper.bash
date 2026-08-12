@@ -40,3 +40,36 @@ create_hoard() {
 run_ws() {
     run bash "$WS_BIN" "$@"
 }
+
+create_nested_repo() {
+    mkdir -p "$COMPONENTS_DIR/$1/$2/.git"
+}
+
+add_nested_glob() {
+    local comp="$1" glob="$2"
+    NESTED_GLOB="$glob" yq -i '.nested += [strenv(NESTED_GLOB)]' \
+        "$REALMS_DIR/community/adapters/$comp.yaml"
+    approve_nested_realm
+}
+
+approve_nested_realm() {
+    run bash "$WS_BIN" realm use --trust community
+    [ "$status" -eq 0 ]
+}
+
+# A component that declares nested repos, with one present and the realm
+# approved — the shape Terasology's modules/ actually has.
+setup_nested_component() {
+    declare_component terasology
+    clone_component terasology
+    create_nested_repo terasology modules/Health
+
+    mkdir -p "$REALMS_DIR/community/adapters" "$REALMS_DIR/community/.git"
+    printf 'components: {}\n' > "$REALMS_DIR/community/ecosystem.yaml"
+    cat > "$REALMS_DIR/community/adapters/terasology.yaml" <<'YAML'
+nested:
+  - "modules/*"
+YAML
+    printf 'realm: community\n' > "$ECOSYSTEM_LOCAL"
+    approve_nested_realm
+}
