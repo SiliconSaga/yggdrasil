@@ -104,6 +104,84 @@ ws_component_name_is_valid() {
     [[ "${1:-}" =~ $WS_COMPONENT_NAME_REGEX ]]
 }
 
+# Nested repos are independent upstreams that live inside a component's working
+# tree (Terasology's modules/, for one). They are not components: they are not
+# declared in ecosystem config, they churn far too fast to enumerate, and their
+# names are upstream-controlled — CamelCase, unlike the strict component rule.
+#
+# So the segment rule below is deliberately broader than WS_COMPONENT_NAME_REGEX,
+# and the safety it gives up there is recovered two ways: the component segment
+# before the slash still obeys the strict rule, and every resolved path is
+# containment-checked against the host component's real path.
+#
+# Anchored bash regex, not grep: `$` here ends the string rather than a line, so
+# a newline-injected name cannot present a valid-looking first segment.
+WS_NESTED_SEGMENT_REGEX='^[A-Za-z0-9][A-Za-z0-9._-]*$'
+
+# Validate a nested subpath: one or more slash-separated segments. Rejects empty
+# segments (leading, trailing, or doubled slashes), absolute paths, and both `.`
+# and `..` — so traversal cannot be spelled at all, before any path is touched.
+ws_nested_subpath_is_valid() {
+    local subpath="${1:-}" segment
+    [[ -n "$subpath" ]] || return 1
+    while [[ "$subpath" == */* ]]; do
+        segment="${subpath%%/*}"
+        subpath="${subpath#*/}"
+        [[ "$segment" =~ $WS_NESTED_SEGMENT_REGEX ]] || return 1
+        [[ "$segment" != "." && "$segment" != ".." ]] || return 1
+    done
+    [[ "$subpath" =~ $WS_NESTED_SEGMENT_REGEX ]] || return 1
+    [[ "$subpath" != "." && "$subpath" != ".." ]] || return 1
+}
+
+# Glob patterns come from a realm adapter, which is trusted but still config.
+# Whitespace is rejected because the expansion below relies on the pattern being
+# a single shell word, and `..` because a pattern must not be able to climb out.
+WS_NESTED_GLOB_REGEX='^[A-Za-z0-9._*?/-]+$'
+
+ws_nested_glob_is_valid() {
+    local glob="${1:-}"
+    [[ "$glob" =~ $WS_NESTED_GLOB_REGEX ]] || return 1
+    [[ "$glob" != /* ]] || return 1
+    [[ "$glob" != *".."* ]] || return 1
+}
+
+# Emit the `nested:` globs declared for a component by the active realm adapter,
+# one per line. Silent non-zero when there is no active realm, no adapter, or no
+# declaration — "this component has no nested repos" is the common case, not an
+# error worth narrating from here.
+#
+# Trust is required at the same bar as adapter commands: a realm that has not
+# been approved must not be able to steer where a write verb lands.
+# Memoized per process. The trust check fingerprints every adapter in the realm,
+# and ws status / ws pull ask this once per component — without the cache that is
+# a full re-fingerprint per component, which on a workspace with a couple dozen
+# components is seconds of yq for an answer that cannot change mid-run.
+_WS_NESTED_REALM_CHECKED=""
+_WS_NESTED_REALM=""
+ws_nested_trusted_realm() {
+    if [[ -z "$_WS_NESTED_REALM_CHECKED" ]]; then
+        _WS_NESTED_REALM_CHECKED="yes"
+        _WS_NESTED_REALM=""
+        local active_realm=""
+        if active_realm="$(ws_detect_realm 2>/dev/null)" && [[ -n "$active_realm" ]]; then
+            if [[ "$(ws_realm_trust_state "$active_realm")" == "current" ]]; then
+                _WS_NESTED_REALM="$active_realm"
+            fi
+        fi
+    fi
+    [[ -n "$_WS_NESTED_REALM" ]] || return 1
+    printf '%s' "$_WS_NESTED_REALM"
+}
+
+ws_nested_globs_for_component() {
+    local comp="$1" active_realm="" adapter_file=""
+    active_realm="$(ws_nested_trusted_realm)" || return 1
+    adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
+    [[ -f "$adapter_file" && ! -L "$adapter_file" ]] || return 1
+    yq -r '.nested // [] | .[] | select(tag == "!!str")' "$adapter_file" 2>/dev/null
+}
+
 # Validate the complete key set inside yq so embedded newlines cannot turn one
 # invalid mapping key into multiple apparently valid shell input lines.
 ws_validate_component_keys() {
@@ -206,14 +284,142 @@ ws_classify_target_name() {
     fi
 }
 
+# Expand a component's declared nested globs and echo every match that is itself
+# a git repo, as "<relative-path>\t<absolute-path>". A `.git` file counts as well
+# as a directory — worktrees and submodules both present that way.
+ws_nested_candidates() {
+    local comp="$1" comp_dir="$2" glob candidate relative
+    local -a matches=()
+
+    while IFS= read -r glob; do
+        [[ -n "$glob" ]] || continue
+        if ! ws_nested_glob_is_valid "$glob"; then
+            echo "ERROR: Invalid nested glob '$glob' in the adapter for '$comp'." >&2
+            echo "  Patterns are relative, may not contain '..', and may not contain whitespace." >&2
+            return 1
+        fi
+        shopt -s nullglob
+        # $glob unquoted so it globs; comp_dir quoted so spaces in it stay intact.
+        matches=("$comp_dir"/$glob)
+        shopt -u nullglob
+        for candidate in "${matches[@]}"; do
+            [[ -d "$candidate" ]] || continue
+            [[ -e "$candidate/.git" ]] || continue
+            relative="${candidate#"$comp_dir"/}"
+            printf '%s\t%s\n' "$relative" "$candidate"
+        done
+    done < <(ws_nested_globs_for_component "$comp")
+}
+
+# Resolve "<component>/<subpath>" to a nested repo inside the component.
+# Sets COMPONENT_DIR, WS_TARGET_NESTED_HOST and WS_TARGET_NESTED_PATH.
+#
+# The subpath matches either a full relative path ("modules/Health") or a bare
+# repo name ("Health"). The bare form is what makes this usable — nobody should
+# have to remember which typed subdirectory a given module lives under.
+ws_resolve_nested_target() {
+    local host="$1" subpath="$2" comp_dir="$3"
+    local relative candidate line
+    local -a hits=()
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        relative="${line%%$'\t'*}"
+        candidate="${line#*$'\t'}"
+        if [[ "$subpath" == */* ]]; then
+            [[ "$relative" == "$subpath" ]] || continue
+        else
+            [[ "${relative##*/}" == "$subpath" ]] || continue
+        fi
+        hits+=("$candidate")
+    done < <(ws_nested_candidates "$host" "$comp_dir")
+
+    if [[ "${#hits[@]}" -eq 0 ]]; then
+        echo "ERROR: No nested repo '$subpath' inside component '$host'." >&2
+        if ws_nested_globs_for_component "$host" >/dev/null 2>&1; then
+            echo "  The component declares nested repos, but none matched. Run 'ws status $host' to list them." >&2
+        else
+            echo "  Component '$host' does not declare nested repos." >&2
+            echo "  Add a 'nested:' list of globs (e.g. 'modules/*') to realms/<realm>/adapters/$host.yaml," >&2
+            echo "  then re-approve the realm with 'ws realm use --trust <realm>' so the adapter change is trusted." >&2
+        fi
+        return 1
+    fi
+
+    if [[ "${#hits[@]}" -gt 1 ]]; then
+        echo "ERROR: Ambiguous nested target '$host/$subpath' matches ${#hits[@]} repos:" >&2
+        for candidate in "${hits[@]}"; do
+            echo "    ${candidate#"$comp_dir"/}" >&2
+        done
+        echo "  Qualify it with the full relative path, e.g. 'ws <cmd> $host/${hits[0]#"$comp_dir"/}'." >&2
+        return 1
+    fi
+
+    candidate="${hits[0]}"
+
+    # Containment check. The segment and glob rules above already forbid spelling
+    # a traversal, so this is aimed at what they cannot see: a symlink inside the
+    # component pointing somewhere else entirely. Compare resolved real paths.
+    local real_candidate real_comp
+    if ! real_candidate="$(cd "$candidate" 2>/dev/null && pwd -P)"; then
+        echo "ERROR: Cannot resolve nested repo path for '$host/$subpath'." >&2
+        return 1
+    fi
+    if ! real_comp="$(cd "$comp_dir" 2>/dev/null && pwd -P)"; then
+        echo "ERROR: Cannot resolve component path for '$host'." >&2
+        return 1
+    fi
+    if [[ "$real_candidate" != "$real_comp"/* ]]; then
+        echo "ERROR: Nested repo '$host/$subpath' resolves outside component '$host'." >&2
+        echo "  Resolved: $real_candidate" >&2
+        echo "  Refusing to operate on it — a nested target must stay inside its host component." >&2
+        return 1
+    fi
+
+    COMPONENT_DIR="$candidate"
+    WS_TARGET_NESTED_HOST="$host"
+    WS_TARGET_NESTED_PATH="${candidate#"$comp_dir"/}"
+}
+
 # Resolve a workspace target name to its directory.
 # Usage: ws_resolve_target <name>
 # Sets: COMPONENT_DIR to the resolved path.
 # Accepts "yggdrasil" (workspace root), realm directory names, hoard
-# directory names, and components declared in the merged ecosystem config.
+# directory names, components declared in the merged ecosystem config, and
+# "<component>/<nested>" for a repo nested inside a component's working tree.
 # Exits non-zero with a kind-neutral message when nothing resolves.
+#
+# Every repo-touching verb funnels through here, so nested support is added once
+# and inherited rather than taught to each verb separately.
+WS_TARGET_NESTED_HOST=""
+WS_TARGET_NESTED_PATH=""
 ws_resolve_target() {
     local name="$1"
+
+    WS_TARGET_NESTED_HOST=""
+    WS_TARGET_NESTED_PATH=""
+
+    # Nested form. Resolved before classification because a name containing a
+    # slash can never be a component, realm, or hoard directory name.
+    if [[ "$name" == */* ]]; then
+        local nested_host="${name%%/*}" nested_subpath="${name#*/}"
+        if ! ws_component_name_is_valid "$nested_host"; then
+            echo "ERROR: Invalid component '$nested_host' in nested target '$name'." >&2
+            echo "  The part before the first slash must be a declared component." >&2
+            exit 1
+        fi
+        if ! ws_nested_subpath_is_valid "$nested_subpath"; then
+            echo "ERROR: Invalid nested path '$nested_subpath' in target '$name'." >&2
+            echo "  Expected slash-separated names, e.g. 'terasology/Health' or 'terasology/modules/Health'." >&2
+            exit 1
+        fi
+        # Resolve the host component through the normal path first, so a nested
+        # target inherits declaration and clone checks rather than bypassing them.
+        ws_resolve_target "$nested_host"
+        local nested_comp_dir="$COMPONENT_DIR"
+        ws_resolve_nested_target "$nested_host" "$nested_subpath" "$nested_comp_dir" || exit 1
+        return 0
+    fi
 
     ws_classify_target_name "$name" || exit 1
 

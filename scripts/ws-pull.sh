@@ -22,6 +22,13 @@ Usage:
 Skips repos with an unclean working tree — commit or stash first.
 Walks ecosystem-declared components plus on-disk realms/ and hoards/
 (parallel to `ws status`).
+
+Repos nested inside a component (see `nested:` in the component's realm
+adapter) are never pulled by the sweep — their checkout lifecycle belongs
+to the host project's own tooling, and refreshing them behind its back can
+desync a build. Pull one explicitly instead:
+
+  ws pull terasology/Health
 HELP
         exit 0
     fi
@@ -102,6 +109,13 @@ else
     ws_validate_component_keys "$ECO" || exit 1
     while IFS= read -r name; do
         pull_repo "$name" "$COMPONENTS_DIR/$name"
+        # Deliberately not recursed into. These are independent upstreams whose
+        # checkout state the host project's own tooling manages; pulling them
+        # from under it is how a working tree and a build go out of sync.
+        nested_count=$(ws_nested_candidates "$name" "$COMPONENTS_DIR/$name" 2>/dev/null | wc -l | tr -d '[:space:]')
+        if [[ "${nested_count:-0}" -gt 0 ]]; then
+            echo "  NOTE: $nested_count nested repo(s) not pulled — 'ws pull $name/<repo>' to do one explicitly"
+        fi
     done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 
     realms_dir="${REALMS_DIR:-$ROOT_DIR/realms}"
