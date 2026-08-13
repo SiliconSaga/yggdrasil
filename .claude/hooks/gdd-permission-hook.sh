@@ -447,6 +447,13 @@ _parse_rules_file() {
                 case "$section" in
                     scratch-dirs) scratch_dirs+=("$line") ;;
                     ask-commands) ask_commands+=("$line") ;;
+                    # Owned by ws audit-permissions, not by this hook. It shares
+                    # hook-rules.local, so the file legitimately carries sections
+                    # this parser has no use for. Skip the entries rather than
+                    # treating the section as unknown — that path abandons the
+                    # rest of the file, which silently discarded every
+                    # [allow-extras] pattern declared after it.
+                    audit-acknowledged) ;;
                     allow-extras)
                         # Only honored from hook-rules.local (is_local non-empty).
                         # In the committed hook-rules this section is silently inert.
