@@ -1052,6 +1052,32 @@ ws_realm_trust_summary() {
     done
     [[ "$found" -eq 1 ]] || echo "    (none declared)"
 
+    # Rendered separately from commands: a nested glob does not run anything, it
+    # widens which paths `ws` will address inside an already-trusted component.
+    # It is on the summary because a realm whose only change is its nested lineup
+    # still re-prompts, and an approval surface that cannot show what changed
+    # teaches people to approve without reading.
+    echo "  Nested repo declarations:"
+    found=0
+    for adapter_file in "$realm_dir"/adapters/*.yaml; do
+        [[ -f "$adapter_file" && ! -L "$adapter_file" ]] || continue
+        adapter_basename="${adapter_file##*/}"
+        adapter_name="${adapter_basename%.yaml}"
+        if ! nested_globs="$(yq -r '.nested // [] | .[] | select(tag == "!!str")' "$adapter_file" 2>/dev/null)"; then
+            echo "ERROR: cannot safely render nested declarations from $adapter_file; refusing realm adoption." >&2
+            return 1
+        fi
+        [[ -n "$nested_globs" ]] || continue
+        while IFS= read -r nested_glob; do
+            [[ -n "$nested_glob" ]] || continue
+            printf '    %s  %s\n' \
+                "$(_ws_realm_summary_inline_text "$adapter_name")" \
+                "$(_ws_realm_summary_inline_text "$nested_glob")"
+            found=1
+        done <<< "$nested_globs"
+    done
+    [[ "$found" -eq 1 ]] || echo "    (none declared)"
+
     echo "  Fork routing requests:"
     if ! commands="$(yq -o=json -I=0 '
         ([
