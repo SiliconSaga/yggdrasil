@@ -321,6 +321,87 @@ HELP
 }
 
 
+ws_checkout() {
+    # ws:use-when switching or creating a branch, including inside a nested repo
+    # Detect --help anywhere in args.
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws checkout <target> <branch> [-b|--create]
+
+Switch a component, realm, hoard or nested repo to a branch.
+
+Branches only. This deliberately cannot restore paths the way `git checkout --
+<path>` does, because that silently discards working-tree changes; do that by
+hand, on purpose, when you mean it.
+
+The target accepts the same names as every other repo-touching verb, so nested
+repos work here too: `ws checkout terasology/modules/Cooking fix/x -b` branches
+the module in place, inside the tree where it actually builds.
+
+Options:
+  -b, --create        Create the branch and switch to it
+
+Examples:
+  ws checkout yggdrasil main                        # the workspace root
+  ws checkout terasology fix/assets -b              # a component
+  ws checkout terasology/modules/Cooking fix/x -b   # a nested module repo
+HELP
+            return 0
+        fi
+    done
+
+    local create="" target="" branch=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -b|--create) create="yes"; shift ;;
+            --)
+                echo "ERROR: 'ws checkout' switches branches only; it does not restore paths." >&2
+                echo "  Restoring a path discards working-tree changes. Do that with git, deliberately." >&2
+                exit 1 ;;
+            -*)
+                echo "ERROR: Unknown option '$1'" >&2
+                exit 1 ;;
+            *)
+                if [[ -z "$target" ]]; then
+                    target="$1"
+                elif [[ -z "$branch" ]]; then
+                    branch="$1"
+                else
+                    echo "ERROR: Unexpected argument '$1'." >&2
+                    echo "  Usage: ws checkout <target> <branch> [-b|--create]" >&2
+                    exit 1
+                fi
+                shift ;;
+        esac
+    done
+
+    if [[ -z "$target" || -z "$branch" ]]; then
+        echo "ERROR: ws checkout requires a target and a branch." >&2
+        echo "  Usage: ws checkout <target> <branch> [-b|--create]" >&2
+        exit 1
+    fi
+
+    # The name reaches git as an argument, never a shell word, so this is not
+    # about injection - it rejects the shapes that make a branch ambiguous with
+    # a path, which is where a typo turns into a surprising checkout.
+    if [[ "$branch" == *".."* || "$branch" == /* || "$branch" == */ ]]; then
+        echo "ERROR: Invalid branch name '$branch'." >&2
+        exit 1
+    fi
+
+    ws_resolve_target "$target"
+    cd "$COMPONENT_DIR"
+
+    # git switch, not git checkout: it has no path-restoring mode at all, so the
+    # refusal above cannot be worked around by a name that looks like a file.
+    if [[ -n "$create" ]]; then
+        git switch -c "$branch"
+    else
+        git switch "$branch"
+    fi
+}
+
 ws_log() {
     # ws:use-when checking what commits are on the current branch versus main
     # Detect --help anywhere in args.
@@ -1188,6 +1269,9 @@ case "$COMMAND" in
         ;;
     commit)
         bash "$SCRIPT_DIR/ws-commit.sh" "$@"
+        ;;
+    checkout)
+        ws_checkout "$@"
         ;;
     log)
         ws_log "$@"
