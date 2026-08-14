@@ -93,6 +93,72 @@ setup() {
     [[ "$output" == *"ws exec <component> <command>"* ]]
 }
 
+# ─── Canonical verb form: options between program and subcommand ────
+#
+# A glob needs `git commit` adjacent, so any global option in between defeats
+# the rule. This predates the ws exec rules — raw `git -C sub commit` slips
+# past the base `git commit*` rule the same way.
+
+@test "canonical: raw git global options cannot smuggle a redirected verb" {
+    seed_real_project_config
+    run_hook "git -C components/ken-site commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "canonical: git -c config assignment is refused before it can hide a commit" {
+    # `-c` never reaches redirect matching: an earlier tier rejects git
+    # execution modifiers outright, because -c can set core.pager, an alias, or
+    # credential.helper — i.e. choose what actually runs. That is a stronger
+    # guarantee than the redirect, so the assertion is deny, not the ws commit
+    # pointer. Pinned so a future relaxation of that tier cannot silently open
+    # a path the canonicalizer was never asked to cover.
+    seed_real_project_config
+    run_hook "git -c user.email=a@b.c commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "canonical: git boolean globals do not hide a push" {
+    seed_real_project_config
+    run_hook "git --no-pager push origin main"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws push"* ]]
+}
+
+@test "canonical: gh --repo does not hide a pr create" {
+    seed_real_project_config
+    run_hook "gh --repo owner/name pr create --title x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws cr"* ]]
+}
+
+@test "canonical: the same options cannot smuggle a verb through ws exec" {
+    seed_real_project_config
+    run_hook "ws exec ken-site git -C nested commit -m x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "canonical: an unrelated git subcommand is still not redirected" {
+    # Canonicalization must not turn every git invocation into a match.
+    seed_real_project_config
+    run_hook "git -C components/ken-site status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ws commit"* ]]
+    [[ "$output" != *"ws push"* ]]
+}
+
+@test "canonical: an unknown global option falls back rather than mis-denying" {
+    # Unrecognized flags stop canonicalization, so behaviour matches the
+    # pre-existing raw-only test — a missed catch, never a wrong deny.
+    seed_real_project_config
+    run_hook "git --not-a-real-flag status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
 @test "deny: | triggers pipes message" {
     run_hook "ls -la | head"
     [ "$status" -eq 0 ]

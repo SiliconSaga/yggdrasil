@@ -1636,6 +1636,111 @@ _t2_session_id=$(echo "$input" | jq -r '.session_id // ""')
 # parent's parent is the project root. _rules_dir is guaranteed non-empty
 # here because redirect_commands is only populated from a hook-rules file
 # that was actually found.
+# ─── Canonical verb form (for redirect matching) ────────────────────
+#
+# Redirect patterns are written against the shape a human types:
+# `git commit*`, `ws exec * gh pr create*`. A glob needs those two words
+# adjacent, so every option accepted BETWEEN a program and its subcommand
+# silently defeats the rule — `git -C sub commit`, `git -c user.email=x commit`,
+# `git --no-pager push`, `gh --repo o/r pr create`. That is not a `ws exec`
+# quirk: raw `git -C sub commit` slips past the base `git commit*` rule the
+# same way, so the hole predates the ws exec rules and is wider than them.
+#
+# Rather than teach ~20 rules a new pattern syntax, canonicalize the COMMAND:
+# drop the program's own global options so the subcommand becomes adjacent
+# again, then match the existing globs against that form as well as the raw
+# one. Rules stay exactly as written.
+#
+# Transparent launchers (env, command, xargs, …), quote masking and compound
+# rejection are already solved by k8s_guard_normalize_command, which the hook
+# sources for the Kubernetes guard; this reuses it rather than re-deriving it.
+#
+# Failure is deliberately soft. If the guard is unavailable, the command is
+# too complex to normalize, or an UNKNOWN option appears before the subcommand,
+# we emit nothing and the caller matches the raw command exactly as it does
+# today. An unrecognized flag therefore costs a missed catch, never a wrong
+# deny — and never less coverage than before this function existed.
+_canon_git_globals() {
+    # Echo the index of the first non-option token, or -1 to give up.
+    local -n _toks=$1
+    local i=$2 t
+    while [[ $i -lt ${#_toks[@]} ]]; do
+        t="${_toks[$i]}"
+        case "$t" in
+            # Value in the NEXT token.
+            -C|-c|--git-dir|--work-tree|--namespace|--config-env|--exec-path)
+                i=$((i + 2)) ;;
+            # Value attached, or a boolean global.
+            -C?*|-c?*|--git-dir=*|--work-tree=*|--namespace=*|--config-env=*|--exec-path=*) i=$((i + 1)) ;;
+            -p|-P|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs) i=$((i + 1)) ;;
+            --glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks) i=$((i + 1)) ;;
+            --no-lazy-fetch|--no-advice) i=$((i + 1)) ;;
+            -*) printf '%s' -1; return 0 ;;
+            *) break ;;
+        esac
+    done
+    printf '%s' "$i"
+}
+
+_canon_hub_globals() {
+    # gh / glab: --repo is the realistic one that precedes a subcommand.
+    local -n _toks=$1
+    local i=$2 t
+    while [[ $i -lt ${#_toks[@]} ]]; do
+        t="${_toks[$i]}"
+        case "$t" in
+            -R|--repo) i=$((i + 2)) ;;
+            -R?*|--repo=*) i=$((i + 1)) ;;
+            -*) printf '%s' -1; return 0 ;;
+            *) break ;;
+        esac
+    done
+    printf '%s' "$i"
+}
+
+canonical_verb_form() {
+    local cmd="$1" normalized="" next
+    [[ "$_k8s_guard_loaded" == "1" ]] || return 1
+    declare -F k8s_guard_normalize_command >/dev/null 2>&1 || return 1
+    normalized="$(k8s_guard_normalize_command "$cmd" 2>/dev/null)" || return 1
+    [[ -n "$normalized" ]] || return 1
+    [[ "$normalized" == "${K8S_GUARD_UNSAFE_COMMAND_SENTINEL:-}" ]] && return 1
+
+    local -a toks=() out=()
+    read -r -a toks <<< "$normalized"
+    [[ ${#toks[@]} -gt 0 ]] || return 1
+
+    local i=0 base changed=0
+    while [[ $i -lt ${#toks[@]} ]]; do
+        base="${toks[$i]##*/}"
+        case "$base" in
+            git|gh|glab)
+                out+=("${toks[$i]}")
+                case "$base" in
+                    git) next="$(_canon_git_globals toks $((i + 1)))" ;;
+                    *)   next="$(_canon_hub_globals toks $((i + 1)))" ;;
+                esac
+                [[ "$next" == "-1" ]] && return 1
+                [[ "$next" -ne $((i + 1)) ]] && changed=1
+                i="$next"
+                ;;
+            *)
+                out+=("${toks[$i]}")
+                i=$((i + 1))
+                ;;
+        esac
+    done
+
+    # Nothing was dropped — the raw match already covers this command.
+    [[ "$changed" -eq 1 ]] || return 1
+    printf '%s' "${out[*]}"
+}
+
+_t2_canon_cmd=""
+if _t2_canon_raw="$(canonical_verb_form "$cmd" 2>/dev/null)" && [[ -n "$_t2_canon_raw" ]]; then
+    _t2_canon_cmd="$(normalize_for_match "$_t2_canon_raw" command)"
+fi
+
 _t2_project_root="${_rules_dir%/.claude/hooks}"
 
 for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
@@ -1645,8 +1750,13 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     _t2_pattern="${_t2_rest%%|*}"
     _t2_suggestion="${_t2_rest#*|}"
     _t2_match_pattern="$(normalize_for_match "$_t2_pattern")"
+    # Match the raw command OR its canonical verb form, so options sitting
+    # between a program and its subcommand cannot slip a redirected verb
+    # through. Canonicalization is additive: when it yields nothing, this is
+    # exactly the raw-only test it has always been.
     # shellcheck disable=SC2053
-    if [[ "$match_cmd" == $_t2_match_pattern ]]; then
+    if [[ "$match_cmd" == $_t2_match_pattern ]] \
+        || { [[ -n "$_t2_canon_cmd" ]] && [[ "$_t2_canon_cmd" == $_t2_match_pattern ]]; }; then
         # Bypass-marker check: a marker for this slug, written by
         # `ws hook-bypass <slug>`, overrides the deny when its
         # session_id matches the current session.
