@@ -3287,13 +3287,18 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
-@test "scoped-redirect: in-scope raw kubectl server dry-run auto-approves" {
+@test "scoped-redirect: in-scope RAW kubectl dry-run is redirected, not auto-approved" {
+    # Only `ws k8s` injects the armed --context. A raw dry-run would run against
+    # whatever kubeconfig currently points at, so it reports on a cluster the
+    # operator did not choose — and a dry-run is consulted precisely because its
+    # answer is trusted. Same reasoning that already keeps in-scope raw WRITES on
+    # the redirect path; the dry-run verdict must not become a hole in it.
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
     run_hook_with_session "kubectl apply -f $WORK/m.yaml --dry-run=server" "sk8s"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 @test "scoped-redirect: normalized ws k8s aliases cannot inherit the read auto-allow" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"

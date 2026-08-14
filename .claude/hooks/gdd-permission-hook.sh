@@ -1039,7 +1039,7 @@ case "$tier1_cmd" in
         # `cd components/<c>; git ...`, was refused, retried the same shape, and
         # gave up — the corrective text told it the rule without naming a way to
         # obey it. The moment of refusal is where the alternative gets learned.
-        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. Reach for the dedicated verb first — ws commit, ws push, ws cr, ws test, ws lint — and use 'ws exec <component> <command>' only where no wrapper exists: one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next."
+        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. Reach for the dedicated verb first — ws commit, ws push, ws cr, ws review, ws test, ws lint — and use 'ws exec <component> <command>' only where no wrapper exists: one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next."
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
@@ -1788,6 +1788,9 @@ fi
 #
 #   (a) `ws k8s …` / `k8s …` → route by k8s_guard_evaluate verdict.
 #       READ_IN_SCOPE / DRY_RUN_IN_SCOPE: auto-allow; BLOCK: deny; otherwise: fall through.
+#   (a2) raw `kubectl …` → same evaluation, but only READ_IN_SCOPE auto-allows.
+#       DRY_RUN_IN_SCOPE and WRITE_IN_SCOPE fall through to (b) so they run via
+#       `ws k8s`, the only path that injects the armed --context.
 #   (b) raw command matching the pattern → redirect deny.
 #   (c) shell script invocation whose file contains raw kubectl → deny.
 #
@@ -1836,6 +1839,13 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # falls through to the (b) redirect so it runs via `ws k8s`, which injects
     # --context — a raw write hitting the current-but-wrong context is exactly
     # the accident the guard exists to prevent.
+    #
+    # DRY_RUN_IN_SCOPE is deliberately NOT auto-allowed here, only on the (a)
+    # `ws k8s` path. Only the wrapper injects the armed --context; a raw
+    # dry-run carries whatever context kubeconfig currently points at. The
+    # result is not a mutation, but it is an *answer from the wrong cluster* —
+    # which is worse than no answer, because the whole point of a dry-run is
+    # trusting what it reports. It falls through to the (b) redirect instead.
     if [[ "$_k8s_match_cmd" == kubectl\ * || "$_k8s_match_cmd" == kubectl ]]; then
         # shellcheck disable=SC2086
         if ! _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
@@ -1843,9 +1853,9 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
         case "$_sr_kverdict" in
-            READ_IN_SCOPE|DRY_RUN_IN_SCOPE)
+            READ_IN_SCOPE)
                 if [[ "$_k8s_literal_direct" == "1" ]]; then
-                    allow "raw kubectl in-scope read or dry-run (guard)"
+                    allow "raw kubectl in-scope read (guard)"
                 fi
                 ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_kverdict" "$_sr_ctx" "$_sr_slug")" ;;
