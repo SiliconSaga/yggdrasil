@@ -148,8 +148,12 @@ mypy        | mypy*              | lint
 [scoped-redirect-commands]
 # Raw tools redirected only when a session-key is set in the session file.
 # Format: <slug> | <pattern> | <session-key> | <suggestion>.
-# Note: `ws k8s` is intentionally NOT in settings.json permissions.allow. The
-# hook auto-allows `ws k8s` for kubectl read-only operations ONLY when a guard
-# scope is set (GDD_K8S_CONTEXT) — writes still prompt, out-of-scope is denied.
+# Note: `ws k8s` is intentionally NOT in settings.json permissions.allow. When a
+# guard scope is set (GDD_K8S_CONTEXT) the hook auto-allows `ws k8s` for kubectl
+# read-only operations and for recognized dry-runs — writes still prompt, and
+# out-of-scope is denied. Raw `kubectl` gets the narrower treatment: reads
+# auto-allow, but dry-runs and writes both fall through to the redirect below,
+# because only the `ws k8s` wrapper injects the armed --context and a dry-run
+# answering about the wrong cluster is worse than no answer.
 # See the scoped-redirect (Tier 2b) handling in gdd-permission-hook.sh.
 k8s | kubectl* | GDD_K8S_CONTEXT | Use `ws k8s <args>` — a guard scope is active; raw kubectl bypasses the namespace guard. `ws hook-bypass k8s` to lift for this session.
