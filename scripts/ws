@@ -26,7 +26,9 @@
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
-#   log [comp] [--oneline] Show commits on current branch vs main
+#   checkout <target> <branch> [-b|--create]  Switch/create a branch (branches only, never paths)
+#   log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]
+#                     Commits on this branch vs the trunk, or what a pull would bring in
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
 #   k8s scope set|show|clear / k8s <args>   Guarded kubectl: prevalidate context + namespace
 #   docker <args>     Run docker with Windows/MSYS path conversion handled automatically
@@ -402,38 +404,75 @@ HELP
     fi
 }
 
+# The trunk this branch should be measured against. Order matters: what the
+# remote calls its default branch beats convention, and `develop` is in the list
+# because gitflow repos (Terasology among them) have no `main` at all — the old
+# main/master-only check hard-failed there rather than degrading.
+ws_log_detect_trunk() {
+    local remote_head candidate
+    remote_head=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null) || remote_head=""
+    if [[ -n "$remote_head" ]] && git rev-parse --verify --quiet "$remote_head" >/dev/null 2>&1; then
+        printf '%s\n' "$remote_head"
+        return 0
+    fi
+    for candidate in main master develop; do
+        if git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 ws_log() {
-    # ws:use-when checking what commits are on the current branch versus main
+    # ws:use-when checking what commits are on a branch, incoming, or in a range
     # Detect --help anywhere in args.
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws log [component] [--oneline] [--limit N]
+Usage: ws log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]
 
-Show commits on the current branch that aren't on main.
+Show commits on the current branch that aren't on the trunk.
+
+The trunk is whatever the remote calls its default branch, else the first of
+main, master, develop that exists. Pass --against to compare with something
+else, or --incoming to ask the opposite question: what does the tracked remote
+branch have that I don't?
+
+Targets accept nested repos too, so `ws log terasology/modules/Cooking` works.
 
 Options:
-  --oneline           One line per commit (default: full log)
+  --oneline           One line per commit (default: hash, subject, age)
+  --stat              Also show the files each commit touched
   --limit N           Show only the most recent N commits
   --limit=N           Same; equals form also accepted
+  --against <ref>     Compare against this ref instead of the detected trunk
+  --incoming          Show what the upstream has that this branch does not
 
 Examples:
-  ws log                       # yggdrasil branch vs main
-  ws log --oneline             # compact format
-  ws log --limit 5             # last 5 commits, full format
-  ws log --oneline --limit=10  # last 10, one-line each (equals form)
-  ws log mimir                 # mimir branch vs main
+  ws log                                  # yggdrasil branch vs its trunk
+  ws log terasology --oneline             # a component on a develop trunk
+  ws log terasology/modules/Cooking       # a nested module repo
+  ws log app --against v1.2.0 --stat      # since a tag, with files
+  ws log app --incoming                   # what a pull would bring in
 HELP
             return 0
         fi
     done
 
-    local comp=""
-    local oneline=""
-    local limit=""
+    local comp="" oneline="" limit="" against="" incoming="" stat=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --oneline) oneline="--oneline"; shift ;;
+            --oneline) oneline="yes"; shift ;;
+            --stat) stat="yes"; shift ;;
+            --incoming) incoming="yes"; shift ;;
+            --against)
+                [[ $# -ge 2 ]] || { echo "ERROR: --against requires a ref" >&2; exit 1; }
+                against="$2"; shift 2 ;;
+            --against=*)
+                against="${1#--against=}"
+                [[ -n "$against" ]] || { echo "ERROR: --against requires a ref" >&2; exit 1; }
+                shift ;;
             --limit)
                 [[ $# -ge 2 ]] || { echo "ERROR: --limit requires a value" >&2; exit 1; }
                 if ! [[ "$2" =~ ^[0-9]+$ ]]; then
@@ -453,13 +492,18 @@ HELP
                 exit 1 ;;
             *)
                 if [[ -n "$comp" ]]; then
-                    echo "ERROR: Multiple components specified ('$comp' and '$1')." >&2
-                    echo "  Usage: ws log [component] [--oneline] [--limit N]" >&2
+                    echo "ERROR: Multiple targets specified ('$comp' and '$1')." >&2
+                    echo "  Usage: ws log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]" >&2
                     exit 1
                 fi
                 comp="$1"; shift ;;
         esac
     done
+
+    if [[ -n "$incoming" && -n "$against" ]]; then
+        echo "ERROR: --incoming already fixes the comparison; drop --against." >&2
+        exit 1
+    fi
 
     if [[ -n "$comp" ]]; then
         ws_resolve_target "$comp"
@@ -476,38 +520,59 @@ HELP
         exit 1
     fi
 
-    # Detect the main branch (main or master)
-    local main_branch="main"
-    if ! git rev-parse --verify main &>/dev/null; then
-        if git rev-parse --verify master &>/dev/null; then
-            main_branch="master"
-        else
-            echo "ERROR: Cannot find main or master branch." >&2
+    local base range label
+    if [[ -n "$incoming" ]]; then
+        if ! base=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || [[ -z "$base" ]]; then
+            echo "ERROR: '$branch' has no upstream, so there is nothing to be incoming from." >&2
+            echo "  Set one with: git branch --set-upstream-to <remote>/<branch>" >&2
             exit 1
         fi
-    fi
+        # Reversed on purpose: what they have that we do not.
+        range="$branch..$base"
+        label="incoming from $base"
+    else
+        if [[ -n "$against" ]]; then
+            if ! git rev-parse --verify --quiet "${against}^{commit}" >/dev/null 2>&1; then
+                echo "ERROR: --against ref '$against' does not resolve in this repo." >&2
+                exit 1
+            fi
+            base="$against"
+        elif ! base=$(ws_log_detect_trunk); then
+            echo "ERROR: Cannot find a trunk branch (looked for the remote default, then main, master, develop)." >&2
+            echo "  Compare against something explicit with: ws log ${comp:-} --against <ref>" >&2
+            exit 1
+        fi
 
-    if [[ "$branch" == "$main_branch" ]]; then
-        echo "(on $main_branch — nothing to compare)"
-        return
+        if [[ "$branch" == "$base" ]]; then
+            echo "(on $base — nothing to compare)"
+            return
+        fi
+        range="$base..$branch"
+        label="ahead of $base"
     fi
 
     local count
-    count=$(git rev-list --count "$main_branch..$branch" 2>/dev/null || echo 0)
-    echo "=== ${comp:-yggdrasil} ($branch, $count commits ahead of $main_branch) ==="
+    count=$(git rev-list --count "$range" 2>/dev/null || echo 0)
+    echo "=== ${comp:-yggdrasil} ($branch, $count commits $label) ==="
 
     if [[ "$count" -eq 0 ]]; then
-        echo "(no commits ahead of $main_branch)"
+        if [[ -n "$incoming" ]]; then
+            echo "(nothing incoming from $base)"
+        else
+            echo "(no commits ahead of $base)"
+        fi
         return
     fi
 
-    local limit_flag=""
-    [[ -n "$limit" ]] && limit_flag="-n $limit"
+    local -a log_args=()
+    [[ -n "$limit" ]] && log_args+=("-n" "$limit")
     if [[ -n "$oneline" ]]; then
-        git log $limit_flag "$main_branch..$branch" --oneline
+        log_args+=("--oneline")
     else
-        git log $limit_flag "$main_branch..$branch" --format="%h %s (%cr)"
+        log_args+=("--format=%h %s (%cr)")
     fi
+    [[ -n "$stat" ]] && log_args+=("--stat")
+    git log "${log_args[@]}" "$range"
 }
 
 ws_clean() {
