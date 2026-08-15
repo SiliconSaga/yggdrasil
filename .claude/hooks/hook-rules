@@ -129,8 +129,15 @@ gh-pr-comments-api      | ws gh api *pulls/*/comments* | Use `ws review <comp> <
 gh-pr-comments-api-raw  | gh api *pulls/*/comments*    | Use `ws review <comp> <cr#>` — the raw endpoint returns comments with no thread grouping or resolution state. `ws hook-bypass gh-pr-comments-api-raw` for a session-scoped bypass.
 gh-pr-reviews-api       | ws gh api *pulls/*/reviews*  | Use `ws review <comp> <cr#>` — it renders reviews alongside their inline comments and threads. `ws hook-bypass gh-pr-reviews-api` for a session-scoped bypass.
 gh-pr-reviews-api-raw   | gh api *pulls/*/reviews*     | Use `ws review <comp> <cr#>` — it renders reviews alongside their inline comments and threads. `ws hook-bypass gh-pr-reviews-api-raw` for a session-scoped bypass.
-glab-mr-note        | ws glab mr note*  | Use `ws review <comp> reply <cr#> <thread-id> <msg> [--resolve]` — replying through the raw note API leaves the thread unresolved and unattributed. `ws hook-bypass glab-mr-note` for a session-scoped bypass.
-glab-mr-note-raw    | glab mr note*     | Use `ws review <comp> reply <cr#> <thread-id> <msg> [--resolve]` — replying through the raw note API leaves the thread unresolved and unattributed. `ws hook-bypass glab-mr-note-raw` for a session-scoped bypass.
+# `glab mr note` is deliberately NOT redirected. It was, until review pointed out
+# that glab has one spelling for two operations: replying inside a discussion,
+# which `ws review reply` covers, and creating a top-level MR note, which nothing
+# in `ws review` can do — it reads notes (`ws review <comp> notes <cr#>`) but never
+# posts one. A glob cannot tell those apart, so the redirect denied a capability
+# with no alternative. That is the failure this section's own header warns against,
+# so the rule is withdrawn rather than narrowed. AGENTS.md still points at
+# `ws review` for review work; the nudge stays advisory where enforcement would
+# have to block a legitimate operation to work.
 gh-cli       | gh *           | Use `ws gh <args>` — injects the workspace GH_TOKEN from .env so the command authenticates without interactive `gh auth login`. Any `gh` subcommand passes through. `ws hook-bypass gh-cli` for a session-scoped bypass.
 glab-cli     | glab *         | Use `ws glab <args>` — injects the workspace GitLab token from .env so the command authenticates without interactive login. Any `glab` subcommand passes through. `ws hook-bypass glab-cli` for a session-scoped bypass.
 

@@ -341,7 +341,7 @@ assert_denied() {
     seed_scope codex-test kind-practice alice-sandbox
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
     run_codex_hook "kubectl apply -f $WORK/m.yaml --dry-run=server"
-    [[ -n "$output" ]]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"ws k8s"* ]]
 }
 

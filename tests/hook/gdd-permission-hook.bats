@@ -141,6 +141,23 @@ setup() {
     [[ "$output" == *"ws commit"* ]]
 }
 
+@test "canonical: a path-qualified executable cannot dodge the redirect" {
+    # Emitting the token as written left `/usr/bin/git commit` canonicalizing to
+    # itself, so it still missed `git commit*` — a spelling away from the boundary.
+    # Reducing to the basename can only ever produce more denies, never an allow,
+    # because only redirect matching consumes the canonical form.
+    seed_real_project_config
+
+    run_hook "/usr/bin/git push origin main"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws push"* ]]
+
+    run_hook "ws exec ken-site /usr/bin/git -C nested commit -m x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
 @test "canonical: an unrelated git subcommand is still not redirected" {
     # Canonicalization must not turn every git invocation into a match.
     seed_real_project_config
@@ -1658,9 +1675,18 @@ JSON
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     [[ "$output" == *"ws review"* ]]
 
+}
+
+@test "redirect: glab mr note is deliberately left reachable" {
+    # Withdrawn rather than narrowed: glab spells thread replies and top-level
+    # note creation the same way. `ws review reply` covers the first; nothing in
+    # `ws review` can post a top-level note at all, only read them. A glob cannot
+    # separate the two, so redirecting denied a capability with no alternative.
+    seed_real_project_config
+
     run_hook 'glab mr note 3 --message x'
-    [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    [[ "$output" == *"ws review"* ]]
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ws review"* ]]
 }
 
 @test "redirect: what ws review cannot do stays reachable" {
@@ -3412,7 +3438,11 @@ BASH
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
     run_hook_with_session "kubectl apply -f $WORK/m.yaml --dry-run=server" "sk8s"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+    # Assert the redirect itself, not merely the absence of allow — a fallthrough
+    # emitting no decision would satisfy a negative check while leaving the raw
+    # command to run unpinned, which is the exact failure being guarded.
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws k8s"* ]]
 }
 @test "scoped-redirect: normalized ws k8s aliases cannot inherit the read auto-allow" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"

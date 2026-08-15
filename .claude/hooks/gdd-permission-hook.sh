@@ -1715,7 +1715,14 @@ canonical_verb_form() {
         base="${toks[$i]##*/}"
         case "$base" in
             git|gh|glab)
-                out+=("${toks[$i]}")
+                # Emit the basename, not the token as written: `/usr/bin/git commit`
+                # otherwise canonicalizes to itself and still misses `git commit*`,
+                # leaving a path-qualified spelling as a way around the boundary.
+                # Only redirect matching consumes this form, so reducing to the
+                # basename can only ever produce MORE denies — never an allow — and
+                # a deny here carries the wrapper pointer plus a named bypass.
+                out+=("$base")
+                [[ "$base" != "${toks[$i]}" ]] && changed=1
                 case "$base" in
                     git) next="$(_canon_git_globals toks $((i + 1)))" ;;
                     *)   next="$(_canon_hub_globals toks $((i + 1)))" ;;
