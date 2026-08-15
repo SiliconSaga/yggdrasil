@@ -207,7 +207,7 @@ main() {
     case "$verdict" in
         BLOCK:*) k8s_render_block "$verdict" "$ctx" "k8s" >&2; printf '\n' >&2; return 1 ;;
         READ_NO_SCOPE|WRITE_NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
-        READ_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
+        READ_IN_SCOPE|DRY_RUN_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
         *) echo "ws k8s: unrecognized guard verdict '$verdict'" >&2; return 1 ;;
     esac
 }

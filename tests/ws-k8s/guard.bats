@@ -407,6 +407,41 @@ EOF
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
     [[ "$output" == BLOCK:* ]]
 }
+@test "apply -f accepts server dry-run after the manifest and classifies it distinctly" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" --dry-run=server
+    [ "$output" = "DRY_RUN_IN_SCOPE" ]
+}
+@test "apply -f accepts server dry-run before the manifest" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply --dry-run=server -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "DRY_RUN_IN_SCOPE" ]
+}
+@test "server dry-run retains manifest namespace enforcement" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: prod\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" --dry-run=server
+    [[ "$output" == BLOCK:scope:* ]]
+}
+@test "dry-run none remains an ordinary write" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" --dry-run=none
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "invalid and repeated dry-run modes fail closed" {
+    printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" --dry-run=bogus
+    [ "$output" = "BLOCK:precondition:invalid --dry-run mode: bogus" ]
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" --dry-run=server --dry-run=none
+    [ "$output" = "BLOCK:precondition:multiple --dry-run options are ambiguous" ]
+}
+@test "dry-run data after double dash cannot change command classification" {
+    run_guard "kind-practice" "alice-sandbox" kubectl run x --image=pause -n alice-sandbox -- echo --dry-run=server
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+@test "unknown kubectl plugins cannot claim the automatic dry-run verdict" {
+    run_guard "kind-practice" "alice-sandbox" kubectl frobnicate pods -n alice-sandbox --dry-run=server
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
 @test "apply -k inspects rendered resources and allows an in-scope namespace" {
     mkdir -p "$BATS_TEST_TMPDIR/overlay"
     printf 'resources: []\n' > "$BATS_TEST_TMPDIR/overlay/kustomization.yaml"
@@ -775,7 +810,7 @@ YAML
 }
 @test "equals-form --dry-run=client is a single token and does not affect name parsing" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete namespace alice-sandbox --dry-run=client
-    [ "$output" = "WRITE_IN_SCOPE" ]
+    [ "$output" = "DRY_RUN_IN_SCOPE" ]
 }
 @test "delete namespace with no name (e.g. --all) stays cluster-scoped unbounded" {
     run_guard "kind-practice" "alice-sandbox" kubectl delete namespace --all

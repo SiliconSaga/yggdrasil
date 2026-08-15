@@ -80,8 +80,17 @@ ws realm use *
 git-commit   | git commit*    | Use `ws commit <comp> <bodyfile>` — handles Co-Authored-By trailer + bodyfile-driven staging. See `ws help commit`. If `ws commit` doesn't fit (rare), run `ws hook-bypass git-commit` to request a session-scoped bypass.
 git-push     | git push*      | Use `ws push <comp> [branch]` — handles fork-remote selection from identity.forkRemote and sets upstream on first push. `ws hook-bypass git-push` for a session-scoped bypass.
 gh-pr-create | gh pr create*  | Use `ws cr <comp> <title> <bodyfile>` — bodyfile-driven, applies identity substitutions, picks the right token + remote. `ws hook-bypass gh-pr-create` for a session-scoped bypass.
+# The same three verbs wrapped in `ws exec`. Without these, `ws exec <comp> git
+# commit …` reached an ASK where the raw form is DENIED — a softer path around
+# the redirect, ending in a rubber-stamped prompt and a commit with no
+# Co-Authored-By trailer. `ws exec` is for commands with no wrapper; where a
+# wrapper exists it is not a way to reach past it.
+git-commit-exec | ws exec * git commit* | Use `ws commit <comp> <bodyfile>` — wrapping it in `ws exec` skips the Co-Authored-By trailer and the bodyfile staging, which is the whole point of the wrapper. `ws hook-bypass git-commit-exec` for a session-scoped bypass.
+git-push-exec   | ws exec * git push*   | Use `ws push <comp> [branch]` — wrapping it in `ws exec` skips fork-remote selection and upstream setup. `ws hook-bypass git-push-exec` for a session-scoped bypass.
+gh-pr-create-exec | ws exec * gh pr create* | Use `ws cr <comp> <title> <bodyfile>` — wrapping it in `ws exec` skips the identity substitutions and token/remote selection. `ws hook-bypass gh-pr-create-exec` for a session-scoped bypass.
 git-mv       | git mv*        | Don't `git mv` — it pre-stages the rename and breaks `ws commit`'s bodyfile staging. Instead `mv <src> <dst>` (plain), then list BOTH the old and new paths under `add:` in your `ws commit` bodyfile; git still records a clean rename. `ws hook-bypass git-mv` for a session-scoped bypass.
-gh-repo-fork | *gh repo fork* | Use `ws clone-fork <component>` — creates the fork AND clones it AND wires fork+source remotes with a synced main, none of which `gh repo fork` does for you. Component not declared yet? `ws clone-fork --url <source-url> --add-to-ecosystem` does the declaration too. `ws hook-bypass gh-repo-fork` for a session-scoped bypass.
+gh-repo-fork     | ws gh repo fork* | Use `ws clone-fork <component>` — creates the fork AND clones it AND wires fork+source remotes with a synced main, none of which `gh repo fork` does for you. Component not declared yet? `ws clone-fork --url <source-url> --add-to-ecosystem` does the declaration too. `ws hook-bypass gh-repo-fork` for a session-scoped bypass.
+gh-repo-fork-raw | gh repo fork*    | Use `ws clone-fork <component>` — creates the fork AND clones it AND wires fork+source remotes with a synced main, none of which `gh repo fork` does for you. `ws hook-bypass gh-repo-fork-raw` for a session-scoped bypass.
 # gh subcommands that MUTATE THE WORKING TREE THEY STAND IN. `ws gh` takes no
 # target and runs at the workspace root, so `ws gh pr checkout` rewrites the
 # WORKSPACE's tree — it has silently replaced yggdrasil's scripts/ and
@@ -91,6 +100,44 @@ gh-checkout      | ws gh pr checkout* | `ws gh` runs at the workspace ROOT — `
 gh-checkout-raw  | gh pr checkout*    | `gh pr checkout` mutates whatever repo it stands in — from the workspace root that is the workspace itself. Run it inside the target: `ws exec <comp> gh pr checkout <n>` (component `yggdrasil` if the workspace repo is intended). `ws hook-bypass gh-checkout-raw` for a session-scoped bypass.
 gh-repo-sync     | ws gh repo sync*   | `ws gh` runs at the workspace ROOT — `gh repo sync` here syncs the workspace repo, not the component you meant. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync` for a session-scoped bypass.
 gh-repo-sync-raw | gh repo sync*      | `gh repo sync` mutates the repo it stands in. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync-raw` for a session-scoped bypass.
+# Review READING has a wrapper; reaching past it costs the thread ids, the
+# resolved/unresolved state and `--since <ref>` filtering, and then a reply has
+# nothing to resolve against. Scoped to the comment-fetching forms only: a plain
+# `pr view` status check is deliberately left alone (see the non-mutating-ws-gh
+# test), and anything ws review genuinely cannot do — checks, diffs, arbitrary
+# API — must stay reachable, because denying with no alternative is worse than
+# the reflex. When one of these bypasses gets requested, treat it as a feature
+# request for `ws review` rather than a nuisance: that is the gap showing itself.
+# Two are already known, and are why these patterns stay narrow — widening them
+# before the gaps close would only manufacture bypass requests:
+#   - No machine-readable output. `gh pr view --json reviewDecision,reviews --jq …`
+#     is a real fallback, not a reflex; `ws review` prints for humans only.
+#   - Needs a local clone. `ws review <comp> <cr#>` fails with "is not cloned
+#     locally", while `gh --repo owner/name` reads a PR without one — a clone the
+#     read does not actually require.
+# Anchored, with a -raw twin each, matching the gh-checkout / gh-repo-sync pairs
+# above. A leading `*` would cover both the wrapped and raw spellings in one rule,
+# but it also means "this text ANYWHERE in the command" — so any command that
+# merely quotes the endpoint as data matches. That is not hypothetical: it denied
+# a shell loop with the endpoint in a string literal, and then denied a
+# `ws review reply` whose message text discussed the rule — a redirect blocking
+# the very wrapper it points at. Anchoring costs one extra row and removes the
+# whole class.
+gh-pr-comments      | ws gh pr view*--comments*     | Use `ws review <comp> <cr#>` — it carries thread ids, resolved state and `--since <ref>` filtering that `gh pr view --comments` cannot, and `ws review reply` needs those ids. `ws hook-bypass gh-pr-comments` for a session-scoped bypass; if you needed it because `ws review` lacks something, say so — that is worth adding.
+gh-pr-comments-raw  | gh pr view*--comments*        | Use `ws review <comp> <cr#>` — it carries thread ids, resolved state and `--since <ref>` filtering that `gh pr view --comments` cannot. `ws hook-bypass gh-pr-comments-raw` for a session-scoped bypass.
+gh-pr-comments-api      | ws gh api *pulls/*/comments* | Use `ws review <comp> <cr#>` — the raw endpoint returns comments with no thread grouping or resolution state, which is most of what makes review triage tractable. `ws hook-bypass gh-pr-comments-api` for a session-scoped bypass.
+gh-pr-comments-api-raw  | gh api *pulls/*/comments*    | Use `ws review <comp> <cr#>` — the raw endpoint returns comments with no thread grouping or resolution state. `ws hook-bypass gh-pr-comments-api-raw` for a session-scoped bypass.
+gh-pr-reviews-api       | ws gh api *pulls/*/reviews*  | Use `ws review <comp> <cr#>` — it renders reviews alongside their inline comments and threads. `ws hook-bypass gh-pr-reviews-api` for a session-scoped bypass.
+gh-pr-reviews-api-raw   | gh api *pulls/*/reviews*     | Use `ws review <comp> <cr#>` — it renders reviews alongside their inline comments and threads. `ws hook-bypass gh-pr-reviews-api-raw` for a session-scoped bypass.
+# `glab mr note` is deliberately NOT redirected. It was, until review pointed out
+# that glab has one spelling for two operations: replying inside a discussion,
+# which `ws review reply` covers, and creating a top-level MR note, which nothing
+# in `ws review` can do — it reads notes (`ws review <comp> notes <cr#>`) but never
+# posts one. A glob cannot tell those apart, so the redirect denied a capability
+# with no alternative. That is the failure this section's own header warns against,
+# so the rule is withdrawn rather than narrowed. AGENTS.md still points at
+# `ws review` for review work; the nudge stays advisory where enforcement would
+# have to block a legitimate operation to work.
 gh-cli       | gh *           | Use `ws gh <args>` — injects the workspace GH_TOKEN from .env so the command authenticates without interactive `gh auth login`. Any `gh` subcommand passes through. `ws hook-bypass gh-cli` for a session-scoped bypass.
 glab-cli     | glab *         | Use `ws glab <args>` — injects the workspace GitLab token from .env so the command authenticates without interactive login. Any `glab` subcommand passes through. `ws hook-bypass glab-cli` for a session-scoped bypass.
 
@@ -121,8 +168,12 @@ mypy        | mypy*              | lint
 [scoped-redirect-commands]
 # Raw tools redirected only when a session-key is set in the session file.
 # Format: <slug> | <pattern> | <session-key> | <suggestion>.
-# Note: `ws k8s` is intentionally NOT in settings.json permissions.allow. The
-# hook auto-allows `ws k8s` for kubectl read-only operations ONLY when a guard
-# scope is set (GDD_K8S_CONTEXT) — writes still prompt, out-of-scope is denied.
+# Note: `ws k8s` is intentionally NOT in settings.json permissions.allow. When a
+# guard scope is set (GDD_K8S_CONTEXT) the hook auto-allows `ws k8s` for kubectl
+# read-only operations and for recognized dry-runs — writes still prompt, and
+# out-of-scope is denied. Raw `kubectl` gets the narrower treatment: reads
+# auto-allow, but dry-runs and writes both fall through to the redirect below,
+# because only the `ws k8s` wrapper injects the armed --context and a dry-run
+# answering about the wrong cluster is worse than no answer.
 # See the scoped-redirect (Tier 2b) handling in gdd-permission-hook.sh.
 k8s | kubectl* | GDD_K8S_CONTEXT | Use `ws k8s <args>` — a guard scope is active; raw kubectl bypasses the namespace guard. `ws hook-bypass k8s` to lift for this session.

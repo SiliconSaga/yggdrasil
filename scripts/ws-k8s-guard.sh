@@ -697,6 +697,18 @@ _k8s_is_read_verb() {
     esac
 }
 
+# True for built-in kubectl mutation families whose standard --dry-run flag is
+# enforced by kubectl/Kubernetes. Keep unknown verbs and plugins on the normal
+# write path: an arbitrary plugin may accept the same spelling without honoring
+# Kubernetes dry-run semantics.
+_k8s_supports_dry_run() {
+    case "$1" in
+        annotate|apply|autoscale|create|delete|expose|label|patch|replace|run|scale|set|taint) return 0 ;;
+        rollout) [[ "${2:-}" == "undo" ]] ;;
+        *) return 1 ;;
+    esac
+}
+
 # True when a kubectl resource type or manifest Kind is cluster-scoped (has no
 # namespace). A write to one of these can never be bounded to the guard's
 # namespace scope, so the guard fails closed on it regardless of -n. Best-effort
@@ -896,7 +908,7 @@ k8s_guard_validate_kustomize_tree() {
 }
 
 # Print one verdict: NOT_K8S | READ_NO_SCOPE | WRITE_NO_SCOPE |
-# READ_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
+# READ_IN_SCOPE | DRY_RUN_IN_SCOPE | WRITE_IN_SCOPE | BLOCK:<reason>
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
 k8s_guard_evaluate() {
     local scope_ctx="$1" scope_ns_csv="$2"; shift 2
@@ -909,6 +921,7 @@ k8s_guard_evaluate() {
         printf 'NOT_K8S'; return 0
     fi
     local verb="" verb2="" ctx_arg="" ctx_arg_present=0 ns_arg="" all_ns=0 raw_api=0 a all_ns_value namespaced_value
+    local dry_run_mode="" dry_run_seen=0 options_done=0
     local ffiles=()
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
@@ -916,7 +929,13 @@ k8s_guard_evaluate() {
     local i=0
     while [[ $i -lt ${#args[@]} ]]; do
         a="${args[$i]}"
+        if [[ $options_done -eq 1 ]]; then
+            if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi
+            i=$((i+1))
+            continue
+        fi
         case "$a" in
+            --) options_done=1 ;;
             --context) ctx_arg_present=1; ctx_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
             --context=*) ctx_arg_present=1; ctx_arg="${a#--context=}";;
             -n|--namespace) ns_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
@@ -948,6 +967,29 @@ k8s_guard_evaluate() {
             -k|--kustomize) kdirs+=("${args[$((i+1))]:-}"); i=$((i+2)); continue ;;
             -k=*|--kustomize=*) kdirs+=("${a#*=}");;
             -k?*) kdirs+=("${a#-k}");;       # attached short form: -k<dir>
+            --dry-run)
+                if [[ $dry_run_seen -eq 1 ]]; then
+                    printf 'BLOCK:precondition:multiple --dry-run options are ambiguous'
+                    return 0
+                fi
+                dry_run_seen=1
+                dry_run_mode="client"
+                ;;
+            --dry-run=*)
+                if [[ $dry_run_seen -eq 1 ]]; then
+                    printf 'BLOCK:precondition:multiple --dry-run options are ambiguous'
+                    return 0
+                fi
+                dry_run_seen=1
+                dry_run_mode="${a#*=}"
+                case "$dry_run_mode" in
+                    client|server|none) ;;
+                    *)
+                        printf 'BLOCK:precondition:invalid --dry-run mode: %s' "$dry_run_mode"
+                        return 0
+                        ;;
+                esac
+                ;;
             --raw) raw_api=1; i=$((i+2)); continue ;;
             --raw=*) raw_api=1 ;;
             # Known value-taking flags: consume the FOLLOWING token as the flag's
@@ -1053,6 +1095,11 @@ k8s_guard_evaluate() {
     fi
     [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
     if [[ $all_ns -eq 1 ]]; then printf 'BLOCK:unbounded:--all-namespaces write is not scope-bounded'; return 0; fi
+    local write_verdict="WRITE_IN_SCOPE"
+    if [[ "$dry_run_mode" == "client" || "$dry_run_mode" == "server" ]] \
+        && _k8s_supports_dry_run "$verb" "$verb2"; then
+        write_verdict="DRY_RUN_IN_SCOPE"
+    fi
 
     # Cluster-scoped writes can't be bounded to the namespace scope: a node-level
     # verb (cordon/drain/…) names a node directly, and a cluster-scoped resource
@@ -1094,7 +1141,7 @@ k8s_guard_evaluate() {
                 printf 'BLOCK:scope:kubectl cp -n namespace %s is outside the guard scope (%s)' "$ns_arg" "$scope_ns_csv"
                 return 0
             fi
-            printf 'WRITE_IN_SCOPE'
+            printf '%s' "$write_verdict"
             return 0
         fi
     fi
@@ -1136,7 +1183,7 @@ k8s_guard_evaluate() {
                 _k8s_ns_in_csv "$_nm" "$scope_ns_csv" || { _bad="$_nm"; break; }
             done
             if [[ -z "$_bad" && "$_ns_typed_mismatch" -eq 0 ]]; then
-                printf 'WRITE_IN_SCOPE'; return 0
+                printf '%s' "$write_verdict"; return 0
             fi
             if [[ -n "$_bad" ]]; then
                 printf 'BLOCK:scope:%s namespace %s is outside the guard scope (%s)' "$verb" "$_bad" "$scope_ns_csv"; return 0
@@ -1190,7 +1237,7 @@ k8s_guard_evaluate() {
             [[ -f "$f_path" ]] || { printf 'BLOCK:precondition:-f %s not found on disk' "$f"; return 0; }
             validation="$(_k8s_validate_rendered_docs -f "$f" "$ns_arg" "$scope_ns_csv" "$f_path")" || { printf '%s' "$validation"; return 0; }
         done
-        printf 'WRITE_IN_SCOPE'; return 0
+        printf '%s' "$write_verdict"; return 0
     fi
 
     # Kustomize inputs need the same per-resource inspection as -f manifests.
@@ -1212,7 +1259,7 @@ k8s_guard_evaluate() {
             }
             validation="$(_k8s_validate_rendered_docs -k "$k" "$ns_arg" "$scope_ns_csv" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
         done
-        printf 'WRITE_IN_SCOPE'; return 0
+        printf '%s' "$write_verdict"; return 0
     fi
 
     local target_ns="$ns_arg"
@@ -1222,7 +1269,7 @@ k8s_guard_evaluate() {
     fi
     # Membership via _k8s_ns_in_csv so a context-only `*` scope accepts any
     # target namespace (all namespaces in scope for writes).
-    _k8s_ns_in_csv "$target_ns" "$scope_ns_csv" && { printf 'WRITE_IN_SCOPE'; return 0; }
+    _k8s_ns_in_csv "$target_ns" "$scope_ns_csv" && { printf '%s' "$write_verdict"; return 0; }
     printf 'BLOCK:scope:write target namespace %s is outside the guard scope (%s)' "$target_ns" "$scope_ns_csv"
 }
 

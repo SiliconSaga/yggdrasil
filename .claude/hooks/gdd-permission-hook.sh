@@ -447,6 +447,13 @@ _parse_rules_file() {
                 case "$section" in
                     scratch-dirs) scratch_dirs+=("$line") ;;
                     ask-commands) ask_commands+=("$line") ;;
+                    # Owned by ws audit-permissions, not by this hook. It shares
+                    # hook-rules.local, so the file legitimately carries sections
+                    # this parser has no use for. Skip the entries rather than
+                    # treating the section as unknown — that path abandons the
+                    # rest of the file, which silently discarded every
+                    # [allow-extras] pattern declared after it.
+                    audit-acknowledged) ;;
                     allow-extras)
                         # Only honored from hook-rules.local (is_local non-empty).
                         # In the committed hook-rules this section is silently inert.
@@ -1027,7 +1034,12 @@ case "$tier1_cmd" in
         deny "Newline-separated command lists are disallowed — each line after the first runs as a fresh command, hidden from per-call audit. Issue one command per tool call."
         ;;
     *"&&"*|*"||"*|*";"*)
-        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. If you need conditional behavior, check the result of one call before issuing the next."
+        # Naming `ws exec` here, not only in `ws orient`, is deliberate. An agent
+        # that had run orient and read the survey still reached for
+        # `cd components/<c>; git ...`, was refused, retried the same shape, and
+        # gave up — the corrective text told it the rule without naming a way to
+        # obey it. The moment of refusal is where the alternative gets learned.
+        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. Reach for the dedicated verb first — ws commit, ws push, ws cr, ws review, ws test, ws lint — and use 'ws exec <component> <command>' only where no wrapper exists: one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next."
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
@@ -1624,6 +1636,118 @@ _t2_session_id=$(echo "$input" | jq -r '.session_id // ""')
 # parent's parent is the project root. _rules_dir is guaranteed non-empty
 # here because redirect_commands is only populated from a hook-rules file
 # that was actually found.
+# ─── Canonical verb form (for redirect matching) ────────────────────
+#
+# Redirect patterns are written against the shape a human types:
+# `git commit*`, `ws exec * gh pr create*`. A glob needs those two words
+# adjacent, so every option accepted BETWEEN a program and its subcommand
+# silently defeats the rule — `git -C sub commit`, `git -c user.email=x commit`,
+# `git --no-pager push`, `gh --repo o/r pr create`. That is not a `ws exec`
+# quirk: raw `git -C sub commit` slips past the base `git commit*` rule the
+# same way, so the hole predates the ws exec rules and is wider than them.
+#
+# Rather than teach ~20 rules a new pattern syntax, canonicalize the COMMAND:
+# drop the program's own global options so the subcommand becomes adjacent
+# again, then match the existing globs against that form as well as the raw
+# one. Rules stay exactly as written.
+#
+# Transparent launchers (env, command, xargs, …), quote masking and compound
+# rejection are already solved by k8s_guard_normalize_command, which the hook
+# sources for the Kubernetes guard; this reuses it rather than re-deriving it.
+#
+# Failure is deliberately soft. If the guard is unavailable, the command is
+# too complex to normalize, or an UNKNOWN option appears before the subcommand,
+# we emit nothing and the caller matches the raw command exactly as it does
+# today. An unrecognized flag therefore costs a missed catch, never a wrong
+# deny — and never less coverage than before this function existed.
+_canon_git_globals() {
+    # Echo the index of the first non-option token, or -1 to give up.
+    local -n _toks=$1
+    local i=$2 t
+    while [[ $i -lt ${#_toks[@]} ]]; do
+        t="${_toks[$i]}"
+        case "$t" in
+            # Value in the NEXT token.
+            -C|-c|--git-dir|--work-tree|--namespace|--config-env|--exec-path)
+                i=$((i + 2)) ;;
+            # Value attached, or a boolean global.
+            -C?*|-c?*|--git-dir=*|--work-tree=*|--namespace=*|--config-env=*|--exec-path=*) i=$((i + 1)) ;;
+            -p|-P|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs) i=$((i + 1)) ;;
+            --glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks) i=$((i + 1)) ;;
+            --no-lazy-fetch|--no-advice) i=$((i + 1)) ;;
+            -*) printf '%s' -1; return 0 ;;
+            *) break ;;
+        esac
+    done
+    printf '%s' "$i"
+}
+
+_canon_hub_globals() {
+    # gh / glab: --repo is the realistic one that precedes a subcommand.
+    local -n _toks=$1
+    local i=$2 t
+    while [[ $i -lt ${#_toks[@]} ]]; do
+        t="${_toks[$i]}"
+        case "$t" in
+            -R|--repo) i=$((i + 2)) ;;
+            -R?*|--repo=*) i=$((i + 1)) ;;
+            -*) printf '%s' -1; return 0 ;;
+            *) break ;;
+        esac
+    done
+    printf '%s' "$i"
+}
+
+canonical_verb_form() {
+    local cmd="$1" normalized="" next
+    [[ "$_k8s_guard_loaded" == "1" ]] || return 1
+    declare -F k8s_guard_normalize_command >/dev/null 2>&1 || return 1
+    normalized="$(k8s_guard_normalize_command "$cmd" 2>/dev/null)" || return 1
+    [[ -n "$normalized" ]] || return 1
+    [[ "$normalized" == "${K8S_GUARD_UNSAFE_COMMAND_SENTINEL:-}" ]] && return 1
+
+    local -a toks=() out=()
+    read -r -a toks <<< "$normalized"
+    [[ ${#toks[@]} -gt 0 ]] || return 1
+
+    local i=0 base changed=0
+    while [[ $i -lt ${#toks[@]} ]]; do
+        base="${toks[$i]##*/}"
+        case "$base" in
+            git|gh|glab)
+                # Emit the basename, not the token as written: `/usr/bin/git commit`
+                # otherwise canonicalizes to itself and still misses `git commit*`,
+                # leaving a path-qualified spelling as a way around the boundary.
+                # Only redirect matching consumes this form, so reducing to the
+                # basename can only ever produce MORE denies — never an allow — and
+                # a deny here carries the wrapper pointer plus a named bypass.
+                out+=("$base")
+                [[ "$base" != "${toks[$i]}" ]] && changed=1
+                case "$base" in
+                    git) next="$(_canon_git_globals toks $((i + 1)))" ;;
+                    *)   next="$(_canon_hub_globals toks $((i + 1)))" ;;
+                esac
+                [[ "$next" == "-1" ]] && return 1
+                [[ "$next" -ne $((i + 1)) ]] && changed=1
+                i="$next"
+                ;;
+            *)
+                out+=("${toks[$i]}")
+                i=$((i + 1))
+                ;;
+        esac
+    done
+
+    # Nothing was dropped — the raw match already covers this command.
+    [[ "$changed" -eq 1 ]] || return 1
+    printf '%s' "${out[*]}"
+}
+
+_t2_canon_cmd=""
+if _t2_canon_raw="$(canonical_verb_form "$cmd" 2>/dev/null)" && [[ -n "$_t2_canon_raw" ]]; then
+    _t2_canon_cmd="$(normalize_for_match "$_t2_canon_raw" command)"
+fi
+
 _t2_project_root="${_rules_dir%/.claude/hooks}"
 
 for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
@@ -1633,8 +1757,13 @@ for _entry in ${redirect_commands[@]+"${redirect_commands[@]}"}; do
     _t2_pattern="${_t2_rest%%|*}"
     _t2_suggestion="${_t2_rest#*|}"
     _t2_match_pattern="$(normalize_for_match "$_t2_pattern")"
+    # Match the raw command OR its canonical verb form, so options sitting
+    # between a program and its subcommand cannot slip a redirected verb
+    # through. Canonicalization is additive: when it yields nothing, this is
+    # exactly the raw-only test it has always been.
     # shellcheck disable=SC2053
-    if [[ "$match_cmd" == $_t2_match_pattern ]]; then
+    if [[ "$match_cmd" == $_t2_match_pattern ]] \
+        || { [[ -n "$_t2_canon_cmd" ]] && [[ "$_t2_canon_cmd" == $_t2_match_pattern ]]; }; then
         # Bypass-marker check: a marker for this slug, written by
         # `ws hook-bypass <slug>`, overrides the deny when its
         # session_id matches the current session.
@@ -1775,7 +1904,10 @@ fi
 # key is set in .tmp/gdd-agent-sessions/<sid>.env the tier activates:
 #
 #   (a) `ws k8s …` / `k8s …` → route by k8s_guard_evaluate verdict.
-#       READ_IN_SCOPE: auto-allow; BLOCK: deny; otherwise: fall through.
+#       READ_IN_SCOPE / DRY_RUN_IN_SCOPE: auto-allow; BLOCK: deny; otherwise: fall through.
+#   (a2) raw `kubectl …` → same evaluation, but only READ_IN_SCOPE auto-allows.
+#       DRY_RUN_IN_SCOPE and WRITE_IN_SCOPE fall through to (b) so they run via
+#       `ws k8s`, the only path that injects the armed --context.
 #   (b) raw command matching the pattern → redirect deny.
 #   (c) shell script invocation whose file contains raw kubectl → deny.
 #
@@ -1807,9 +1939,9 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
         case "$_sr_verdict" in
-            READ_IN_SCOPE)
+            READ_IN_SCOPE|DRY_RUN_IN_SCOPE)
                 if [[ "$_k8s_literal_direct" == "1" ]]; then
-                    allow "ws k8s in-scope read"
+                    allow "ws k8s in-scope read or dry-run"
                 fi
                 ;;
             BLOCK:*) deny "$(k8s_render_block "$_sr_verdict" "$_sr_ctx" "$_sr_slug")" ;;
@@ -1824,6 +1956,13 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # falls through to the (b) redirect so it runs via `ws k8s`, which injects
     # --context — a raw write hitting the current-but-wrong context is exactly
     # the accident the guard exists to prevent.
+    #
+    # DRY_RUN_IN_SCOPE is deliberately NOT auto-allowed here, only on the (a)
+    # `ws k8s` path. Only the wrapper injects the armed --context; a raw
+    # dry-run carries whatever context kubeconfig currently points at. The
+    # result is not a mutation, but it is an *answer from the wrong cluster* —
+    # which is worse than no answer, because the whole point of a dry-run is
+    # trusting what it reports. It falls through to the (b) redirect instead.
     if [[ "$_k8s_match_cmd" == kubectl\ * || "$_k8s_match_cmd" == kubectl ]]; then
         # shellcheck disable=SC2086
         if ! _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \

@@ -50,6 +50,132 @@ setup() {
     [[ "$output" == *"Shell composition"* ]]
 }
 
+@test "deny: ws exec cannot smuggle a redirected verb past its wrapper" {
+    # Measured before this rule existed: the raw form was DENIED with the
+    # corrective pointer, while the ws exec form only reached ASK — a softer
+    # path to the same act, ending in a rubber-stamped prompt and a commit with
+    # no Co-Authored-By trailer and none of the bodyfile staging.
+    seed_real_project_config
+    run_hook "ws exec ken-site git commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "deny: ws exec cannot smuggle a push or a pull request past its wrapper" {
+    seed_real_project_config
+    run_hook "ws exec ken-site git push"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws push"* ]]
+    run_hook "ws exec ken-site gh pr create --title x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws cr"* ]]
+}
+
+@test "ask: ws exec still carries the commands that have no wrapper" {
+    # The point is ordering, not prohibition. A command with no wrapper keeps
+    # its ordinary treatment — the baseline ask-list still force-prompts on
+    # `ws exec *`, which is a separate decision from these redirects.
+    seed_real_project_config
+    run_hook "ws exec ken-site bundle exec jekyll build"
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" != *"ws commit"* ]]
+}
+
+@test "deny: composition message names the component-scoped alternative" {
+    # Stating the rule without naming a way to obey it leaves an agent stuck:
+    # one that had read the whole subcommand survey still retried the same
+    # `cd <dir>; <cmd>` shape and then gave up. The refusal is where the
+    # alternative has to appear.
+    run_hook "cd components/ken-site ; git status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws exec <component> <command>"* ]]
+}
+
+# ─── Canonical verb form: options between program and subcommand ────
+#
+# A glob needs `git commit` adjacent, so any global option in between defeats
+# the rule. This predates the ws exec rules — raw `git -C sub commit` slips
+# past the base `git commit*` rule the same way.
+
+@test "canonical: raw git global options cannot smuggle a redirected verb" {
+    seed_real_project_config
+    run_hook "git -C components/ken-site commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "canonical: git -c config assignment is refused before it can hide a commit" {
+    # `-c` never reaches redirect matching: an earlier tier rejects git
+    # execution modifiers outright, because -c can set core.pager, an alias, or
+    # credential.helper — i.e. choose what actually runs. That is a stronger
+    # guarantee than the redirect, so the assertion is deny, not the ws commit
+    # pointer. Pinned so a future relaxation of that tier cannot silently open
+    # a path the canonicalizer was never asked to cover.
+    seed_real_project_config
+    run_hook "git -c user.email=a@b.c commit -m x"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+
+@test "canonical: git boolean globals do not hide a push" {
+    seed_real_project_config
+    run_hook "git --no-pager push origin main"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws push"* ]]
+}
+
+@test "canonical: gh --repo does not hide a pr create" {
+    seed_real_project_config
+    run_hook "gh --repo owner/name pr create --title x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws cr"* ]]
+}
+
+@test "canonical: the same options cannot smuggle a verb through ws exec" {
+    seed_real_project_config
+    run_hook "ws exec ken-site git -C nested commit -m x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "canonical: a path-qualified executable cannot dodge the redirect" {
+    # Emitting the token as written left `/usr/bin/git commit` canonicalizing to
+    # itself, so it still missed `git commit*` — a spelling away from the boundary.
+    # Reducing to the basename can only ever produce more denies, never an allow,
+    # because only redirect matching consumes the canonical form.
+    seed_real_project_config
+
+    run_hook "/usr/bin/git push origin main"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws push"* ]]
+
+    run_hook "ws exec ken-site /usr/bin/git -C nested commit -m x"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws commit"* ]]
+}
+
+@test "canonical: an unrelated git subcommand is still not redirected" {
+    # Canonicalization must not turn every git invocation into a match.
+    seed_real_project_config
+    run_hook "git -C components/ken-site status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ws commit"* ]]
+    [[ "$output" != *"ws push"* ]]
+}
+
+@test "canonical: an unknown global option falls back rather than mis-denying" {
+    # Unrecognized flags stop canonicalization, so behaviour matches the
+    # pre-existing raw-only test — a missed catch, never a wrong deny.
+    seed_real_project_config
+    run_hook "git --not-a-real-flag status"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+}
+
 @test "deny: | triggers pipes message" {
     run_hook "ls -la | head"
     [ "$status" -eq 0 ]
@@ -1490,6 +1616,93 @@ JSON
     [[ "$output" != *"workspace ROOT"* ]]
 }
 
+@test "redirect: fetching review comments points at ws review" {
+    # The reflex `ws gh` made easy: pulling CR details through the provider CLI,
+    # which returns comments with no thread ids and no resolved state — so the
+    # triage is worse AND a later `ws review reply` has nothing to resolve.
+    seed_real_project_config
+
+    run_hook 'ws gh pr view 3 --comments'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+
+    run_hook 'ws gh api repos/SiliconSaga/gdd-sandbox/pulls/3/comments'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+}
+
+@test "hook-rules: no redirect pattern starts with a wildcard" {
+    # A leading `*` reads as "this text anywhere in the command", which matches
+    # arguments and quoted data as readily as the verb — so a rule meant to catch
+    # `gh api …/comments` also denied a shell loop mentioning that endpoint, and a
+    # `ws review reply` whose message discussed the rule. Covering the wrapped and
+    # raw spellings takes two anchored rows instead (see the -raw twins); the
+    # saving of one row is not worth a matcher that cannot tell a command from a
+    # string. Guarded here because the failure is silent and easy to reintroduce.
+    run grep -c '^[a-z0-9-]* *| *\*' "$REPO_ROOT/.claude/hooks/hook-rules"
+    [ "$output" = "0" ]
+}
+
+@test "redirect: an endpoint quoted as data does not trigger the review redirect" {
+    # The rules were originally written with a leading `*` so one row could cover
+    # both the wrapped and raw spellings — which also made them match the endpoint
+    # ANYWHERE in a command, including inside quoted arguments. Measured twice: a
+    # shell loop carrying the endpoint in a string literal was denied, and so was a
+    # `ws review reply` whose message text discussed the rule. A redirect that
+    # blocks the wrapper it points at has overshot.
+    seed_real_project_config
+
+    run_hook 'ws review yggdrasil reply 156 THREADID "see repos/o/r/pulls/3/comments for context"'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+
+    run_hook 'echo repos/o/r/pulls/3/reviews'
+    [[ "$output" != *"ws review"* ]]
+}
+
+@test "redirect: the raw spelling is still caught after anchoring" {
+    # Anchoring means each rule needs a -raw twin, matching the gh-checkout and
+    # gh-repo-sync pairs. Without the twin, dropping the leading `*` would have
+    # quietly stopped catching the un-wrapped form.
+    seed_real_project_config
+
+    run_hook 'gh api repos/o/r/pulls/3/comments'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+
+    run_hook 'gh pr view 3 --comments'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+
+}
+
+@test "redirect: glab mr note is deliberately left reachable" {
+    # Withdrawn rather than narrowed: glab spells thread replies and top-level
+    # note creation the same way. `ws review reply` covers the first; nothing in
+    # `ws review` can post a top-level note at all, only read them. A glob cannot
+    # separate the two, so redirecting denied a capability with no alternative.
+    seed_real_project_config
+
+    run_hook 'glab mr note 3 --message x'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ws review"* ]]
+}
+
+@test "redirect: what ws review cannot do stays reachable" {
+    # Denying with no alternative is worse than the reflex it prevents. Checks,
+    # diffs and unrelated API endpoints have no ws review equivalent today, so
+    # they must not be caught by the review redirects.
+    seed_real_project_config
+
+    run_hook 'ws gh pr checks 3'
+    [[ "$output" != *"ws review"* ]]
+    run_hook 'ws gh pr diff 3'
+    [[ "$output" != *"ws review"* ]]
+    run_hook 'ws gh api repos/SiliconSaga/ken-site/actions/runs'
+    [[ "$output" != *"ws review"* ]]
+}
+
 @test "allow-path: non-mutating ws gh subcommands are untouched by the guard" {
     seed_real_project_config
 
@@ -1519,6 +1732,37 @@ figlet *"
     run_hook "figlet hello" "$WORK/subdir/deeper"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow via allow-extras: an [audit-acknowledged] section does not disable the rest of the file" {
+    # Regression: [audit-acknowledged] belongs to ws audit-permissions, which
+    # shares hook-rules.local with this hook. The parser treated it as an
+    # unknown section and abandoned the file, so every [allow-extras] pattern
+    # declared after it silently stopped applying — while hook-rules.local.example
+    # documents exactly this layout, so anyone following the docs hit it.
+    write_project_hook_rules ""
+    write_local_hook_rules "[audit-acknowledged]
+Bash(bash -n:*)
+
+[allow-extras]
+figlet *"
+    run_hook "figlet hello"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow via allow-extras: a genuinely unknown section still abandons the file" {
+    # The fail-safe itself must survive: a typo'd or unrecognized section is
+    # still treated as a file-level error rather than silently ignored.
+    write_project_hook_rules ""
+    write_local_hook_rules "[not-a-real-section]
+whatever
+
+[allow-extras]
+figlet *"
+    run_hook "figlet hello"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
 
 # ─── Malformed settings.json doesn't crash the hook ────────────────
@@ -3174,6 +3418,31 @@ BASH
     run_hook_with_session 'ws k8s get pods -n kube-system' "sk8s"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: in-scope ws k8s server dry-run auto-approves" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
+    run_hook_with_session "ws k8s apply -f $WORK/m.yaml --dry-run=server" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+@test "scoped-redirect: in-scope RAW kubectl dry-run is redirected, not auto-approved" {
+    # Only `ws k8s` injects the armed --context. A raw dry-run would run against
+    # whatever kubeconfig currently points at, so it reports on a cluster the
+    # operator did not choose — and a dry-run is consulted precisely because its
+    # answer is trusted. Same reasoning that already keeps in-scope raw WRITES on
+    # the redirect path; the dry-run verdict must not become a hole in it.
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$WORK/m.yaml"
+    run_hook_with_session "kubectl apply -f $WORK/m.yaml --dry-run=server" "sk8s"
+    [ "$status" -eq 0 ]
+    # Assert the redirect itself, not merely the absence of allow — a fallthrough
+    # emitting no decision would satisfy a negative check while leaving the raw
+    # command to run unpinned, which is the exact failure being guarded.
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws k8s"* ]]
 }
 @test "scoped-redirect: normalized ws k8s aliases cannot inherit the read auto-allow" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
