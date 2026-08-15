@@ -1615,6 +1615,54 @@ JSON
     [[ "$output" == *"ws review"* ]]
 }
 
+@test "hook-rules: no redirect pattern starts with a wildcard" {
+    # A leading `*` reads as "this text anywhere in the command", which matches
+    # arguments and quoted data as readily as the verb — so a rule meant to catch
+    # `gh api …/comments` also denied a shell loop mentioning that endpoint, and a
+    # `ws review reply` whose message discussed the rule. Covering the wrapped and
+    # raw spellings takes two anchored rows instead (see the -raw twins); the
+    # saving of one row is not worth a matcher that cannot tell a command from a
+    # string. Guarded here because the failure is silent and easy to reintroduce.
+    run grep -c '^[a-z0-9-]* *| *\*' "$REPO_ROOT/.claude/hooks/hook-rules"
+    [ "$output" = "0" ]
+}
+
+@test "redirect: an endpoint quoted as data does not trigger the review redirect" {
+    # The rules were originally written with a leading `*` so one row could cover
+    # both the wrapped and raw spellings — which also made them match the endpoint
+    # ANYWHERE in a command, including inside quoted arguments. Measured twice: a
+    # shell loop carrying the endpoint in a string literal was denied, and so was a
+    # `ws review reply` whose message text discussed the rule. A redirect that
+    # blocks the wrapper it points at has overshot.
+    seed_real_project_config
+
+    run_hook 'ws review yggdrasil reply 156 THREADID "see repos/o/r/pulls/3/comments for context"'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
+
+    run_hook 'echo repos/o/r/pulls/3/reviews'
+    [[ "$output" != *"ws review"* ]]
+}
+
+@test "redirect: the raw spelling is still caught after anchoring" {
+    # Anchoring means each rule needs a -raw twin, matching the gh-checkout and
+    # gh-repo-sync pairs. Without the twin, dropping the leading `*` would have
+    # quietly stopped catching the un-wrapped form.
+    seed_real_project_config
+
+    run_hook 'gh api repos/o/r/pulls/3/comments'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+
+    run_hook 'gh pr view 3 --comments'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+
+    run_hook 'glab mr note 3 --message x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review"* ]]
+}
+
 @test "redirect: what ws review cannot do stays reachable" {
     # Denying with no alternative is worse than the reflex it prevents. Checks,
     # diffs and unrelated API endpoints have no ws review equivalent today, so
