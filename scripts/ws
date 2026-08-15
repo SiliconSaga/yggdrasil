@@ -23,6 +23,7 @@
 #   issue <comp> [remote] <title> <label> <bodyfile> File issue (remote from forkRemote)
 #   test <comp> [TestName|args...] Run tests (auto-detected; see 'ws actions <comp>')
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
+#   fmt <comp> [args...] Format the component's sources — rewrites files (adapter commands.fmt)
 #   build <comp> [args...] Run the component build (adapter commands.build; see 'ws actions <comp>')
 #   run <comp> [args...] Run the component itself — game, dev server, sandbox (adapter commands.run)
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
@@ -1228,6 +1229,9 @@ case "$COMMAND" in
         ;;
     lint)
         bash "$SCRIPT_DIR/ws-lint.sh" "$@"
+        ;;
+    fmt)
+        bash "$SCRIPT_DIR/ws-fmt.sh" "$@"
         ;;
     build)
         bash "$SCRIPT_DIR/ws-build.sh" "$@"

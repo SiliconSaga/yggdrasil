@@ -47,7 +47,7 @@ The PreToolUse hook denies `git commit` / `git push` / `gh pr create` at Tier 2 
 
 Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint) also accept realm and hoard names, not just components.
 
-**Adapter-routed verbs — consult `ws orient` first:** `ws test` / `ws lint` / `ws build`.
+**Adapter-routed verbs — consult `ws orient` first:** `ws test` / `ws lint` / `ws fmt` / `ws build`.
 
 The adapter wiring per component lives in `realms/<active>/adapters/<comp>.yaml`. **Run `ws orient` to see what each component's adapter resolves to** — the output surfaces each row's executed command (`knarr → ws test [runs: python3 -m pytest --ignore=tests/features]`) so you can verify what `ws test` will actually run. When an adapter is wired, the hook redirects raw `pytest` / `ruff` / `gradle test` to the corresponding `ws` form. When no adapter exists, raw runs through with a one-time nudge.
 
