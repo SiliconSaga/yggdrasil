@@ -192,6 +192,49 @@ done
 
 ECO="$(ws_resolve_ecosystem)"
 
+# --- nested mode: adopt a repo that already lives inside a component ---------
+# Terasology's modules/ and libs/ hold independent upstreams that are meant to
+# sit inside the engine tree, where the gradle harness can build them. Cloning
+# one out to components/ yields an orphan that cannot compile, so fork-and-PR
+# has to work in place. The checkout already exists and the host project's
+# tooling owns its lifecycle, which leaves exactly one job here: make sure the
+# fork exists and wire its remote. The clone step is deliberately skipped.
+NESTED_TARGET=""
+NESTED_UPSTREAM_URL=""
+if [[ -n "$COMPONENT" && "$COMPONENT" == */* ]]; then
+    # No --url / --add-to-ecosystem guard is needed here: those two are already
+    # mutually required above, and --url cannot be combined with a component
+    # name at all, so a nested target can never reach this block carrying them.
+    ws_resolve_target "$COMPONENT"
+    NESTED_TARGET="$COMPONENT_DIR"
+
+    # The upstream is whatever the host tooling cloned from, not ecosystem
+    # config — a module is never declared there, which is the entire point of
+    # declaring nesting by shape.
+    if ! NESTED_UPSTREAM_URL=$(git -C "$NESTED_TARGET" remote get-url origin 2>/dev/null) \
+        || [[ -z "$NESTED_UPSTREAM_URL" ]]; then
+        echo "ERROR: Nested repo '$COMPONENT' has no 'origin' remote." >&2
+        echo "  Its upstream is read from origin, since a nested repo is not declared" >&2
+        echo "  in ecosystem config. The host project's tooling normally sets it" >&2
+        echo "  (groovyw, for Terasology modules)." >&2
+        exit 1
+    fi
+
+    # Read the fork namespace early, only to refuse the circular case: if origin
+    # already points into the fork home, there is no upstream left to fork from
+    # and we would otherwise derive a fork of the fork.
+    _nested_fork_ns=$(yq '.identity.homes.fork.namespace // ""' "$ECO" 2>/dev/null)
+    [[ "$_nested_fork_ns" == "null" ]] && _nested_fork_ns=""
+    if [[ -n "$_nested_fork_ns" && "$NESTED_UPSTREAM_URL" == *"/$_nested_fork_ns/"* ]]; then
+        echo "ERROR: origin for '$COMPONENT' already points into the fork home '$_nested_fork_ns'." >&2
+        echo "  origin: $NESTED_UPSTREAM_URL" >&2
+        echo "  Point origin at the source project before adopting it, or the fork" >&2
+        echo "  would be derived from itself." >&2
+        exit 1
+    fi
+    unset _nested_fork_ns
+fi
+
 # --- URL mode: declare the component ----------------------------------------
 # Runs AFTER ws_resolve_ecosystem so the realm-trust gate (inside the
 # resolve) fires before anything is written — a trust failure must not
@@ -253,6 +296,8 @@ mkdir -p "$ROOT_DIR/.tmp"
 # before the declaration write, so a lookup there would miss the new entry.
 if [[ -n "$CF_URL" ]]; then
     UPSTREAM_URL="$CF_URL"
+elif [[ -n "$NESTED_TARGET" ]]; then
+    UPSTREAM_URL="$NESTED_UPSTREAM_URL"
 else
     UPSTREAM_URL=$(COMP="$COMPONENT" yq '.components[strenv(COMP)].repo // ""' "$ECO" 2>/dev/null)
     if [[ -z "$UPSTREAM_URL" || "$UPSTREAM_URL" == "null" ]]; then
@@ -794,6 +839,9 @@ git_remote_validate "$UPSTREAM_REMOTE_URL" remote "$UPSTREAM_HOST"
 
 # --- clone or repair local checkout -----------------------------------------
 TARGET="$COMPONENTS_DIR/$COMPONENT"
+# A nested repo already sits inside its host component; the host tooling owns
+# where it lives, so the resolved path wins over the components/<name> layout.
+[[ -n "$NESTED_TARGET" ]] && TARGET="$NESTED_TARGET"
 echo ""
 echo "  Step 2: prepare local clone at $TARGET ..."
 
@@ -862,10 +910,32 @@ if [[ -d "$TARGET/.git" ]]; then
         fi
     fi
 
-    selected_upstream_remote_name=$(select_available_source_remote_name "$TARGET" "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL")
-    if [[ "$selected_upstream_remote_name" != "$UPSTREAM_REMOTE_NAME" ]]; then
-        echo "         source remote '$UPSTREAM_REMOTE_NAME' already points elsewhere; using '$selected_upstream_remote_name'"
-        UPSTREAM_REMOTE_NAME="$selected_upstream_remote_name"
+    # Reuse a remote that already points at the source rather than adding a
+    # second name for the same URL. Adopting a nested repo hits this every time
+    # — the host tooling cloned it, so `origin` IS the source — and two remotes
+    # for one URL later breaks `ws cr --upstream`, which cannot tell which of
+    # them to target.
+    existing_upstream_remote=""
+    while IFS= read -r _rname; do
+        [[ -n "$_rname" ]] || continue
+        _rurl=$(git -C "$TARGET" remote get-url "$_rname" 2>/dev/null) || continue
+        if [[ "${_rurl%.git}" == "${UPSTREAM_REMOTE_URL%.git}" ]]; then
+            existing_upstream_remote="$_rname"
+            break
+        fi
+    done < <(git -C "$TARGET" remote)
+
+    if [[ -n "$existing_upstream_remote" ]]; then
+        if [[ "$existing_upstream_remote" != "$UPSTREAM_REMOTE_NAME" ]]; then
+            echo "         source already wired as '$existing_upstream_remote'; reusing it"
+            UPSTREAM_REMOTE_NAME="$existing_upstream_remote"
+        fi
+    else
+        selected_upstream_remote_name=$(select_available_source_remote_name "$TARGET" "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL")
+        if [[ "$selected_upstream_remote_name" != "$UPSTREAM_REMOTE_NAME" ]]; then
+            echo "         source remote '$UPSTREAM_REMOTE_NAME' already points elsewhere; using '$selected_upstream_remote_name'"
+            UPSTREAM_REMOTE_NAME="$selected_upstream_remote_name"
+        fi
     fi
 
     # Upstream remote
@@ -907,9 +977,14 @@ if ! git -C "$TARGET" rev-parse --verify "$DEFAULT_BRANCH" &>/dev/null; then
 else
     current=$(git -C "$TARGET" rev-parse --abbrev-ref HEAD)
     if [[ "$current" != "$DEFAULT_BRANCH" ]]; then
-        # Don't yank the user out of an in-progress release branch silently
-        if [[ "$current" == release/* ]]; then
-            echo "         current branch is '$current' (release in progress); leaving it alone, syncing main in the background"
+        # Don't yank the user out of an in-progress branch silently.
+        #
+        # A nested repo always qualifies: its checkout belongs to the host
+        # project's tooling and the caller is adopting a tree that already
+        # exists, so switching branches under them is never what they asked
+        # for. `release/*` is the same instinct for a component clone.
+        if [[ "$current" == release/* || -n "$NESTED_TARGET" ]]; then
+            echo "         current branch is '$current'; leaving it alone, syncing $DEFAULT_BRANCH in the background"
             # Compute sync action without checkout
             read -r ahead behind < <(git -C "$TARGET" rev-list --left-right --count "$DEFAULT_BRANCH...$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH")
             if [[ "$behind" -gt 0 && "$ahead" -eq 0 ]]; then
