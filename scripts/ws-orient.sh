@@ -333,7 +333,12 @@ emit_workspace_selftest() {
 # components with no adapter file at all; by the time we get here,
 # adapter_file is guaranteed to exist on disk.
 _ws_orient_display_text() {
-    printf '%s' "$1" | tr '\011\012\015' '   ' | tr -d '\000-\010\013-\037\177'
+    # A \r\n pair collapses to \n first: Windows yq emits CRLF where Linux
+    # emits LF, and mapping both chars to spaces rendered the same value one
+    # column wider per embedded newline on Windows. A LONE \r is content
+    # and still maps to a space like the other whitespace controls.
+    local value="${1//$'\r\n'/$'\n'}"
+    printf '%s' "$value" | tr '\011\012\015' '   ' | tr -d '\000-\010\013-\037\177'
 }
 
 # Classify one realm-declared component context path without allowing the

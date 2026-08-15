@@ -769,6 +769,10 @@ HELP
 # record renderers add structural separators only after fields are escaped.
 _ws_realm_summary_inline_text() {
     local value="$1"
+    # A \r\n pair is a platform artifact (Windows yq emits CRLF where Linux
+    # emits LF) — collapse it to \n so the summary renders identically on
+    # both. A LONE \r is realm-controlled content and stays escaped below.
+    value="${value//$'\r\n'/$'\n'}"
     value="${value//$'\r'/\\r}"
     value="${value//$'\n'/\\n}"
     value="${value//$'\t'/\\t}"

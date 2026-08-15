@@ -54,7 +54,10 @@ run_component_init() {
 @test "rejects a component flavor symlinked outside the template root" {
     mkdir -p "$WORK/private-template"
     printf 'private\n' > "$WORK/private-template/README.md"
-    ln -s "$WORK/private-template" "$TEMPLATES_DIR/components/linked"
+    ln -s "$WORK/private-template" "$TEMPLATES_DIR/components/linked" 2>/dev/null || true
+    # MSYS without symlink support copies (exit 0) or errors — either way the
+    # escape precondition cannot be constructed, so the assertion is vacuous.
+    [[ -L "$TEMPLATES_DIR/components/linked" ]] || skip "real symlinks not supported on this platform"
 
     run_component_init linked escaped
 
