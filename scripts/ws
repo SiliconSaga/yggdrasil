@@ -900,6 +900,43 @@ HELP
         return 0
     fi
 
+    # Working tree and branch position. These are the questions actually being
+    # asked when someone runs diagnose before a push or CR — "is this ready to
+    # send, and against what?" — which remotes and tokens alone cannot answer.
+    local dirty_count
+    dirty_count=$(git -C "$comp_dir" status --porcelain 2>/dev/null | wc -l | tr -d '[:space:]')
+    if [[ "${dirty_count:-0}" -eq 0 ]]; then
+        echo "  Working tree   : ✓ clean"
+    else
+        echo "  Working tree   : $dirty_count uncommitted change(s)"
+    fi
+
+    local tracking ahead behind
+    if tracking=$(git -C "$comp_dir" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) \
+        && [[ -n "$tracking" ]]; then
+        # left..right: left-only commits are what the upstream has and we don't.
+        if read -r behind ahead < <(git -C "$comp_dir" rev-list --left-right --count "$tracking...HEAD" 2>/dev/null); then
+            echo "  Tracking       : $tracking (ahead $ahead, behind $behind)"
+        else
+            echo "  Tracking       : $tracking"
+        fi
+    else
+        echo "  Tracking       : none — the first push sets it"
+    fi
+
+    # Nested rollup, host components only. Deliberately a count and not a status
+    # sweep: a component can nest well over a hundred repos, and git-statusing
+    # them all is what `ws status <comp> --nested` is for.
+    if [[ "$comp" != */* ]]; then
+        local nested_count=0 _n
+        while IFS= read -r _n; do
+            [[ -n "$_n" ]] && nested_count=$((nested_count + 1))
+        done < <(ws_nested_candidates "$comp" "$comp_dir" 2>/dev/null || true)
+        if [[ "$nested_count" -gt 0 ]]; then
+            echo "  Nested repos   : $nested_count — git status via: ws status $comp --nested"
+        fi
+    fi
+
     # Remotes
     echo ""
     echo "  Remotes:"
