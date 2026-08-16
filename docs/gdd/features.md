@@ -174,6 +174,22 @@ Full reference: [organization-stack.md](organization-stack.md). Design and ratio
 
 ---
 
+## Sandboxed workspaces — `gdd-sandbox` (optional companion)
+
+A scoped GDD agent in a Docker container, reachable over a chat channel (Discord today) and pointed at one target component. Someone collaborates with the agent by chat message while it does real GDD work inside the container — read, edit, commit, push, open a pull request — and the PR page is the review surface: preview link, before/after screenshots, and a merge button that stays human. The agent can open PRs; merging and releasing are denied outright, with branch protection enforcing what the permission posture promises.
+
+What makes it safe enough to point at a non-technical person:
+
+- **Scope by absence** — the container holds only the in-scope repositories, so out-of-scope work is impossible rather than merely forbidden.
+- **Its own identity** — a dedicated code-host account with a fine-grained token scoped to the one target repo; agent-authored history stays honest, and revocation is one token.
+- **Outcome-level questions** — consequential decisions are asked in chat in human terms ("here's the preview — ship it?"), never as raw tool prompts a non-technical person would learn to rubber-stamp.
+- **Kept alive on purpose** — a supervisor recovers dead sessions, deliberate rotation clears stale context, and the healthcheck actively probes chat reachability, so an agent that silently stops answering cannot look healthy.
+- **Own entitlement** — the sandbox runs on a Claude subscription setup-token; hosting (whose machine runs the container) is deliberately separate from entitlement (whose plan and logins it uses), aiming at a self-sufficient user on their own plan.
+
+This is an **independent component**, not part of the workspace: fetch [SiliconSaga/gdd-sandbox](https://github.com/SiliconSaga/gdd-sandbox) (declare it in your ecosystem config and `ws clone gdd-sandbox`, or clone it directly under `components/`). It carries its own operator skill and README — the README's Configuration section is the authoritative setup reference. For direction, including the trust-scaled future for untrusted users, see the [roadmap's sandboxed-workspaces track](roadmap.md#sandboxed-workspaces--containerized-trust-scaled-execution).
+
+---
+
 ## Next steps
 
 - Brand new? [Getting Started](../getting-started.md) walks you through cloning yggdrasil and a first session.

@@ -25,7 +25,7 @@ The point of this study is not that an agent wrote some Java. It is *where the h
 
 *The agent ran `ws orient`, read the orientation skill, resolved the per-machine Thalamus, and set its commit identity — the standard startup. Then it looked at the workspace it had actually inherited.*
 
-This is the part that would have been fatal before GDD. The Terasology component had been sitting untouched for months in the middle of a mega-review effort following the big dependency-injection PR merge — one of the oldest arcs in this machine's Thalamus. The state was genuinely messy:
+This is the part that would have derailed things before GDD. The Terasology component had been sitting untouched for months in the middle of a mega-review effort following the big dependency-injection PR merge — one of the oldest arcs in this machine's Thalamus. The state was genuinely messy:
 
 - the engine sat on `test/salvage-mte-network-tests`, 32 commits ahead of a local `develop` that was itself 25 behind upstream
 - 72 uncommitted lines in `docs/Engine-Testing-Patterns.md`
@@ -181,7 +181,7 @@ Then the contributor merged everything, and the session ended where it began —
 
 ## Outputs
 
-All four pull requests merged the same day, within about six hours of the contributor's first message.
+All four pull requests merged the same day, within hours of the contributor's first message.
 
 | Artifact | Outcome |
 |---|---|
@@ -277,7 +277,7 @@ Running in parallel the whole time, lightly tidied. This is the texture the tran
 ## Key takeaways
 
 - **The workspace was the point.** A months-dormant Terasology checkout mid-way through a dependency-injection review effort would previously have prompted a fresh workspace — and then a forgotten one, and then a third. The Thalamus held the arcs, `ws status` held the repo states, and the session grafted onto the mess instead of fleeing it. That avoided toil is invisible in the diff and is arguably the largest single win here.
-- **Found time is real time.** Toddler on lap → phone while cooking → phone outdoors → fifteen focused minutes at a desk. The output was a root-cause fix in a 15-year-old engine, with tests. The claim GDD has always made about snippets of attention got its hardest test yet.
+- **Found time is real time.** Toddler on lap by PC, then bits of phone while preparing us lunch, then some phone during outdoor kid activities, finally a short stretch at a desk alone. The output was a root-cause fix in a 15-year-old engine, with tests. The claim GDD has always made about snippets of attention got a real test here.
 - **The agent argued with the bots, and with itself.** It declined one CodeRabbit finding with reasoning and filed it as an issue; it accepted a Copilot finding after verifying the objection was real; and it abandoned its own expensive experiment when a cheaper, stronger one appeared.
 - **Falsification, not just green checks.** Every claim of "this fixes it" was backed by stashing the fix and watching the test fail. Twice — including after tightening the assertion, because a stricter test that no longer catches the original bug is worse than the loose one.
 - **Guardrails earn their keep when the human is distracted.** The push denial landed *after* a phone-typed "go ahead and push to both branches." The human was wrong for a moment; the boundary was not.
