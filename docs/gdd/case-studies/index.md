@@ -2,12 +2,13 @@
 
 GDD applied to real work — recent, concrete, and messier than a tutorial. See also the [roadmap](../roadmap.md) for potential upcoming arcs serving a specific story.
 
-Two efforts are written up at length, bracketing the project's life so far:
+Three efforts are written up at length:
 
 - **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)** — a full session from the week of the 1.0 release: an outside contributor's bug fix reviewed, an engine root cause found underneath it, fixes proposed back, and an issue filed — conducted almost entirely from a phone, one-handed, around childcare. The clearest picture of what the finished system feels like in use.
+- **[A five-year-old disabled test](terasology-module-attribution.md)** — a deep engine bug: two defects stacked three years apart, the older one hidden behind a test left `@Disabled` in the same commit that introduced it. Written as highlights rather than a transcript, and it does not spare the agent — one of its neater explanations turned out to be invented.
 - **[Early GDD — the first sessions](early-gdd.md)** — condensed transcripts and Thalamus files from GDD's first two sessions ever, back in March: dialogue and decisions as captured, technical detail stubbed. They predate most of today's system, so read them as origin material rather than current mechanics.
 
-The early sessions are GDD *being built*, the v1.0 study is GDD *being used* on a different codebase without the human using a desk much.
+The early sessions are GDD *being built*, the v1.0 study is GDD *being used* on a different codebase without the human using a desk much, and the deep-bug study is what the pairing looks like when the problem is genuinely hard.
 
 ---
 
