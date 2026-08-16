@@ -66,10 +66,15 @@ cp templates/change.md .crs/<description>.md
 bash scripts/ws cr <component> "type: description" .crs/<description>.md
 ```
 
-## Rebasing onto Updated Main
+## Rebasing onto Updated Main (or Resuming a Branch)
 
-When main moves ahead during code review (e.g., another CR merges), rebase
-to keep a clean linear history before merging.
+Same fetch-then-rebase move, two triggers: main moved ahead during code
+review, or you're resuming a branch that may have moved on its own
+remote (another session, another push). Don't assume — fetch first:
+
+```bash
+git fetch origin <branch> && git rebase origin/<branch>
+```
 
 ### Pre-rebase checklist
 
