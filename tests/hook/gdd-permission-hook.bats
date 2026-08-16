@@ -82,6 +82,45 @@ setup() {
     [[ "$output" != *"ws commit"* ]]
 }
 
+# ─── Headless (sandbox) mode ────────────────────────────────────────
+
+@test "headless: an ask the sandbox needs is allowed instead of prompting" {
+    # An ask means "a human decides". In a sandboxed workspace the only human
+    # reachable is a chat user who cannot evaluate a tool prompt, so every card
+    # is either rubber-stamped or left to time out — one photo request cost four
+    # approvals before this existed. `ws exec` is how that agent does all its
+    # work, and the container plus its allow/deny lists are what actually bound
+    # it, so here the prompt buys nothing.
+    seed_real_project_config
+    GDD_SANDBOX=1 run_hook 'ws exec ken-site git status --short'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "headless: an ask nobody can answer becomes a deny, not a hang" {
+    # The other half, and the reason this is not simply "skip the ask-list":
+    # destructive commands must not become allowed just because nobody is
+    # watching. A prompt with no answerer resolves one of two ways — denied now
+    # with a reason, or hung until a watchdog cancels it minutes later. The
+    # first is strictly better and says so.
+    seed_real_project_config
+    GDD_SANDBOX=1 run_hook 'rm -rf /work/ws/components'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"no human"* ]]
+}
+
+@test "headless: the flag changes nothing for an ordinary session" {
+    # Same commands, no flag: the ask-list behaves exactly as it always has.
+    # This is the control — without it the two tests above would pass just as
+    # well if the ask tier had been broken outright.
+    seed_real_project_config
+    run_hook 'ws exec ken-site git status --short'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    run_hook 'rm -rf /work/ws/components'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
 @test "deny: composition message names the component-scoped alternative" {
     # Stating the rule without naming a way to obey it leaves an agent stuck:
     # one that had read the whole subcommand survey still retried the same

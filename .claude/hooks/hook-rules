@@ -70,6 +70,24 @@ ws review * threads * --resolve*
 # interactive confirm — an agent passing it must still land on a person.
 ws realm use *
 
+[headless-allow]
+# Honored ONLY when the session declares itself headless (GDD_SANDBOX in the
+# hook's environment — see the Tier 4 block in the hook). In that mode every
+# other ask becomes a deny, because a prompt with no answerer is either
+# rubber-stamped by someone who cannot judge it or left to hang until a watchdog
+# cancels it.
+#
+# Keep this list short and boring. Each entry runs with NO human review in a
+# sandbox, so it earns its place only if the container already contains it: the
+# volume holds in-scope repositories only, and the session carries its own
+# allow/deny lists.
+#
+# `ws exec` is here because it is how a sandboxed agent does all of its work —
+# one photo request cost four approvals without it — and because the wrapped
+# verbs that matter (commit, push, cr) are separately redirected in Tier 2, so
+# this cannot smuggle them past their wrappers.
+ws exec *
+
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
 # (between composition deny and ask) with the suggestion text below.

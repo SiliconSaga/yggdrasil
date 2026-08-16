@@ -92,6 +92,17 @@
 #   Destructive commands that should always prompt, even under
 #   acceptEdits. Any match → ask.
 #
+#   HEADLESS SESSIONS (GDD_SANDBOX set in the hook's environment):
+#   an ask means "a human decides", and there is no human here — the
+#   only person reachable is a chat user who cannot evaluate a tool
+#   prompt. So a match becomes DENY, except patterns in
+#   [headless-allow], which are allowed outright. Denying beats the
+#   status quo for such a session: the prompt otherwise hangs until a
+#   watchdog cancels it, which is the same outcome minutes later and
+#   without a reason. Read from the environment on purpose — an agent
+#   cannot change the environment of the hook its own tool call
+#   spawns, but it could write any marker file in its workspace.
+#
 # Tier 5 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
@@ -411,6 +422,10 @@ ask() {
 #   [adapter-redirect-commands] — Tier 3 adapter-aware deny-or-nudge entries
 #                          (slug | pattern | verb)
 #   [ask-commands]      — Tier 4 ask-list glob patterns
+#   [headless-allow]    — Tier 4 escape hatch, honored ONLY when the
+#                         session declares itself headless (GDD_SANDBOX
+#                         in the environment). In that mode every other
+#                         ask becomes a deny; these patterns allow.
 #   [allow-extras]      — Tier 6 allow glob patterns (hook-rules.local ONLY;
 #                         an [allow-extras] section in the committed hook-rules
 #                         is silently inert — only per-machine local files may
@@ -418,6 +433,7 @@ ask() {
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
+headless_allows=()
 allow_extras=()
 redirect_commands=()  # entries: "<slug>|<pattern>|<suggestion>"
 adapter_redirect_commands=()  # entries: "<slug>|<pattern>|<verb>"
@@ -447,6 +463,7 @@ _parse_rules_file() {
                 case "$section" in
                     scratch-dirs) scratch_dirs+=("$line") ;;
                     ask-commands) ask_commands+=("$line") ;;
+                    headless-allow) headless_allows+=("$line") ;;
                     # Owned by ws audit-permissions, not by this hook. It shares
                     # hook-rules.local, so the file legitimately carries sections
                     # this parser has no use for. Skip the entries rather than
@@ -2148,10 +2165,36 @@ fi
 if [[ "$match_cmd" =~ ^ws\ [a-z][a-z0-9-]*\ (--help|-h)$ ]]; then
     allow "help-only invocation"
 fi
+# Headless mode — no human is reachable, so an "ask" cannot mean what it says.
+#
+# Set by the environment the session runs in (a sandbox container passes
+# GDD_SANDBOX=1), never by a file the agent could write: the agent cannot alter
+# the environment of the hook its own tool call spawns, and a marker file in the
+# workspace it CAN write would let it switch its own prompts off.
+#
+# An ask here resolves one of two ways, neither of which is a decision: a card
+# relayed to a chat user who cannot evaluate it — which trains the reflex that
+# makes every other gate worthless — or a hang until a watchdog cancels it. So
+# each ask becomes a deny, EXCEPT the narrow set the sandbox genuinely works
+# through. That set is small on purpose: `ws exec` is how the agent touches its
+# component at all, and what bounds it there is the container holding only
+# in-scope repos plus the session's own allow/deny lists, not a prompt.
+if [[ -n "${GDD_SANDBOX:-}" ]]; then
+    for _hl in ${headless_allows[@]+"${headless_allows[@]}"}; do
+        _hl_match="$(normalize_for_match "$_hl")"
+        # shellcheck disable=SC2053
+        if [[ "$match_cmd" == $_hl_match ]]; then
+            allow "headless-allow: no human to prompt, command is in the sandbox's working set"
+        fi
+    done
+fi
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     _ask_match="$(normalize_for_match "$_ask")"
     # shellcheck disable=SC2053
     if [[ "$match_cmd" == $_ask_match ]]; then
+        if [[ -n "${GDD_SANDBOX:-}" ]]; then
+            deny "This command needs a human decision, and there is no human at this session to make one (headless sandbox). Denied rather than left to hang. If the sandbox should be able to run it, add the pattern to [headless-allow] in hook-rules — deliberately, and knowing nobody will be asked."
+        fi
         _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo."
         case "$match_cmd" in
             rm|rm\ *)
