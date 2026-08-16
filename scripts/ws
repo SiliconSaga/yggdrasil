@@ -462,6 +462,12 @@ ws_clean_target() {
     local clean_argv=()
     # shellcheck disable=SC2206
     read -r -a clean_argv <<< "$clean_cmd"
+    if [[ ${#clean_argv[@]} -eq 0 ]]; then
+        # A whitespace-only command survives the -n check but parses to no
+        # tokens — dispatching would execute the passthrough args instead.
+        echo "ERROR: commands.clean for '$comp' is whitespace-only — fix the adapter." >&2
+        exit 1
+    fi
     "${clean_argv[@]}" "$@"
 }
 

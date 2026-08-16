@@ -97,6 +97,12 @@ fi
 build_argv=()
 # shellcheck disable=SC2206
 read -r -a build_argv <<< "$build_cmd"
+if [[ ${#build_argv[@]} -eq 0 ]]; then
+    # A whitespace-only command survives the -n check but parses to no
+    # tokens — dispatching would execute the passthrough args instead.
+    echo "ERROR: commands.build for '$comp' is whitespace-only — fix the adapter." >&2
+    exit 1
+fi
 
 # --- Dispatch ---
 case "$runner" in

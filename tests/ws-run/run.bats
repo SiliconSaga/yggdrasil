@@ -64,6 +64,14 @@ EOF
     [[ "$output" == *"trust reapproval is required"* ]]
 }
 
+@test "run rejects a whitespace-only commands.run without executing args" {
+    write_adapter_run "   "
+    run_ws_run yggdrasil ./runstub
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"whitespace-only"* ]]
+    [ ! -f "$ROOT_DIR/run_ran.marker" ]
+}
+
 @test "run with no component prints usage and exits nonzero" {
     run_ws_run
     [ "$status" -ne 0 ]
