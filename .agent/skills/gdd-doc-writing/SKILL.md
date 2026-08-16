@@ -57,7 +57,7 @@ RIGHT: NODE["Title<br/>Subtitle"]
 
 Never use `style` declarations with `fill:` color values. They render inconsistently across dark/light themes and break in many Mermaid renderers.
 
-```
+```text
 WRONG: style NodeA fill:#f9d0d0
 WRONG: style NodeA fill:#d0f0d0,color:#000
 RIGHT: (omit the style declaration entirely)

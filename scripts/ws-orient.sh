@@ -460,7 +460,7 @@ _emit_one_adapter() {
         ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
         echo "    (adapter present but YAML parse failed — fix $adapter_file)"
     elif [[ $any -eq 0 ]]; then
-        echo "    (adapter present but no commands.{test,lint,build} wired)"
+        echo "    (adapter present but no commands.{test,lint,build,run,clean} wired)"
     fi
 }
 

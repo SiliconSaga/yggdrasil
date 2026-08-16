@@ -86,6 +86,14 @@ EOF
     [[ "$output" == *"Bare 'ws clean' sweeps workspace draft files"* ]]
 }
 
+@test "clean <comp> rejects a whitespace-only commands.clean without executing args" {
+    write_adapter_clean "   "
+    run_ws clean yggdrasil ./cleanstub
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"whitespace-only"* ]]
+    [ ! -f "$ROOT_DIR/clean_ran.marker" ]
+}
+
 @test "bare clean still sweeps drafts, untouched by the target form" {
     export WS_CLEAN_MINE_THRESHOLD=1
     make_drafts .commits 2

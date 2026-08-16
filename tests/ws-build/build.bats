@@ -65,6 +65,16 @@ EOF
     [[ "$output" == *"trust reapproval is required"* ]]
 }
 
+@test "build rejects a whitespace-only commands.build without executing args" {
+    # Empty-argv dispatch would execute the passthrough args as the command
+    # inside a pre-allowed verb — the stub must never run.
+    write_adapter_build "   "
+    run_ws_build yggdrasil ./buildstub
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"whitespace-only"* ]]
+    [ ! -f "$ROOT_DIR/build_ran.marker" ]
+}
+
 @test "build with no component prints usage and exits nonzero" {
     run_ws_build
     [ "$status" -ne 0 ]
