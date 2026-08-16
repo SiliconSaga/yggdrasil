@@ -1449,7 +1449,7 @@ JSON
 # The redirect turns that silent clobber into a corrective pointer at
 # the ws exec form, which must itself never match the redirect.
 
-@test "redirect: ws gh pr checkout denies with the ws exec pointer" {
+@test "redirect: ws gh pr checkout denies and points at the fetch + ws checkout pair" {
     seed_real_project_config
 
     run_hook 'ws gh pr checkout 5334 --repo MovingBlocks/Terasology'
@@ -1457,7 +1457,10 @@ JSON
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     [[ "$output" == *"workspace ROOT"* ]]
-    [[ "$output" == *"ws exec"* ]]
+    # Both halves: gh pr checkout fetches AND switches, so naming ws checkout
+    # alone would be an instruction that does not work.
+    [[ "$output" == *"git fetch"* ]]
+    [[ "$output" == *"ws checkout"* ]]
 }
 
 @test "redirect: raw gh pr checkout gets the same protection" {
@@ -1467,7 +1470,63 @@ JSON
 
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    [[ "$output" == *"ws exec"* ]]
+    [[ "$output" == *"ws checkout"* ]]
+}
+
+@test "redirect: ws exec git checkout points at the ws checkout verb" {
+    seed_real_project_config
+
+    run_hook 'ws exec terasology git checkout develop'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws checkout"* ]]
+}
+
+@test "redirect: ws exec git switch points at the ws checkout verb" {
+    seed_real_project_config
+
+    run_hook 'ws exec terasology git switch develop'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws checkout"* ]]
+}
+
+@test "redirect: nested targets are named in the ws exec checkout pointer" {
+    seed_real_project_config
+
+    run_hook 'ws exec terasology/modules/Cooking git checkout fix/x'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws checkout"* ]]
+}
+
+@test "redirect: raw git checkout is deliberately NOT redirected" {
+    seed_real_project_config
+
+    # The load-bearing omission. `git checkout -- <path>` restores files;
+    # `ws checkout` refuses that by design, and a glob cannot tell a branch
+    # from a path — so redirecting the raw form would deny a real operation
+    # with no wrapper equivalent. Asserted so nobody adds the rule later.
+    run_hook 'git checkout -- some/file.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ws-exec-checkout"* ]]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: the ws exec checkout pointer names the path-restore escape" {
+    seed_real_project_config
+
+    run_hook 'ws exec terasology git checkout -- some/file.txt'
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # A glob cannot distinguish this from a branch switch, so the message has
+    # to say so and hand over the bypass rather than leave a dead end.
+    [[ "$output" == *"hook-bypass ws-exec-checkout"* ]]
 }
 
 @test "redirect: ws gh repo sync denies toward ws pull / ws exec" {
