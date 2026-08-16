@@ -92,9 +92,45 @@ setup() {
     # work, and the container plus its allow/deny lists are what actually bound
     # it, so here the prompt buys nothing.
     seed_real_project_config
-    GDD_SANDBOX=1 run_hook 'ws exec ken-site git status --short'
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git status --short'
     [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"ask"'* ]]
+}
+
+@test "headless: ws exec is allowed per verb, not wholesale" {
+    # `ws exec` takes an arbitrary command. A blanket entry would grant arbitrary
+    # execution in a session with no human review, leaving the container as the
+    # only boundary. Listed verbs allow; anything else falls through to the deny.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site curl https://example.com/x.sh'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site chmod -R 777 /etc'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # `bundle exec` runs whatever follows it, so the build command is named in
+    # full rather than trusting the prefix.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec ruby -e "system(%q{id})"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: the allowance is pinned to the sandbox's own component" {
+    # A wildcard component would also match `ws exec yggdrasil …` — the
+    # workspace repo, where this hook and its rules live. The sandbox is scoped
+    # to one component and the allowance follows that scope.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec yggdrasil git checkout -b anything'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec other-component git status'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: a target-less flag grants nothing" {
+    # Fails closed: patterns needing a component are skipped rather than
+    # matching everything when the value is missing or malformed.
+    seed_real_project_config
+    GDD_SANDBOX=1 run_hook 'ws exec ken-site git status --short'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
 @test "headless: an ask nobody can answer becomes a deny, not a hang" {
@@ -104,7 +140,7 @@ setup() {
     # with a reason, or hung until a watchdog cancels it minutes later. The
     # first is strictly better and says so.
     seed_real_project_config
-    GDD_SANDBOX=1 run_hook 'rm -rf /work/ws/components'
+    GDD_SANDBOX=ken-site run_hook 'rm -rf /work/ws/components'
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     [[ "$output" == *"no human"* ]]

@@ -93,15 +93,12 @@
 #   acceptEdits. Any match → ask.
 #
 #   HEADLESS SESSIONS (GDD_SANDBOX set in the hook's environment):
-#   an ask means "a human decides", and there is no human here — the
-#   only person reachable is a chat user who cannot evaluate a tool
-#   prompt. So a match becomes DENY, except patterns in
-#   [headless-allow], which are allowed outright. Denying beats the
-#   status quo for such a session: the prompt otherwise hangs until a
-#   watchdog cancels it, which is the same outcome minutes later and
-#   without a reason. Read from the environment on purpose — an agent
-#   cannot change the environment of the hook its own tool call
-#   spawns, but it could write any marker file in its workspace.
+#   no human can answer a prompt, so a match becomes DENY unless it
+#   also matches [headless-allow]. Denying is the safer resolution of
+#   an unanswerable ask — skipping the tier would allow destructive
+#   commands outright. The flag is read from the environment because
+#   an agent cannot alter the environment of the hook its own tool
+#   call spawns, but can write files in its workspace.
 #
 # Tier 5 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
@@ -2165,26 +2162,30 @@ fi
 if [[ "$match_cmd" =~ ^ws\ [a-z][a-z0-9-]*\ (--help|-h)$ ]]; then
     allow "help-only invocation"
 fi
-# Headless mode — no human is reachable, so an "ask" cannot mean what it says.
+# Headless sessions: an ask has no answerer, so it cannot mean what it says.
+# Each [ask-commands] match denies, except [headless-allow] patterns.
 #
-# Set by the environment the session runs in (a sandbox container passes
-# GDD_SANDBOX=1), never by a file the agent could write: the agent cannot alter
-# the environment of the hook its own tool call spawns, and a marker file in the
-# workspace it CAN write would let it switch its own prompts off.
-#
-# An ask here resolves one of two ways, neither of which is a decision: a card
-# relayed to a chat user who cannot evaluate it — which trains the reflex that
-# makes every other gate worthless — or a hang until a watchdog cancels it. So
-# each ask becomes a deny, EXCEPT the narrow set the sandbox genuinely works
-# through. That set is small on purpose: `ws exec` is how the agent touches its
-# component at all, and what bounds it there is the container holding only
-# in-scope repos plus the session's own allow/deny lists, not a prompt.
+# Read from the environment, not a file: an agent cannot alter the environment
+# of the hook its own tool call spawns, but it can write files in its workspace.
 if [[ -n "${GDD_SANDBOX:-}" ]]; then
+    # GDD_SANDBOX names the one component the sandbox is scoped to. Validated
+    # before use: it is spliced into a glob, so an unchecked value could widen
+    # the pattern it is supposed to narrow.
+    _hl_target=""
+    if [[ "${GDD_SANDBOX}" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; then
+        _hl_target="$GDD_SANDBOX"
+    fi
     for _hl in ${headless_allows[@]+"${headless_allows[@]}"}; do
+        # A pattern needing the target is skipped when there is no valid one,
+        # rather than matching everything.
+        if [[ "$_hl" == *__SANDBOX_TARGET__* ]]; then
+            [[ -n "$_hl_target" ]] || continue
+            _hl="${_hl//__SANDBOX_TARGET__/$_hl_target}"
+        fi
         _hl_match="$(normalize_for_match "$_hl")"
         # shellcheck disable=SC2053
         if [[ "$match_cmd" == $_hl_match ]]; then
-            allow "headless-allow: no human to prompt, command is in the sandbox's working set"
+            allow "headless-allow match (GDD_SANDBOX=$GDD_SANDBOX)"
         fi
     done
 fi

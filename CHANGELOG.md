@@ -6,6 +6,10 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Added
+
+- **Headless permission mode for sandboxed sessions** — a session that sets `GDD_SANDBOX=<component>` gets a different Tier 4: an ask has no answerer there, so each `[ask-commands]` match denies instead of prompting, and the new `[headless-allow]` section names the few forms that run without review. Entries are pinned to the sandbox's own component via `__SANDBOX_TARGET__` (a wildcard would also match `ws exec yggdrasil …`, the workspace repo itself) and to named verbs (`ws exec *` or `bundle exec *` would be arbitrary execution). Read from the environment rather than a workspace file, which an agent could write. Tier 2 redirects still apply, so wrapped verbs cannot be reached through it (#158).
+
 ## [1.0.0] - 2026-07-21
 
 **Guardian Driven Development reaches General Availability.** This first release versions the reference implementation — the yggdrasil workspace, the `ws` CLI, the skills, and the methodology docs — as one coherent snapshot: Claude-first, with a [published roadmap](docs/gdd/roadmap.md) for cross-harness support and beyond. The gate it cleared is recorded in `docs/plans/2026-06-08-gdd-ga-readiness-design.md`.

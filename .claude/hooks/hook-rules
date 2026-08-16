@@ -71,22 +71,40 @@ ws review * threads * --resolve*
 ws realm use *
 
 [headless-allow]
-# Honored ONLY when the session declares itself headless (GDD_SANDBOX in the
-# hook's environment — see the Tier 4 block in the hook). In that mode every
-# other ask becomes a deny, because a prompt with no answerer is either
-# rubber-stamped by someone who cannot judge it or left to hang until a watchdog
-# cancels it.
+# Honored only when GDD_SANDBOX is set in the hook's environment (Tier 4). In a
+# headless session every other [ask-commands] match denies; these allow.
 #
-# Keep this list short and boring. Each entry runs with NO human review in a
-# sandbox, so it earns its place only if the container already contains it: the
-# volume holds in-scope repositories only, and the session carries its own
-# allow/deny lists.
+# Entries run unreviewed, so two things are constrained rather than one.
 #
-# `ws exec` is here because it is how a sandboxed agent does all of its work —
-# one photo request cost four approvals without it — and because the wrapped
-# verbs that matter (commit, push, cr) are separately redirected in Tier 2, so
-# this cannot smuggle them past their wrappers.
-ws exec *
+# The component: __SANDBOX_TARGET__ expands to the value of GDD_SANDBOX, which a
+# sandbox sets to the single component it is scoped to. A wildcard there would
+# also match `ws exec yggdrasil …` — the workspace repo, including this file.
+# Patterns keeping the placeholder are skipped entirely if the value is missing
+# or not a component name.
+#
+# The command: named verbs only. `ws exec *` would be arbitrary execution, and
+# so would `bundle exec *` (`bundle exec ruby -e …`), so the build command is
+# named in full. Listing/reading is covered by the Read, Glob and Grep tools,
+# which need no shell.
+#
+# Wrapped verbs (git commit, git push, gh pr create) stay denied through their
+# Tier 2 redirects regardless of this section.
+#
+# Neither constraint is a security boundary — an argument can still name a path
+# outside the component. The boundary is the container; this keeps the ordinary
+# working set free of prompts without widening the blast radius by default.
+ws exec __SANDBOX_TARGET__ git status*
+ws exec __SANDBOX_TARGET__ git diff*
+ws exec __SANDBOX_TARGET__ git log*
+ws exec __SANDBOX_TARGET__ git show*
+# These two become stale when `ws checkout` lands (yggdrasil #155) and the
+# planned `ws exec * git checkout*` / `git switch*` redirects are added: Tier 2
+# runs before Tier 4, so the redirect would deny them here and a sandboxed agent
+# would lose branch creation with no alternative. Repoint these at
+# `ws checkout __SANDBOX_TARGET__*` in the same change.
+ws exec __SANDBOX_TARGET__ git checkout*
+ws exec __SANDBOX_TARGET__ git switch*
+ws exec __SANDBOX_TARGET__ bundle exec jekyll *
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
