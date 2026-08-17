@@ -694,9 +694,10 @@ Usage: ws diagnose [--no-api-check] <component|realm|hoard|yggdrasil>
                   something unrelated to auth.
 
 Shows ecosystem config (components only), clone status, remotes, provider,
-and token coverage. By default a set token is verified against the provider
-API; a placeholder or rejected token is flagged. Run this when 'ws push' or
-'ws cr' fails with auth or remote errors.
+and token coverage. By default a set token is authenticated against the
+provider API; a placeholder or rejected token is flagged. Repository
+authorization is established only by the requested push, fork, or CR
+operation. Run this when 'ws push' or 'ws cr' fails with auth or remote errors.
 HELP
                 return 0
                 ;;
@@ -743,7 +744,7 @@ HELP
         # are what matter for push/cr diagnosis.
         echo "  Realm/hoard target (not a declared ecosystem component)"
     fi
-    if [[ -d "$comp_dir/.git" ]]; then
+    if git -C "$comp_dir" rev-parse --is-inside-work-tree &>/dev/null; then
         local branch
         branch=$(git -C "$comp_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(unknown)")
         echo "  Clone          : ✓ present (branch: $branch)"
@@ -756,15 +757,23 @@ HELP
     # Remotes
     echo ""
     echo "  Remotes:"
-    local fork_remote
+    local fork_remote fork_remote_present=""
     fork_remote=$(ws_resolve_fork_remote)
     while IFS= read -r remote; do
         local url
         url=$(git -C "$comp_dir" remote get-url "$remote" 2>/dev/null || echo "(no url)")
         local push_marker=""
-        [[ -n "$fork_remote" && "${remote,,}" == "${fork_remote,,}" ]] && push_marker=" ← push/cr remote (identity.forkRemote)"
+        if [[ -n "$fork_remote" && "${remote,,}" == "${fork_remote,,}" ]]; then
+            push_marker=" ← push/cr remote (identity.forkRemote)"
+            fork_remote_present="1"
+        fi
         echo "    $remote → $url$push_marker"
     done < <(git -C "$comp_dir" remote)
+    if [[ -n "$fork_remote" && -z "$fork_remote_present" ]]; then
+        echo "    ⚠ configured fork remote '$fork_remote' is not present"
+        echo "      Fork-based push/CR is unavailable; run: ws clone-fork $comp"
+        echo "      Direct-source workflows may ignore this when intentional."
+    fi
 
     # Token coverage per remote
     source "$SCRIPT_DIR/git-provider.sh"
@@ -837,6 +846,11 @@ HELP
 
         echo "    $remote ($provider): $token_status"
     done < <(git -C "$comp_dir" remote)
+
+    echo ""
+    echo "  Authorization:"
+    echo "    ℹ Token routing/API validation proves authentication only; it does not prove push, fork, or CR authorization."
+    echo "      A 403 usually means the selected remote or the identity's project/group role is wrong."
 
     # Identity sanity — flag unedited ecosystem.local.yaml placeholders before
     # they leak into CR / issue bodies (@HUMAN_ACCOUNT) or fork flows.
