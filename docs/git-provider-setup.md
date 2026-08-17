@@ -175,6 +175,9 @@ Use a fork group when you want GDD agents to push branches and open MRs from a c
    ```
 
 6. Make source projects readable to the fork actor. For source projects under the same GitLab group tree, the fork token may already read them. For private sibling/external source projects, either add a separate Reporter token mapping for the source project/group, or ask the source project/group owner to use GitLab's **Invite a group** sharing to grant Reporter access to the fork-home group. The sharing option can let the fork-group token satisfy GitLab's fork API because the same caller can read the source project and create in the destination namespace.
+
+   For a private cross-group source, open the source project (or source group) Members page and choose **Invite a group**. Share the fork-home group with the **Reporter** role. Do not try to invite the access token itself: GitLab represents group/project access tokens as bot users that generally cannot be invited directly across unrelated group boundaries. Sharing the bot's owning group grants inherited source read access to that same fork-token identity, which can then call the fork API because it also has project-create rights in the destination namespace.
+
 7. Declare or override the component. With `identity.homes.fork.namespace` set, `ws clone-fork` creates or uses `gitlab.example.com/my-team/gdd/alice-fork-group/<repo>` automatically. Use an explicit `forkRepo` only for one-off exceptions:
 
    ```yaml
@@ -422,6 +425,17 @@ Open a fresh terminal session. The installer updates PATH, but existing sessions
 - Token may be expired or revoked.
 - Ensure the `api` scope is selected.
 - For self-hosted: set `GITLAB_HOST` in `.env`.
+
+### Authentication succeeds but repository operations fail
+
+`ws diagnose` validates token routing and provider authentication; it does not prove repository-specific push, fork, or MR authorization.
+
+| Symptom | Meaning | Next check |
+|---|---|---|
+| 401 / rejected token | Authentication is expired, revoked, or malformed. | Replace the mapped `.env` token and rerun `ws diagnose`. |
+| 403 on direct push | Authentication succeeded, but the identity cannot write that project or the wrong remote was selected. | For upstream work, confirm the fork remote marker and push to the fork rather than the source. |
+| 403/404 while creating a cross-group fork | The fork identity usually cannot read the private source project. | Share the fork-home group into the source project/group as Reporter, then rerun `ws clone-fork`. |
+| Green token row in `ws diagnose` | Token routing and provider authentication succeeded. | Do not infer push/fork/MR rights; inspect remote topology and the identity's project/group role. |
 
 ### Push fails with "remote: Permission denied" or "Write access not granted"
 

@@ -36,34 +36,62 @@ CR body drafts follow the same pattern as issue drafts:
 - Template: `yggdrasil/templates/change.md`
 - Clearinghouse: `<repo-root>/.crs/<descriptive-name>.md` (gitignored, auto-created)
 
+## Choose the Push Topology First
+
+Use a direct-source flow only when the selected identity is intentionally authorized to push the source project. A valid token in `ws diagnose` proves authentication, not that authorization.
+
+For upstream contributions, use a fork topology:
+
+1. Run `ws clone-fork <component>` to create or repair the fork remote and source remote.
+2. Run `ws diagnose <component>` and confirm the remote marked `push/cr remote (identity.forkRemote)` is the fork namespace.
+3. Push the topic branch with `ws push <component>`.
+4. Open the cross-fork review with `ws cr <component> --upstream <title> <bodyfile>`.
+
+`--upstream` consumes an existing fork/source topology; it does not reinterpret a sibling team repository as a fork. If the configured fork remote is absent, repair the checkout with `ws clone-fork` before pushing.
+
+On GitLab, a fork-group access-token bot generally cannot be invited directly to an unrelated private source project. Share the fork-home group into the source project or group as Reporter instead; the bot then inherits source read access through its owning group while retaining write access only in the fork namespace.
+
 ## Full Workflow
 
+### Fork flow for upstream contributions
+
 ```bash
-# 1. Start from an up-to-date main
-git checkout main && git pull siliconsaga main
+# 1. Create or repair the fork/source remotes and synchronize main
+ws clone-fork <component>
 
 # 2. Create topic branch
-git checkout -b <type>/<description>
+ws exec <component> git switch -c <type>/<description>
 
 # 3. Commit (use ws commit — handles staging and attribution)
-bash scripts/ws commit <component> .commits/my-change.md
+ws commit <component> .commits/my-change.md
 
-# 3b. First push to this component? Verify token coverage first.
-#     (Skip if you've pushed this component before in a working session.)
-bash scripts/ws diagnose <component>
-#     Look for "✓ <TOKEN_VAR> is set" on the push/cr remote row.
-#     If it shows "NOT SET", add the token to .env and re-source it,
-#     then re-run: bash scripts/ws gitlab-auth
+# 4. Verify the fork marker and token authentication
+ws diagnose <component>
 
-# 4. Push
-bash scripts/ws push <component>
+# 5. Push to identity.forkRemote
+ws push <component>
 
-# 5. Draft CR body
+# 6. Draft the CR body from the current template
 cp templates/change.md .crs/<description>.md
-# ... fill in Summary, Test plan, Related ...
 
-# 6. Open CR
-bash scripts/ws cr <component> "type: description" .crs/<description>.md
+# 7. Open the cross-fork CR against the source project
+ws cr <component> --upstream "type: description" .crs/<description>.md
+```
+
+`ws diagnose` confirms remote selection, token routing, and provider authentication. The push and CR operations establish whether that identity has the required repository authorization.
+
+### Direct-source flow
+
+Use this only when direct source-project write access is intentional:
+
+```bash
+ws pull <component>
+ws exec <component> git switch -c <type>/<description>
+ws commit <component> .commits/my-change.md
+ws diagnose <component>
+ws push <component> --remote <source-remote> <type>/<description>
+cp templates/change.md .crs/<description>.md
+ws cr <component> --remote <source-remote> "type: description" .crs/<description>.md
 ```
 
 ## Rebasing onto Updated Main
