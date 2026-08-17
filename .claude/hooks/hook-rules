@@ -84,27 +84,32 @@ ws realm use *
 #
 # The command: named verbs only. `ws exec *` would be arbitrary execution, and
 # so would `bundle exec *` (`bundle exec ruby -e …`), so the build command is
-# named in full. Listing/reading is covered by the Read, Glob and Grep tools,
-# which need no shell.
+# named down to its subcommand. Listing/reading is covered by the Read, Glob and
+# Grep tools, which need no shell.
+#
+# Read verbs only, and naming one is not on its own proof that nothing is
+# written: `--output=<path>` is a diff option, so git diff, log and show all
+# accept it. The hook refuses that argument for this section — see the guard in
+# gdd-permission-hook.sh, which is where any other read-verb-turned-writer
+# belongs too.
+#
+# `git checkout` and `git switch` are deliberately absent. Both have forms that
+# discard uncommitted work (`git checkout -- .`, `git switch --discard-changes`),
+# and a glob cannot separate those from switching branches. A sandbox therefore
+# cannot change branch without a human; that is the intended trade until
+# `ws checkout` lands (yggdrasil #155) and can be allowed as a whole verb.
 #
 # Wrapped verbs (git commit, git push, gh pr create) stay denied through their
 # Tier 2 redirects regardless of this section.
 #
-# Neither constraint is a security boundary — an argument can still name a path
-# outside the component. The boundary is the container; this keeps the ordinary
-# working set free of prompts without widening the blast radius by default.
+# None of this is a security boundary — an argument can still name a path outside
+# the component. The boundary is the container; this keeps the ordinary working
+# set free of prompts without widening the blast radius by default.
 ws exec __SANDBOX_TARGET__ git status*
 ws exec __SANDBOX_TARGET__ git diff*
 ws exec __SANDBOX_TARGET__ git log*
 ws exec __SANDBOX_TARGET__ git show*
-# These two become stale when `ws checkout` lands (yggdrasil #155) and the
-# planned `ws exec * git checkout*` / `git switch*` redirects are added: Tier 2
-# runs before Tier 4, so the redirect would deny them here and a sandboxed agent
-# would lose branch creation with no alternative. Repoint these at
-# `ws checkout __SANDBOX_TARGET__*` in the same change.
-ws exec __SANDBOX_TARGET__ git checkout*
-ws exec __SANDBOX_TARGET__ git switch*
-ws exec __SANDBOX_TARGET__ bundle exec jekyll *
+ws exec __SANDBOX_TARGET__ bundle exec jekyll build*
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2

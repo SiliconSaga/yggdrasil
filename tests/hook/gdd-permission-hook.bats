@@ -87,14 +87,15 @@ setup() {
 @test "headless: an ask the sandbox needs is allowed instead of prompting" {
     # An ask means "a human decides". In a sandboxed workspace the only human
     # reachable is a chat user who cannot evaluate a tool prompt, so every card
-    # is either rubber-stamped or left to time out — one photo request cost four
-    # approvals before this existed. `ws exec` is how that agent does all its
-    # work, and the container plus its allow/deny lists are what actually bound
-    # it, so here the prompt buys nothing.
+    # is either rubber-stamped or left to time out. `ws exec` is how that agent
+    # does all its work, and the container plus its allow/deny lists are what
+    # actually bound it, so here the prompt buys nothing.
     seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git status --short'
     [ "$status" -eq 0 ]
-    [[ "$output" != *'"permissionDecision":"ask"'* ]]
+    # Asserted as allow rather than "not ask": the latter also passes when the
+    # hook denies, or emits no decision at all, which is the opposite outcome.
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
 }
 
 @test "headless: ws exec is allowed per verb, not wholesale" {
@@ -106,12 +107,44 @@ setup() {
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site chmod -R 777 /etc'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    # `bundle exec` runs whatever follows it, so the build command is named in
-    # full rather than trusting the prefix.
+    # `bundle exec` runs whatever follows it, so the build command is named down
+    # to its subcommand rather than trusting the prefix.
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec ruby -e "system(%q{id})"'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll serve --host 0.0.0.0'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
-    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "headless: a read verb handed a write is not a read" {
+    # `--output=<path>` is a diff option, so git diff, log and show all take it —
+    # a pattern naming the verb says nothing about what the arguments do. Without
+    # this the read allowances double as a file-write primitive in a session with
+    # no human.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git diff --output=/work/ws/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git log --output /work/ws/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # The plain form still allows, which is what shows the deny above is the
+    # argument and not the verb losing its entry.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git diff --stat'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "headless: nothing that discards uncommitted work is allowed" {
+    # `git checkout -- .` and `git switch --discard-changes` throw away work with
+    # no undo, and a glob cannot tell them from switching branch. The sandbox
+    # therefore cannot change branch unattended — the deliberate trade until
+    # `ws checkout` exists as a whole verb to allow.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -- .'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git switch --discard-changes main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
 @test "headless: the allowance is pinned to the sandbox's own component" {
@@ -130,6 +163,10 @@ setup() {
     # matching everything when the value is missing or malformed.
     seed_real_project_config
     GDD_SANDBOX=1 run_hook 'ws exec ken-site git status --short'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # The workspace repository is not a component, and a sandbox claiming to be
+    # scoped to it would point every allowance at this hook and its rules.
+    GDD_SANDBOX=yggdrasil run_hook 'ws exec yggdrasil git status --short'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 

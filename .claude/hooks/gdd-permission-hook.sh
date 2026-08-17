@@ -2171,11 +2171,26 @@ if [[ -n "${GDD_SANDBOX:-}" ]]; then
     # GDD_SANDBOX names the one component the sandbox is scoped to. Validated
     # before use: it is spliced into a glob, so an unchecked value could widen
     # the pattern it is supposed to narrow.
+    # Same shape ws itself accepts (WS_COMPONENT_NAME_REGEX in scripts/ws-realm.sh),
+    # inlined because the hook does not source the CLI. `yggdrasil` is excluded by
+    # name: it is the workspace repository rather than an ecosystem component, and
+    # scoping a sandbox to it would point every allowance below at this file.
     _hl_target=""
-    if [[ "${GDD_SANDBOX}" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; then
+    if [[ "${GDD_SANDBOX}" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] \
+       && [[ "${GDD_SANDBOX}" != "yggdrasil" ]]; then
         _hl_target="$GDD_SANDBOX"
     fi
+    # A read verb handed a write. `--output=<path>` is a diff option, so git diff,
+    # log and show all accept it, and a pattern naming the verb cannot see the
+    # arguments. Skipping the section is the conservative resolution: the command
+    # falls through to the headless deny, which says why. Any other argument that
+    # turns a read verb into a writer belongs here.
+    _hl_writes=0
+    case "$match_cmd" in
+        *" --output="*|*" --output "*) _hl_writes=1 ;;
+    esac
     for _hl in ${headless_allows[@]+"${headless_allows[@]}"}; do
+        [[ "$_hl_writes" -eq 0 ]] || break
         # A pattern needing the target is skipped when there is no valid one,
         # rather than matching everything.
         if [[ "$_hl" == *__SANDBOX_TARGET__* ]]; then
