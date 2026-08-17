@@ -49,7 +49,7 @@ For upstream contributions, use a fork topology:
 
 `--upstream` consumes an existing fork/source topology; it does not reinterpret a sibling team repository as a fork. If the configured fork remote is absent, repair the checkout with `ws clone-fork` before pushing.
 
-On GitLab, a fork-group access-token bot generally cannot be invited directly to an unrelated private source project. Share the fork-home group into the source project or group as Reporter instead; the bot then inherits source read access through its owning group while retaining write access only in the fork namespace.
+On GitLab, a fork-group access-token bot generally cannot be invited directly to an unrelated private source project. Share the fork-home group into the source project or group as Reporter instead; the bot then inherits source read access through its owning group while retaining repository write access only in the fork namespace.
 
 ## Full Workflow
 
