@@ -2180,6 +2180,20 @@ if [[ -n "${GDD_SANDBOX:-}" ]]; then
        && [[ "${GDD_SANDBOX}" != "yggdrasil" ]]; then
         _hl_target="$GDD_SANDBOX"
     fi
+    # Branch creation, parsed instead of globbed — the one write the sandbox
+    # cannot work without, and the reason `git checkout` still has no pattern in
+    # [headless-allow]. `git checkout -b <name>` and nothing else cannot discard
+    # anything; add `-f`, a start-point or a `--` pathspec and it can, which a
+    # glob cannot see. The name must be a single ordinary token, so no second
+    # argument survives this. Spelled `checkout -b` rather than `switch -c`
+    # because a bare `-c` is rejected earlier as a Git execution modifier.
+    # Withdraw once `ws checkout` (#155) can be allowed as a whole verb.
+    if [[ -n "$_hl_target" && "$match_cmd" == "ws exec $_hl_target git checkout -b "* ]]; then
+        _hl_branch="${match_cmd#"ws exec $_hl_target git checkout -b "}"
+        if [[ "$_hl_branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$_hl_branch" != *..* ]]; then
+            allow "headless-allow branch creation (GDD_SANDBOX=$GDD_SANDBOX)"
+        fi
+    fi
     # A read verb handed a write. `--output=<path>` is a diff option, so git diff,
     # log and show all accept it, and a pattern naming the verb cannot see the
     # arguments. Skipping the section is the conservative resolution: the command

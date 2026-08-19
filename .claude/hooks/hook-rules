@@ -95,9 +95,13 @@ ws realm use *
 #
 # `git checkout` and `git switch` are deliberately absent. Both have forms that
 # discard uncommitted work (`git checkout -- .`, `git switch --discard-changes`),
-# and a glob cannot separate those from switching branches. A sandbox therefore
-# cannot change branch without a human; that is the intended trade until
-# `ws checkout` lands (yggdrasil #155) and can be allowed as a whole verb.
+# and a glob cannot separate those from switching branches. Creating a branch is
+# the one exception, since a sandbox cannot open a pull request without it: the
+# hook parses `ws exec <target> git checkout -b <name>` directly rather than
+# matching a pattern here, because it has to reject a start-point, a `-f` and a
+# `--` pathspec, none of which a glob can see. Switching to an existing branch
+# still needs a human, until `ws checkout` lands (yggdrasil #155) and can be
+# allowed as a whole verb.
 #
 # Wrapped verbs (git commit, git push, gh pr create) stay denied through their
 # Tier 2 redirects regardless of this section.

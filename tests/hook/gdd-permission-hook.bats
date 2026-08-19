@@ -135,15 +135,35 @@ setup() {
 
 @test "headless: nothing that discards uncommitted work is allowed" {
     # `git checkout -- .` and `git switch --discard-changes` throw away work with
-    # no undo, and a glob cannot tell them from switching branch. The sandbox
-    # therefore cannot change branch unattended — the deliberate trade until
-    # `ws checkout` exists as a whole verb to allow.
+    # no undo, and a glob cannot tell them from switching branch. Switching to an
+    # existing branch therefore still needs a human — the deliberate trade until
+    # `ws checkout` exists as a whole verb to allow. Creating one is parsed
+    # separately; see the branch-creation test below.
     seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -- .'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git switch --discard-changes main'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x'
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: a branch can be created, and that is all checkout can do" {
+    # Opening a pull request needs a branch, so this one write is parsed rather
+    # than globbed: `git checkout -b <name>` alone cannot discard anything, while
+    # a start-point, a `-f` or a `--` pathspec can. The name has to be a single
+    # ordinary token, which is what stops a second argument riding along.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x -f'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x -- .'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # Still pinned to the sandbox's own component, like every other allowance.
+    GDD_SANDBOX=ken-site run_hook 'ws exec other-component git checkout -b feat/x'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
