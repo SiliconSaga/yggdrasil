@@ -58,13 +58,23 @@ bash scripts/ws diagnose <component>
 # 4. Push
 bash scripts/ws push <component>
 
-# 5. Draft CR body
+# 5. Changelog — does this change something a user of the workspace would notice?
+#    If so, add an entry under [Unreleased] in CHANGELOG.md now, in the same
+#    branch. See "Changelog entries" below.
+
+# 6. Draft CR body
 cp templates/change.md .crs/<description>.md
 # ... fill in Summary, Test plan, Related ...
 
-# 6. Open CR
+# 7. Open CR
 bash scripts/ws cr <component> "type: description" .crs/<description>.md
 ```
+
+## Changelog entries
+
+**Write the entry while finalizing the branch, not at release time.** `[Unreleased]` in `CHANGELOG.md` accumulates entries and becomes the next version's section at tag time — but only if they were written. Reconstructing a release's worth of entries afterwards means re-reading merged PRs to recover what each change meant, with the reasoning already cold. The person finalizing the branch is the one who still knows.
+
+Applies to the yggdrasil workspace and any component that keeps a changelog. Not every branch earns an entry — internal refactors, test-only changes and doc typos usually do not. Ask whether someone *using* the workspace would notice, and write for them rather than restating the commit log. `docs/gdd/versioning.md` covers the format and the release ceremony.
 
 ## Rebasing onto Updated Main
 

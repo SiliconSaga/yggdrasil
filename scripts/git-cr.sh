@@ -574,6 +574,34 @@ fi
 # discipline as the source-branch verification above: ls-remote exit 2 =
 # ref absent, other nonzero = transport/auth failure. Both fail closed before
 # handing an ambiguous base to the provider.
+# A change worth reviewing is usually a change worth recording, and the moment
+# to write the entry is now — `[Unreleased]` only becomes the next release's
+# section if something was accumulated into it. Reconstructing a release's worth
+# of entries afterwards means re-reading merged PRs to recover what each change
+# meant, with the reasoning already cold; the person opening the CR still knows.
+#
+# Advisory, never blocking: plenty of branches correctly have no entry (internal
+# refactors, test-only work, typo fixes), and only repositories that actually
+# keep a changelog are nudged at all. Read-only and best-effort — if the base
+# ref cannot be resolved, say nothing rather than guess.
+changelog_reminder() {
+  local remote="$1" base_branch="$2" root="" base_ref=""
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  [[ -f "$root/CHANGELOG.md" ]] || return 0
+  if git rev-parse --verify --quiet "refs/remotes/$remote/$base_branch" >/dev/null 2>&1; then
+    base_ref="$remote/$base_branch"
+  elif git rev-parse --verify --quiet "refs/heads/$base_branch" >/dev/null 2>&1; then
+    base_ref="$base_branch"
+  else
+    return 0
+  fi
+  [[ -z "$(git diff --name-only "$base_ref...HEAD" -- CHANGELOG.md 2>/dev/null)" ]] || return 0
+  echo "NOTE: this branch does not touch CHANGELOG.md."
+  echo "  If someone using this repo would notice the change, add an entry under [Unreleased]"
+  echo "  before merging — entries left for release time have to be reconstructed from PRs."
+  echo ""
+}
+
 check_base_branch_fresh() {
   local remote="$1" remote_url="$2" base_branch="$3"
   [[ "$STALE_BASE_OK" == "1" ]] && return 0
@@ -683,6 +711,7 @@ if [[ -n "$UPSTREAM" ]]; then
   UPSTREAM_DEFAULT=$(gp_default_branch "$UPSTREAM_SLUG")
 
   check_base_branch_fresh "$UPSTREAM_REMOTE" "$UPSTREAM_URL" "$UPSTREAM_DEFAULT"
+  changelog_reminder "$UPSTREAM_REMOTE" "$UPSTREAM_DEFAULT"
 
   echo "Opening cross-fork CR: $FORK_SLUG:$BRANCH → $UPSTREAM_SLUG:$UPSTREAM_DEFAULT"
   echo "  Title: $TITLE"
@@ -706,6 +735,7 @@ else
   DEFAULT_BRANCH=$(gp_default_branch "$FORK_SLUG")
 
   check_base_branch_fresh "$FORK_REMOTE" "$FORK_URL" "$DEFAULT_BRANCH"
+  changelog_reminder "$FORK_REMOTE" "$DEFAULT_BRANCH"
 
   echo "Opening CR for $FORK_SLUG/$BRANCH → $DEFAULT_BRANCH"
   echo "  Title: $TITLE"
