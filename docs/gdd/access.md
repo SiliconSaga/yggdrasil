@@ -36,7 +36,7 @@ For repos owned by an org you're not a maintainer of (external open-source contr
 
 1. The agent forks the source project into its fork home (a group or organization).
 2. `ws push <component> <branch>` pushes to that fork.
-3. `ws cr <component> "<title>" <bodyfile>` opens a PR/MR from the fork to the source project.
+3. `ws cr <component> --upstream "<title>" <bodyfile>` opens a PR/MR from the fork to the source project. Without `--upstream`, the request targets the fork project's own default branch instead.
 
 The fork home is configured per-developer in `ecosystem.local.yaml`. For GitLab fork groups, set `identity.homes.fork.namespace` to the absolute fork-home namespace, such as `gitlab.example.com/my-team/gdd/alice-fork-group`. `ws clone-fork` uses that namespace to create or find `<namespace>/<repo>`. Set `identity.forkRemote` to the local git remote name used by `ws push` and `ws cr`. With a single remote on a component, no disambiguation is needed; with multiple remotes, `forkRemote` picks which side to push to.
 

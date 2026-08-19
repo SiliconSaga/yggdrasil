@@ -19,7 +19,7 @@ The discoverability layer — `ws orient` (run at session start), the per-comman
 - `ws clone <component>` — Clone a component declared in ecosystem config.
 - `ws commit <component> <bodyfile>` — Bodyfile-driven commit (auto-stages, adds Co-Authored-By trailer).
 - `ws push <component> [branch]` — Push to the per-developer fork remote.
-- `ws cr <component> <title> <bodyfile>` — Open a pull/merge request.
+- `ws cr <component> [--upstream] <title> <bodyfile>` — Open a pull/merge request; use `--upstream` when a fork branch should be reviewed in the source project.
 - `ws review <component> <pr#>` — Fetch CodeRabbit / Copilot review threads.
 - `ws hoard init [template]`, `ws realm init`, `ws component init <flavor> <name>` — Scaffold new instances.
 

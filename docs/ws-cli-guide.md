@@ -186,7 +186,7 @@ Side-effect commands (`push`, `cr`, `issue`) prompt for approval by default. (`w
 
 Use the bare `ws ...` form for normal GDD sessions. Add parallel `Bash(bash scripts/ws ...)` patterns only if you intentionally want native Claude Code permission matching to work when the GDD hook is absent or disabled; with the hook active, wrapper-form commands normalize to `ws ...` before matching.
 
-For CRs, `identity.forkRemote` remains the default fork/head remote. Use `ws cr <comp> --remote <remote> ...` or `GIT_CR_REMOTE=<remote> ws cr <comp> ...` only for the rare case where a local checkout has an alternate fork/project remote you want to target for this one review request.
+For CRs, `identity.forkRemote` remains the default fork/head remote. When that fork branch should be reviewed in the source project, pass `--upstream`; without it, `ws cr` opens a fork-local request against the fork project's own default branch. Use `ws cr <comp> --remote <remote> ...` or `GIT_CR_REMOTE=<remote> ws cr <comp> ...` only for the rare case where a local checkout has an alternate fork/project remote you want to target for this one review request.
 
 **Note:** `ws exec` **always requires human approval** — the committed ask-list entry in `.claude/hooks/hook-rules` runs before local allow patterns, so it cannot be silently auto-approved by `.claude/settings.local.json`. See "Why exec always requires human approval" above.
 

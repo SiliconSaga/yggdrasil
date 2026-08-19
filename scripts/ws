@@ -242,6 +242,9 @@ Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstr
   bodyfile    Path (relative to workspace root) to a change bodyfile
               — see templates/change.md
 
+Without --upstream, the CR targets the fork project itself.
+Use --upstream for a fork-to-source contribution.
+
 Opens a code-review request via git-cr.sh. The current branch is used unless
 --source-branch selects another pushed branch from the same repository. Before
 creating, the live target-branch tip is verified to exist and be contained in

@@ -27,7 +27,7 @@ attribution trailers, auth, and remote selection automatically.
 | Command | Purpose |
 |---------|---------|
 | `ws push <comp> [branch]` | Push current (or named) branch |
-| `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR from current branch |
+| `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR from current branch; add `--upstream` for fork-to-source contributions |
 | `ws issue <comp> <title> <label> <bodyfile>` | File an issue |
 | `ws commit <comp> <bodyfile>` | Commit with Co-Authored-By trailer (bodyfile-driven; see `templates/commit.md`) |
 | `ws diagnose <comp>` | Show remotes, provider, and token coverage — run before first push to a component |
@@ -62,9 +62,14 @@ bash scripts/ws push <component>
 cp templates/change.md .crs/<description>.md
 # ... fill in Summary, Test plan, Related ...
 
-# 6. Open CR
-bash scripts/ws cr <component> "type: description" .crs/<description>.md
+# 6a. If ws push used a fork and review belongs in the source project
+ws cr <component> --upstream "type: description" .crs/<description>.md
+
+# 6b. If review belongs in the same project that received the branch
+ws cr <component> "type: description" .crs/<description>.md
 ```
+
+The destination distinction is load-bearing: without `--upstream`, `ws cr` opens the request against the fork project's own default branch. Omit the flag only for an intentional fork-local or same-project CR.
 
 ## Rebasing onto Updated Main
 
