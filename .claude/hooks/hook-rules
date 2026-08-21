@@ -74,6 +74,12 @@ ws realm use *
 # Honored only when GDD_SANDBOX is set in the hook's environment (Tier 4). In a
 # headless session every other [ask-commands] match denies; these allow.
 #
+# COMMITTED POLICY ONLY. Unlike [allow-extras], entries here are ignored when
+# they appear in hook-rules.local — that file is gitignored and writable by the
+# agent this section governs, so a single `*` there would grant the sandbox
+# everything the ask-list is meant to stop. Local config may tighten the floor
+# and never loosen it; [ask-commands] stays additive from both files.
+#
 # Entries run unreviewed, so two things are constrained rather than one.
 #
 # The component: __SANDBOX_TARGET__ expands to the value of GDD_SANDBOX, which a
@@ -84,36 +90,46 @@ ws realm use *
 #
 # The command: named verbs only. `ws exec *` would be arbitrary execution, and
 # so would `bundle exec *` (`bundle exec ruby -e …`), so the build command is
-# named down to its subcommand. Listing/reading is covered by the Read, Glob and
-# Grep tools, which need no shell.
+# named down to its subcommand.
 #
-# Read verbs only, and naming one is not on its own proof that nothing is
-# written: `--output=<path>` is a diff option, so git diff, log and show all
-# accept it. The hook refuses that argument for this section — see the guard in
-# gdd-permission-hook.sh, which is where any other read-verb-turned-writer
-# belongs too.
+# GIT READS ARE NOT LISTED HERE, and adding them back would be a bug rather than
+# a convenience. The validated-read fast path in gdd-permission-hook.sh already
+# allows them — in every session, headless or not — after checking the target is
+# a declared component, the tokens carry no globs, the verb is on its allowlist
+# and the shape is safe. A Git command therefore only REACHES this section when
+# that validator refused it, so a `git diff*` pattern here does not make ordinary
+# reads frictionless (they never arrive); it re-grants exactly the shapes the
+# validator turned down. Two that were measured: `git diff --no-index <a> <b>`
+# reads paths outside the component, and `git difftool -x <prog>` runs an
+# arbitrary program — and `git diff*` matches `git difftool` besides.
 #
-# `git checkout` and `git switch` are deliberately absent. Both have forms that
-# discard uncommitted work (`git checkout -- .`, `git switch --discard-changes`),
-# and a glob cannot separate those from switching branches. Creating a branch is
-# the one exception, since a sandbox cannot open a pull request without it: the
-# hook parses `ws exec <target> git checkout -b <name>` directly rather than
-# matching a pattern here, because it has to reject a start-point, a `-f` and a
-# `--` pathspec, none of which a glob can see. Switching to an existing branch
-# still needs a human, until `ws checkout` lands (yggdrasil #155) and can be
-# allowed as a whole verb.
+# `git checkout` and `git switch` are absent for a different reason. Both have
+# forms that discard uncommitted work (`git checkout -- .`,
+# `git switch --discard-changes`), and a glob cannot separate those from
+# switching branches. Creating a branch is the one exception, since a sandbox
+# cannot open a pull request without it: the hook parses
+# `ws exec <target> git checkout -b <name>` directly rather than matching a
+# pattern here, because it has to reject a start-point, a `-f` and a `--`
+# pathspec, none of which a glob can see. Switching to an existing branch still
+# needs a human, until `ws checkout` lands (yggdrasil #155) and can be allowed as
+# a whole verb.
 #
 # Wrapped verbs (git commit, git push, gh pr create) stay denied through their
 # Tier 2 redirects regardless of this section.
 #
+# The build takes NO arguments, which is why the pattern has no trailing `*`.
+# `jekyll build --destination <path>` cleans its destination — Jekyll's own docs
+# warn against pointing it at anything important, because it removes files it
+# did not generate. Pointed at the component root, or at a writable control file,
+# that is a deletion with no undo and no container escape needed: exactly the
+# ordinary mistake this tier exists to catch. A build with flags can still be
+# asked for; only the bare form runs unattended. A `ws build` adapter would be
+# the general answer, and would replace this entry.
+#
 # None of this is a security boundary — an argument can still name a path outside
 # the component. The boundary is the container; this keeps the ordinary working
 # set free of prompts without widening the blast radius by default.
-ws exec __SANDBOX_TARGET__ git status*
-ws exec __SANDBOX_TARGET__ git diff*
-ws exec __SANDBOX_TARGET__ git log*
-ws exec __SANDBOX_TARGET__ git show*
-ws exec __SANDBOX_TARGET__ bundle exec jekyll build*
+ws exec __SANDBOX_TARGET__ bundle exec jekyll build
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
