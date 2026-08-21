@@ -26,7 +26,7 @@ source "$SCRIPT_DIR/ws-realm.sh"
 
 orient_help() {
     cat <<'HELP'
-Usage: ws orient
+Usage: ws orient [--check]
 
 Deterministic "what can I do here?" menu — workspace toolset, active
 realm, per-component adapters (with resolved commands), and the
@@ -34,7 +34,13 @@ skill index. Run after compaction, on a fresh dispatch, or when
 switching tasks. Pairs with the per-command `ws orient` footer
 nudge that fires after every subcommand.
 
-Read-only. No flags yet.
+Read-only. Renders the same output either way; --check adds an exit
+code so drift can be caught on a schedule rather than by whoever
+happens to read the output:
+
+  --check   Exit non-zero if anything orient renders is broken.
+            Today that means an adapter ai_context pointer that no
+            longer resolves, or one that escapes its component.
 HELP
     exit 0
 }
@@ -42,6 +48,22 @@ HELP
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
     orient_help
 fi
+
+# Rot counter for --check. Incremented from _emit_one_adapter, which runs in
+# this shell (its ai_context loop reads from a process substitution, not a
+# pipeline), so the count survives to the gate at the bottom of the script.
+ORIENT_CHECK=0
+ORIENT_CONTEXT_ROT=0
+for _arg in "$@"; do
+    case "$_arg" in
+        --check) ORIENT_CHECK=1 ;;
+        *)
+            echo "ws orient: unknown option '$_arg'" >&2
+            echo "  Usage: ws orient [--check]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # Explicit yq presence check matching ws-list / ws-test / ws-lint —
 # under `set -euo pipefail` a missing yq would otherwise surface as
@@ -411,10 +433,19 @@ _emit_one_adapter() {
         ctx_path="$(_ws_orient_display_text "$ctx_path_raw")"
         ctx_desc="$(_ws_orient_display_text "$ctx_desc_raw")"
         ctx_status="$(_ws_orient_component_context_status "$COMPONENTS_DIR/$comp" "$ctx_path_raw")"
+        # Both non-present states count as rot for --check. They are different
+        # diagnoses — a renamed doc versus a path that leaves the component —
+        # but a pointer that cannot be followed is the same failure to a gate.
         case "$ctx_status" in
             present) printf '    → %s — %s\n' "$ctx_path" "$ctx_desc" ;;
-            missing) printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc" ;;
-            *) printf '    → %s — %s (INVALID PATH)\n' "$ctx_path" "$ctx_desc" ;;
+            missing)
+                printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc"
+                ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
+                ;;
+            *)
+                printf '    → %s — %s (INVALID PATH)\n' "$ctx_path" "$ctx_desc"
+                ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
+                ;;
         esac
     done < <(yq -o=json -I=0 '.ai_context // [] | .[]' "$adapter_file" 2>/dev/null)
 
@@ -580,3 +611,15 @@ emit_change_note_style
 emit_component_adapters
 emit_workspace_selftest
 emit_skill_index
+
+# The gate. Deliberately after the full render: a failing check should still
+# leave the reader with the orientation they asked for, and the rows above are
+# what says which pointer to fix.
+if [[ "$ORIENT_CHECK" -eq 1 ]]; then
+    if [[ "$ORIENT_CONTEXT_ROT" -gt 0 ]]; then
+        printf '\nws orient --check: %d adapter ai_context pointer(s) no longer resolve.\n' "$ORIENT_CONTEXT_ROT"
+        echo "  Repoint the path in the realm adapter, or drop the row if the doc is gone."
+        exit 1
+    fi
+    printf '\nws orient --check: every adapter ai_context pointer resolves.\n'
+fi

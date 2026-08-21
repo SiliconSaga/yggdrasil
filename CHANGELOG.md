@@ -21,6 +21,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 - **Change-note budgets** — the commit, CR and issue templates carry prose budgets, with a `style.changeNotes` ecosystem knob (`terse` | `standard` | `detailed`) surfaced by `ws orient`. First-user feedback was that GDD's own change notes run long (#138).
 - **Scoped kubectl dry-runs pass the guard** — `--dry-run=client|server` is allowed for the mutation verbs where kubectl enforces it, instead of being classified as the write it never performs (#156).
 - **`ws cr` reminds you about the changelog** — opening a review from a branch that touches no `CHANGELOG.md`, in a repository that keeps one, prints an advisory note. `[Unreleased]` only becomes a release section if entries were written while the work was fresh; reconstructing them afterwards means recovering intent from merged PRs. Never blocking, and silent where no changelog exists. The branch-workflow skill carries the same step.
+- **`ws orient --check`** — the enforcing counterpart to orient's adapter `ai_context` rows. Same render, plus an exit code when a declared pointer no longer resolves or escapes its component, so realm-doc drift can be caught on a schedule instead of by whoever happens to read the output. Plain `ws orient` stays exit-zero: it is the session-start command, and doc rot should not block orientation.
 
 ### Changed
 
