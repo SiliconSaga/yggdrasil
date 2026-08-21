@@ -117,19 +117,29 @@ ws realm use *
 # Wrapped verbs (git commit, git push, gh pr create) stay denied through their
 # Tier 2 redirects regardless of this section.
 #
-# The build takes NO arguments, which is why the pattern has no trailing `*`.
-# `jekyll build --destination <path>` cleans its destination — Jekyll's own docs
-# warn against pointing it at anything important, because it removes files it
-# did not generate. Pointed at the component root, or at a writable control file,
-# that is a deletion with no undo and no container escape needed: exactly the
-# ordinary mistake this tier exists to catch. A build with flags can still be
-# asked for; only the bare form runs unattended. A `ws build` adapter would be
-# the general answer, and would replace this entry.
+# THE SITE BUILD IS NOT LISTED, and the reason is worth keeping because the
+# obvious narrowing does not work. `jekyll build --destination <path>` cleans
+# that path, removing files it did not generate — Jekyll's own docs warn against
+# pointing it at anything important — so the flag was pinned out and only the
+# bare command allowed. That is still unsafe: Jekyll reads `destination` from
+# `_config.yml` too, and `_config.yml` is an ordinary component file the agent
+# edits. The bare command can therefore clean the component root, or the
+# workspace, with no flag involved and no container escape. A pattern cannot see
+# a value that lives in a file, so no glob here can make this safe.
+#
+# `ws build` is the fix: an adapter verb that resolves the effective destination
+# and refuses one outside the component. Until it exists the sandbox builds
+# through CI on the pull request, which is where the preview and visual diff are
+# produced anyway.
+#
+# That leaves this section with no shipped entries — deliberately. The mechanism
+# is what ships; an operator adds patterns knowing nobody will be asked. Branch
+# creation, the one thing a sandbox cannot work without, is parsed in the hook
+# rather than listed here.
 #
 # None of this is a security boundary — an argument can still name a path outside
 # the component. The boundary is the container; this keeps the ordinary working
 # set free of prompts without widening the blast radius by default.
-ws exec __SANDBOX_TARGET__ bundle exec jekyll build
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2

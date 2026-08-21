@@ -84,31 +84,17 @@ setup() {
 
 # ─── Headless (sandbox) mode ────────────────────────────────────────
 
-@test "headless: an ask the sandbox needs is allowed instead of prompting" {
+@test "headless: an ask the sandbox needs is decided, not prompted" {
     # An ask means "a human decides". In a sandboxed workspace the only human
     # reachable is a chat user who cannot evaluate a tool prompt, so every card
-    # is either rubber-stamped or left to time out. `ws exec` is how that agent
-    # does all its work, and the container plus its allow/deny lists are what
-    # actually bound it, so here the prompt buys nothing.
+    # is either rubber-stamped or left to time out. Paired against the same
+    # command without the flag, which is what shows the flag is doing the work:
+    # `ws exec *` is on the ask-list either way.
     seed_real_project_config
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
+    run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
     [ "$status" -eq 0 ]
-    # Asserted as allow rather than "not ask": the latter also passes when the
-    # hook denies, or emits no decision at all, which is the opposite outcome.
-    [[ "$output" == *'"permissionDecision":"allow"'* ]]
-}
-
-@test "headless: the site build runs bare, since its flags can delete" {
-    # `jekyll build --destination <path>` CLEANS that path, removing files it did
-    # not generate — Jekyll's own documentation warns against pointing it at
-    # anything important. Unattended, that is a deletion with no undo and no
-    # container escape required, so only the bare command is granted.
-    seed_real_project_config
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build --destination /work/ws/components/ken-site'
-    [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build -d /work/ws'
-    [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
 }
 
@@ -138,23 +124,25 @@ setup() {
     done
 }
 
-@test "headless: ws exec is allowed per verb, not wholesale" {
-    # `ws exec` takes an arbitrary command. A blanket entry would grant arbitrary
-    # execution in a session with no human review, leaving the container as the
-    # only boundary. Listed verbs allow; anything else falls through to the deny.
+@test "headless: ws exec grants nothing wholesale, the site build included" {
+    # `ws exec` takes an arbitrary command, so a blanket entry would be arbitrary
+    # execution with no human review, leaving the container as the only boundary.
     seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site curl https://example.com/x.sh'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site chmod -R 777 /etc'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    # `bundle exec` runs whatever follows it, so the build command is named down
-    # to its subcommand rather than trusting the prefix.
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec ruby -e "system(%q{id})"'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll serve --host 0.0.0.0'
+    # The site build is denied too, bare form included. `jekyll build` cleans its
+    # destination, and the destination can come from `_config.yml` — an ordinary
+    # component file the agent edits — so pinning the CLI flag out does not make
+    # the bare command safe, and no pattern can see a value that lives in a file.
+    # Reinstating this needs `ws build` resolving the effective destination.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build --destination /work/ws'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
-    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
 @test "headless: a read verb handed a write is not a read" {
@@ -253,10 +241,13 @@ components:
     repo: https://github.com/example/ken-site.git
 YAML
 
+    # Asserted as deny, not "not allow": the weaker form also passes when the
+    # hook emits no decision at all, which in a headless session hands the call
+    # back to an unanswerable host prompt — the failure this mode exists to end.
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git difftool -x /work/ws/components/ken-site/agent-script'
-    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git diff --no-index /etc/passwd /etc/hosts'
-    [[ "$output" != *'"permissionDecision":"allow"'* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 
     # The control, and the reason nothing is lost: an ordinary read still allows,
     # through the validator rather than through a pattern here.
