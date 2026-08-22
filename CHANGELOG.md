@@ -10,45 +10,43 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Added
 
-- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately) — a Docker image baking the GDD core plus a supervised chat-driven agent session: Claude subscription setup-token auth (no API key), scope-by-absence containment, a dedicated fine-grained code-host identity that can open PRs but never merge, crash recovery / deliberate session rotation / reachability-probing health, and consequential decisions asked in chat as outcomes rather than tool prompts. Validated end to end: chat request → edit → commit → PR → bot review → human merge.
-- **Headless permission mode for sandboxed sessions** — with `GDD_SANDBOX=<component>` set, a prompt nobody can answer resolves as a deny instead of hanging the session, and the new `[headless-allow]` section names what may run unreviewed. Committed policy only, scoped to the one component, and shipping empty by design. See [the hook README](.claude/hooks/README.md#sections) (#158).
-- **CI for the workspace itself** — a Tests workflow runs the full bats suite on Ubuntu for every push/PR (exercising the auto-parallel path natively) plus a weekly serial Windows Git Bash job; LF line-ending pins extended to the test suite so autocrlf checkouts can't break it (#147).
-- **The Apache-2.0 LICENSE**, with README and docs-front-page notes scoping it to the workspace itself (#147).
-- **`ws test` parallelizes itself when it can** — `rush` or GNU `parallel` on PATH enables one job per core automatically, taking the workspace's own ~1,000 tests from 3:48 to 1:10; `-j` / `--jobs` is now recognized as a bats flag instead of being misparsed as a test selector. Serial and unchanged when neither backend is installed (#144).
-- **`ws cr` refuses a stale base** — the live target-branch tip must be contained in the source branch before a review opens, and the refusal names the exact rebase commands; `--stale-base-ok` / `GIT_CR_STALE_BASE_OK=1` covers deliberately stacked reviews (#142).
-- **`ws hoard lock`** — refreshes the verified checksums for a hoard's pinned plugin assets, one plugin or the whole hoard; template and plugin upgrades gained preview-then-apply flows, and Obsidian vaults gained explicit Project and Area note creation (#148).
-- **Case studies** — `docs/gdd/samples/` graduates into a `docs/gdd/case-studies/` section, opening with the contributor-review study (named with consent) (#138).
-- **Change-note budgets** — the commit, CR and issue templates carry prose budgets, with a `style.changeNotes` ecosystem knob (`terse` | `standard` | `detailed`) surfaced by `ws orient`. First-user feedback was that GDD's own change notes run long (#138).
-- **Scoped kubectl dry-runs pass the guard** — `--dry-run=client|server` is allowed for the mutation verbs where kubectl enforces it, instead of being classified as the write it never performs (#156).
-- **`ws cr` reminds you about the changelog** — opening a review from a branch that touches no `CHANGELOG.md`, in a repository that keeps one, prints an advisory note. `[Unreleased]` only becomes a release section if entries were written while the work was fresh; reconstructing them afterwards means recovering intent from merged PRs. Never blocking, and silent where no changelog exists. The branch-workflow skill carries the same step.
-- **`ws orient --check`** — the enforcing counterpart to orient's adapter `ai_context` rows. Same render, plus an exit code when a declared pointer no longer resolves or escapes its component, so realm-doc drift can be caught on a schedule instead of by whoever happens to read the output. Plain `ws orient` stays exit-zero: it is the session-start command, and doc rot should not block orientation.
+- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately). A Docker image running a supervised chat-driven agent scoped to one component: subscription auth, scope by absence, an identity that can open pull requests but never merge, and decisions asked in chat as outcomes rather than tool prompts. See the [features tour](docs/gdd/features.md#sandboxed-workspaces--gdd-sandbox-optional-companion).
+- **Headless permission mode** — with `GDD_SANDBOX=<component>` set, a prompt nobody can answer resolves as a deny instead of hanging the session, and `[headless-allow]` names what may run unreviewed: committed policy only, scoped to that component, shipping empty. See the [hook README](.claude/hooks/README.md) (#158).
+- **CI for the workspace itself** — full bats suite on Ubuntu per push/PR, plus a weekly serial Windows Git Bash job (#147).
+- **The Apache-2.0 LICENSE**, scoped to the workspace itself (#147).
+- **`ws test` parallelizes itself** when `rush` or GNU `parallel` is on PATH — ~1,000 tests in 1:10 rather than 3:48, serial and unchanged otherwise (#144).
+- **`ws cr` refuses a stale base**, naming the rebase commands; `--stale-base-ok` covers deliberately stacked reviews (#142).
+- **`ws cr` reminds you about the changelog** when a branch touches none and the repository keeps one — advisory, never blocking. The [branch-workflow skill](.agent/skills/gdd-branch-workflow/SKILL.md) carries the same step.
+- **`ws hoard lock`** — refresh verified checksums for a hoard's pinned plugin assets; upgrades gained preview-then-apply, and Obsidian vaults gained Project and Area notes (#148).
+- **`ws orient --check`** — orient's adapter pointers with an exit code, so realm-doc drift can be caught on a schedule. Plain `ws orient` stays exit-zero.
+- **Change-note budgets** in the commit/CR/issue templates, with a `style.changeNotes` ecosystem knob (`terse` | `standard` | `detailed`) surfaced by `ws orient` (#138).
+- **Case studies** — `docs/gdd/samples/` becomes [`docs/gdd/case-studies/`](docs/gdd/case-studies/), opening with the contributor-review study (#138).
+- **Scoped kubectl dry-runs pass the guard** — `--dry-run=client|server` is no longer classified as the write it never performs (#156).
 
 ### Changed
 
-- **Docs entry points reorganized** — philosophy moves to its own page, the index leads with what GDD does rather than how it is built, getting-started flattens out of its one-file subdirectory, and stale IDE-setup guidance is removed (#138).
-- **Docs and skills trimmed for length**, with five load-bearing lines restored where the trim had cut them — the direct-push consent condition, the scribe's propose-then-confirm rule, the kuttl debugging scars, the bulk-permissions pointer, and Mermaid Rule 5 (#140).
-- **Hook Tier 1 reads quoted spans as data** — single-quoted spans, and double-quoted spans with no live expansion, are masked before composition classification; this removed 85 false-positive asks in a single day, most of them regex inside `grep` patterns. Committed `bash -c` / `sh -c` ask entries are the compensating control. A bare `D:\x` path moves from ask to deny-with-teaching, since Bash mangles it before it can run (#138).
-- **`ws exec` no longer reaches past the verbs it wraps** — `ws exec <comp> git commit` / `git push` / `gh pr create` deny like the raw forms instead of asking, so the softer path no longer ends in a rubber-stamped prompt and a commit with no attribution trailer; the composition refusal names `ws exec` as the way to comply, and review *reading* routes back through `ws review` for the comment-fetching forms only (#156).
-- **`gh repo fork` redirects to `ws clone-fork`**, which gained `--url <source> --add-to-ecosystem` so an undeclared component can be adopted in the same step — ask-gated, the same trust posture as `ws clone` (#138).
-- **The line-wrap guard covers more than templates** — `docs/gdd/*.md` and four already-clean skills lock fully; sixteen legacy-wrapped skills ride a shrink-only grandfather list with a phantom-exemption check (#142).
+- **Docs entry points reorganized** — philosophy on its own page, the index leading with what GDD does, getting-started flattened, stale IDE guidance removed (#138); a length pass across docs and skills followed (#140).
+- **Hook Tier 1 reads quoted spans as data**, removing 85 false-positive asks in a day — mostly regex inside `grep` patterns — with committed `bash -c` / `sh -c` ask entries as the compensating control (#138).
+- **`ws exec` no longer reaches past the verbs it wraps** — the wrapped forms of `git commit` / `git push` / `gh pr create` deny like the raw ones, and review reading routes back through `ws review` (#156).
+- **`gh repo fork` redirects to `ws clone-fork`**, which gained `--url <source> --add-to-ecosystem` for adopting an undeclared component in one step (#138).
+- **The line-wrap guard covers `docs/gdd/` and skills**, with a shrink-only grandfather list for legacy-wrapped files (#142).
 
 ### Fixed
 
-- The Kubernetes write floor stops false-asking on first-party `scripts/` files that merely carry `kubectl` as data — audit pattern strings, and the guard itself — while scratch and component scripts keep the content scan (#142).
-- An `[audit-acknowledged]` section in `hook-rules.local` no longer disables the rest of the file. The parser treated a section belonging to `ws audit-permissions` as unknown and abandoned the file, silently dropping every `[allow-extras]` pattern declared after it (#156).
-- `ws clone-fork` creates renamed GitLab forks — a configured fork slug differing from upstream now sends explicit `name` and `path` fields instead of being silently ignored (#136).
+- The Kubernetes write floor stops false-asking on first-party `scripts/` files that merely carry `kubectl` as data (#142).
+- An `[audit-acknowledged]` section in `hook-rules.local` no longer abandons the rest of the file, silently dropping the `[allow-extras]` patterns after it (#156).
+- `ws clone-fork` creates renamed GitLab forks instead of ignoring a configured fork slug (#136).
 
 ### Security
 
-A sustained review-driven hardening pass (#145, #146, #148, #149, #150), tightening the boundaries where external input becomes consequential without turning the workspace into a restrictive sandbox:
+A sustained review-driven hardening pass (#145, #146, #148, #149, #150), tightening the boundaries where external input becomes consequential:
 
-- Ambiguous target names now error instead of resolving by precedence, so a command cannot silently reach the wrong checkout when a component, realm or hoard share a name; target resolution reads trusted component configuration only (#149).
-- Terminal control sequences are neutralized in provider output before it is displayed or accepted as a review URL, and in realm trust summaries — including malformed and truncated payloads (#146, #149).
-- The Kubernetes guard rejects unsafe wrappers, shell expansions, constructed commands, and ambiguous option shapes (#146).
-- Credential handling is centralized across clone, pull, push, review and branch operations, with host-scoped isolation and explicit provider selection (#146).
-- Workspace environment files load as literal data on the credential-validation path too, with clearer reporting of whether a token came from the environment, a file, or nowhere (#150).
-- Pushes are restricted to exact local branches or tags, and clone validation plus component-template identity validation are tightened (#145).
-- Hoard plugin downloads are checksum-verified before installation, so a partial or substituted asset cannot land (#148).
+- Ambiguous target names error instead of resolving by precedence, so a command cannot reach the wrong checkout (#149).
+- Terminal control sequences are neutralized in provider output and realm trust summaries, malformed payloads included (#146, #149).
+- The Kubernetes guard rejects unsafe wrappers, shell expansions, constructed commands and ambiguous option shapes (#146).
+- Credential handling is centralized across clone/pull/push/review with host-scoped isolation; environment files load as literal data on the validation path too (#146, #150).
+- Pushes are restricted to exact local branches or tags; clone and component-template identity validation tightened (#145).
+- Hoard plugin downloads are checksum-verified before installation (#148).
 - `ws audit-permissions` detects wildcard breadth and privilege-escalation shapes it previously missed (#145).
 
 ## [1.0.0] - 2026-07-21
