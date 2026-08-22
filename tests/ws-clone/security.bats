@@ -15,6 +15,17 @@ setup() {
     cat > "$TEST_BIN/git" <<'SH'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "hash-object" ]]; then
+    # Drain stdin for the --stdin form, as the real git does. Without this the
+    # stub exits with the pipe still open, and the realm fingerprint's
+    # `printf … | sort -u | git hash-object --stdin` kills sort with SIGPIPE.
+    # Under `set -o pipefail` that fails the pipeline, the fingerprint is
+    # reported as uncomputable, the realm reads as untrusted, and a test about
+    # trusted-realm declarations fails for a reason that has nothing to do with
+    # trust. It is a race, not a certainty — sort usually wins — which is why it
+    # surfaced only under CI's parallel runner, twice, and looked like flakiness.
+    if [[ "${2:-}" == "--stdin" ]]; then
+        cat >/dev/null 2>&1 || true
+    fi
     printf '%s\n' "${GIT_HASH_OBJECT_RESULT:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
     exit 0
 fi

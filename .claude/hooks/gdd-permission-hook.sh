@@ -92,6 +92,14 @@
 #   Destructive commands that should always prompt, even under
 #   acceptEdits. Any match → ask.
 #
+#   HEADLESS SESSIONS (GDD_SANDBOX set in the hook's environment):
+#   no human can answer a prompt, so a match becomes DENY unless it
+#   also matches [headless-allow]. Denying is the safer resolution of
+#   an unanswerable ask — skipping the tier would allow destructive
+#   commands outright. The flag is read from the environment because
+#   an agent cannot alter the environment of the hook its own tool
+#   call spawns, but can write files in its workspace.
+#
 # Tier 5 — Per-project allowlist from .claude/settings.json (ALLOW)
 #   Walk up from $cwd, collect Bash(...) entries from each
 #   .claude/settings.json found, then check $HOME/.claude/settings.json
@@ -387,6 +395,23 @@ deny() {
 # workspace; this branch is parity-only.)
 ask() {
     local reason="$1"
+    # No human, no ask. A headless session has nobody at a terminal, so a prompt
+    # resolves one of two ways: it hangs until a watchdog cancels it minutes
+    # later, or it reaches someone who cannot evaluate a tool card and rubber-
+    # stamps it. Converting here rather than at the ask-list means EVERY path
+    # that would prompt resolves — sensitive Edit/Write, ambiguous expansion and
+    # backslashes, opaque interpreter passthrough, the Kubernetes floor and its
+    # guard failures, dispatcher containment. Those are fail-closed, so leaving
+    # them was never an escalation; it was the hang this whole mode exists to
+    # end, still reachable by a dozen routes that never touch Tier 4.
+    #
+    # Deliberately keyed on GDD_SANDBOX being set at all, not on it naming a
+    # valid component. A malformed value grants no allowances (those need a real
+    # component name) but still means nobody is there to answer, so it must
+    # still resolve rather than prompt.
+    if [[ -n "${GDD_SANDBOX:-}" ]]; then
+        deny "This command needs a human decision, and there is no human at this session to make one (headless sandbox). Denied rather than left to hang. Original reason: $reason"
+    fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ASK [$event] ($(audit_safe "$reason")): $(audit_safe "$cmd")" >> "$audit_log"
     if [[ "$event" == "PermissionRequest" ]]; then
         exit 0
@@ -411,6 +436,10 @@ ask() {
 #   [adapter-redirect-commands] — Tier 3 adapter-aware deny-or-nudge entries
 #                          (slug | pattern | verb)
 #   [ask-commands]      — Tier 4 ask-list glob patterns
+#   [headless-allow]    — Tier 4 escape hatch, honored ONLY when the
+#                         session declares itself headless (GDD_SANDBOX
+#                         in the environment). In that mode every other
+#                         ask becomes a deny; these patterns allow.
 #   [allow-extras]      — Tier 6 allow glob patterns (hook-rules.local ONLY;
 #                         an [allow-extras] section in the committed hook-rules
 #                         is silently inert — only per-machine local files may
@@ -418,6 +447,7 @@ ask() {
 # hook-rules.local entries ADD to the baseline (additive merge).
 scratch_dirs=()
 ask_commands=()
+headless_allows=()
 allow_extras=()
 redirect_commands=()  # entries: "<slug>|<pattern>|<suggestion>"
 adapter_redirect_commands=()  # entries: "<slug>|<pattern>|<verb>"
@@ -447,6 +477,25 @@ _parse_rules_file() {
                 case "$section" in
                     scratch-dirs) scratch_dirs+=("$line") ;;
                     ask-commands) ask_commands+=("$line") ;;
+                    headless-allow)
+                        # Committed policy ONLY — the mirror image of
+                        # [allow-extras] below, and for the same reason read the
+                        # other way round. hook-rules.local is gitignored and
+                        # writable by the very agent this section governs, so
+                        # honoring it here would let a sandbox grant itself
+                        # anything by writing one line: a bare `*` turns every
+                        # headless deny into an allow, including `rm -rf`. That
+                        # is the forgeable-file problem GDD_SANDBOX is kept in
+                        # the environment to avoid, and it would break the
+                        # standing rule that local config may tighten the safety
+                        # floor and never loosen it. Tightening still works —
+                        # [ask-commands] stays additive from both files.
+                        if [[ -z "$is_local" ]]; then
+                            headless_allows+=("$line")
+                        else
+                            echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING (hook-rules.local: [headless-allow] is committed-policy only; entry ignored): $file" >> "$audit_log"
+                        fi
+                        ;;
                     # Owned by ws audit-permissions, not by this hook. It shares
                     # hook-rules.local, so the file legitimately carries sections
                     # this parser has no use for. Skip the entries rather than
@@ -2148,10 +2197,59 @@ fi
 if [[ "$match_cmd" =~ ^ws\ [a-z][a-z0-9-]*\ (--help|-h)$ ]]; then
     allow "help-only invocation"
 fi
+# Headless sessions: an ask has no answerer, so it cannot mean what it says.
+# Each [ask-commands] match denies, except [headless-allow] patterns.
+#
+# Read from the environment, not a file: an agent cannot alter the environment
+# of the hook its own tool call spawns, but it can write files in its workspace.
+if [[ -n "${GDD_SANDBOX:-}" ]]; then
+    # GDD_SANDBOX names the one component the sandbox is scoped to. Validated
+    # before use: it is spliced into a glob, so an unchecked value could widen
+    # the pattern it is supposed to narrow.
+    # Same shape ws itself accepts (WS_COMPONENT_NAME_REGEX in scripts/ws-realm.sh),
+    # inlined because the hook does not source the CLI. `yggdrasil` is excluded by
+    # name: it is the workspace repository rather than an ecosystem component, and
+    # scoping a sandbox to it would point every allowance below at this file.
+    _hl_target=""
+    if [[ "${GDD_SANDBOX}" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] \
+       && [[ "${GDD_SANDBOX}" != "yggdrasil" ]]; then
+        _hl_target="$GDD_SANDBOX"
+    fi
+    # Branch creation, parsed instead of globbed — the one write the sandbox
+    # cannot work without, and the reason `git checkout` still has no pattern in
+    # [headless-allow]. `git checkout -b <name>` and nothing else cannot discard
+    # anything; add `-f`, a start-point or a `--` pathspec and it can, which a
+    # glob cannot see. The name must be a single ordinary token, so no second
+    # argument survives this. Spelled `checkout -b` rather than `switch -c`
+    # because a bare `-c` is rejected earlier as a Git execution modifier.
+    # Withdraw once `ws checkout` (#155) can be allowed as a whole verb.
+    if [[ -n "$_hl_target" && "$match_cmd" == "ws exec $_hl_target git checkout -b "* ]]; then
+        _hl_branch="${match_cmd#"ws exec $_hl_target git checkout -b "}"
+        if [[ "$_hl_branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$_hl_branch" != *..* ]]; then
+            allow "headless-allow branch creation (GDD_SANDBOX=$GDD_SANDBOX)"
+        fi
+    fi
+    for _hl in ${headless_allows[@]+"${headless_allows[@]}"}; do
+        # A pattern needing the target is skipped when there is no valid one,
+        # rather than matching everything.
+        if [[ "$_hl" == *__SANDBOX_TARGET__* ]]; then
+            [[ -n "$_hl_target" ]] || continue
+            _hl="${_hl//__SANDBOX_TARGET__/$_hl_target}"
+        fi
+        _hl_match="$(normalize_for_match "$_hl")"
+        # shellcheck disable=SC2053
+        if [[ "$match_cmd" == $_hl_match ]]; then
+            allow "headless-allow match (GDD_SANDBOX=$GDD_SANDBOX)"
+        fi
+    done
+fi
 for _ask in ${ask_commands[@]+"${ask_commands[@]}"}; do
     _ask_match="$(normalize_for_match "$_ask")"
     # shellcheck disable=SC2053
     if [[ "$match_cmd" == $_ask_match ]]; then
+        # The headless conversion lives in ask() itself, so this tier needs no
+        # special case — it reached here without matching [headless-allow], and
+        # ask() will resolve it rather than prompt.
         _ask_reason="This command is on the GDD hook's ask-list — destructive or hard to undo."
         case "$match_cmd" in
             rm|rm\ *)

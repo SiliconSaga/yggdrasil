@@ -70,6 +70,77 @@ ws review * threads * --resolve*
 # interactive confirm — an agent passing it must still land on a person.
 ws realm use *
 
+[headless-allow]
+# Honored only when GDD_SANDBOX is set in the hook's environment (Tier 4). In a
+# headless session every other [ask-commands] match denies; these allow.
+#
+# COMMITTED POLICY ONLY. Unlike [allow-extras], entries here are ignored when
+# they appear in hook-rules.local — that file is gitignored and writable by the
+# agent this section governs, so a single `*` there would grant the sandbox
+# everything the ask-list is meant to stop. Local config may tighten the floor
+# and never loosen it; [ask-commands] stays additive from both files.
+#
+# Entries run unreviewed, so two things are constrained rather than one.
+#
+# The component: __SANDBOX_TARGET__ expands to the value of GDD_SANDBOX, which a
+# sandbox sets to the single component it is scoped to. A wildcard there would
+# also match `ws exec yggdrasil …` — the workspace repo, including this file.
+# Patterns keeping the placeholder are skipped entirely if the value is missing
+# or not a component name.
+#
+# The command: named verbs only. `ws exec *` would be arbitrary execution, and
+# so would `bundle exec *` (`bundle exec ruby -e …`), so the build command is
+# named down to its subcommand.
+#
+# GIT READS ARE NOT LISTED HERE, and adding them back would be a bug rather than
+# a convenience. The validated-read fast path in gdd-permission-hook.sh already
+# allows them — in every session, headless or not — after checking the target is
+# a declared component, the tokens carry no globs, the verb is on its allowlist
+# and the shape is safe. A Git command therefore only REACHES this section when
+# that validator refused it, so a `git diff*` pattern here does not make ordinary
+# reads frictionless (they never arrive); it re-grants exactly the shapes the
+# validator turned down. Two that were measured: `git diff --no-index <a> <b>`
+# reads paths outside the component, and `git difftool -x <prog>` runs an
+# arbitrary program — and `git diff*` matches `git difftool` besides.
+#
+# `git checkout` and `git switch` are absent for a different reason. Both have
+# forms that discard uncommitted work (`git checkout -- .`,
+# `git switch --discard-changes`), and a glob cannot separate those from
+# switching branches. Creating a branch is the one exception, since a sandbox
+# cannot open a pull request without it: the hook parses
+# `ws exec <target> git checkout -b <name>` directly rather than matching a
+# pattern here, because it has to reject a start-point, a `-f` and a `--`
+# pathspec, none of which a glob can see. Switching to an existing branch still
+# needs a human, until `ws checkout` lands (yggdrasil #155) and can be allowed as
+# a whole verb.
+#
+# Wrapped verbs (git commit, git push, gh pr create) stay denied through their
+# Tier 2 redirects regardless of this section.
+#
+# THE SITE BUILD IS NOT LISTED, and the reason is worth keeping because the
+# obvious narrowing does not work. `jekyll build --destination <path>` cleans
+# that path, removing files it did not generate — Jekyll's own docs warn against
+# pointing it at anything important — so the flag was pinned out and only the
+# bare command allowed. That is still unsafe: Jekyll reads `destination` from
+# `_config.yml` too, and `_config.yml` is an ordinary component file the agent
+# edits. The bare command can therefore clean the component root, or the
+# workspace, with no flag involved and no container escape. A pattern cannot see
+# a value that lives in a file, so no glob here can make this safe.
+#
+# `ws build` is the fix: an adapter verb that resolves the effective destination
+# and refuses one outside the component. Until it exists the sandbox builds
+# through CI on the pull request, which is where the preview and visual diff are
+# produced anyway.
+#
+# That leaves this section with no shipped entries — deliberately. The mechanism
+# is what ships; an operator adds patterns knowing nobody will be asked. Branch
+# creation, the one thing a sandbox cannot work without, is parsed in the hook
+# rather than listed here.
+#
+# None of this is a security boundary — an argument can still name a path outside
+# the component. The boundary is the container; this keeps the ordinary working
+# set free of prompts without widening the blast radius by default.
+
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
 # (between composition deny and ask) with the suggestion text below.

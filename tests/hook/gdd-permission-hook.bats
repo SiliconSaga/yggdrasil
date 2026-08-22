@@ -82,6 +82,215 @@ setup() {
     [[ "$output" != *"ws commit"* ]]
 }
 
+# ─── Headless (sandbox) mode ────────────────────────────────────────
+
+@test "headless: an ask the sandbox needs is decided, not prompted" {
+    # An ask means "a human decides". In a sandboxed workspace the only human
+    # reachable is a chat user who cannot evaluate a tool prompt, so every card
+    # is either rubber-stamped or left to time out. Paired against the same
+    # command without the flag, which is what shows the flag is doing the work:
+    # `ws exec *` is on the ask-list either way.
+    seed_real_project_config
+    run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "headless: a prompt raised before the ask-list resolves too" {
+    # The conversion lives in ask() rather than beside the ask-list, because a
+    # dozen earlier paths prompt without ever reaching Tier 4 — ambiguous
+    # expansion, opaque interpreter passthrough, the Kubernetes write floor,
+    # sensitive session state. Each is fail-closed, so leaving them was never an
+    # escalation; it was the hang this mode exists to end, still reachable by
+    # every route but one.
+    seed_real_project_config
+    for probe in \
+        'ws exec ken-site echo ${HOME}' \
+        'bash -c "id"' \
+        'kubectl delete pod x'
+    do
+        run_hook "$probe"
+        [[ "$output" == *'"permissionDecision":"ask"'* ]] || {
+            echo "expected ask without the flag: $probe -> $output"
+            false
+        }
+        GDD_SANDBOX=ken-site run_hook "$probe"
+        [[ "$output" == *'"permissionDecision":"deny"'* ]] || {
+            echo "expected deny under headless: $probe -> $output"
+            false
+        }
+    done
+}
+
+@test "headless: ws exec grants nothing wholesale, the site build included" {
+    # `ws exec` takes an arbitrary command, so a blanket entry would be arbitrary
+    # execution with no human review, leaving the container as the only boundary.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site curl https://example.com/x.sh'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site chmod -R 777 /etc'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec ruby -e "system(%q{id})"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # The site build is denied too, bare form included. `jekyll build` cleans its
+    # destination, and the destination can come from `_config.yml` — an ordinary
+    # component file the agent edits — so pinning the CLI flag out does not make
+    # the bare command safe, and no pattern can see a value that lives in a file.
+    # Reinstating this needs `ws build` resolving the effective destination.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build --destination /work/ws'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: a read verb handed a write is not a read" {
+    # `--output=<path>` is a diff option, so git diff, log and show all take it.
+    # The deny comes from the Git execution-modifier tier, which runs long before
+    # this one — recorded here because the guarantee matters most in a session
+    # with no human, and a later change to that tier should fail this test.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git diff --output=/work/ws/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git log --output /work/ws/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: nothing that discards uncommitted work is allowed" {
+    # `git checkout -- .` and `git switch --discard-changes` throw away work with
+    # no undo, and a glob cannot tell them from switching branch. Switching to an
+    # existing branch therefore still needs a human — the deliberate trade until
+    # `ws checkout` exists as a whole verb to allow. Creating one is parsed
+    # separately; see the branch-creation test below.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -- .'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git switch --discard-changes main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: a branch can be created, and that is all checkout can do" {
+    # Opening a pull request needs a branch, so this one write is parsed rather
+    # than globbed: `git checkout -b <name>` alone cannot discard anything, while
+    # a start-point, a `-f` or a `--` pathspec can. The name has to be a single
+    # ordinary token, which is what stops a second argument riding along.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x -f'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x -- .'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # Still pinned to the sandbox's own component, like every other allowance.
+    GDD_SANDBOX=ken-site run_hook 'ws exec other-component git checkout -b feat/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: the allowance is pinned to the sandbox's own component" {
+    # A wildcard component would also match `ws exec yggdrasil …` — the
+    # workspace repo, where this hook and its rules live. The sandbox is scoped
+    # to one component and the allowance follows that scope.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec yggdrasil git checkout -b anything'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec other-component git status'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: a target-less flag grants nothing" {
+    # Fails closed: patterns needing a component are skipped rather than
+    # matching everything when the value is missing or malformed.
+    seed_real_project_config
+    GDD_SANDBOX=1 run_hook 'ws exec ken-site git status --short'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # The workspace repository is not a component, and a sandbox claiming to be
+    # scoped to it would point every allowance at this hook and its rules.
+    GDD_SANDBOX=yggdrasil run_hook 'ws exec yggdrasil git status --short'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: an ask nobody can answer becomes a deny, not a hang" {
+    # The other half, and the reason this is not simply "skip the ask-list":
+    # destructive commands must not become allowed just because nobody is
+    # watching. A prompt with no answerer resolves one of two ways — denied now
+    # with a reason, or hung until a watchdog cancels it minutes later. The
+    # first is strictly better and says so.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'rm -rf /work/ws/components'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"no human"* ]]
+}
+
+@test "headless: an unsafe Git shape the validator refused is not re-allowed" {
+    # The validated-read fast path runs before this tier and already allows the
+    # ordinary reads, so a Git command only REACHES the headless section when
+    # that validator turned it down — `--no-index` reads outside the component,
+    # `difftool -x` runs an arbitrary program. A `git diff*` glob here would
+    # catch precisely those rejects and grant them.
+    seed_real_project_config
+    mkdir -p "$WORK/.git" "$WORK/components/ken-site/.git"
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  ken-site:
+    repo: https://github.com/example/ken-site.git
+YAML
+
+    # Asserted as deny, not "not allow": the weaker form also passes when the
+    # hook emits no decision at all, which in a headless session hands the call
+    # back to an unanswerable host prompt — the failure this mode exists to end.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git difftool -x /work/ws/components/ken-site/agent-script'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git diff --no-index /etc/passwd /etc/hosts'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    # The control, and the reason nothing is lost: an ordinary read still allows,
+    # through the validator rather than through a pattern here.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git diff --stat'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git log --oneline -3'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
+@test "headless: a local rules file cannot grant what the committed policy denies" {
+    # hook-rules.local is gitignored and writable by the agent, so honoring
+    # [headless-allow] from it would hand the sandbox the power to rewrite its
+    # own safety floor — the same forgeable-file problem that put GDD_SANDBOX in
+    # the environment rather than in a file. Local config may tighten, never
+    # loosen: that invariant is why [allow-extras] is local-only and this is not.
+    seed_real_project_config
+    write_local_hook_rules "[headless-allow]
+*"
+    GDD_SANDBOX=ken-site run_hook 'rm -rf /work/ws/components'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site curl https://example.com/x.sh'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    # Still additive in the direction that tightens: an [ask-commands] entry
+    # from the same local file is honored, so this is a scoped refusal rather
+    # than the parser ignoring the file.
+    write_local_hook_rules "[ask-commands]
+echo tightened*"
+    run_hook 'echo tightened please'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
+@test "headless: the flag changes nothing for an ordinary session" {
+    # Same commands, no flag: the ask-list behaves exactly as it always has.
+    # This is the control — without it the two tests above would pass just as
+    # well if the ask tier had been broken outright.
+    seed_real_project_config
+    run_hook 'ws exec ken-site git status --short'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+    run_hook 'rm -rf /work/ws/components'
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
 @test "deny: composition message names the component-scoped alternative" {
     # Stating the rule without naming a way to obey it leaves an agent stuck:
     # one that had read the whole subcommand survey still retried the same
