@@ -34,7 +34,7 @@ A local town-council candidate's campaign site was built by a third party as a c
 
 Over one GDD session the site was rebuilt fresh as a `gh-pages` component — the same Jekyll scaffold the [Getting Started](../../getting-started.md) tutorial uses. Content was recovered faithfully, with several look-and-feel passes reviewed live by a human. The result deployed straight through the standard GDD loop — topic branch, PR, bot review, merge, live — and now carries per-page "edit on GitHub" links plus a maintainer guide, so the owner can keep it current by asking an agent or using the GitHub web editor.
 
-The maintenance loop has since been proven for real: the owner sent a Word document revising his entire policy platform, and the agent read it, applied the restructuring site-wide over several human-reviewed passes, and shipped it to production.
+The maintenance loop has since been proven for real: the owner sent a Word document revising his entire policy platform, and the agent read it, applied the restructuring site-wide over several human-reviewed passes, and shipped it to production. As of v1.1 the loop runs over chat — a [sandboxed agent](../features.md#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion) takes requests by direct message, images included, and answers with a reviewed pull request carrying a live preview and before/after screenshots, so "ship it" is an informed thing to say from a phone.
 
 **What it shows:** the tutorial path is a real production path; GDD's independence story (your content, your repo, your agent) applies to people who don't consider themselves technical; and a fresh-machine dogfood run surfaces onboarding friction that flows straight back into the framework as fixes.
 
