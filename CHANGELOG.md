@@ -6,11 +6,11 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
-**The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces--gdd-sandbox-optional-companion).
+**The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion).
 
 ### Added
 
-- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately). A Docker image running a supervised chat-driven agent scoped to one component: subscription auth, scope by absence, an identity that can open pull requests but never merge, and decisions asked in chat as outcomes rather than tool prompts. See the [features tour](docs/gdd/features.md#sandboxed-workspaces--gdd-sandbox-optional-companion).
+- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately). A Docker image running a supervised chat-driven agent scoped to one component: subscription auth, scope by absence, an identity that can open pull requests but never merge, and decisions asked in chat as outcomes rather than tool prompts. See the [features tour](docs/gdd/features.md#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion).
 - **Headless permission mode** — with `GDD_SANDBOX=<component>` set, a prompt nobody can answer resolves as a deny instead of hanging the session, and `[headless-allow]` names what may run unreviewed: committed policy only, scoped to that component, shipping empty. See the [hook README](.claude/hooks/README.md) (#158).
 - **CI for the workspace itself** — full bats suite on Ubuntu per push/PR, plus a weekly serial Windows Git Bash job (#147).
 - **The Apache-2.0 LICENSE**, scoped to the workspace itself (#147).
@@ -20,7 +20,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 - **`ws hoard lock`** — refresh verified checksums for a hoard's pinned plugin assets; upgrades gained preview-then-apply, and Obsidian vaults gained Project and Area notes (#148).
 - **`ws orient --check`** — orient's adapter pointers with an exit code, so realm-doc drift can be caught on a schedule. Plain `ws orient` stays exit-zero.
 - **Change-note budgets** in the commit/CR/issue templates, with a `style.changeNotes` ecosystem knob (`terse` | `standard` | `detailed`) surfaced by `ws orient` (#138).
-- **Case studies** — `docs/gdd/samples/` becomes [`docs/gdd/case-studies/`](docs/gdd/case-studies/), opening with the contributor-review study (#138).
+- **Case studies** — `docs/gdd/samples/` becomes [`docs/gdd/case-studies/`](docs/gdd/case-studies/) (#138), now carrying three long-form studies with the addition of [module attribution in Terasology](docs/gdd/case-studies/terasology-module-attribution.md).
 - **Scoped kubectl dry-runs pass the guard** — `--dry-run=client|server` is no longer classified as the write it never performs (#156).
 
 ### Changed

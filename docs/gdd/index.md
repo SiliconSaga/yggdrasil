@@ -63,7 +63,7 @@ The [Getting Started walkthrough](../getting-started.md) covers setup step by st
 
 **Feature tour** (start here if you want to know what's in the box):
 
-- [Features Tour](features.md) — what GDD ships: workspace, realms, hoards, components, bot review loop, stances, permissions
+- [Features Tour](features.md) — what GDD ships: workspace, realms, hoards, components, bot review loop, stances, permissions, and 🆕 [sandboxed workspaces](features.md#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion)
 - [Hoards](hoards.md) — personal containers including the canonical thalami type, cadence config, multi-machine sync
 
 **Methodology and concepts:**
