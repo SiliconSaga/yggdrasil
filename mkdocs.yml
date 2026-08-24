@@ -68,6 +68,7 @@ nav:
     - Hoards: gdd/hoards.md
     - Obsidian Vault Hoard: gdd/obsidian-vault.md
     - Trust and Safety: gdd/trust-and-safety.md
+    - Agent Communication: gdd/agent-communication.md
     - Access: gdd/access.md
     - Permissions: gdd/permissions.md
     - Self-Improving Loop: gdd/self-improving-loop.md
