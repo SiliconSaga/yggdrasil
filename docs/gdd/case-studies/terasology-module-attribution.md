@@ -34,13 +34,13 @@ Worth recording plainly, because the corrections are the interesting part.
 - **Grepped inside a `.jar` for a string constant** and concluded the jar was stale. Jars are compressed; the grep was meaningless.
 - **Read results from a Gradle task that reported `UP-TO-DATE`** as though they were fresh, and announced that a fix hadn't worked. It needed `--rerun`.
 - **Wrote a regex that captured only the first `cp=` entry** of a multi-entry debug dump, then reasoned for several rounds from the truncated output — concluding a path comparison was failing when the data had been correct all along.
-- **Invented a mechanism to explain a non-observation.** When debug traces didn't appear, the agent confidently explained that logback was being reconfigured onto a file appender inside a `deleteOnExit` temp directory, so the logs were being written into the void. It was a tidy, plausible story. It was also false — checked at the human's prompting while preparing this write-up, the temp directories contain no logs at all, and engine `logger.error` output from the same phase was sitting in the test XML the whole time. The traces never printed for the boring reason: the code path never ran.
+- **Invented a mechanism to explain a non-observation.** When debug traces didn't appear, the agent confidently explained that logback was being reconfigured onto a file appender inside a `deleteOnExit` temp directory, so the logs were being written into the void. It was a tidy, plausible story — and false: checked at the human's prompting while preparing this write-up, the temp directories contain no logs at all, and engine `logger.error` output from the same phase was sitting in the test XML the whole time. The traces never printed for the boring reason: the code path never ran.
 
-That last one nearly made it into a published document as an insight. It was caught because the human asked for it to be written up, and writing it up meant checking it.
+That last one nearly made it into a published document as an insight — caught only because the human asked for it to be written up, and writing it up meant checking it.
 
 ## What the human contributed
 
-None of the redirections came from more compute.
+None of the redirections came from more compute:
 
 > *"I have a vaguely familiar memory about how the dependency chain can end up using an engine jar for some module dependencies even with the engine source present locally."*
 
@@ -79,6 +79,6 @@ Beyond the fix itself, the area was understood well enough to be worth tidying:
 
 The maintainer's own comparison, unprompted: years earlier and pre-GDD, another agent helped chase a broken-multiplayer problem in the large dependency-injection overhaul branch. That "worked" — and left a wake of partial efforts behind it, fixes layered on fixes without the underlying thing ever being named.
 
-The difference here is not model capability. It is that the framework kept the work honest: scope held (no sweeping test runs on a 144-module workspace), findings were checked before they were written down, the fix was verified against 71 tests across four repos before anything was pushed, and the false explanation was caught rather than shipped. The agent supplied stamina across four rounds and two days of instrumentation. The human supplied three sentences of institutional memory and the judgment to ask whether the tidy story was true.
+The difference here is not model capability — it is that the framework kept the work honest: scope held (no sweeping test runs on a 144-module workspace), findings were checked before they were written down, the fix was verified against 71 tests across four repos before anything was pushed, and the false explanation was caught rather than shipped. The agent supplied stamina across four rounds and two days of instrumentation. The human supplied three sentences of institutional memory and the judgment to ask whether the tidy story was true.
 
-**What it shows:** on genuinely hard problems the pairing is asymmetric and both halves are load-bearing. The agent will not run out of patience; it will also confidently narrate a mechanism it has not verified. A maintainer's vague half-memory of something that went wrong years ago can be worth more than another thousand steps of search.
+**What it shows:** on genuinely hard problems the pairing is asymmetric and both halves are load-bearing. The agent will not run out of patience — it will also confidently narrate a mechanism it has not verified. A maintainer's vague half-memory of something that went wrong years ago can be worth more than another thousand steps of search.
