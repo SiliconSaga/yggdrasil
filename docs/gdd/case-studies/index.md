@@ -14,7 +14,7 @@ The early sessions are GDD *being built*, the v1.0 study is GDD *being used* on 
 
 ## Reviewing a contributor's PR, from a phone
 
-A contributor opened a bug fix on a Terasology module and asked for review. Over a few hours — spent mostly on childcare, with a toddler on lap and later from a phone — the reviewer used an agent to bring a months-old workspace current, checked out the PR, verified the fix against the engine source, ran the game, and found that the bug the PR patched at module level had an engine-level root cause the PR never named. It turned out to be the same root cause as a *second*, apparently unrelated PR. Fixes went back to both branches as PRs from forks, one leftover finding became an issue, and the contributor merged.
+A contributor opened a bug fix on a Terasology module and asked for review. Over a few hours — spent mostly on childcare, with a toddler on lap and later from a phone — the reviewer used an agent to bring a months-old workspace current, checked out the PR, verified the fix against the engine source, ran the game, and found that the bug the PR patched at module level had an engine-level root cause the PR didn't cover. It turned out to be the same root cause as a *second*, apparently unrelated PR. Fixes went back to both branches as PRs from forks, one leftover finding became an issue, and the contributor merged.
 
 Full writeup: **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)**.
 

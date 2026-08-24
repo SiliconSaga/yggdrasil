@@ -4,7 +4,7 @@
 * **Workspace:** yggdrasil on `Dionysus` — an aging Win10 desktop
 * **Stance / Role:** flow / developer
 * **Subject:** [Terasology](https://github.com/MovingBlocks/Terasology), a 15-year-old open-source voxel game engine
-* **Contributor:** [@soloturn](https://github.com/soloturn), who reviewed this write-up and agreed to be named — thank you, soloturn, for the fixes and for being the first outside contributor to meet GDD in the wild!
+* **Contributor:** [@soloturn](https://github.com/soloturn), who agreed to be named — thank you, soloturn, for the fixes and for being the first outside contributor to meet GDD in the wild!
 * **Duration:** A few hours scattered across a day. Very little of it at a desk.
 
 ![Gooey's augmented workshop — Terasology's gelatinous-cube mascot, freshly fitted with cybernetic upgrades, running the Grand Terasology Improvement Engine alongside GDD's bee-bots](../../assets/images/GooeysAugmentedWorkshop.jpg)
@@ -152,9 +152,13 @@ Then the push failed:
 remote: Permission to MovingBlocks/Terasology.git denied to agent-refr.
 ```
 
-**Human:** *(on Discord)* Correction I will end up agent pushing to its forks because wisely I did not give my agent push access to the moving blocks orgs 😉
+**Human:** *(on Discord)*: Correction I will end up pushing to the right places because wisely I did not give my agent push access to the MovingBlocks org 😉
+
+(Note: Lightly edited vs Discord transcript as toddler-pocalypse isn't great for clear language and/or I had no idea what I meant back then)
 
 > **The boundary held at exactly the right moment.** A rushed maintainer, on a phone, had said "go ahead and push to both branches" — and the token simply could not. `agent-refr` has `push: false` but `triage: true`: enough to open issues and post PR comments, not enough to write to an org repo. The correct path — fork, push there, open a PR *into the contributor's branch* — is more etiquette-preserving anyway, because it hands soloturn the additions instead of rewriting his PR under him.
+
+It is easy as a maintainer to forget when a PR comes from a community member rather than an agent-fork the token can push to.
 
 One legitimate bypass was needed and taken deliberately. Terasology keeps ~55 module repos as plain nested clones, which `ws` cannot address as targets — `ws commit coreworlds` fails outright. Rather than route around the hook silently, the agent used the sanctioned escape hatch with a stated reason:
 
@@ -171,7 +175,7 @@ Session-scoped, swept by `ws clean`, and logged. The gap it exposed went into th
 
 **Human:** *(from the phone)* Coincidentally I saw a Copilot review comment on my phone that seemed valid.
 
-*Copilot had flagged that the new test compared region **sizes** while claiming **coverage** — a larger-but-offset region would pass. The agent verified the objection was real, tightened the assertion to check `minX`/`maxX`/`minZ`/`maxZ` containment, and then re-ran the falsification: still failed without the fix. It pushed, and resolved the thread without a reply, per this workspace's convention that Copilot gets bare resolves.*
+*Copilot had flagged that the new test compared region **sizes** while claiming **coverage** — a larger-but-offset region would pass. The agent verified the objection was real, tightened the assertion to check `minX`/`maxX`/`minZ`/`maxZ` containment, and then re-ran the falsification: still failed without the fix. It pushed, and resolved the thread without a reply, per this workspace's convention that Copilot gets bare resolves (as of mid-2026 it never auto-resolves or replies, unlike CodeRabbit).*
 
 The declined CodeRabbit finding became [issue #5332](https://github.com/MovingBlocks/Terasology/issues/5332) — framed as a *decision* (fail loudly vs. degrade deliberately) rather than a patch, because the mechanical fix has a real trade-off. The issue notes that `WorldBuilderTest` currently has no test exercising `scalable = true` at all.
 
