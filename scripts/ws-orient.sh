@@ -40,7 +40,8 @@ happens to read the output:
 
   --check   Exit non-zero if anything orient renders is broken.
             Today that means an adapter ai_context pointer that no
-            longer resolves, or one that escapes its component.
+            longer resolves or escapes its component, or an adapter
+            file that no longer parses.
 HELP
     exit 0
 }
@@ -57,6 +58,7 @@ ORIENT_CONTEXT_ROT=0
 for _arg in "$@"; do
     case "$_arg" in
         --check) ORIENT_CHECK=1 ;;
+        --help|-h) orient_help ;;
         *)
             echo "ws orient: unknown option '$_arg'" >&2
             echo "  Usage: ws orient [--check]" >&2
@@ -450,6 +452,9 @@ _emit_one_adapter() {
     done < <(yq -o=json -I=0 '.ai_context // [] | .[]' "$adapter_file" 2>/dev/null)
 
     if [[ $parse_failed -eq 1 ]]; then
+        # A file that cannot parse cannot vouch for its pointers — that is
+        # rot for --check purposes, not merely a rendering note.
+        ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
         echo "    (adapter present but YAML parse failed — fix $adapter_file)"
     elif [[ $any -eq 0 ]]; then
         echo "    (adapter present but no commands.{test,lint,build} wired)"
@@ -617,9 +622,9 @@ emit_skill_index
 # what says which pointer to fix.
 if [[ "$ORIENT_CHECK" -eq 1 ]]; then
     if [[ "$ORIENT_CONTEXT_ROT" -gt 0 ]]; then
-        printf '\nws orient --check: %d adapter ai_context pointer(s) no longer resolve.\n' "$ORIENT_CONTEXT_ROT"
-        echo "  Repoint the path in the realm adapter, or drop the row if the doc is gone."
+        printf '\nws orient --check: %d adapter check failure(s) — ai_context pointers that no longer resolve, or adapter YAML that no longer parses.\n' "$ORIENT_CONTEXT_ROT"
+        echo "  Repoint or drop the rotted rows in the realm adapter, and fix any unparseable adapter file."
         exit 1
     fi
-    printf '\nws orient --check: every adapter ai_context pointer resolves.\n'
+    printf '\nws orient --check: every adapter parses and every ai_context pointer resolves.\n'
 fi

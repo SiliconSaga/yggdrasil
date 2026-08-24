@@ -6,11 +6,11 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
-**The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion).
+**The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
 
 ### Added
 
-- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately). A Docker image running a supervised chat-driven agent scoped to one component: subscription auth, scope by absence, an identity that can open pull requests but never merge, and decisions asked in chat as outcomes rather than tool prompts. See the [features tour](docs/gdd/features.md#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion).
+- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately). A Docker image running a supervised chat-driven agent scoped to one component: subscription auth, scope by absence, an identity that can open pull requests but never merge, and decisions asked in chat as outcomes rather than tool prompts. See the [features tour](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
 - **Headless permission mode** — with `GDD_SANDBOX=<component>` set, a prompt nobody can answer resolves as a deny instead of hanging the session, and `[headless-allow]` names what may run unreviewed: committed policy only, scoped to that component, shipping empty. See the [hook README](.claude/hooks/README.md) (#158).
 - **CI for the workspace itself** — full bats suite on Ubuntu per push/PR, plus a weekly serial Windows Git Bash job (#147).
 - **The Apache-2.0 LICENSE**, scoped to the workspace itself (#147).

@@ -83,7 +83,7 @@ YAML
     run_orient --check
 
     [ "$status" -eq 1 ]
-    [[ "$output" == *"1 adapter ai_context pointer"* ]]
+    [[ "$output" == *"1 adapter check failure"* ]]
 }
 
 @test "ws orient --check: succeeds when every pointer resolves" {
@@ -150,4 +150,25 @@ YAML
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"unknown option"* ]]
+}
+
+@test "ws orient: --help exits zero, in any argument position" {
+    run_orient --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws orient"* ]]
+
+    run_orient --check --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws orient"* ]]
+}
+
+@test "ws orient --check: exits non-zero when an adapter no longer parses" {
+    # An unparseable adapter cannot vouch for its pointers — --check must not
+    # report a clean workspace over a file it could not read.
+    fixture_mixed
+    printf 'commands: {\n' > "$WORK/realms/realm-fixture/adapters/demo.yaml"
+
+    run_orient --check
+
+    [ "$status" -eq 1 ]
 }

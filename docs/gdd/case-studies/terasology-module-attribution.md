@@ -43,9 +43,9 @@ That last one nearly made it into a published document as an insight — caught 
 None of the redirections came from more compute:
 
 > *"I have a vaguely familiar memory about how the dependency chain can end up using an engine jar for some module dependencies even with the engine source present locally."*
-
+>
 > *"We also have or have had times where we mess with the build output directories — before the jar gets involved. Then may have the classes directory itself directly on the classpath."*
-
+>
 > *"We have confirmed what engine is running and from where, are we sure about Gestalt?"*
 
 Half-remembered institutional knowledge from a decade of maintaining this codebase — none of it precise, none of it in any document, none of it recoverable by reading the source. The classes-directory-vs-jar memory reframed the search away from "is the fix being delivered?" and toward "what are these two things actually comparing?", which is the question that eventually found both defects. The provenance question forced verification of which gestalt was loaded, which closed off a whole branch of speculation.

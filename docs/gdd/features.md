@@ -2,7 +2,7 @@
 
 A tour of what the yggdrasil workspace ships with. The [GDD index](index.md) covers the methodology; this doc covers the *features* — what's actually in the box and what each piece is for. For an end-to-end walkthrough rather than a feature inventory, go to [Getting Started](../getting-started.md).
 
-> **🆕 New in 1.1 — [sandboxed workspaces](#-new-in-11-sandboxed-workspaces--gdd-sandbox-optional-companion).** A scoped GDD agent in a container, reachable over chat and pointed at one component: a chat message from someone who does not write code becomes a reviewed pull request, and merging stays human.
+> **🆕 New in 1.1 — [sandboxed workspaces](#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).** A scoped GDD agent in a container, reachable over chat and pointed at one component: a chat message from someone who does not write code becomes a reviewed pull request, and merging stays human.
 
 ---
 
@@ -176,7 +176,7 @@ Full reference: [organization-stack.md](organization-stack.md). Design and ratio
 
 ---
 
-## 🆕 New in 1.1: Sandboxed workspaces — `gdd-sandbox` (optional companion)
+## Sandboxed workspaces: `gdd-sandbox` (optional companion, new in 1.1)
 
 A scoped GDD agent in a Docker container, reachable over a chat channel (Discord today) and pointed at one target component. Someone collaborates with the agent by chat message while it does real GDD work inside the container — read, edit, commit, push, open a pull request — and the PR page is the review surface: preview link, before/after screenshots, and a merge button that stays human. The agent can open PRs; merging and releasing are denied outright, with branch protection enforcing what the permission posture promises.
 
@@ -189,7 +189,7 @@ What makes it safe enough to point at a non-technical person:
 - **No prompt without an answerer** — the workspace hook knows the session is headless, so a permission card that nobody could evaluate resolves as a refusal with a reason instead of hanging the conversation. See [Permissions](permissions.md) for the tier this adds.
 - **Own entitlement** — the sandbox runs on a Claude subscription setup-token; hosting (whose machine runs the container) is deliberately separate from entitlement (whose plan and logins it uses), aiming at a self-sufficient user on their own plan.
 
-This is an **independent component**, not part of the workspace: fetch [SiliconSaga/gdd-sandbox](https://github.com/SiliconSaga/gdd-sandbox) (declare it in your ecosystem config and `ws clone gdd-sandbox`, or clone it directly under `components/`). It carries its own operator skill and README — the README's Configuration section is the authoritative setup reference. For direction, including the trust-scaled future for untrusted users, see the [roadmap's sandboxed-workspaces track](roadmap.md#sandboxed-workspaces--containerized-trust-scaled-execution).
+This is an **independent component**, not part of the workspace: fetch [SiliconSaga/gdd-sandbox](https://github.com/SiliconSaga/gdd-sandbox) (declare it in your ecosystem config and `ws clone gdd-sandbox`, or clone it directly under `components/`). It carries its own operator skill and README — the README's Configuration section is the authoritative setup reference. For direction, including the trust-scaled future for untrusted users, see the [roadmap's sandboxed-workspaces track](roadmap.md).
 
 ---
 

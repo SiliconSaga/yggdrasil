@@ -45,22 +45,22 @@ git checkout main && git pull siliconsaga main
 # 2. Create topic branch
 git checkout -b <type>/<description>
 
-# 3. Commit (use ws commit — handles staging and attribution)
+# 3. Changelog — does this change something a user of the workspace would notice?
+#    If so, add an entry under [Unreleased] in CHANGELOG.md now, so the commit
+#    below carries it. See "Changelog entries" below.
+
+# 4. Commit (use ws commit — handles staging and attribution)
 bash scripts/ws commit <component> .commits/my-change.md
 
-# 3b. First push to this component? Verify token coverage first.
+# 4b. First push to this component? Verify token coverage first.
 #     (Skip if you've pushed this component before in a working session.)
 bash scripts/ws diagnose <component>
 #     Look for "✓ <TOKEN_VAR> is set" on the push/cr remote row.
 #     If it shows "NOT SET", add the token to .env and re-source it,
 #     then re-run: bash scripts/ws gitlab-auth
 
-# 4. Push
+# 5. Push
 bash scripts/ws push <component>
-
-# 5. Changelog — does this change something a user of the workspace would notice?
-#    If so, add an entry under [Unreleased] in CHANGELOG.md now, in the same
-#    branch. See "Changelog entries" below.
 
 # 6. Draft CR body
 cp templates/change.md .crs/<description>.md
