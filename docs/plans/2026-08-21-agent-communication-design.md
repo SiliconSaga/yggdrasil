@@ -50,7 +50,7 @@ The resolution is a redirect, not just a prohibition:
 
 "This needs someone to decide whether the module is still in scope" is useful and carries no opinion. "This is out of scope, closing" is a verdict. The first is work; the second is authority the agent does not have.
 
-This is the constructive half of the policy and the reason it is adoptable. It reframes the agent from a commentator into a sorter, which is both less dangerous and more valuable.
+This is the constructive half of the policy and the reason it is adoptable. The division it draws is that **the agent prepares and tests; humans review and judge** — which is not a demotion. Preparing work well is most of the labour, and it is the part an agent is actually good at.
 
 ### The organizer surface
 
@@ -80,9 +80,15 @@ The rules blur together because both point at "use a machine account", but they 
 
 ### Uniform register, with a local escape hatch
 
-The register rule applies uniformly to everything the agent posts to a tracker or review surface — issue bodies, CR bodies, comments, and replies — with no tiers. Commit messages are outside it: they are read by people already inside the work, and the `Co-Authored-By` trailer already carries the driver. A graduated rule — stricter as a comment approaches a disposition — targets the harm more precisely, but every tier boundary is a place to negotiate, and a rule with soft exceptions gets talked around at exactly the moments it matters.
+The register rule applies uniformly to everything the agent writes, with no tiers and no carve-outs. A graduated rule — stricter as a comment approaches a disposition — targets the harm more precisely, but every tier boundary is a place to negotiate, and any clause of the form "except where it does not matter" gets invoked at exactly the moments it does.
 
-The exception is instead an explicit, recorded human act: a realm or local config may carry an additional prompt snippet that overrides or extends the default register. Someone who wants their agent writing review comments in pirate speak may have it; they wrote the snippet, and it is attributable to them. This mirrors GDD's existing idioms — `--trust`, `--human`, `ws hook-bypass` — where the escape exists but costs a deliberate act.
+Stated positively, because a list of prohibitions leaves an agent with no shape to write toward:
+
+> Neutral tone. Fairly concise. Simple language, few idioms or unusual turns of phrase. No judgement. The agent prepares and tests work so that others can review and judge it.
+
+The simple-language clause is not a style preference. Most readers of a large OSS tracker are reading in a second language, and idiom is the first thing that fails to survive that — the same reason a one-sentence disclaimer does not land.
+
+The exception is an explicit, recorded human act: a realm or local config may carry an additional prompt snippet that overrides or extends the default register. Someone who wants their agent writing review comments in pirate speak may have it; they wrote the snippet, and it is attributable to them. This mirrors GDD's existing idioms — `--trust`, `--human`, `ws hook-bypass` — where the escape exists but costs a deliberate act.
 
 The snippet must be **visible**, not merely present. See the `ws orient` change below.
 
@@ -193,5 +199,6 @@ Steps 1–4 are one yggdrasil PR; step 5 is a realm PR.
 
 ## Open questions
 
-- Whether the realm's `AGENTS.md` rule should name the specific forbidden characterisations ("stale", "abandoned", "unrecoverable") or state the principle and leave examples to the doc. Naming them is more enforceable and more likely to be followed; it also dates faster and reads as a blocklist to be worked around.
 - Whether `agent-communication.md` belongs in the docs-site navigation under trust and safety or as a peer page. Affects `mkdocs.yml` only.
+
+Settled while drafting: the rule does **not** name forbidden characterisations ("stale", "abandoned", "unrecoverable"). A named list is more immediately enforceable, but it dates quickly, reads as a blocklist to route around, and implies that a synonym it omits is permitted. The positive statement of register above carries the same weight without inviting that reading.
