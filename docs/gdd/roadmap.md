@@ -59,6 +59,11 @@ The methodology docs explain how GDD works; longer-form pieces about *why* and *
 
 Designed-but-deferred `ws` growth, each picked up when real usage demands it:
 
+- **GitHub App identity for agents** — an App posts under a platform-rendered bot marker nobody can forge and authenticates with short-lived installation tokens scoped to chosen repositories, which is a structurally stronger form of both arguments in [agent-communication.md](agent-communication.md): legibility stops depending on a disclaimer, and the fork-group boundary stops depending on everyone remembering. Needs JWT signing and an installation-token exchange in the auth layer, where today there are `.env` PATs.
+- **Organizer-surface routing** — a verb to move an issue to a triage column, so an agent can discharge a finding without commenting on it. The pattern is documented; the automation is not built, and until it is, "route it rather than opine" asks for a destination the tooling does not provide.
+- **Automated register evaluation** — a CI job driving a second-model agent over the `gdd-sandbox` chat bridge to judge whether agent-authored replies match the configured register. Long-term; dispatching sub-agents at a realistic triage task and reading what they write is the current method.
+- **Advisory machine-account check** — `ws diagnose` reporting when the provider token resolves to the same account as the configured human identity. The one part of the communication policy a machine can actually verify.
+- **A local register override that the tooling enforces** — today `comms.snippet` reaches the agent by being rendered in `ws orient` and read at session start, which is the same mechanism `style.changeNotes` uses and carries the same limits: nothing checks that the agent honored it.
 - `ws rebase` — script the repeatable rebase ceremony (backup branch, conflict preview, verification).
 - `ws run <comp> <action>` — execute any adapter-declared action, not just test/lint/build.
 - `ws changelog --stack` — stack-level change-note aggregation across the ecosystem manifest (see [versioning.md](versioning.md) § Stack-level aggregation).
