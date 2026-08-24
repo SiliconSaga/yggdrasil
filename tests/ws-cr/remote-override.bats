@@ -414,6 +414,19 @@ _move_remote_main() {
     git -C "$scratch" push -q origin main
 }
 
+# Put a CHANGELOG.md on the base branch, so the reminder is deciding about the
+# branch's own diff rather than about the file simply not existing yet.
+_seed_changelog_on_base() {
+    echo '# Changelog' > "$WORK/CHANGELOG.md"
+    git -C "$WORK" add CHANGELOG.md
+    git -C "$WORK" commit -q -m "add a changelog"
+    # Same commit becomes the base, so the branch is descended from a main that
+    # already carried the file — the ordinary case. The working tree has to have
+    # it too: a repository that keeps no changelog is not nudged at all.
+    git -C "$WORK" push -q "$ALT_BARE" HEAD:main
+    git -C "$WORK" fetch -q "$ALT_BARE" "main:refs/remotes/alt/main"
+}
+
 @test "stale-base: fresh target branch passes the preflight" {
     run bash "$WS_BIN" cr yggdrasil --remote alt "test: fresh base" .crs/body.md
 
@@ -470,6 +483,40 @@ _move_remote_main() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Opening cross-fork CR"* ]]
     [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "changelog: a branch that records nothing is reminded, not blocked" {
+    # `[Unreleased]` only becomes a release section if entries were written
+    # while the work was fresh. The nudge must never stand between the author
+    # and the review, so the CR still opens.
+    _seed_changelog_on_base
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: no entry" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"does not touch CHANGELOG.md"* ]]
+    [[ "$(cat "$GH_LOG")" == *"--repo alt/project"* ]]
+}
+
+@test "changelog: a branch that records its change is left alone" {
+    _seed_changelog_on_base
+    printf '\n## [Unreleased]\n\n- something a user of this repo would notice\n' >> "$WORK/CHANGELOG.md"
+    git -C "$WORK" add CHANGELOG.md
+    git -C "$WORK" commit -q -m "record the change"
+
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: with entry" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"does not touch CHANGELOG.md"* ]]
+}
+
+@test "changelog: a repository that keeps no changelog is never nudged" {
+    # Most components keep none, and a reminder there would be noise rather
+    # than a prompt to do anything.
+    run bash "$WS_BIN" cr yggdrasil --remote alt "test: no changelog" .crs/body.md
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"CHANGELOG.md"* ]]
 }
 
 @test "stale-base: --upstream path fails when the upstream default branch moved" {

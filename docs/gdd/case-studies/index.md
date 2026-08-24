@@ -2,22 +2,31 @@
 
 GDD applied to real work — recent, concrete, and messier than a tutorial. See also the [roadmap](../roadmap.md) for potential upcoming arcs serving a specific story.
 
-Two efforts are written up at length, bracketing the project's life so far:
+Three efforts are written up at length:
 
 - **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)** — a full session from the week of the 1.0 release: an outside contributor's bug fix reviewed, an engine root cause found underneath it, fixes proposed back, and an issue filed — conducted almost entirely from a phone, one-handed, around childcare. The clearest picture of what the finished system feels like in use.
+- **[A five-year-old disabled test](terasology-module-attribution.md)** — a deep engine bug: two defects stacked three years apart, the older one hidden behind a test left `@Disabled` in the same commit that introduced it. Written as highlights rather than a transcript, and it does not spare the agent — one of its neater explanations turned out to be invented.
 - **[Early GDD — the first sessions](early-gdd.md)** — condensed transcripts and Thalamus files from GDD's first two sessions ever, back in March: dialogue and decisions as captured, technical detail stubbed. They predate most of today's system, so read them as origin material rather than current mechanics.
 
-The early sessions are GDD *being built*, the v1.0 study is GDD *being used* on a different codebase without the human using a desk much.
+The early sessions are GDD *being built*, the v1.0 study is GDD *being used* on a different codebase without the human using a desk much, and the deep-bug study is what the pairing looks like when the problem is genuinely hard.
 
 ---
 
 ## Reviewing a contributor's PR, from a phone
 
-A contributor opened a bug fix on a Terasology module and asked for review. Over a few hours — spent mostly on childcare, with a toddler on lap and later from a phone — the reviewer used an agent to bring a months-old workspace current, checked out the PR, verified the fix against the engine source, ran the game, and found that the bug the PR patched at module level had an engine-level root cause the PR never named. It turned out to be the same root cause as a *second*, apparently unrelated PR. Fixes went back to both branches as PRs from forks, one leftover finding became an issue, and the contributor merged.
+A contributor opened a bug fix on a Terasology module and asked for review. Over a few hours — spent mostly on childcare, with a toddler on lap and later from a phone — the reviewer used an agent to bring a months-old workspace current, checked out the PR, verified the fix against the engine source, ran the game, and found that the bug the PR patched at module level had an engine-level root cause the PR didn't cover. It turned out to be the same root cause as a *second*, apparently unrelated PR. Fixes went back to both branches as PRs from forks, one leftover finding became an issue, and the contributor merged.
 
 Full writeup: **[Reviewing a contributor's PR — GDD v1.0](terasology-contributor-review.md)**.
 
 **What it shows:** the found-time thesis at full stretch. Also the trust boundaries holding under pressure — the agent's token deliberately lacked push access to the upstream orgs, and the fork-and-PR path was the correct answer rather than an obstacle.
+
+## A five-year-old disabled test
+
+Every module integration test in a 15-year-old game engine was failing to attribute classes to their modules. Four rounds across two days found two independent defects stacked on each other — one introduced with a Gestalt upgrade in 2024, one latent since 2021 whose verifying test had been left `@Disabled` in the very commit that introduced it. That test is now implemented and passing, five years and three months later.
+
+Full writeup: **[A five-year-old disabled test — GDD on a deep bug](terasology-module-attribution.md)**.
+
+**What it shows:** the pairing on a genuinely hard problem, honestly accounted. The agent supplied stamina and made several real mistakes — including confidently explaining a mechanism it had not verified, caught only because writing it up meant checking it. The human supplied three sentences of half-remembered institutional knowledge that redirected the search, and the judgment to ask whether the tidy story was true.
 
 ## Local political site for a non-technical owner
 
@@ -25,7 +34,7 @@ A local town-council candidate's campaign site was built by a third party as a c
 
 Over one GDD session the site was rebuilt fresh as a `gh-pages` component — the same Jekyll scaffold the [Getting Started](../../getting-started.md) tutorial uses. Content was recovered faithfully, with several look-and-feel passes reviewed live by a human. The result deployed straight through the standard GDD loop — topic branch, PR, bot review, merge, live — and now carries per-page "edit on GitHub" links plus a maintainer guide, so the owner can keep it current by asking an agent or using the GitHub web editor.
 
-The maintenance loop has since been proven for real: the owner sent a Word document revising his entire policy platform, and the agent read it, applied the restructuring site-wide over several human-reviewed passes, and shipped it to production.
+The maintenance loop has since been proven for real: the owner sent a Word document revising his entire policy platform, and the agent read it, applied the restructuring site-wide over several human-reviewed passes, and shipped it to production. As of v1.1 the loop runs over chat — a [sandboxed agent](../features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11) takes requests by direct message, images included, and answers with a reviewed pull request carrying a live preview and before/after screenshots, so "ship it" is an informed thing to say from a phone.
 
 **What it shows:** the tutorial path is a real production path; GDD's independence story (your content, your repo, your agent) applies to people who don't consider themselves technical; and a fresh-machine dogfood run surfaces onboarding friction that flows straight back into the framework as fixes.
 

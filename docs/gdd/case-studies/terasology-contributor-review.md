@@ -4,7 +4,7 @@
 * **Workspace:** yggdrasil on `Dionysus` — an aging Win10 desktop
 * **Stance / Role:** flow / developer
 * **Subject:** [Terasology](https://github.com/MovingBlocks/Terasology), a 15-year-old open-source voxel game engine
-* **Contributor:** [@soloturn](https://github.com/soloturn), who reviewed this write-up and agreed to be named — thank you, soloturn, for the fixes and for being the first outside contributor to meet GDD in the wild!
+* **Contributor:** [@soloturn](https://github.com/soloturn), who agreed to be named — thank you, soloturn, for the fixes and for being the first outside contributor to meet GDD in the wild!
 * **Duration:** A few hours scattered across a day. Very little of it at a desk.
 
 ![Gooey's augmented workshop — Terasology's gelatinous-cube mascot, freshly fitted with cybernetic upgrades, running the Grand Terasology Improvement Engine alongside GDD's bee-bots](../../assets/images/GooeysAugmentedWorkshop.jpg)
@@ -25,7 +25,7 @@ The point of this study is not that an agent wrote some Java. It is *where the h
 
 *The agent ran `ws orient`, read the orientation skill, resolved the per-machine Thalamus, and set its commit identity — the standard startup. Then it looked at the workspace it had actually inherited.*
 
-This is the part that would have been fatal before GDD. The Terasology component had been sitting untouched for months in the middle of a mega-review effort following the big dependency-injection PR merge — one of the oldest arcs in this machine's Thalamus. The state was genuinely messy:
+This is the part that would have derailed things before GDD. The Terasology component had been sitting untouched for months in the middle of a mega-review effort following the big dependency-injection PR merge — one of the oldest arcs in this machine's Thalamus. The state was genuinely messy:
 
 - the engine sat on `test/salvage-mte-network-tests`, 32 commits ahead of a local `develop` that was itself 25 behind upstream
 - 72 uncommitted lines in `docs/Engine-Testing-Patterns.md`
@@ -152,9 +152,13 @@ Then the push failed:
 remote: Permission to MovingBlocks/Terasology.git denied to agent-refr.
 ```
 
-**Human:** *(on Discord)* Correction I will end up agent pushing to its forks because wisely I did not give my agent push access to the moving blocks orgs 😉
+**Human:** *(on Discord)*: Correction I will end up pushing to the right places because wisely I did not give my agent push access to the MovingBlocks org 😉
+
+(Note: Lightly edited vs Discord transcript as toddler-pocalypse isn't great for clear language and/or I had no idea what I meant back then)
 
 > **The boundary held at exactly the right moment.** A rushed maintainer, on a phone, had said "go ahead and push to both branches" — and the token simply could not. `agent-refr` has `push: false` but `triage: true`: enough to open issues and post PR comments, not enough to write to an org repo. The correct path — fork, push there, open a PR *into the contributor's branch* — is more etiquette-preserving anyway, because it hands soloturn the additions instead of rewriting his PR under him.
+
+It is easy as a maintainer to forget when a PR comes from a community member rather than an agent-fork the token can push to.
 
 One legitimate bypass was needed and taken deliberately. Terasology keeps ~55 module repos as plain nested clones, which `ws` cannot address as targets — `ws commit coreworlds` fails outright. Rather than route around the hook silently, the agent used the sanctioned escape hatch with a stated reason:
 
@@ -171,7 +175,7 @@ Session-scoped, swept by `ws clean`, and logged. The gap it exposed went into th
 
 **Human:** *(from the phone)* Coincidentally I saw a Copilot review comment on my phone that seemed valid.
 
-*Copilot had flagged that the new test compared region **sizes** while claiming **coverage** — a larger-but-offset region would pass. The agent verified the objection was real, tightened the assertion to check `minX`/`maxX`/`minZ`/`maxZ` containment, and then re-ran the falsification: still failed without the fix. It pushed, and resolved the thread without a reply, per this workspace's convention that Copilot gets bare resolves.*
+*Copilot had flagged that the new test compared region **sizes** while claiming **coverage** — a larger-but-offset region would pass. The agent verified the objection was real, tightened the assertion to check `minX`/`maxX`/`minZ`/`maxZ` containment, and then re-ran the falsification: still failed without the fix. It pushed, and resolved the thread without a reply, per this workspace's convention that Copilot gets bare resolves (as of mid-2026 it never auto-resolves or replies, unlike CodeRabbit).*
 
 The declined CodeRabbit finding became [issue #5332](https://github.com/MovingBlocks/Terasology/issues/5332) — framed as a *decision* (fail loudly vs. degrade deliberately) rather than a patch, because the mechanical fix has a real trade-off. The issue notes that `WorldBuilderTest` currently has no test exercising `scalable = true` at all.
 
@@ -181,7 +185,7 @@ Then the contributor merged everything, and the session ended where it began —
 
 ## Outputs
 
-All four pull requests merged the same day, within about six hours of the contributor's first message.
+All four pull requests merged the same day, within hours of the contributor's first message.
 
 | Artifact | Outcome |
 |---|---|
@@ -277,7 +281,7 @@ Running in parallel the whole time, lightly tidied. This is the texture the tran
 ## Key takeaways
 
 - **The workspace was the point.** A months-dormant Terasology checkout mid-way through a dependency-injection review effort would previously have prompted a fresh workspace — and then a forgotten one, and then a third. The Thalamus held the arcs, `ws status` held the repo states, and the session grafted onto the mess instead of fleeing it. That avoided toil is invisible in the diff and is arguably the largest single win here.
-- **Found time is real time.** Toddler on lap → phone while cooking → phone outdoors → fifteen focused minutes at a desk. The output was a root-cause fix in a 15-year-old engine, with tests. The claim GDD has always made about snippets of attention got its hardest test yet.
+- **Found time is real time.** Toddler on lap by PC, then bits of phone while preparing us lunch, then some phone during outdoor kid activities, finally a short stretch at a desk alone. The output was a root-cause fix in a 15-year-old engine, with tests. The claim GDD has always made about snippets of attention got a real test here.
 - **The agent argued with the bots, and with itself.** It declined one CodeRabbit finding with reasoning and filed it as an issue; it accepted a Copilot finding after verifying the objection was real; and it abandoned its own expensive experiment when a cheaper, stronger one appeared.
 - **Falsification, not just green checks.** Every claim of "this fixes it" was backed by stashing the fix and watching the test fail. Twice — including after tightening the assertion, because a stricter test that no longer catches the original bug is worse than the loose one.
 - **Guardrails earn their keep when the human is distracted.** The push denial landed *after* a phone-typed "go ahead and push to both branches." The human was wrong for a moment; the boundary was not.

@@ -6,9 +6,48 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+**The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
+
 ### Added
 
-- **Headless permission mode for sandboxed sessions** — a session that sets `GDD_SANDBOX=<component>` resolves prompts instead of raising them: an ask has no answerer there, so every path that would prompt denies, and the new `[headless-allow]` section names the few forms that run without review. The conversion lives in the hook's `ask()` helper, so it covers the paths that never reach the ask-list — ambiguous expansion, interpreter passthrough, the Kubernetes floor, sensitive Edit/Write — since each of those could otherwise still hang the session this mode exists to unblock. `[headless-allow]` is honored from committed policy only: `hook-rules.local` is gitignored and agent-writable, so a `*` there would let a sandbox lift its own floor, and local config may tighten but never loosen. Entries are pinned to the sandbox's own component via `__SANDBOX_TARGET__` (a wildcard would also match `ws exec yggdrasil …`, the workspace repo itself, and `yggdrasil` is rejected as a target for the same reason). The section ships **empty**: Git reads are deliberately absent, since the validated-read fast path already allows them everywhere and a pattern here would only re-grant the shapes that validator refused (`--no-index`, `difftool -x`); and the site build is absent because `jekyll build` cleans its destination, which can be set from `_config.yml` — an ordinary component file the agent edits — so no glob can make it safe, and `ws build` resolving the effective destination is the fix. `git checkout`/`git switch` get no pattern either, their discard forms being indistinguishable from switching branch by a glob; branch *creation* is parsed directly instead (`git checkout -b <name>`, single ordinary name, no start-point/`-f`/pathspec), because a sandbox cannot open a pull request without it. Read from the environment rather than a workspace file, which an agent could write. Tier 2 redirects still apply, so wrapped verbs cannot be reached through it (#158).
+- **Sandboxed workspaces — the [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) companion component** (optional, fetched separately). A Docker image running a supervised chat-driven agent scoped to one component: subscription auth, scope by absence, an identity that can open pull requests but never merge, and decisions asked in chat as outcomes rather than tool prompts. See the [features tour](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
+- **Headless permission mode** — with `GDD_SANDBOX=<component>` set, a prompt nobody can answer resolves as a deny instead of hanging the session, and `[headless-allow]` names what may run unreviewed: committed policy only, scoped to that component, shipping empty. See the [hook README](.claude/hooks/README.md) (#158).
+- **CI for the workspace itself** — full bats suite on Ubuntu per push/PR, plus a weekly serial Windows Git Bash job (#147).
+- **The Apache-2.0 LICENSE**, scoped to the workspace itself (#147).
+- **`ws test` parallelizes itself** when `rush` or GNU `parallel` is on PATH — ~1,000 tests in 1:10 rather than 3:48, serial and unchanged otherwise (#144).
+- **`ws cr` refuses a stale base**, naming the rebase commands; `--stale-base-ok` covers deliberately stacked reviews (#142).
+- **`ws cr` reminds you about the changelog** when a branch touches none and the repository keeps one — advisory, never blocking. The [branch-workflow skill](.agent/skills/gdd-branch-workflow/SKILL.md) carries the same step.
+- **`ws hoard lock`** — refresh verified checksums for a hoard's pinned plugin assets; upgrades gained preview-then-apply, and Obsidian vaults gained Project and Area notes (#148).
+- **`ws orient --check`** — orient's adapter pointers with an exit code, so realm-doc drift can be caught on a schedule. Plain `ws orient` stays exit-zero.
+- **Change-note budgets** in the commit/CR/issue templates, with a `style.changeNotes` ecosystem knob (`terse` | `standard` | `detailed`) surfaced by `ws orient` (#138).
+- **Case studies** — `docs/gdd/samples/` becomes [`docs/gdd/case-studies/`](docs/gdd/case-studies/) (#138), now carrying three long-form studies with the addition of [module attribution in Terasology](docs/gdd/case-studies/terasology-module-attribution.md).
+- **Scoped kubectl dry-runs pass the guard** — `--dry-run=client|server` is no longer classified as the write it never performs (#156).
+
+### Changed
+
+- **Docs entry points reorganized** — philosophy on its own page, the index leading with what GDD does, getting-started flattened, stale IDE guidance removed (#138); a length pass across docs and skills followed (#140).
+- **Hook Tier 1 reads quoted spans as data**, removing 85 false-positive asks in a day — mostly regex inside `grep` patterns — with committed `bash -c` / `sh -c` ask entries as the compensating control (#138).
+- **`ws exec` no longer reaches past the verbs it wraps** — the wrapped forms of `git commit` / `git push` / `gh pr create` deny like the raw ones, and review reading routes back through `ws review` (#156).
+- **`gh repo fork` redirects to `ws clone-fork`**, which gained `--url <source> --add-to-ecosystem` for adopting an undeclared component in one step (#138).
+- **The line-wrap guard covers `docs/gdd/` and skills**, with a shrink-only grandfather list for legacy-wrapped files (#142).
+
+### Fixed
+
+- The Kubernetes write floor stops false-asking on first-party `scripts/` files that merely carry `kubectl` as data (#142).
+- An `[audit-acknowledged]` section in `hook-rules.local` no longer abandons the rest of the file, silently dropping the `[allow-extras]` patterns after it (#156).
+- `ws clone-fork` creates renamed GitLab forks instead of ignoring a configured fork slug (#136).
+
+### Security
+
+A sustained review-driven hardening pass (#145, #146, #148, #149, #150), tightening the boundaries where external input becomes consequential:
+
+- Ambiguous target names error instead of resolving by precedence, so a command cannot reach the wrong checkout (#149).
+- Terminal control sequences are neutralized in provider output and realm trust summaries, malformed payloads included (#146, #149).
+- The Kubernetes guard rejects unsafe wrappers, shell expansions, constructed commands and ambiguous option shapes (#146).
+- Credential handling is centralized across clone/pull/push/review with host-scoped isolation; environment files load as literal data on the validation path too (#146, #150).
+- Pushes are restricted to exact local branches or tags; clone and component-template identity validation tightened (#145).
+- Hoard plugin downloads are checksum-verified before installation (#148).
+- `ws audit-permissions` detects wildcard breadth and privilege-escalation shapes it previously missed (#145).
 
 ## [1.0.0] - 2026-07-21
 
