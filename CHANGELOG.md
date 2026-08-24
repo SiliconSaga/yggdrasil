@@ -6,6 +6,8 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-24
+
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
 
 ### Added
@@ -144,5 +146,6 @@ A sustained review-driven hardening pass (#145, #146, #148, #149, #150), tighten
 
 The workspace evolved through roughly five waves, each anchored by design docs in `docs/plans/`: (1) the `ws` CLI extraction and provider abstraction (PRs ≤ #42); (2) realms, hoards, and component templates (#43–#46); (3) permissions, hook tiers, and skill hygiene (#47–#52, #61, #64, #71–#72); (4) the scribe role, vaults, organization stack, and hoard-upgrade machinery (#53–#76); (5) orientation, attribution, and the GA-readiness push (#83–#96).
 
-[Unreleased]: https://github.com/SiliconSaga/yggdrasil/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/SiliconSaga/yggdrasil/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/SiliconSaga/yggdrasil/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SiliconSaga/yggdrasil/releases/tag/v1.0.0
