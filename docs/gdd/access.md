@@ -102,7 +102,45 @@ When in doubt about whether a token covers an operation, run `ws diagnose <compo
 
 ---
 
-## 5. Multi-provider workflows
+## 5. Privilege inversion
+
+Ordinarily, more trust buys more access. For agents the relationship runs the other way: **the more a human can break, the less their agent should hold.**
+
+The claim is counterintuitive enough to be worth stating twice, because the instinct is that a core maintainer — who has earned broad access — should be able to hand their agent broad access too. Two things argue against it:
+
+- **Blast radius.** A maintainer's token can write to the main organisation. An agent driving that token inherits all of it: pushes to protected branches, closes, merges. A first-time contributor's agent cannot do any of that, because their human cannot. The agent with the most authority is therefore attached to the human least likely to be supervised.
+- **Social weight.** A comment from an organisation owner carries more force than one from a stranger. A misattributed agent voice — see [agent-communication.md](agent-communication.md) — does proportionally more damage from the more privileged account, because more readers take it as settled.
+
+This generalises the argument §1 already makes. That section justifies separate identities partly on the grounds that "compromise of the agent token is bounded"; privilege inversion extends the same reasoning from *compromise* to *authority*. The token does not have to leak to cause harm. It only has to be used confidently.
+
+The practical shape: as human access widens, push agent activity further toward a fork group operated by a machine user. Topic branches in the fork, pull requests and issues inbound, no merges and no closes. The maintainer keeps their own broad access for the things only a human should be doing with it.
+
+**Enforcement here is human, and this document will not pretend otherwise.** The mechanical version — preventing an organisation owner from minting an agent-usable token that carries main-org write — appears to need paid platform tiers. Until that is available, privilege inversion is upheld by agreement and by review, which is a real control but a different kind of one than a scope check.
+
+---
+
+## 6. Shared versus individual machine accounts
+
+A community running several agent-driving maintainers has two workable identity models:
+
+- **One shared machine account**, holding write access only to the fork group. Often named for the project rather than a person, which reinforces that it is infrastructure.
+- **Individual machine accounts**, one per maintainer, each added to a robot team in that group.
+
+Both are legitimate. The shared model is easier to administer and makes the "this is not a person" reading immediate; the individual model keeps attribution trivial.
+
+That last point is the shared model's non-obvious cost. **Under a shared identity, "who drove this?" is answerable only from what the content itself carries.** Two things carry it today: the `Co-Authored-By` trailer on commits, and the disclaimer line on change-request and issue bodies. Neither reaches review replies or issue comments — and those are exactly where dispositions get typed. A shared account posting there produces comments attributable to no one in particular.
+
+Yggdrasil [#141](https://github.com/SiliconSaga/yggdrasil/pull/141) extends attribution to replies and comments. Until it lands, prefer individual machine accounts, or accept that reply-level attribution is missing and say so where the policy is written down.
+
+Machine accounts themselves are permitted by the major platforms. The part that strains platform terms is **credential sharing** — which is also, and not coincidentally, what erodes accountability.
+
+**A GitHub App is the better destination on both counts.** An App posts under a platform-rendered bot marker that nobody can forge, which makes legibility structural rather than conventional — the property the stale-issue bot has for free, and the one a disclaimer only approximates. It also authenticates with short-lived installation tokens scoped to chosen repositories, so the fork-group boundary is enforced by the platform instead of by everyone remembering. The cost is authentication machinery GDD does not currently have: `.env` personal access tokens today, versus JWT signing and an installation-token exchange. It is on the roadmap rather than in the box.
+
+Platform terms change, and this document is not legal advice. Read the current terms for your provider before standardising on a shared identity.
+
+---
+
+## 7. Multi-provider workflows
 
 The workspace is provider-agnostic. A component on GitHub uses `GH_TOKEN`; a component on GitLab uses `GITLAB_TOKEN`; a self-hosted Forgejo or Gitea instance uses whatever variable you map under `defaults.gitTokens` in the realm or local config.
 
@@ -194,7 +232,7 @@ Running `ws diagnose <comp>` before the first push to a new component reveals mi
 
 ---
 
-## 6. Diagnostics: `ws diagnose`
+## 8. Diagnostics: `ws diagnose`
 
 When an operation fails for what looks like an access reason, run:
 
@@ -214,7 +252,7 @@ If `ws diagnose` shows ✗ for token coverage, token-dependent operations (HTTPS
 
 ---
 
-## 7. Future direction: scope-templated PATs
+## 9. Future direction: scope-templated PATs
 
 Today's pattern asks the human to manually create a PAT with the right scopes. A future improvement is workflow-aware scope templates — "workflow A needs scopes X+Y; workflow B needs X+Z" — surfaced as `ws diagnose` recommendations or `ws auth setup` interactive flows. Not implemented in v1; tracked under the "onboarding and identity" design doc.
 

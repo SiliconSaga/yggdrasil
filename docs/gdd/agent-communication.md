@@ -62,7 +62,7 @@ A board is not required. Labels or a triage milestone do the same job. What is r
 
 GDD does not set these. A three-person project and a thousand-contributor international one have genuinely different right answers, and the cost of choosing wrong is paid entirely by the project, not by the framework. The settings below are starting points to copy and edit, not a ladder to climb.
 
-Privilege inversion is the least familiar of the four and is covered in [access.md](access.md#privilege-inversion): the short version is that agent access should *narrow* as the driving human's access widens, because both blast radius and social weight scale with it.
+Privilege inversion is the least familiar of the four and is covered in [access.md](access.md), under "Privilege inversion": the short version is that agent access should *narrow* as the driving human's access widens, because both blast radius and social weight scale with it.
 
 ## Three flavors
 
