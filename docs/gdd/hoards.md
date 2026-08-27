@@ -80,6 +80,40 @@ The check itself runs as `ws hoard cadence` and reports a status line (`clean`, 
 
 ---
 
+## Frontmatter lint — `ws hoard lint`
+
+```bash
+ws hoard lint            # the active thalami hoard
+ws hoard lint thalami    # a named one
+```
+
+Checks every `*-thalamus.md` in the hoard — all hosts, not just this machine's — for the things the [arc schema](../plans/2026-05-07-thalamus-arc-dashboard-design.md) requires and nothing else enforces:
+
+- the frontmatter block parses as YAML at all
+- each arc carries `id`, `name`, `status`, `started`, `last_touched`, `next`
+- `status` is one of `active`, `review`, `parked`, `closed`, `promoted`
+- `next` is a single line under `WS_ARC_NEXT_MAX` characters (default 200)
+
+Output is `key: value` lines plus one line per finding, the same greppable shape as `ws hoard cadence`. It exits **0** when clean, **1** when it has findings, and **2** on a tooling failure — so a caller that only wants a warning should read the `status:` line rather than the exit code.
+
+**Why it exists.** The arc schema had three enforcement layers — the schema block in `ArcDashboard.md`, the rules in `gdd-housekeeping`, the narration step in `gdd-orientation` — and all three were prose. Nothing parsed the YAML, which made one failure mode completely silent: the dashboard selects files with `WHERE arcs`, and a file whose frontmatter fails to parse simply stops matching. Every arc on that host vanishes from the cross-host view while the file still reads perfectly to a human or an agent, and it stays that way until somebody notices the row count looks low. The usual cause is an unescaped `"` inside a quoted `next:` value, which closes the scalar early and takes the whole document with it.
+
+`gdd-orientation` runs it at session start as a warning; `gdd-housekeeping` runs it at the top of the arc walk. Both are advisory — the lint never edits anything.
+
+Since `ws lint` accepts hoard names too, a realm that wants the reflex verb to work on a thalami hoard can point its adapter at this command:
+
+```yaml
+# realms/<realm>/adapters/<hoard-name>.yaml
+commands:
+  lint: "ws hoard lint <hoard-name>"
+```
+
+That is optional sugar — `ws hoard lint` works with no adapter at all.
+
+**On `last_touched`.** The lint checks the field is present, but only you can tell whether it is *true*. It is the input to the dashboard's decay icons and to housekeeping's stale-arc check, and nothing computes it — so the convention is that whoever edits an arc stamps it in the same edit. An unstamped edit leaves a moving arc looking abandoned, which is worse than no signal because the dashboard is trusted.
+
+---
+
 ## Multi-machine workflows
 
 The standard pattern with a thalami hoard across machines:
@@ -139,5 +173,6 @@ Each new type ships as a `templates/hoards/<type>/` directory with its own scaff
 - [Thalamus](thalamus.md) — the thinking-space concept the thalami type is built around.
 - [Trust and Safety](trust-and-safety.md) — hoards' trust level (your own content, equivalent to your other instructions).
 - [Roles and Stances](roles-and-stances.md) — the role and stance concepts that sessions are configured with.
-- [`gdd-orientation` skill](../../.agent/skills/gdd-orientation/SKILL.md) — how the startup sequence resolves the thalamus and reacts to `ws hoard cadence`.
-- [`gdd-housekeeping` skill](../../.agent/skills/gdd-housekeeping/SKILL.md) — multi-thalami review process.
+- [`gdd-orientation` skill](../../.agent/skills/gdd-orientation/SKILL.md) — how the startup sequence resolves the thalamus and reacts to `ws hoard cadence` and `ws hoard lint`.
+- [`gdd-housekeeping` skill](../../.agent/skills/gdd-housekeeping/SKILL.md) — multi-thalami review process, including the arc walk that `ws hoard lint` feeds.
+- [Arc Dashboard design doc](../plans/2026-05-07-thalamus-arc-dashboard-design.md) — the arc lifecycle and schema the lint enforces.
