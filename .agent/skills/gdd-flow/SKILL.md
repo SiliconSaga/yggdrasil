@@ -62,6 +62,10 @@ If the user declines, capture the tangent as a normal Observations entry (the ex
 
 `arcs:` is the dashboard projection — keep `next:` short and free of sensitive operational detail (URLs of internal tools, credentials, identifying detail about people). Keep the rich context in the body.
 
+**Whenever you edit an arc, stamp its `last_touched` to today in the same edit.** That includes rewriting `next:`, flipping `status:`, and adding body context under the slug — not arcs you only read. Nothing computes this field, and both the ArcDashboard's decay icons and housekeeping's stale-arc check depend on it, so an unstamped edit leaves a moving arc looking abandoned.
+
+Two habits keep `next:` renderable, both learned from arcs that drifted: it is one line of **10–20 words**, and it is a *next step*, not a status report. The moment it starts accumulating "DONE X, then Y, OLD NOTE: …" it has become a status dump — move that history into the body and leave the pointer. Quote the value and avoid embedding a `"` inside it; an unescaped quote closes the YAML scalar early and takes the **whole file's** frontmatter down with it, silently removing every arc on that host from the dashboard. `ws hoard lint` catches all three.
+
 ## Multi-Agent and Multi-Workspace
 
 Flow is the natural stance for a human overseeing parallel work:

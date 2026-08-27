@@ -7,6 +7,7 @@
 #                               (template defaults to 'thalami')
 #   <git-url>                   Clone an existing hoard from a git URL
 #   list                        Show hoards and which thalami hoard is active
+#   lint [hoard]                Validate thalamus frontmatter / arc schema
 #
 # Templates ship under templates/hoards/<name>/.
 # Currently shipped: thalami.
@@ -348,6 +349,10 @@ ws_hoard_help() {
     echo "                           flavor (thalami / obsidian)" >&2
     echo "  cadence                  Report dirty/staleness of the active per-machine" >&2
     echo "                           thalamus file (used by gdd-orientation Step 0a)" >&2
+    echo "  lint [hoard]             Validate thalamus frontmatter across a thalami" >&2
+    echo "                           hoard: does it parse, do arcs carry the required" >&2
+    echo "                           keys, is 'next' short enough to render. Defaults" >&2
+    echo "                           to the active hoard. Exit 1 on findings." >&2
     echo "  thalamus-path            Print the resolved path to the active per-machine" >&2
     echo "                           thalamus file (empty if no active hoard)" >&2
     echo "  upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]" >&2
@@ -495,6 +500,195 @@ ws_hoard_cadence() {
     echo "elapsed_hours: $elapsed_hours"
     echo "threshold_days: $threshold_days"
     echo "last_commit_unix: $last_commit_ts"
+}
+
+# Maximum `next:` length before we warn. The documented rule in
+# gdd-housekeeping is "~10-20 words"; 200 characters is the generous
+# end of that, chosen from the real distribution across a 64-arc
+# thalami hoard (median 116, and the arcs that breach 200 are the ones
+# that had visibly rotted into status dumps rather than next steps).
+: "${WS_ARC_NEXT_MAX:=200}"
+
+# Arc statuses the ArcDashboard's decay model knows how to render.
+# An unrecognized value falls through every `choice()` branch and
+# renders as the catch-all icon, which reads as "promoted" — a
+# silently wrong row rather than a missing one.
+WS_ARC_STATUSES=(active review parked closed promoted)
+
+# Extract the leading `---` frontmatter block of a markdown file to
+# stdout. Returns 1 when the file has no frontmatter at all (first
+# line is not `---`), which callers report differently from a block
+# that exists but fails to parse.
+ws_extract_frontmatter() {
+    awk '
+        NR == 1 && $0 != "---" { exit 1 }
+        NR == 1 { next }
+        $0 == "---" { found = 1; exit }
+        { print }
+        END { if (!found) exit 1 }
+    ' "$1"
+}
+
+# Lint the thalamus frontmatter in a thalami hoard.
+#
+# This exists because the arc schema had three enforcement layers —
+# the schema block in ArcDashboard.md, the rules in gdd-housekeeping,
+# and the narration step in gdd-orientation — and none of them was
+# code. Nothing ever parsed the YAML, so the failure mode was silent:
+# a thalamus whose frontmatter does not parse simply stops matching
+# the dashboard's `WHERE arcs`, and every arc on that host disappears
+# from the cross-host view without anything reporting a problem. An
+# agent reading the same file by eye does not notice, because prose
+# degrades gracefully where a parser fails hard.
+#
+# Output is `key: value` lines plus indented per-finding lines, in the
+# same greppable shape as `ws hoard cadence`.
+#
+# Exit status:
+#   0  no findings
+#   1  findings (callers that only want a warning read `status:`)
+#   2  tooling failure — could not run at all
+ws_hoard_lint() {
+    local hoard_arg=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                echo "Usage: ws hoard lint [hoard]" >&2
+                echo "" >&2
+                echo "Validate thalamus frontmatter in a thalami hoard:" >&2
+                echo "  - the frontmatter block parses as YAML at all" >&2
+                echo "  - each arc carries id/name/status/started/last_touched/next" >&2
+                echo "  - status is one of: ${WS_ARC_STATUSES[*]}" >&2
+                echo "  - next is a single line under \$WS_ARC_NEXT_MAX chars" >&2
+                echo "    (currently $WS_ARC_NEXT_MAX)" >&2
+                echo "" >&2
+                echo "Defaults to the active thalami hoard." >&2
+                echo "Exit: 0 clean, 1 findings, 2 tooling failure." >&2
+                return 0
+                ;;
+            -*)
+                echo "ERROR: unknown flag for 'ws hoard lint': $1" >&2
+                return 2
+                ;;
+            *)
+                if [[ -n "$hoard_arg" ]]; then
+                    echo "ERROR: 'ws hoard lint' takes at most one hoard name." >&2
+                    return 2
+                fi
+                hoard_arg="$1"
+                ;;
+        esac
+        shift
+    done
+
+    local hoard="$hoard_arg"
+    if [[ -z "$hoard" ]]; then
+        hoard="$(ws_detect_thalami_hoard)"
+        if [[ -z "$hoard" ]]; then
+            echo "status: no-active-hoard"
+            return 0
+        fi
+    fi
+
+    local hoard_path="$HOARDS_DIR/$hoard"
+    if [[ ! -d "$hoard_path" ]]; then
+        echo "ERROR: no such hoard: $hoard (looked in $HOARDS_DIR)" >&2
+        return 2
+    fi
+
+    shopt -s nullglob
+    local files=("$hoard_path"/*-thalamus.md)
+    shopt -u nullglob
+
+    if [[ ${#files[@]} -eq 0 ]]; then
+        echo "status: no-thalamus-files"
+        echo "hoard: $hoard"
+        return 0
+    fi
+
+    local fm findings=0 arcs_total=0 files_bad=0
+    fm="$(mktemp)" || { echo "ERROR: could not create temp file." >&2; return 2; }
+    # shellcheck disable=SC2064  # expand $fm now, not at trap time
+    trap "rm -f '$fm'" RETURN
+
+    local f base err n i id key value next_len next_lines status
+    for f in "${files[@]}"; do
+        base="$(basename "$f")"
+
+        if ! ws_extract_frontmatter "$f" >"$fm"; then
+            echo "$base: no frontmatter block"
+            findings=$(( findings + 1 ))
+            files_bad=$(( files_bad + 1 ))
+            continue
+        fi
+
+        # The whole-document check. A parse failure here is the severe
+        # case: it takes every arc in the file off the dashboard, not
+        # just the field that broke.
+        if ! err="$(yq '.' "$fm" 2>&1 >/dev/null)"; then
+            echo "$base: YAML PARSE FAILURE — every arc in this file is invisible to the dashboard"
+            echo "    $(head -1 <<<"$err")"
+            findings=$(( findings + 1 ))
+            files_bad=$(( files_bad + 1 ))
+            continue
+        fi
+
+        n="$(yq '.arcs // [] | length' "$fm" 2>/dev/null)" || n=0
+        [[ "$n" =~ ^[0-9]+$ ]] || n=0
+        arcs_total=$(( arcs_total + n ))
+        [[ "$n" -eq 0 ]] && continue
+
+        for (( i = 0; i < n; i++ )); do
+            id="$(yq ".arcs[$i].id // \"\"" "$fm" 2>/dev/null)"
+            [[ -z "$id" || "$id" == "null" ]] && id="(arc #$i, no id)"
+
+            for key in id name status started last_touched next; do
+                value="$(yq ".arcs[$i].$key // \"\"" "$fm" 2>/dev/null)"
+                if [[ -z "$value" || "$value" == "null" ]]; then
+                    echo "$base: $id: missing required key: $key"
+                    findings=$(( findings + 1 ))
+                fi
+            done
+
+            status="$(yq ".arcs[$i].status // \"\"" "$fm" 2>/dev/null)"
+            if [[ -n "$status" && "$status" != "null" ]]; then
+                local known=0 s
+                for s in "${WS_ARC_STATUSES[@]}"; do
+                    [[ "$status" == "$s" ]] && known=1 && break
+                done
+                if [[ "$known" -eq 0 ]]; then
+                    echo "$base: $id: unknown status '$status' (expected: ${WS_ARC_STATUSES[*]})"
+                    findings=$(( findings + 1 ))
+                fi
+            fi
+
+            value="$(yq ".arcs[$i].next // \"\"" "$fm" 2>/dev/null)"
+            if [[ -n "$value" && "$value" != "null" ]]; then
+                next_len="${#value}"
+                next_lines="$(grep -c '' <<<"$value")"
+                if [[ "$next_lines" -gt 1 ]]; then
+                    echo "$base: $id: next spans $next_lines lines; the dashboard renders it as one table cell"
+                    findings=$(( findings + 1 ))
+                fi
+                if [[ "$next_len" -gt "$WS_ARC_NEXT_MAX" ]]; then
+                    echo "$base: $id: next is $next_len chars (max $WS_ARC_NEXT_MAX) — move the detail into the body and leave a one-liner"
+                    findings=$(( findings + 1 ))
+                fi
+            fi
+        done
+    done
+
+    echo "hoard: $hoard"
+    echo "files: ${#files[@]}"
+    echo "arcs: $arcs_total"
+    echo "findings: $findings"
+    if [[ "$findings" -eq 0 ]]; then
+        echo "status: ok"
+        return 0
+    fi
+    echo "unparseable_files: $files_bad"
+    echo "status: findings"
+    return 1
 }
 
 # Init a hoard from a template that uses `template.yaml` for clone-on-init
@@ -1022,6 +1216,9 @@ case "$SUBCMD" in
         ;;
     cadence)
         ws_hoard_cadence
+        ;;
+    lint)
+        ws_hoard_lint "$@"
         ;;
     thalamus-path)
         # Echo the resolved path or empty if no active hoard. The
