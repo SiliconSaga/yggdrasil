@@ -6,6 +6,15 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Added
+
+- **`ws hoard lint`** — validates thalamus frontmatter across every host in a thalami hoard: that the block parses at all, that each arc carries the required keys, that `status` is one the dashboard can render, and that `next` is a single line short enough for its table cell (`WS_ARC_NEXT_MAX`, default 200). Reports in the `key: value` shape of `ws hoard cadence`; exits 0 clean, 1 on findings, 2 on tooling failure. `gdd-orientation` runs it as a session-start warning and `gdd-housekeeping` at the head of its arc walk. See [hoards.md](docs/gdd/hoards.md#frontmatter-lint--ws-hoard-lint).
+
+### Fixed
+
+- **A thalamus with unparseable frontmatter no longer fails silently.** The Arc Dashboard selects files with `WHERE arcs`, so a file whose frontmatter does not parse simply stops matching — every arc on that host vanishes from the cross-host view while the file still reads correctly to a human or an agent. The arc schema had three enforcement layers and all three were prose; nothing had ever parsed the YAML. `ws hoard lint` reports it, and treats it as the severe case rather than as a missing field.
+- **`last_touched` is now written, not just read.** It feeds the dashboard's decay icons and housekeeping's stale-arc check, and no skill instructed anyone to maintain it. `gdd-flow` and `gdd-orientation` now say to stamp it in the same edit that touches an arc — a wrong freshness signal is worse than an absent one.
+
 ## [1.1.0] - 2026-08-24
 
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
