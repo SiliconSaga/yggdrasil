@@ -122,3 +122,32 @@ set_comms() {
     [ "$status" -eq 0 ]
     [[ "$output" != *$'\nActive realm: forged'* ]]
 }
+
+@test "ws orient: a mis-typed config value does not silently drop its layer" {
+    # Regression guard. The three fields are read in one pass, so a value of the
+    # wrong YAML type used to make yq error on `str + map`, skip the whole
+    # layer, and take the other two fields down with it — including the
+    # invalid-value note that should have warned about it.
+    yq -i '.style.changeNotes = {"nested": "value"}' "$ECOSYSTEM"
+    set_comms oss-wide
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Communication register: oss-wide"* ]]
+    [[ "$output" == *"ignoring invalid style.changeNotes"* ]]
+}
+
+@test "ws orient: a sequence value cannot truncate the fields after it" {
+    # Same pass, different failure: a multi-line value split the row across
+    # lines and the field split stopped at the first, losing everything after.
+    yq -i '.style.changeNotes = ["a", "b"]' "$ECOSYSTEM"
+    yq -i '.comms.snippet = "still here"' "$ECOSYSTEM"
+    set_comms solo
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Communication register: solo"* ]]
+    [[ "$output" == *"Local addition: still here"* ]]
+}
