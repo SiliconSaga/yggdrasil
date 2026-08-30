@@ -1,6 +1,6 @@
 # Agent Communication and Access Restraint Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** with [Superpowers](https://github.com/obra/superpowers) installed, `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` will drive this plan task-by-task. Without it, work the tasks in order by hand — the steps are self-contained, and `AGENTS.md` records this as the expected degradation rather than a blocker. Steps use checkbox (`- [ ]`) syntax for tracking either way.
 
 **Goal:** Ship the documentation, configuration surface, and session-start visibility that let a project decide how its agents speak in public and how far agent access is restrained, with SiliconSaga adopting the strictest setting as a worked example.
 

@@ -577,7 +577,10 @@ emit_active_realm() {
 # full merge recomputes the realm trust fingerprint and spawns several yq
 # processes, enough to push trusted-realm orient runs over the smoke timeout on
 # slow hosts. The realm layer only counts when its trust state was resolved as
-# current (cached by emit_active_realm), matching ws_resolve_ecosystem's gate.
+# current. That resolution happens in _resolve_orient_realm, which runs before
+# any reader — the register renders above emit_active_realm, so leaving the
+# fingerprint to that renderer would drop the realm layer for everything printed
+# earlier. Same gate as ws_resolve_ecosystem, without depending on render order.
 _ws_orient_config_layers() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     local base="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
@@ -612,7 +615,14 @@ _ws_orient_read_config() {
         # value one position left, silently reading the register as the
         # change-note style. @tsv escapes embedded tabs and newlines, so the
         # sentinel is the only thing missing to make the split total.
-        row="$(yq -r '["x" + (.style.changeNotes // ""), "x" + (.comms.flavor // ""), "x" + (.comms.snippet // "")] | @tsv' "$f" 2>/dev/null)" || continue
+        # tostring before the sentinel concat, and newlines collapsed after it.
+        # Without tostring, a non-string value — `changeNotes:` given a map, say
+        # — makes yq error on `str + map`, the `|| continue` below skips the
+        # whole layer, and all three fields vanish silently along with the
+        # invalid-value note that should have warned about it. Without the
+        # newline collapse, a sequence value spreads the row over several lines
+        # and the split below silently truncates at the first.
+        row="$(yq -r '["x" + ((.style.changeNotes // "") | tostring), "x" + ((.comms.flavor // "") | tostring), "x" + ((.comms.snippet // "") | tostring)] | map(sub("\n"; " ")) | @tsv' "$f" 2>/dev/null)" || continue
         IFS=$'\t' read -r c_notes c_flavor c_snippet <<< "$row"
         c_notes="${c_notes#x}"
         c_flavor="${c_flavor#x}"
