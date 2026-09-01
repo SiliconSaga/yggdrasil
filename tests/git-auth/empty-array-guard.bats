@@ -39,7 +39,13 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     cat > "$probe" <<'BASH'
 #!/bin/bash
 printf 'value=%s\n' "${AUTH_PROBE_SECRET:-missing}"
-ps -o command= -p "$PPID"
+# Parent argv via procfs where available (MSYS ps lacks -o), else ps.
+if [[ -r "/proc/$PPID/cmdline" ]]; then
+    tr '\0' ' ' < "/proc/$PPID/cmdline"
+    printf '\n'
+else
+    ps -o command= -p "$PPID"
+fi
 BASH
     chmod +x "$probe"
     source "$REPO_ROOT/scripts/git-auth.sh"

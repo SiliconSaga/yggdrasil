@@ -206,6 +206,9 @@ EOF
 @test "bats backend watchdog kills a TERM-ignoring ordinary descendant" {
     export TERM_IGNORING_CHILD_PID_FILE="$BATS_TEST_TMPDIR/term-ignoring-child.pid"
     write_term_ignoring_child_backend rush
+    # The auto path only probes when a lock helper exists; hosts without
+    # flock/shlock (Git Bash) need the stub or the probe never runs.
+    write_lock_helper shlock
 
     run_ws_test yggdrasil
 
@@ -245,6 +248,7 @@ EOF
 @test "bats runner prefers a compatible rush backend" {
     write_compatible_backend rush
     write_compatible_backend parallel
+    write_lock_helper shlock
 
     run_ws_test yggdrasil
 
@@ -255,6 +259,7 @@ EOF
 
 @test "bats runner falls back to compatible GNU parallel" {
     write_compatible_backend parallel
+    write_lock_helper shlock
 
     run_ws_test yggdrasil
 
@@ -306,6 +311,7 @@ EOF
 
 @test "bats runner falls back to four jobs when CPU probes are invalid" {
     write_compatible_backend rush
+    write_lock_helper shlock
     write_invalid_cpu_probes
 
     run_ws_test yggdrasil
@@ -326,6 +332,7 @@ EOF
 
 @test "bats runner parallelizes a directory containing multiple test files" {
     write_compatible_backend rush
+    write_lock_helper shlock
 
     run_ws_test yggdrasil tests
 
@@ -336,7 +343,8 @@ EOF
 
 @test "bats recursive file counting suppresses symlink-loop diagnostics" {
     write_compatible_backend rush
-    ln -s . "$ROOT_DIR/tests/ws-bats-self-loop"
+    ln -s . "$ROOT_DIR/tests/ws-bats-self-loop" 2>/dev/null || true
+    [[ -L "$ROOT_DIR/tests/ws-bats-self-loop" ]] || skip "real symlinks not supported on this platform"
     write_noisy_recursive_find
 
     run --separate-stderr bash "$WS_TEST_BIN" yggdrasil --recursive tests

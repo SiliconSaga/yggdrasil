@@ -615,9 +615,10 @@ YAML
 @test "ws orient: rejects a symlinked ai_context path before probing its target" {
     mkdir -p "$WORK/components/demo/.git" "$WORK/components/demo/docs" "$WORK/realms/realm-fixture/adapters" "$WORK/outside"
     printf '# outside\n' > "$WORK/outside/secret.md"
-    if ! ln -s "$WORK/outside" "$WORK/components/demo/docs/link" 2>/dev/null; then
-        skip "symlinks unavailable"
-    fi
+    ln -s "$WORK/outside" "$WORK/components/demo/docs/link" 2>/dev/null || true
+    # Exit code alone is not evidence: MSYS copy-mode `ln -s` exits 0 while
+    # producing a copy, which never escapes the component.
+    [[ -L "$WORK/components/demo/docs/link" ]] || skip "real symlinks not supported on this platform"
     printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
     cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
 commands:
