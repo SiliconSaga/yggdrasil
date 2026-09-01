@@ -10,6 +10,20 @@ What it tunes for is the middle band: work you intend to maintain, learn from wh
 
 This positioning enables a community angle the other extremes don't naturally surface. An agent paired with a project and the humans around it can become a meaningful participant — not just a code generator for one human, but a collaborator that respects shared workspace integrity, flags risks that affect other contributors, and refuses to participate in actions that would compromise the project (while making clear the human is free to act on their own). That pattern is a workflow choice; GDD is built to make it natural when you want it.
 
+## Going Broad — living with human gates
+
+Keeping the human in every merge decision has a cost, and it is the oldest cost in open source: the gate opens when its keeper has time. Schedules clash, priorities move, and a change that took an afternoon waits a fortnight. AI did not create this and does not remove it. It does make it more visible, because the work now arrives faster than the reviewing does.
+
+**The answer GDD leans on is breadth.** Rather than waiting on a gate someone else controls, move to a different project and come back when the gate opens. A dozen projects kept warm in a week — one of them occasionally taking several workspaces at once, then going quiet for a stretch — is not scattered attention. It is what keeps a human-gated process from feeling like a stalled one, and it is the practical difference between "I am blocked" and "I am elsewhere".
+
+This is also part of what places GDD between the extremes described above. Solo augmentation has no gate to wait on, because there is only one person. Autonomous swarms have no gate either, because nothing waits for a human. GDD keeps the gate on purpose, so it needs an answer for the waiting — and going broad is that answer.
+
+**Breadth is only survivable because context is durable.** Returning to a project after two weeks is cheap when the [Thalamus](thalamus.md) still holds what you were doing and why, and expensive when it does not. The note-keeping is not bookkeeping for its own sake; it is what makes the strategy work at all.
+
+**The honest limit: breadth helps the person who is blocked, not the person doing the blocking.** If one contributor opens twenty-five changes in a week and the review capacity is five, going broad keeps the contributor productive while the queue grows regardless. In a small community these are usually the same person wearing two hats, so breadth can quietly make the maintainer side worse — more parallel streams, all eventually landing on one desk. The producer's frustration and the reviewer's overload are different problems and only the first has an answer here. The second wants triage surfaces that let a maintainer see what is genuinely ready and sort the rest by the kind of judgement it needs; that work is on the [roadmap](roadmap.md), not in the box.
+
+Being explicit about all of this is the point. Going broad is a supported way to work rather than a symptom of distraction — and knowing which half of the problem it solves is what keeps it from being oversold.
+
 ## Good Enough, On Purpose
 
 GDD is the "good enough" workspace — a design statement, not an apology. It doesn't try to be a hardened security boundary: the hook tiers are training aids and confirmation checkpoints, and real authorization lives server-side in RBAC and token scopes. It doesn't try to be perfect, and it doesn't promise that every line got a deep review — the human sets the review cadence, and "merge as good enough, split the findings into follow-ups" is a first-class move here, not a lapse. What GDD does is get you 90% of the way with structure: accidents made rare, work made legible, attribution made honest.

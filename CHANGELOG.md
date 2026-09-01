@@ -6,6 +6,15 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Added
+
+- **[Agent communication](docs/gdd/agent-communication.md)** — the four decisions a project makes about how its agents speak in public (identity, register, disposition authority, privilege inversion), three copyable settings for different community shapes, and the argument that a machine account beats a disclaimer: identity renders on every comment, a disclaimer is one sentence a reader can skip. GDD names the questions and leaves the answers to the project.
+- **`comms.flavor` and `comms.snippet`** — the answers, rendered by `ws orient` above everything else, because the register governs what the agent writes for the rest of the session. Unset renders as a prompt to decide rather than as silence, so the question keeps appearing until someone settles it. `comms.snippet` is the local override, restated every session so it can never be quietly in force.
+
+### Changed
+
+- **[access.md](docs/gdd/access.md) gained privilege inversion** — agent access should narrow as the driving human's access widens, because a maintainer's agent inherits both their blast radius and their social weight. Also records the two machine-account models and why a shared one depends on driver attribution reaching review replies.
+
 ## [1.1.0] - 2026-08-24
 
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
