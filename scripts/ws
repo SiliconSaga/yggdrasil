@@ -9,7 +9,8 @@
 #   list              List ecosystem components (tier, repo, clone status)
 #   orient            Deterministic "what can I do here?" menu — workspace
 #                     toolset + active realm + adapters + skill index
-#   status [--verbose] Git status across workspace
+#   status [--verbose] [--nested]  Git status across workspace
+#                     --nested also git-statuses repos nested inside components
 #   clone [comp|--all|--url <url> [--name N] [--add-to-ecosystem]] Clone components
 #   clone-fork <comp>  Fork-aware clone: ensure fork exists, clone fork, wire
 #                      both remotes, sync main with upstream. Idempotent.
@@ -25,7 +26,9 @@
 #   lint <comp> [args...] Run the component linter (adapter commands.lint; see 'ws actions <comp>')
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
-#   log [comp] [--oneline] Show commits on current branch vs main
+#   checkout <target> <branch> [-b|--create]  Switch/create a branch (branches only, never paths)
+#   log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]
+#                     Commits on this branch vs the trunk, or what a pull would bring in
 #   clean [--force]   Remove draft files from .issues/, .crs/, .commits/, .outputs/, .tmp/ (holds off below the mining threshold unless --force)
 #   k8s scope set|show|clear / k8s <args>   Guarded kubectl: prevalidate context + namespace
 #   docker <args>     Run docker with Windows/MSYS path conversion handled automatically
@@ -320,38 +323,156 @@ HELP
 }
 
 
-ws_log() {
-    # ws:use-when checking what commits are on the current branch versus main
+ws_checkout() {
+    # ws:use-when switching or creating a branch, including inside a nested repo
     # Detect --help anywhere in args.
     for _arg in "$@"; do
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
-Usage: ws log [component] [--oneline] [--limit N]
+Usage: ws checkout <target> <branch> [-b|--create]
 
-Show commits on the current branch that aren't on main.
+Switch a component, realm, hoard or nested repo to a branch.
+
+Branches only. This deliberately cannot restore paths the way `git checkout --
+<path>` does, because that silently discards working-tree changes; do that by
+hand, on purpose, when you mean it.
+
+The target accepts the same names as every other repo-touching verb, so nested
+repos work here too: `ws checkout terasology/modules/Cooking fix/x -b` branches
+the module in place, inside the tree where it actually builds.
 
 Options:
-  --oneline           One line per commit (default: full log)
-  --limit N           Show only the most recent N commits
-  --limit=N           Same; equals form also accepted
+  -b, --create        Create the branch and switch to it
 
 Examples:
-  ws log                       # yggdrasil branch vs main
-  ws log --oneline             # compact format
-  ws log --limit 5             # last 5 commits, full format
-  ws log --oneline --limit=10  # last 10, one-line each (equals form)
-  ws log mimir                 # mimir branch vs main
+  ws checkout yggdrasil main                        # the workspace root
+  ws checkout terasology fix/assets -b              # a component
+  ws checkout terasology/modules/Cooking fix/x -b   # a nested module repo
 HELP
             return 0
         fi
     done
 
-    local comp=""
-    local oneline=""
-    local limit=""
+    local create="" target="" branch=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --oneline) oneline="--oneline"; shift ;;
+            -b|--create) create="yes"; shift ;;
+            --)
+                echo "ERROR: 'ws checkout' switches branches only; it does not restore paths." >&2
+                echo "  Restoring a path discards working-tree changes. Do that with git, deliberately." >&2
+                exit 1 ;;
+            -*)
+                echo "ERROR: Unknown option '$1'" >&2
+                exit 1 ;;
+            *)
+                if [[ -z "$target" ]]; then
+                    target="$1"
+                elif [[ -z "$branch" ]]; then
+                    branch="$1"
+                else
+                    echo "ERROR: Unexpected argument '$1'." >&2
+                    echo "  Usage: ws checkout <target> <branch> [-b|--create]" >&2
+                    exit 1
+                fi
+                shift ;;
+        esac
+    done
+
+    if [[ -z "$target" || -z "$branch" ]]; then
+        echo "ERROR: ws checkout requires a target and a branch." >&2
+        echo "  Usage: ws checkout <target> <branch> [-b|--create]" >&2
+        exit 1
+    fi
+
+    # The name reaches git as an argument, never a shell word, so this is not
+    # about injection - it rejects the shapes that make a branch ambiguous with
+    # a path, which is where a typo turns into a surprising checkout.
+    if [[ "$branch" == *".."* || "$branch" == /* || "$branch" == */ ]]; then
+        echo "ERROR: Invalid branch name '$branch'." >&2
+        exit 1
+    fi
+
+    ws_resolve_target "$target"
+    cd "$COMPONENT_DIR"
+
+    # git switch, not git checkout: it has no path-restoring mode at all, so the
+    # refusal above cannot be worked around by a name that looks like a file.
+    if [[ -n "$create" ]]; then
+        git switch -c "$branch"
+    else
+        git switch "$branch"
+    fi
+}
+
+# The trunk this branch should be measured against. Order matters: what the
+# remote calls its default branch beats convention, and `develop` is in the list
+# because gitflow repos (Terasology among them) have no `main` at all — the old
+# main/master-only check hard-failed there rather than degrading.
+ws_log_detect_trunk() {
+    local remote_head candidate
+    remote_head=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null) || remote_head=""
+    if [[ -n "$remote_head" ]] && git rev-parse --verify --quiet "$remote_head" >/dev/null 2>&1; then
+        printf '%s\n' "$remote_head"
+        return 0
+    fi
+    for candidate in main master develop; do
+        if git rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+ws_log() {
+    # ws:use-when checking what commits are on a branch, incoming, or in a range
+    # Detect --help anywhere in args.
+    for _arg in "$@"; do
+        if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
+            cat <<'HELP'
+Usage: ws log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]
+
+Show commits on the current branch that aren't on the trunk.
+
+The trunk is whatever the remote calls its default branch, else the first of
+main, master, develop that exists. Pass --against to compare with something
+else, or --incoming to ask the opposite question: what does the tracked remote
+branch have that I don't?
+
+Targets accept nested repos too, so `ws log terasology/modules/Cooking` works.
+
+Options:
+  --oneline           One line per commit (default: hash, subject, age)
+  --stat              Also show the files each commit touched
+  --limit N           Show only the most recent N commits
+  --limit=N           Same; equals form also accepted
+  --against <ref>     Compare against this ref instead of the detected trunk
+  --incoming          Show what the upstream has that this branch does not
+
+Examples:
+  ws log                                  # yggdrasil branch vs its trunk
+  ws log terasology --oneline             # a component on a develop trunk
+  ws log terasology/modules/Cooking       # a nested module repo
+  ws log app --against v1.2.0 --stat      # since a tag, with files
+  ws log app --incoming                   # what a pull would bring in
+HELP
+            return 0
+        fi
+    done
+
+    local comp="" oneline="" limit="" against="" incoming="" stat=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --oneline) oneline="yes"; shift ;;
+            --stat) stat="yes"; shift ;;
+            --incoming) incoming="yes"; shift ;;
+            --against)
+                [[ $# -ge 2 ]] || { echo "ERROR: --against requires a ref" >&2; exit 1; }
+                against="$2"; shift 2 ;;
+            --against=*)
+                against="${1#--against=}"
+                [[ -n "$against" ]] || { echo "ERROR: --against requires a ref" >&2; exit 1; }
+                shift ;;
             --limit)
                 [[ $# -ge 2 ]] || { echo "ERROR: --limit requires a value" >&2; exit 1; }
                 if ! [[ "$2" =~ ^[0-9]+$ ]]; then
@@ -371,13 +492,18 @@ HELP
                 exit 1 ;;
             *)
                 if [[ -n "$comp" ]]; then
-                    echo "ERROR: Multiple components specified ('$comp' and '$1')." >&2
-                    echo "  Usage: ws log [component] [--oneline] [--limit N]" >&2
+                    echo "ERROR: Multiple targets specified ('$comp' and '$1')." >&2
+                    echo "  Usage: ws log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]" >&2
                     exit 1
                 fi
                 comp="$1"; shift ;;
         esac
     done
+
+    if [[ -n "$incoming" && -n "$against" ]]; then
+        echo "ERROR: --incoming already fixes the comparison; drop --against." >&2
+        exit 1
+    fi
 
     if [[ -n "$comp" ]]; then
         ws_resolve_target "$comp"
@@ -394,38 +520,59 @@ HELP
         exit 1
     fi
 
-    # Detect the main branch (main or master)
-    local main_branch="main"
-    if ! git rev-parse --verify main &>/dev/null; then
-        if git rev-parse --verify master &>/dev/null; then
-            main_branch="master"
-        else
-            echo "ERROR: Cannot find main or master branch." >&2
+    local base range label
+    if [[ -n "$incoming" ]]; then
+        if ! base=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || [[ -z "$base" ]]; then
+            echo "ERROR: '$branch' has no upstream, so there is nothing to be incoming from." >&2
+            echo "  Set one with: git branch --set-upstream-to <remote>/<branch>" >&2
             exit 1
         fi
-    fi
+        # Reversed on purpose: what they have that we do not.
+        range="$branch..$base"
+        label="incoming from $base"
+    else
+        if [[ -n "$against" ]]; then
+            if ! git rev-parse --verify --quiet "${against}^{commit}" >/dev/null 2>&1; then
+                echo "ERROR: --against ref '$against' does not resolve in this repo." >&2
+                exit 1
+            fi
+            base="$against"
+        elif ! base=$(ws_log_detect_trunk); then
+            echo "ERROR: Cannot find a trunk branch (looked for the remote default, then main, master, develop)." >&2
+            echo "  Compare against something explicit with: ws log ${comp:-} --against <ref>" >&2
+            exit 1
+        fi
 
-    if [[ "$branch" == "$main_branch" ]]; then
-        echo "(on $main_branch — nothing to compare)"
-        return
+        if [[ "$branch" == "$base" ]]; then
+            echo "(on $base — nothing to compare)"
+            return
+        fi
+        range="$base..$branch"
+        label="ahead of $base"
     fi
 
     local count
-    count=$(git rev-list --count "$main_branch..$branch" 2>/dev/null || echo 0)
-    echo "=== ${comp:-yggdrasil} ($branch, $count commits ahead of $main_branch) ==="
+    count=$(git rev-list --count "$range" 2>/dev/null || echo 0)
+    echo "=== ${comp:-yggdrasil} ($branch, $count commits $label) ==="
 
     if [[ "$count" -eq 0 ]]; then
-        echo "(no commits ahead of $main_branch)"
+        if [[ -n "$incoming" ]]; then
+            echo "(nothing incoming from $base)"
+        else
+            echo "(no commits ahead of $base)"
+        fi
         return
     fi
 
-    local limit_flag=""
-    [[ -n "$limit" ]] && limit_flag="-n $limit"
+    local -a log_args=()
+    [[ -n "$limit" ]] && log_args+=("-n" "$limit")
     if [[ -n "$oneline" ]]; then
-        git log $limit_flag "$main_branch..$branch" --oneline
+        log_args+=("--oneline")
     else
-        git log $limit_flag "$main_branch..$branch" --format="%h %s (%cr)"
+        log_args+=("--format=%h %s (%cr)")
     fi
+    [[ -n "$stat" ]] && log_args+=("--stat")
+    git log "${log_args[@]}" "$range"
 }
 
 ws_clean() {
@@ -751,6 +898,43 @@ HELP
         echo "  Clone          : ✗ not cloned — run: ws clone $comp"
         echo ""
         return 0
+    fi
+
+    # Working tree and branch position. These are the questions actually being
+    # asked when someone runs diagnose before a push or CR — "is this ready to
+    # send, and against what?" — which remotes and tokens alone cannot answer.
+    local dirty_count
+    dirty_count=$(git -C "$comp_dir" status --porcelain 2>/dev/null | wc -l | tr -d '[:space:]')
+    if [[ "${dirty_count:-0}" -eq 0 ]]; then
+        echo "  Working tree   : ✓ clean"
+    else
+        echo "  Working tree   : $dirty_count uncommitted change(s)"
+    fi
+
+    local tracking ahead behind
+    if tracking=$(git -C "$comp_dir" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) \
+        && [[ -n "$tracking" ]]; then
+        # left..right: left-only commits are what the upstream has and we don't.
+        if read -r behind ahead < <(git -C "$comp_dir" rev-list --left-right --count "$tracking...HEAD" 2>/dev/null); then
+            echo "  Tracking       : $tracking (ahead $ahead, behind $behind)"
+        else
+            echo "  Tracking       : $tracking"
+        fi
+    else
+        echo "  Tracking       : none — the first push sets it"
+    fi
+
+    # Nested rollup, host components only. Deliberately a count and not a status
+    # sweep: a component can nest well over a hundred repos, and git-statusing
+    # them all is what `ws status <comp> --nested` is for.
+    if [[ "$comp" != */* ]]; then
+        local nested_count=0 _n
+        while IFS= read -r _n; do
+            [[ -n "$_n" ]] && nested_count=$((nested_count + 1))
+        done < <(ws_nested_candidates "$comp" "$comp_dir" 2>/dev/null || true)
+        if [[ "$nested_count" -gt 0 ]]; then
+            echo "  Nested repos   : $nested_count — git status via: ws status $comp --nested"
+        fi
     fi
 
     # Remotes
@@ -1187,6 +1371,9 @@ case "$COMMAND" in
         ;;
     commit)
         bash "$SCRIPT_DIR/ws-commit.sh" "$@"
+        ;;
+    checkout)
+        ws_checkout "$@"
         ;;
     log)
         ws_log "$@"
