@@ -245,6 +245,20 @@ gp_review_threads_status() {
     '
 }
 
+# Post a top-level PR comment (not attached to a diff thread).
+# Usage: gp_review_post_comment SLUG PR_NUM MESSAGE
+gp_review_post_comment() {
+    local slug="$1" pr_num="$2" message="$3"
+    gh api "repos/$slug/issues/$pr_num/comments" -f body="$message" >/dev/null
+}
+
+# Get the PR's base (target) branch name.
+# Usage: gp_review_base_branch SLUG PR_NUM
+gp_review_base_branch() {
+    local slug="$1" pr_num="$2"
+    gh api "repos/$slug/pulls/$pr_num" --jq '.base.ref' 2>/dev/null
+}
+
 # Reply to a review thread.
 # Usage: gp_review_thread_reply SLUG PR_NUM THREAD_ID MESSAGE
 gp_review_thread_reply() {

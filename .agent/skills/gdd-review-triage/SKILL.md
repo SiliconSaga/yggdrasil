@@ -79,7 +79,12 @@ bash scripts/ws review <comp> threads <cr#>             # unresolved thread list
 bash scripts/ws review <comp> threads <cr#> --resolve-all
 bash scripts/ws review <comp> threads <cr#> --resolve <id>
 bash scripts/ws review <comp> reply <cr#> <id> "message" --resolve
+bash scripts/ws review <comp> comment <cr#> <bodyfile>   # top-level comment, not tied to a thread
 ```
+
+`reply` and `comment` auto-add the GDD banner — don't hand-type it or use raw `gh`/`glab`.
+
+`ws review <comp> <cr#>` also warns if you're on the wrong branch (not the CR's head) or if the base branch drifted ahead — rebase per `gdd-branch-workflow`.
 
 Thread resolution is a Side-effect operation (prompts for approval).
 

@@ -677,6 +677,28 @@ ws_resolve_token_var() {
     printf '%s\n' "$token_var"
 }
 
+# Resolve the GDD AI-attribution banner line, shared by any script that posts agent-authored text to an external tracker (CR/issue bodies, review replies and comments). git-cr.sh / git-issue.sh enforce this line's presence in a user-supplied template instead of calling this — they predate it and their bodies are already template-sourced, so re-deriving here would just be a second copy of the same logic with no behavior change. New callers (like ws-review.sh's reply/comment) that build short messages ad hoc, without a template to copy from, should call this instead of typing the line by hand.
+# Usage: ws_gdd_attribution_line "<label>"   (label e.g. "comment", "reply")
+ws_gdd_attribution_line() {
+    local label="$1"
+    local eco
+    eco=$(ws_resolve_ecosystem 2>/dev/null) || eco=""
+    local human_account="" gdd_home="https://siliconsaga.github.io/yggdrasil/gdd/"
+    if [[ -n "$eco" ]]; then
+        human_account=$(yq '.identity.human_account // ""' "$eco" 2>/dev/null)
+        [[ "$human_account" == "null" ]] && human_account=""
+        local gdd_home_raw
+        gdd_home_raw=$(yq '.defaults.gddHome // ""' "$eco" 2>/dev/null)
+        [[ -n "$gdd_home_raw" && "$gdd_home_raw" != "null" ]] && gdd_home="$gdd_home_raw"
+    fi
+    if [[ -z "$human_account" ]]; then
+        echo "ERROR: identity.human_account not set in ecosystem config." >&2
+        echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
+        return 1
+    fi
+    printf '> **AI-assisted %s.** Filed by agent driven by @%s via [GDD](%s).\n' "$label" "$human_account" "$gdd_home"
+}
+
 # ---------------------------------------------------------------------------
 # Subcommands — only run when called directly (not when sourced)
 # ---------------------------------------------------------------------------
