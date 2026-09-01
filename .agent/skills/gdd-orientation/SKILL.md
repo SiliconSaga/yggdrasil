@@ -123,6 +123,20 @@ Run `ws hoard cadence` and react to its `status:` line:
 
 If the human agrees to commit now: `ws commit <hoard> <bodyfile>` → `ws pull <hoard>` (rebase) → `ws push <hoard>`. Per-machine files reduce direct conflicts, but cross-machine housekeeping can touch multiples — be ready to walk a conflict resolution. Use whatever hoard name Phase 2's `ws hoard thalamus-path` resolved (frequently `thalami-<user>`, doesn't have to be).
 
+### Frontmatter lint (only if a hoard is active)
+
+Run `ws hoard lint` and react to its `status:` line. Warn-only at orientation — never block the session, and never auto-fix.
+
+| `status:` | Action |
+|---|---|
+| `ok` / `no-active-hoard` / `no-thalamus-files` | Silent |
+| `findings`, with `unparseable_files: 0` | Mention the count in one line, offer to fix during housekeeping |
+| `findings`, with `unparseable_files` ≥ 1 | **Surface immediately** — name the file and offer to fix now |
+
+A parse failure is the one case worth interrupting for. A thalamus whose frontmatter does not parse stops matching the ArcDashboard's `WHERE arcs`, so **every arc on that host silently disappears from the cross-host view** while the file still reads perfectly to a human or an agent. It stays broken until someone happens to look. Everything else the lint reports is drift that can wait for a housekeeping pass.
+
+Note `ws hoard lint` exits 1 when it finds anything — that is the documented signal, not a tooling failure. Read `status:`, not the exit code.
+
 ### Parse Thalamus frontmatter
 
 Read the YAML between the leading `---` markers. Update `last_session` to today's date **only if parsing succeeded** — never rewrite frontmatter on a parse failure (the file may be hand-edited; clobbering loses the human's edits).
@@ -251,6 +265,10 @@ Cross-host stitching: grep sibling thalamus files in the active hoard for slugs 
 If the user agrees, propose adding the same slug to *this* host's `arcs:` list at the first arc-shaped write. Cross-host stitching is slug-discipline — same `id` clusters naturally in the dashboard.
 
 If `arcs:` is empty or absent, skip silently. No nudge to populate — that's a housekeeping concern.
+
+**Stamp `last_touched` when you work an arc.** Whenever you write an arc-shaped entry — updating that arc's `next:`, adding body context under its slug, or closing it — set its `last_touched` to today's date in the same edit. Do not batch this to end-of-session, and do not stamp arcs you merely read.
+
+This matters more than it looks: `last_touched` is what the ArcDashboard's decay icons (🔥 / 🐢 / ⚠️) and gdd-housekeeping's stale-arc check both key off. Nothing computes it — if the agent working the arc does not write it, an actively-moving arc ages into ⚠️ on the dashboard while a genuinely abandoned one can look fresh. A wrong freshness signal is worse than none, because it is trusted.
 
 ### Unclaimed intake items (when a thalami hoard is active)
 

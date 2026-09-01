@@ -59,6 +59,8 @@ Per-machine thalamus files carry an `arcs:` list in their frontmatter — one en
 
 The hoard ships an `ArcDashboard.md` that — when the hoard is opened as an Obsidian vault with the Dataview plugin — renders a live table of every arc across every machine's frontmatter, sorted by status and freshness (with vibe icons that decay as an arc goes stale, nudging you to move it forward or close it). The dashboard projects **only** frontmatter; the body sections (Observations, Concerns, Audit Log) sync via git like any other content but never surface in the table. The orientation skill reads the same `arcs:` frontmatter at session start to surface active arcs and offer cross-host pickups, and the housekeeping skill walks arcs through their lifecycle (active → review → closed/promoted → pruned).
 
+`ws hoard lint` validates that frontmatter against the schema — see [Frontmatter lint](hoards.md#frontmatter-lint--ws-hoard-lint). It is worth running by hand after editing arcs, because the dashboard's failure mode is silent: it selects files with `WHERE arcs`, so a thalamus whose frontmatter does not parse drops out entirely, taking every arc on that host with it while the file still reads fine to you.
+
 See the [Arc Dashboard design doc](../plans/2026-05-07-thalamus-arc-dashboard-design.md) for the full arc lifecycle, schema, and skill integration, and the hoard's own `README.md` for the one-time Obsidian + Dataview setup.
 
 ## Housekeeping
