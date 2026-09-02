@@ -40,6 +40,9 @@ source "$SCRIPT_DIR/git-provider.sh"
 # Source shared realm/merge functions for ecosystem config
 source "$SCRIPT_DIR/ws-realm.sh"
 
+# shellcheck source=gdd-attribution.sh
+source "$SCRIPT_DIR/gdd-attribution.sh"
+
 # Validate arguments (REMOTE may be empty for auto-detection)
 if [[ -z "$COMPONENT_DIR" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then
   echo "Usage: $0 COMPONENT_DIR [REMOTE] TITLE LABEL BODYFILE" >&2
@@ -51,33 +54,15 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
-# Resolve identity from merged ecosystem config
+# Attribution and placeholder resolution — see scripts/gdd-attribution.sh. ECO is still read here because gp_detect_and_load below needs it.
 ECO=$(ws_resolve_ecosystem)
-HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$ECO" 2>/dev/null)
-GDD_HOME=$(yq '.defaults.gddHome // "https://siliconsaga.github.io/yggdrasil/gdd/"' "$ECO" 2>/dev/null)
-[[ "$GDD_HOME" == "null" || -z "$GDD_HOME" ]] && GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
-
-if [[ -z "$HUMAN_ACCOUNT" ]]; then
-  echo "ERROR: identity.human_account not set in ecosystem config." >&2
-  echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
-  exit 1
-fi
-
-# Enforce AI attribution line referencing the driving human
-if ! head -n 1 "$BODYFILE" | grep -q '^> \*\*AI-assisted issue\.\*\*'; then
-  echo "ERROR: body file is missing the AI attribution line." >&2
-  echo "  First line must contain: > **AI-assisted issue.**" >&2
-  exit 1
-fi
-
-# Substitute @HUMAN_ACCOUNT and @GDD_HOME placeholders in a temp copy of the body file
-RESOLVED_BODY=$(mktemp)
+HUMAN_ACCOUNT=$(gdd_attribution_human_account) || exit 1
+GDD_HOME=$(gdd_attribution_gdd_home)
+gdd_attribution_check "$BODYFILE" "templates/issue.md" || exit 1
+RESOLVED_BODY=$(gdd_attribution_substitute "$BODYFILE" "$HUMAN_ACCOUNT" "$GDD_HOME") || exit 1
 trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
-_ESC_HUMAN=$(printf '%s' "$HUMAN_ACCOUNT" | sed 's/[&|\\]/\\&/g')
-_ESC_GDD_HOME=$(printf '%s' "$GDD_HOME" | sed 's/[&|\\]/\\&/g')
-sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
-    -e "s|@GDD_HOME|${_ESC_GDD_HOME}|g" \
-    "$BODYFILE" > "$RESOLVED_BODY"
+gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
+gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
 # Resolve remote:
 #   1 remote  → use it (any name)
@@ -104,7 +89,12 @@ else
   echo "  Usage: ws issue <comp> <remote> <title> <label> <bodyfile>" >&2
   exit 1
 fi
-REMOTE_URL=$(cd "$COMPONENT_DIR" && git remote get-url "$REMOTE_NAME")
+# Read the remote's RAW configured URL (not `git remote get-url`, which applies url.insteadOf rewrites): every consumer below is logical — provider detection, token mapping, slug extraction — and should see the canonical URL the operator configured. Transport operations address the remote by NAME, so git still applies any insteadOf rewrite where it belongs. Take the FIRST url entry, which is the one git fetches from on a multi-URL remote, while --get would return the LAST. Same reasoning, and the same spelling, as git-cr.sh; reading the rewritten URL here made provider detection fail on a repo where `ws cr` worked.
+REMOTE_URL=$(cd "$COMPONENT_DIR" && git config --get-all "remote.$REMOTE_NAME.url" 2>/dev/null | head -n1) || true
+if [[ -z "$REMOTE_URL" ]]; then
+  echo "ERROR: remote '$REMOTE_NAME' has no configured URL." >&2
+  exit 1
+fi
 
 # Detect and load provider
 gp_detect_and_load "$REMOTE_URL" "$ECO"

@@ -29,6 +29,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
 
+# shellcheck source=gdd-attribution.sh
+source "$SCRIPT_DIR/gdd-attribution.sh"
+
 # Try to load ecosystem config for provider detection (optional — may not exist)
 _ECO=""
 _AUTH_ECO=""
@@ -440,32 +443,14 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
-# Resolve @HUMAN_ACCOUNT, @GDD_HOME and enforce AI attribution line
-_HUMAN_ACCOUNT=""
-_GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
-if [[ -n "$_ECO" ]]; then
-  _HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$_ECO" 2>/dev/null)
-  [[ "$_HUMAN_ACCOUNT" == "null" ]] && _HUMAN_ACCOUNT=""
-  _GDD_HOME_RAW=$(yq '.defaults.gddHome // ""' "$_ECO" 2>/dev/null)
-  [[ -n "$_GDD_HOME_RAW" && "$_GDD_HOME_RAW" != "null" ]] && _GDD_HOME="$_GDD_HOME_RAW"
-fi
-if [[ -z "$_HUMAN_ACCOUNT" ]]; then
-  echo "ERROR: identity.human_account not set in ecosystem config." >&2
-  echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
-  exit 1
-fi
-if ! head -n 1 "$BODYFILE" | grep -q '^> \*\*AI-assisted change proposal\.\*\*'; then
-  echo "ERROR: body file is missing the AI attribution line." >&2
-  echo "  First line must contain: > **AI-assisted change proposal.**" >&2
-  exit 1
-fi
-_RESOLVED_BODY=$(mktemp)
+# Attribution and placeholder resolution — see scripts/gdd-attribution.sh. The banner check runs on the template, the driver check on the substituted copy, and the leak guard refuses anything that still carries a placeholder. All three used to live here, on the creation path only, which is how an edit through the raw provider CLI came to run none of them.
+_HUMAN_ACCOUNT=$(gdd_attribution_human_account) || exit 1
+_GDD_HOME=$(gdd_attribution_gdd_home)
+gdd_attribution_check "$BODYFILE" "templates/change.md" || exit 1
+_RESOLVED_BODY=$(gdd_attribution_substitute "$BODYFILE" "$_HUMAN_ACCOUNT" "$_GDD_HOME") || exit 1
 trap 'rm -f "$_RESOLVED_BODY" 2>/dev/null' EXIT
-_ESC_HUMAN=$(printf '%s' "$_HUMAN_ACCOUNT" | sed 's/[&|\\]/\\&/g')
-_ESC_GDD_HOME=$(printf '%s' "$_GDD_HOME" | sed 's/[&|\\]/\\&/g')
-sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
-    -e "s|@GDD_HOME|${_ESC_GDD_HOME}|g" \
-    "$BODYFILE" > "$_RESOLVED_BODY"
+gdd_attribution_check_driver "$_RESOLVED_BODY" "$_HUMAN_ACCOUNT" || exit 1
+gdd_attribution_assert_resolved "$_RESOLVED_BODY" || exit 1
 BODYFILE="$_RESOLVED_BODY"
 
 if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
