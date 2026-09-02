@@ -115,3 +115,15 @@ gdd_attribution_assert_resolved() {
     echo "  Publish through ws cr / ws issue (create or edit) so substitution runs." >&2
     return 1
 }
+
+# Generate the attribution banner for agent-authored text that has no template to copy from — review replies and top-level comments.
+#
+# Deliberately shorter than the banner a change-request or issue body carries. A body banner is read once, at the top of a review; a reply banner repeats on every reply, and a dozen of them down one thread reads as shouting. It stays a marked, translatable sentence rather than being dropped entirely: a machine account is legible as a robot only to a reader who parses English bot-naming conventions, which is the reader an international project most needs the banner for.
+#
+# Usage: ws_gdd_attribution_line <label>   (label e.g. "reply", "comment")
+ws_gdd_attribution_line() {
+    local label="$1" human="" gdd_home=""
+    human=$(gdd_attribution_human_account) || return 1
+    gdd_home=$(gdd_attribution_gdd_home)
+    printf '> _Agent-authored %s — @%s via [GDD](%s)._\n' "$label" "$human" "$gdd_home"
+}

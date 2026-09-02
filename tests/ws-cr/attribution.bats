@@ -180,6 +180,42 @@ YAML
     [ "$output" = "https://example.test/gdd/" ]
 }
 
+@test "the reply banner uses the compact italic form" {
+    run ws_gdd_attribution_line reply
+    [ "$status" -eq 0 ]
+    [ "$output" = '> _Agent-authored reply — @testuser via [GDD](https://example.test/gdd/)._' ]
+}
+
+@test "the comment banner carries its own label" {
+    run ws_gdd_attribution_line comment
+    [ "$status" -eq 0 ]
+    [[ "$output" == '> _Agent-authored comment — '* ]]
+}
+
+@test "the reply banner is shorter than the body banner" {
+    # Not cosmetic: replies stack down a thread while a body banner is read once at the top of a review. If a future edit re-lengthens it, this fails loudly.
+    local reply body
+    reply=$(ws_gdd_attribution_line reply)
+    body='> **AI-assisted change proposal.** Filed by agent driven by @testuser via [GDD](https://example.test/gdd/).'
+    [ "${#reply}" -lt "${#body}" ]
+}
+
+@test "the reply banner fails closed with no human_account" {
+    clear_human_account
+    run ws_gdd_attribution_line reply
+    [ "$status" -ne 0 ]
+}
+
+@test "ws-realm.sh no longer defines the attribution line" {
+    run grep -c 'ws_gdd_attribution_line()' "$REPO_ROOT/scripts/ws-realm.sh"
+    [ "$output" = "0" ]
+}
+
+@test "ws-review.sh sources the attribution module" {
+    run grep -q 'gdd-attribution.sh' "$REPO_ROOT/scripts/ws-review.sh"
+    [ "$status" -eq 0 ]
+}
+
 @test "gddHome falls back to the GDD docs URL when unset" {
     cat > "$ECOSYSTEM" <<'YAML'
 identity:

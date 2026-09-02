@@ -165,7 +165,7 @@ probe_csi() { printf '\302\233'; }
     [ "$status" -eq 0 ]
     [[ "$output" == *"Replied to thread on CR #1 (example-group/forked-project)"* ]]
     [[ "$(cat "$BODY_LOG")" == *$'\n\n'"--remote=spoof" ]]
-    [[ "$(cat "$BODY_LOG")" == "> "*"AI-assisted reply"* ]]
+    [[ "$(cat "$BODY_LOG")" == "> _Agent-authored reply"* ]]
 }
 
 @test "GitLab provider rejects a thread ID that can steer the API path" {

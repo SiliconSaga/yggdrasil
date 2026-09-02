@@ -862,6 +862,9 @@ _ECO=""
 _AUTH_ECO=""
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
+
+# shellcheck source=gdd-attribution.sh
+source "$SCRIPT_DIR/gdd-attribution.sh"
 _ECO=$(ws_resolve_ecosystem 2>/dev/null) || _ECO=""
 _AUTH_ECO=$(ws_resolve_local_ecosystem 2>/dev/null) || _AUTH_ECO=""
 
