@@ -660,8 +660,10 @@ ws_issue() {
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
 Usage: ws issue <component> [remote] <title> <label> <bodyfile>
+       ws issue <component> edit <issue#> [--title <title>] <bodyfile>
 
   component  Component, realm, or hoard to file the issue against
+  edit       Update an existing issue's body (and title, with --title) instead of filing a new one
   remote     Optional; auto-detects if a single remote, else uses
              identity.forkRemote
   title      Issue title
@@ -670,18 +672,71 @@ Usage: ws issue <component> [remote] <title> <label> <bodyfile>
              — see templates/issue.md
 
 Files a tracker issue with the Co-Authored-By context via git-issue.sh.
+
+Editing an existing issue reuses creation's placeholder substitution and attribution
+check, which raw `gh issue edit --body-file` runs none of. Bodyfile paths are resolved
+against the workspace root on both paths.
 HELP
             return 0
         fi
     done
-    if [[ $# -lt 4 || $# -gt 5 ]]; then
+    local comp="${1:-}"
+    if [[ -z "$comp" ]]; then
+        echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
+        echo "       ws issue <component> edit <issue#> [--title <title>] <bodyfile>" >&2
+        exit 1
+    fi
+    shift
+    ws_resolve_target "$comp"
+
+    # `edit` as the first positional after the component selects the edit path, matching ws cr.
+    if [[ "${1:-}" == "edit" ]]; then
+        shift
+        local issue_title=""
+        local edit_positional=()
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --title)
+                    if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                        echo "ERROR: --title requires a title" >&2
+                        exit 1
+                    fi
+                    issue_title="$2"
+                    shift 2
+                    ;;
+                --title=*)
+                    issue_title="${1#--title=}"
+                    if [[ -z "$issue_title" ]]; then
+                        echo "ERROR: --title requires a title" >&2
+                        exit 1
+                    fi
+                    shift
+                    ;;
+                *)
+                    edit_positional+=("$1")
+                    shift
+                    ;;
+            esac
+        done
+        if [[ ${#edit_positional[@]} -ne 2 ]]; then
+            echo "Usage: ws issue <component> edit <issue#> [--title <title>] <bodyfile>" >&2
+            exit 1
+        fi
+        local issue_number="${edit_positional[0]}"
+        local issue_body="${edit_positional[1]}"
+        if [[ "$issue_body" != /* ]]; then
+            issue_body="$ROOT_DIR/$issue_body"
+        fi
+        bash "$SCRIPT_DIR/git-issue-edit.sh" "$COMPONENT_DIR" "$(ws_resolve_fork_remote)" \
+            "$issue_number" "$issue_body" "$issue_title"
+        return 0
+    fi
+
+    if [[ $# -lt 3 || $# -gt 4 ]]; then
         echo "Usage: ws issue <component> [remote] <title> <label> <bodyfile>" >&2
         echo "  remote auto-detects if single remote, uses forkRemote if multiple." >&2
         exit 1
     fi
-    local comp="$1"
-    shift
-    ws_resolve_target "$comp"
     local remote=""
     if [[ $# -eq 4 ]]; then
         remote="$1"
@@ -691,7 +746,13 @@ HELP
         remote=$(ws_resolve_fork_remote)
         # remote may be empty — git-issue.sh handles auto-detect for single remote
     fi
-    bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "$@"
+    # Resolve the bodyfile against the workspace root, as ws_cr does. git-issue.sh never cd's, so a relative path used to be interpreted against the CALLER's directory — which happens to be the workspace root often enough that the asymmetry went unnoticed, and breaks the moment `ws` is invoked from anywhere else.
+    local issue_args=("$@")
+    local issue_last=$(( ${#issue_args[@]} - 1 ))
+    if [[ "${issue_args[$issue_last]}" != /* ]]; then
+        issue_args[$issue_last]="$ROOT_DIR/${issue_args[$issue_last]}"
+    fi
+    bash "$SCRIPT_DIR/git-issue.sh" "$COMPONENT_DIR" "$remote" "${issue_args[@]}"
 }
 
 # Shared "create + store a token" guidance for a missing token var. Used by
