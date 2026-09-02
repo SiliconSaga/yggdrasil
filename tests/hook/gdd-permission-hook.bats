@@ -1912,6 +1912,85 @@ JSON
     [[ "$output" != *"ws review"* ]]
 }
 
+@test "redirect: editing a CR body points at ws cr edit" {
+    # Substitution and the attribution check lived on the creation path only, so an update through the raw CLI ran neither and failed silently — yggdrasil#158 published both placeholders literal.
+    seed_real_project_config
+
+    run_hook 'gh pr edit 42 --body-file .crs/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh pr edit 42 --body-file .crs/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws exec ken-site gh pr edit 42 --body-file .crs/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+}
+
+@test "redirect: editing a CR title points at ws cr edit" {
+    seed_real_project_config
+
+    run_hook 'gh pr edit 42 --title "new title"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+}
+
+@test "redirect: editing an issue body points at ws issue edit" {
+    seed_real_project_config
+
+    run_hook 'gh issue edit 7 --body-file .issues/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+
+    run_hook 'ws gh issue edit 7 --body-file .issues/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: glab description edits point at the ws edit verbs" {
+    seed_real_project_config
+
+    run_hook 'glab mr update 42 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'glab issue update 7 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: edits that ws cannot express stay reachable" {
+    # `ws cr edit` rewrites a body and a title. It does not touch labels, reviewers, assignees or milestones, so catching those would deny a capability with no replacement — the same failure that got the glab mr note rule withdrawn rather than narrowed.
+    seed_real_project_config
+
+    run_hook 'ws gh pr edit 42 --add-label enhancement'
+    [[ "$output" != *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh pr edit 42 --add-reviewer someone'
+    [[ "$output" != *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh issue edit 7 --add-assignee someone'
+    [[ "$output" != *"ws issue <comp> edit"* ]]
+
+    run_hook 'ws gh issue edit 7 --milestone v1.2'
+    [[ "$output" != *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: the edit verbs themselves are not caught by their own rules" {
+    # A redirect that blocks the wrapper it points at has overshot — the failure measured twice on the review rules before they were anchored.
+    seed_real_project_config
+
+    run_hook 'ws cr yggdrasil edit 42 --title "new" .crs/x.md'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws issue yggdrasil edit 7 --title "new" .issues/x.md'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
 @test "allow-path: non-mutating ws gh subcommands are untouched by the guard" {
     seed_real_project_config
 
