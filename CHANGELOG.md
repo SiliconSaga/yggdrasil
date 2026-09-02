@@ -6,6 +6,20 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Added
+
+- **`ws cr <comp> edit` and `ws issue <comp> edit`** — update an open change request's or issue's body and title through the wrapper, so the identity substitutions and the AI-attribution check run on edits the way they already ran on creation. Raw `gh pr edit --body`, `gh issue edit --body` and the `glab` equivalents now redirect here; label, reviewer and assignee edits stay reachable.
+- **`ws review <comp> edit <cr#> <comment-id> <bodyfile>`** — rewrite a comment you already posted, reattaching the attribution banner, so a comment posted without one gains it on first edit. Comment ids now print beside each comment and note in `ws review` output as `id:<kind>-<n>`.
+- **`ws review <comp> comment`** — post a top-level comment on a change request with the attribution banner attached; `ws review reply` gained the same banner (#141).
+
+### Changed
+
+- **Publishing refuses a body that still carries an unsubstituted `@HUMAN_ACCOUNT` or `@GDD_HOME`.** Such a body used to publish as-is, silently, because an unsubstituted placeholder is valid Markdown and nothing looks at a body after it goes out.
+- **The attribution-line check accepts wording variants** that still carry the attribution, rather than one exact sentence — and now verifies that the driving account actually resolved, which the exact-match check never did.
+- **The banner on review replies and comments is shorter** than the one on a change-request body: a body banner is read once at the top of a review, a reply banner repeats down the thread.
+- **`ws issue` resolves a relative bodyfile against the workspace root**, as `ws cr` always did. It previously resolved against the caller's directory, so it worked only when `ws` was invoked from the workspace root.
+- **`ws issue` reads the raw configured remote URL** rather than the `url.insteadOf`-rewritten one, matching `ws cr`. On a repository using an `insteadOf` rewrite, provider detection failed for `ws issue` while `ws cr` succeeded on the same remote.
+
 ## [1.1.0] - 2026-08-24
 
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).

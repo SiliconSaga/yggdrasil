@@ -80,9 +80,12 @@ bash scripts/ws review <comp> threads <cr#> --resolve-all
 bash scripts/ws review <comp> threads <cr#> --resolve <id>
 bash scripts/ws review <comp> reply <cr#> <id> "message" --resolve
 bash scripts/ws review <comp> comment <cr#> <bodyfile>   # top-level comment, not tied to a thread
+bash scripts/ws review <comp> edit <cr#> <comment-id> <bodyfile>   # rewrite a comment you already posted
 ```
 
-`reply` and `comment` auto-add the GDD banner — don't hand-type it or use raw `gh`/`glab`.
+`reply`, `comment` and `edit` auto-add the GDD banner — don't hand-type it or use raw `gh`/`glab`.
+
+Comment ids print beside each comment as `id:<kind>-<n>`; copy one to edit that comment. `edit` reattaches the banner every time, so a comment posted without one gains it on first edit.
 
 `ws review <comp> <cr#>` also warns if you're on the wrong branch (not the CR's head) or if the base branch drifted ahead — rebase per `gdd-branch-workflow`.
 
