@@ -230,8 +230,10 @@ ws_cr() {
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
 Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] [--stale-base-ok] <title> <bodyfile>
+       ws cr <component> edit <cr#> [--remote <remote>] [--upstream] [--title <title>] <bodyfile>
 
   component   Component, realm, or hoard to open the CR against
+  edit        Update an existing CR's body (and title, with --title) instead of opening a new one
   --remote    Use this git remote as the fork/head remote for this CR
   --source-branch
               Submit this local, remote-tracked branch instead of current HEAD
@@ -247,12 +249,18 @@ Opens a code-review request via git-cr.sh. The current branch is used unless
 creating, the live target-branch tip is verified to exist and be contained in
 the source branch — a moved target fails with a rebase pointer, a missing
 target fails closed; --stale-base-ok skips the preflight either way.
+
+Editing an existing CR reuses creation's placeholder substitution and attribution
+check — the guarantees raw `gh pr edit --body-file` runs none of. The creation
+preflights are skipped: stale base, source-branch verification and the changelog
+reminder are all statements about a branch being proposed, not about a description.
 HELP
             return 0
         fi
     done
     if [[ $# -lt 3 || $# -gt 9 ]]; then
         echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] [--stale-base-ok] <title> <bodyfile>" >&2
+        echo "       ws cr <component> edit <cr#> [--remote <remote>] [--upstream] [--title <title>] <bodyfile>" >&2
         exit 1
     fi
     local comp="$1"
@@ -260,6 +268,8 @@ HELP
     ws_resolve_target "$comp"
     local cr_remote=""
     local source_branch=""
+    local cr_title=""
+    local cr_upstream=""
     local args=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -295,12 +305,61 @@ HELP
                 fi
                 shift
                 ;;
+            --title)
+                if [[ $# -lt 2 || -z "${2:-}" ]]; then
+                    echo "ERROR: --title requires a title" >&2
+                    exit 1
+                fi
+                cr_title="$2"
+                shift 2
+                ;;
+            --title=*)
+                cr_title="${1#--title=}"
+                if [[ -z "$cr_title" ]]; then
+                    echo "ERROR: --title requires a title" >&2
+                    exit 1
+                fi
+                shift
+                ;;
+            # Consumed here rather than passed through in args, so the `edit` positional test below sees a clean positional list. Handed back to git-cr.sh on the create path.
+            --upstream)
+                cr_upstream="1"
+                shift
+                ;;
             *)
                 args+=("$1")
                 shift
                 ;;
         esac
     done
+
+    # `edit` as the first positional after the component selects the edit path. Unambiguous against create, which takes exactly a title and a bodyfile. Follows `ws review <comp> threads <cr#>` rather than reserving a word ahead of component resolution.
+    if [[ "${args[0]:-}" == "edit" ]]; then
+        if [[ ${#args[@]} -ne 3 ]]; then
+            echo "Usage: ws cr <component> edit <cr#> [--remote <remote>] [--upstream] [--title <title>] <bodyfile>" >&2
+            exit 1
+        fi
+        local cr_number="${args[1]}"
+        local cr_body="${args[2]}"
+        if [[ "$cr_body" != /* ]]; then
+            cr_body="$ROOT_DIR/$cr_body"
+        fi
+        local edit_args=()
+        [[ -n "$cr_remote" ]] && edit_args+=(--remote "$cr_remote")
+        [[ -n "$cr_title" ]] && edit_args+=(--title "$cr_title")
+        [[ -n "$cr_upstream" ]] && edit_args+=(--upstream)
+        cd "$COMPONENT_DIR" && bash "$SCRIPT_DIR/git-cr-edit.sh" "${edit_args[@]}" "$cr_number" "$cr_body"
+        return 0
+    fi
+
+    if [[ -n "$cr_title" ]]; then
+        echo "ERROR: --title applies to 'ws cr <component> edit'; a new CR takes its title as a positional." >&2
+        exit 1
+    fi
+    # Hand --upstream back to git-cr.sh, which parses it itself. Prepended, so the bodyfile-path resolution below still finds the bodyfile at the end.
+    if [[ -n "$cr_upstream" ]]; then
+        args=(--upstream "${args[@]}")
+    fi
     if [[ ${#args[@]} -lt 2 || ${#args[@]} -gt 4 ]]; then
         echo "Usage: ws cr <component> [--remote <remote>] [--source-branch <branch>] [--upstream] [--stale-base-ok] <title> <bodyfile>" >&2
         exit 1
