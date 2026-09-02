@@ -125,6 +125,63 @@ gp_create_issue() {
         --description "$(cat "$body_file")"
 }
 
+# Shared argument parser for the update functions. Sets _up_repo, _up_number, _up_body_file, _up_title.
+# Duplicated in providers/github.sh rather than shared: the two provider files are loaded exclusively of one another and neither reaches across, so hoisting this would mean moving it into git-provider.sh — a larger change than these two functions earn.
+_gp_parse_update_args() {
+    _up_repo=""; _up_number=""; _up_body_file=""; _up_title=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repo)      _up_repo="$2"; shift 2 ;;
+            --number)    _up_number="$2"; shift 2 ;;
+            --body-file) _up_body_file="$2"; shift 2 ;;
+            --title)     _up_title="$2"; shift 2 ;;
+            *) echo "ERROR: update: unknown arg '$1'" >&2; return 1 ;;
+        esac
+    done
+    # The number reaches an API path, so it is validated rather than trusted — the discipline _gl_validate_discussion_id already applies to thread ids.
+    if [[ ! "$_up_number" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: update: number must be numeric, got '$_up_number'" >&2
+        return 1
+    fi
+    if [[ ! -f "$_up_body_file" ]]; then
+        echo "ERROR: update: body file not found: $_up_body_file" >&2
+        return 1
+    fi
+}
+
+# Update a merge request's description, and its title when given.
+# GitLab calls the field `description`; the gp_* contract calls it a body, matching the create side.
+# Usage: gp_update_pr --repo SLUG --number N --body-file PATH [--title TEXT]
+gp_update_pr() {
+    local _up_repo _up_number _up_body_file _up_title body encoded
+    _gp_parse_update_args "$@" || return 1
+    body=$(cat "$_up_body_file")
+    encoded=$(_gl_encode "$_up_repo")
+    if [[ -n "$_up_title" ]]; then
+        glab api --method PUT "projects/$encoded/merge_requests/$_up_number" \
+            -f description="$body" -f title="$_up_title" >/dev/null
+    else
+        glab api --method PUT "projects/$encoded/merge_requests/$_up_number" \
+            -f description="$body" >/dev/null
+    fi
+}
+
+# Update an issue's description, and its title when given.
+# Usage: gp_update_issue --repo SLUG --number N --body-file PATH [--title TEXT]
+gp_update_issue() {
+    local _up_repo _up_number _up_body_file _up_title body encoded
+    _gp_parse_update_args "$@" || return 1
+    body=$(cat "$_up_body_file")
+    encoded=$(_gl_encode "$_up_repo")
+    if [[ -n "$_up_title" ]]; then
+        glab api --method PUT "projects/$encoded/issues/$_up_number" \
+            -f description="$body" -f title="$_up_title" >/dev/null
+    else
+        glab api --method PUT "projects/$encoded/issues/$_up_number" \
+            -f description="$body" >/dev/null
+    fi
+}
+
 # --- Review functions ---
 
 # Helper: URL-encode a slug for GitLab API paths.

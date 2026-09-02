@@ -94,6 +94,60 @@ gp_create_issue() {
         --body-file "$(ws_native_path "$body_file")"
 }
 
+# Shared argument parser for the update functions. Sets _up_repo, _up_number, _up_body_file, _up_title.
+# Duplicated in providers/gitlab.sh rather than shared: the two provider files are loaded exclusively of one another and neither reaches across, so hoisting this would mean moving it into git-provider.sh — a larger change than these two functions earn.
+_gp_parse_update_args() {
+    _up_repo=""; _up_number=""; _up_body_file=""; _up_title=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repo)      _up_repo="$2"; shift 2 ;;
+            --number)    _up_number="$2"; shift 2 ;;
+            --body-file) _up_body_file="$2"; shift 2 ;;
+            --title)     _up_title="$2"; shift 2 ;;
+            *) echo "ERROR: update: unknown arg '$1'" >&2; return 1 ;;
+        esac
+    done
+    # The number reaches an API path, so it is validated rather than trusted.
+    if [[ ! "$_up_number" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: update: number must be numeric, got '$_up_number'" >&2
+        return 1
+    fi
+    if [[ ! -f "$_up_body_file" ]]; then
+        echo "ERROR: update: body file not found: $_up_body_file" >&2
+        return 1
+    fi
+}
+
+# Update a pull request's body, and its title when given.
+# Usage: gp_update_pr --repo SLUG --number N --body-file PATH [--title TEXT]
+gp_update_pr() {
+    local _up_repo _up_number _up_body_file _up_title body
+    _gp_parse_update_args "$@" || return 1
+    body=$(cat "$_up_body_file")
+    if [[ -n "$_up_title" ]]; then
+        gh api --method PATCH "repos/$_up_repo/pulls/$_up_number" \
+            -f body="$body" -f title="$_up_title" >/dev/null
+    else
+        gh api --method PATCH "repos/$_up_repo/pulls/$_up_number" \
+            -f body="$body" >/dev/null
+    fi
+}
+
+# Update an issue's body, and its title when given.
+# Usage: gp_update_issue --repo SLUG --number N --body-file PATH [--title TEXT]
+gp_update_issue() {
+    local _up_repo _up_number _up_body_file _up_title body
+    _gp_parse_update_args "$@" || return 1
+    body=$(cat "$_up_body_file")
+    if [[ -n "$_up_title" ]]; then
+        gh api --method PATCH "repos/$_up_repo/issues/$_up_number" \
+            -f body="$body" -f title="$_up_title" >/dev/null
+    else
+        gh api --method PATCH "repos/$_up_repo/issues/$_up_number" \
+            -f body="$body" >/dev/null
+    fi
+}
+
 # --- Review functions ---
 
 # Print PR summary.
