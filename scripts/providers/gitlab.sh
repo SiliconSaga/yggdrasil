@@ -224,7 +224,7 @@ gp_review_list_comments() {
         | . as $disc
         | .notes[]
         | '"$filter"'
-        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?")\n\(.body)\n"
+        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?") id:note-\(.id)\n\(.body)\n"
     ' 2>/dev/null
 }
 
@@ -240,7 +240,7 @@ gp_review_list_notes() {
         | select(.notes[0].system == false)
         | .notes[]
         | '"$filter"'
-        | "---\n[\(.author.username)] (note)\n\(.body)\n"
+        | "---\n[\(.author.username)] (note) id:note-\(.id)\n\(.body)\n"
     ' 2>/dev/null
 }
 
@@ -303,6 +303,26 @@ gp_review_post_comment() {
     local slug="$1" mr_num="$2" message="$3"
     local encoded; encoded=$(_gl_encode "$slug")
     glab api --method POST "projects/$encoded/merge_requests/$mr_num/notes" \
+        -f body="$message" >/dev/null
+}
+
+# Update an existing merge-request note.
+#
+# GitLab edits every note through one endpoint, so the id kind is always `note`. The prefix is kept anyway so the argument shape matches GitHub's, where the kind is load-bearing.
+# Usage: gp_update_comment SLUG MR_NUM COMMENT_ID MESSAGE
+gp_update_comment() {
+    local slug="$1" mr_num="$2" comment_id="$3" message="$4"
+    local kind="${comment_id%%-*}" num="${comment_id#*-}"
+    if [[ "$kind" != "note" ]]; then
+        echo "ERROR: unknown comment id kind '$kind' — expected note-." >&2
+        return 1
+    fi
+    if [[ ! "$num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: comment id must be note-<number>, got '$comment_id'" >&2
+        return 1
+    fi
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api --method PUT "projects/$encoded/merge_requests/$mr_num/notes/$num" \
         -f body="$message" >/dev/null
 }
 

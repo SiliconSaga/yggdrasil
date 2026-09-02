@@ -171,7 +171,7 @@ gp_review_list_reviews() {
 gp_review_list_comments() {
     local slug="$1" pr_num="$2" filter="${3:-.}"
     gh api "repos/$slug/pulls/$pr_num/comments" \
-        --jq ".[] | $filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line)\n\(.body)\n\"" 2>/dev/null
+        --jq ".[] | $filter | \"---\n[\(.user.login)] \(.path):\(.line // .original_line) id:inline-\(.id)\n\(.body)\n\"" 2>/dev/null
 }
 
 # Print formatted top-level PR notes (issue comments — not inline review comments).
@@ -180,7 +180,30 @@ gp_review_list_comments() {
 gp_review_list_notes() {
     local slug="$1" pr_num="$2" filter="${3:-.}"
     gh api "repos/$slug/issues/$pr_num/comments" \
-        --jq ".[] | $filter | \"---\n[\(.user.login)] (note)\n\(.body)\n\"" 2>/dev/null
+        --jq ".[] | $filter | \"---\n[\(.user.login)] (note) id:issue-\(.id)\n\(.body)\n\"" 2>/dev/null
+}
+
+# Update an existing comment.
+#
+# The id carries its kind because GitHub edits a top-level note and an inline review comment through different resources: `inline-<n>` is a pull-request review comment, `issue-<n>` is a PR/issue conversation comment. Reading the kind off the id beats probing both endpoints and guessing from which one answers.
+#
+# CR_NUM is accepted for contract symmetry with GitLab, whose notes are nested under the merge request. GitHub does not need it.
+# Usage: gp_update_comment SLUG CR_NUM COMMENT_ID MESSAGE
+gp_update_comment() {
+    local slug="$1" cr_num="$2" comment_id="$3" message="$4"
+    local kind="${comment_id%%-*}" num="${comment_id#*-}"
+    if [[ ! "$num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: comment id must be <kind>-<number>, got '$comment_id'" >&2
+        return 1
+    fi
+    case "$kind" in
+        inline) gh api --method PATCH "repos/$slug/pulls/comments/$num" -f body="$message" >/dev/null ;;
+        issue)  gh api --method PATCH "repos/$slug/issues/comments/$num" -f body="$message" >/dev/null ;;
+        *)
+            echo "ERROR: unknown comment id kind '$kind' — expected inline- or issue-." >&2
+            return 1
+            ;;
+    esac
 }
 
 # Get PR head branch name (for --since push event lookup).

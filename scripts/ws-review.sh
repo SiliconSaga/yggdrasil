@@ -23,6 +23,7 @@ review_help() {
     echo "       ws review <comp> notes <cr#> [--remote <name>] [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]"
     echo "       ws review <comp> comment <cr#> <bodyfile> [--remote <name>]"
+    echo "       ws review <comp> edit <cr#> <comment-id> <bodyfile> [--remote <name>]"
     echo ""
     echo "CR review comments and thread management."
     echo ""
@@ -70,6 +71,12 @@ review_help() {
     echo "                             review note, or any comment not tied to an inline"
     echo "                             thread. The GDD AI-attribution banner is"
     echo "                             prepended automatically, same as reply."
+    echo ""
+    echo "  edit <cr#> <comment-id> <bodyfile>"
+    echo "                             Rewrite a comment you already posted. The comment-id"
+    echo "                             is the id: field printed beside each comment above."
+    echo "                             The attribution banner is reattached, so a comment"
+    echo "                             that was missing one gains it on first edit."
     echo ""
     echo "Examples:"
     echo "  ws review yggdrasil 8                      # All review output (start here)"
@@ -845,6 +852,45 @@ review_comment() {
     echo "Posted comment on CR #$cr_num ($REPO_SLUG)."
 }
 
+# Rewrite an existing comment, reattaching the attribution banner. Bodyfile-based like review_comment: an edited comment is usually the long one that needed correcting.
+#
+# The banner is regenerated rather than carried over from the old body, so a comment posted without one gains it on its first edit — which is the case that motivated this verb. #141's own body records that missing attribution on two comments "required hand-patching both comments afterward", through the raw CLI, which is exactly the path that runs none of these checks.
+review_edit() {
+    if [[ $# -ne 3 ]]; then
+        echo "Usage: ws review <comp> edit <cr#> <comment-id> <bodyfile> [--remote <name>]" >&2
+        exit 1
+    fi
+
+    local cr_num="$1" comment_id="$2" bodyfile="$3"
+
+    if [[ ! "$cr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CR number must be numeric, got '$cr_num'" >&2
+        exit 1
+    fi
+
+    if [[ ! "$comment_id" =~ ^[a-z]+-[0-9]+$ ]]; then
+        echo "ERROR: comment id must be <kind>-<number> as printed by ws review, got '$comment_id'" >&2
+        echo "  Run 'ws review <comp> $cr_num' and copy the id: field beside the comment." >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$bodyfile" ]]; then
+        echo "ERROR: body file not found: $bodyfile" >&2
+        exit 1
+    fi
+
+    local banner
+    banner=$(ws_gdd_attribution_line "comment") || exit 1
+    local message
+    message="${banner}"$'\n\n'"$(cat "$bodyfile")"
+
+    gp_update_comment "$REPO_SLUG" "$cr_num" "$comment_id" "$message" || {
+        echo "ERROR: Failed to update comment $comment_id on CR #$cr_num." >&2
+        exit 1
+    }
+    echo "Updated comment $comment_id on CR #$cr_num ($REPO_SLUG)."
+}
+
 # --- Shared setup ---
 
 # Handle --help before requiring auth — help should always work
@@ -991,6 +1037,8 @@ elif [[ "${1:-}" == "reply" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
 elif [[ "${1:-}" == "comment" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
+elif [[ "${1:-}" == "edit" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_CR="$2"
 elif [[ "${1:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$1"
 fi
@@ -1128,6 +1176,9 @@ elif [[ "${1:-}" == "reply" ]]; then
 elif [[ "${1:-}" == "comment" ]]; then
     shift
     review_comment "$@"
+elif [[ "${1:-}" == "edit" ]]; then
+    shift
+    review_edit "$@"
 else
     review_comments "$@"
 fi
