@@ -32,6 +32,9 @@ source "$SCRIPT_DIR/git-provider.sh"
 # shellcheck source=gdd-attribution.sh
 source "$SCRIPT_DIR/gdd-attribution.sh"
 
+# shellcheck source=git-cr-remote.sh
+source "$SCRIPT_DIR/git-cr-remote.sh"
+
 # Try to load ecosystem config for provider detection (optional — may not exist)
 _ECO=""
 _AUTH_ECO=""
@@ -458,64 +461,10 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]];
   exit 1
 fi
 
-# Find the fork remote.
-# Explicit override: match it. Single remote: use it. Multiple: match forkRemote. No match: fail.
-mapfile -t _ALL_REMOTES < <(git remote)
-
-FORK_REMOTE=""
-if [[ -n "$CR_REMOTE" ]]; then
-  for _r in "${_ALL_REMOTES[@]}"; do
-    if [[ "${_r,,}" == "${CR_REMOTE,,}" ]]; then
-      FORK_REMOTE="$_r"
-      break
-    fi
-  done
-  if [[ -z "$FORK_REMOTE" ]]; then
-    echo "ERROR: No remote matching '$CR_REMOTE' (from --remote/GIT_CR_REMOTE)." >&2
-    echo "  Available remotes: ${_ALL_REMOTES[*]:-(none)}" >&2
-    exit 1
-  fi
-elif [[ ${#_ALL_REMOTES[@]} -eq 1 ]]; then
-  FORK_REMOTE="${_ALL_REMOTES[0]}"
-elif [[ -n "$_ECO" ]]; then
-  _FORK_REMOTE=$(yq '.identity.forkRemote // ""' "$_ECO" 2>/dev/null)
-  [[ "$_FORK_REMOTE" == "null" ]] && _FORK_REMOTE=""
-  if [[ -n "$_FORK_REMOTE" ]]; then
-    for _r in "${_ALL_REMOTES[@]}"; do
-      if [[ "${_r,,}" == "${_FORK_REMOTE,,}" ]]; then
-        FORK_REMOTE="$_r"
-        break
-      fi
-    done
-  fi
-fi
-if [[ -z "$FORK_REMOTE" ]]; then
-  if [[ ${#_ALL_REMOTES[@]} -eq 0 ]]; then
-    echo "ERROR: No remotes configured." >&2
-  else
-    echo "ERROR: Multiple remotes found — cannot determine fork remote." >&2
-    echo "  Available remotes: ${_ALL_REMOTES[*]}" >&2
-    echo "  Set identity.forkRemote in ecosystem.local.yaml." >&2
-  fi
-  exit 1
-fi
-# Read the remote's RAW configured URL (not `git remote get-url`, which
-# applies url.insteadOf rewrites): every consumer below is logical — provider
-# detection, token mapping, slug/host extraction — and should see the
-# canonical URL the operator configured. Transport operations address the
-# remote by NAME, so git still applies any insteadOf rewrite where it belongs.
-# Take the FIRST url entry (--get-all | head): that is the URL git fetches
-# from on a multi-URL remote, while --get would return the LAST — letting
-# provider detection disagree with the remote git actually talks to.
-FORK_URL=$(git config --get-all "remote.$FORK_REMOTE.url" 2>/dev/null | head -n1) || true
-if [[ -z "$FORK_URL" ]]; then
-  echo "ERROR: remote '$FORK_REMOTE' has no configured URL." >&2
-  exit 1
-fi
-FORK_HOST=$(git_remote_host "$FORK_URL") || {
-  echo "ERROR: Cannot determine host for fork remote '$FORK_REMOTE'." >&2
-  exit 1
-}
+# Find the fork remote — see scripts/git-cr-remote.sh, shared with the edit path.
+gdd_cr_resolve_fork_remote "$CR_REMOTE" "$_ECO" || exit 1
+# The --upstream block below reads this array to find the non-fork remote; keep the old name rather than churning every reference to it.
+mapfile -t _ALL_REMOTES < <(printf '%s\n' "${GDD_CR_ALL_REMOTES[@]}")
 
 if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
