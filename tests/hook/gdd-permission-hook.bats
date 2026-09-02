@@ -1980,6 +1980,74 @@ JSON
     [[ "$output" != *"ws issue <comp> edit"* ]]
 }
 
+@test "redirect: a raw PATCH of a CR body points at ws cr edit" {
+    # The spelling that actually caused the incident. realm-siliconsaga#27 sat for five days reading "driven by @HUMAN_ACCOUNT" because it was PATCHed through the API, not through `gh pr edit` — so a rule covering only the CLI subcommand would have missed the real reflex entirely.
+    seed_real_project_config
+
+    run_hook 'ws gh api -X PATCH repos/SiliconSaga/realm-siliconsaga/pulls/27 -F body=@.crs/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'gh api -X PATCH repos/o/r/pulls/27 -F body=@x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+}
+
+@test "redirect: a raw PATCH is caught with the path before the method too" {
+    # A glob cannot see argument order, so each resource needs both spellings. Without the -alt rows, `gh api repos/… -X PATCH` walks straight past a rule that looked complete.
+    seed_real_project_config
+
+    run_hook 'gh api repos/o/r/pulls/27 --method PATCH -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh api repos/o/r/issues/7 --method PATCH -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: a raw PATCH of an issue body points at ws issue edit" {
+    seed_real_project_config
+
+    run_hook 'gh api -X PATCH repos/o/r/issues/7 -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: reading a PR through the API is still reachable" {
+    # The PATCH rules key on the method precisely so reads stay open. Denying a read would be denying a capability ws cannot replace.
+    seed_real_project_config
+
+    run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [[ "$output" != *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh api repos/o/r/issues/7'
+    [[ "$output" != *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: posting a PR comment points at ws review comment" {
+    # Before #141 there was no verb at all, so the generic `gh *` rule pointed at `ws gh` — the bare passthrough that attaches no attribution, and the route by which a comment reading "AI-assisted **issue**" with a literal @HUMAN_ACCOUNT reached a public repo. A redirect aimed at the hole it should close is worse than none.
+    seed_real_project_config
+
+    run_hook 'gh pr comment 11 --body "looks good"'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> comment"* ]]
+
+    run_hook 'ws gh pr comment 11 --body "looks good"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> comment"* ]]
+}
+
+@test "redirect: gh issue comment stays reachable while no verb covers it" {
+    # ws review is change-request-scoped and cannot post to a plain issue. Redirecting this would deny a capability with no replacement — the failure that got the glab mr note rule withdrawn rather than narrowed.
+    seed_real_project_config
+
+    run_hook 'ws gh issue comment 11 --body "note"'
+    [[ "$output" != *"ws review <comp> comment"* ]]
+}
+
 @test "redirect: the edit verbs themselves are not caught by their own rules" {
     # A redirect that blocks the wrapper it points at has overshot — the failure measured twice on the review rules before they were anchored.
     seed_real_project_config

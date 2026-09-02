@@ -115,8 +115,29 @@ echo "  Author: @$HUMAN_ACCOUNT (via agent)"
 echo "  Body  : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
 echo ""
 
+# Capture rather than stream so a disabled-issues refusal can be recognized and answered. Provider CLIs write their error body to STDOUT, not stderr, and exit non-zero — so judge by exit status and keep both streams.
+_ISSUE_OUTPUT=$(mktemp)
+_ISSUE_STATUS=0
 gp_create_issue \
   --repo "$TARGET_SLUG" \
   --title "$TITLE" \
   --label "$LABEL" \
-  --body-file "$RESOLVED_BODY"
+  --body-file "$RESOLVED_BODY" >"$_ISSUE_OUTPUT" 2>&1 || _ISSUE_STATUS=$?
+cat "$_ISSUE_OUTPUT"
+
+if [[ "$_ISSUE_STATUS" -ne 0 ]]; then
+  # A fork starts with issues DISABLED on GitHub, and nobody chooses that — it is inherited silently by anything ws clone-fork produced. The bare provider error names the state and not the way out, and the improvised way out is to post the finding as a PR comment instead, which is how an unattributed comment reached a public repo. Naming the three real options here is the cheaper half of preventing that.
+  if grep -qiE 'disabled issues|issues are disabled|issues.*disabled' "$_ISSUE_OUTPUT"; then
+    echo "" >&2
+    echo "Issues are disabled on $TARGET_SLUG, so there is nowhere to file this." >&2
+    echo "  A GitHub fork starts with issues disabled — a component from 'ws clone-fork' inherits that without anyone choosing it." >&2
+    echo "  Three ways forward, in the order usually wanted:" >&2
+    echo "    1. Enable issues on the fork: Settings → General → Features → Issues (or 'ws gh api -X PATCH repos/$TARGET_SLUG -F has_issues=true')." >&2
+    echo "    2. File it upstream instead: 'ws issue <comp> <upstream-remote> \"<title>\" <label> <bodyfile>'." >&2
+    echo "    3. Carry the finding in the change-request body, if it belongs to work already under review." >&2
+    echo "  Don't post it as a bare provider comment — that path attaches no attribution." >&2
+  fi
+  rm -f "$_ISSUE_OUTPUT"
+  exit "$_ISSUE_STATUS"
+fi
+rm -f "$_ISSUE_OUTPUT"

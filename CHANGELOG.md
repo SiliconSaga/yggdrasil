@@ -8,9 +8,10 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Added
 
-- **`ws cr <comp> edit` and `ws issue <comp> edit`** — update an open change request's or issue's body and title through the wrapper, so the identity substitutions and the AI-attribution check run on edits the way they already ran on creation. Raw `gh pr edit --body`, `gh issue edit --body` and the `glab` equivalents now redirect here; label, reviewer and assignee edits stay reachable.
+- **`ws cr <comp> edit` and `ws issue <comp> edit`** — update an open change request's or issue's body and title through the wrapper, so the identity substitutions and the AI-attribution check run on edits the way they already ran on creation. Raw `gh pr edit --body`, `gh issue edit --body`, the `glab` equivalents and a raw `gh api -X PATCH .../pulls/<n>` now redirect here; label, reviewer and assignee edits, and reads through the API, stay reachable.
 - **`ws review <comp> edit <cr#> <comment-id> <bodyfile>`** — rewrite a comment you already posted, reattaching the attribution banner, so a comment posted without one gains it on first edit. Comment ids now print beside each comment and note in `ws review` output as `id:<kind>-<n>`.
-- **`ws review <comp> comment`** — post a top-level comment on a change request with the attribution banner attached; `ws review reply` gained the same banner (#141).
+- **`ws review <comp> comment`** — post a top-level comment on a change request with the attribution banner attached; `ws review reply` gained the same banner (#141). Raw `gh pr comment` now redirects here, where it previously fell through to a rule pointing at `ws gh` — the unguarded passthrough that attaches no attribution at all.
+- **`ws issue` explains a disabled-issues refusal** instead of surfacing the bare provider error, naming the three ways forward. A GitHub fork starts with issues disabled, so a component created by `ws clone-fork` inherits that without anyone choosing it.
 
 ### Changed
 

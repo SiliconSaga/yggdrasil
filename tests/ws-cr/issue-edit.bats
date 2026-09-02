@@ -154,6 +154,55 @@ write_body() {
     [[ "$output" == *"example/fork"* ]]
 }
 
+@test "a disabled-issues refusal explains the three ways forward" {
+    # A GitHub fork starts with issues disabled and nobody chooses that, so anything ws clone-fork produced inherits it silently. The bare provider error names the state and not the way out; the improvised way out is posting the finding as a PR comment instead, which is how an unattributed comment reached a public repo.
+    cat > "$GH_STUB_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+case "${1:-} ${2:-}" in
+  "auth status") exit 0 ;;
+esac
+# Provider CLIs write the error body to STDOUT and exit non-zero.
+echo "GraphQL: the 'example/fork' repository has disabled issues (createIssue)"
+exit 1
+SH
+    chmod +x "$GH_STUB_DIR/gh"
+
+    run bash "$WS_BIN" issue yggdrasil "test: disabled issues" bug .issues/edit.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Issues are disabled on example/fork"* ]]
+    [[ "$output" == *"fork starts with issues disabled"* ]]
+    [[ "$output" == *"has_issues=true"* ]]
+    [[ "$output" == *"File it upstream"* ]]
+    [[ "$output" == *"change-request body"* ]]
+    [[ "$output" == *"attaches no attribution"* ]]
+}
+
+@test "the disabled-issues guidance does not fire on an unrelated failure" {
+    # The guidance is specific advice. Printing it for every failure would make it noise, and would misdirect on a genuine auth or network error.
+    cat > "$GH_STUB_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+case "${1:-} ${2:-}" in
+  "auth status") exit 0 ;;
+esac
+echo "HTTP 401: Bad credentials"
+exit 1
+SH
+    chmod +x "$GH_STUB_DIR/gh"
+
+    run bash "$WS_BIN" issue yggdrasil "test: auth failure" bug .issues/edit.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Bad credentials"* ]]
+    [[ "$output" != *"Issues are disabled"* ]]
+}
+
+@test "a successful create still prints the provider output" {
+    # The failure path captures provider output to inspect it; the success path must still show the created issue URL.
+    run bash "$WS_BIN" issue yggdrasil "test: success output" bug .issues/edit.md
+    [ "$status" -eq 0 ]
+    run cat "$GH_LOG"
+    [[ "$output" == *"create"* ]]
+}
+
 @test "issue create still requires title, label and bodyfile" {
     run bash "$WS_BIN" issue yggdrasil "a title"
     [ "$status" -ne 0 ]
