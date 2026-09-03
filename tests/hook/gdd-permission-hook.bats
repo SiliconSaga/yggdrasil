@@ -385,6 +385,26 @@ echo tightened*"
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
 }
 
+@test "portability: the hook uses no bash-4-only constructs" {
+    # macOS ships bash 3.2.57 — frozen in 2007 because bash 4.0 relicensed to
+    # GPLv3 — and it is what a bare `bash` resolves to there, which is exactly
+    # how settings.json registers this hook. A bash-4 builtin therefore does
+    # not fail loudly on a Mac. `local -n` (a 4.3 nameref) printed an option
+    # error, left the caller holding an empty index, and spun
+    # canonical_verb_form forever: every git / gh / glab tool call hung with no
+    # audit entry, because the hook writes one only when it reaches a decision.
+    #
+    # The suite's own `timeout 10` around run_hook would catch that — but only
+    # on a 3.2 host. CI runs a modern bash where the nameref works fine, so the
+    # symptom is unreproducible there and the construct has to be pinned
+    # directly. Extend this list if a newer builtin ever becomes tempting.
+    # `^[^#]*` keeps this to executable lines: the fix's own comments name the
+    # constructs they removed, and a test that forbids documenting a trap is a
+    # test that guarantees the trap gets rediscovered the hard way.
+    run grep -nE '^[^#]*(local -n|declare -n|declare -A|mapfile|readarray)' "$HOOK_BIN"
+    [ "$status" -ne 0 ]
+}
+
 @test "deny: | triggers pipes message" {
     run_hook "ls -la | head"
     [ "$status" -eq 0 ]

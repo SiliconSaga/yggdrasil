@@ -73,7 +73,7 @@ esac
 hint_for() {
     local tool="$1"
     case "$OS:$tool" in
-        mac:bash)         echo "Should be present. If not: 'brew install bash' (and add to /etc/shells)." ;;
+        mac:bash)         echo "macOS ships bash 3.2.57 (frozen since 2007 over GPLv3) — too old, and it is what 'bash' resolves to by default. 'brew install bash' installs 5.x; make sure its dir precedes /bin on PATH ('command -v bash' should NOT say /bin/bash). You do not need to change your login shell — zsh is fine." ;;
         mac:git)          echo "'brew install git' (or install Xcode Command Line Tools: 'xcode-select --install')." ;;
         mac:yq)           echo "'brew install yq' (Mike Farah's Go-based yq, NOT the Python pip one)." ;;
         mac:jq)           echo "'brew install jq'." ;;
@@ -150,7 +150,18 @@ echo "Workspace prerequisites check (OS: $OS)"
 echo ""
 
 echo "Required:"
-check_tool bash required
+# bash must be ≥ 4.0, and this is the prerequisite most likely to be silently
+# wrong on a Mac. Apple froze /bin/bash at 3.2.57 (2007) because bash 4.0
+# relicensed to GPLv3, and then made zsh the default login shell — so nothing
+# in daily use points at it and a stock macOS machine looks fine until a
+# workspace script hits a bash-4 builtin. `mapfile` in ws push / ws cr /
+# ws issue is the concrete floor; the permission hook's own token walk hit the
+# same wall via `local -n` (a 4.3 nameref) and hung every git/gh/glab tool call
+# outright before that was rewritten. Probe the bash on PATH rather than
+# $BASH_VERSINFO — that is the interpreter `#!/usr/bin/env bash` and the hook's
+# `bash <script>` registration will actually select, which is not necessarily
+# the one running this check.
+check_tool bash required 'bash -c '\''[[ ${BASH_VERSINFO[0]} -ge 4 ]]'\'''
 # git must be ≥ 2.31: the token-injected HTTPS auth path (ws push/clone/
 # clone-fork/pull) rides GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n environment
 # entries, which older git silently ignores — auth then falls through to
