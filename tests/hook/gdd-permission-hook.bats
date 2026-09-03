@@ -385,7 +385,7 @@ echo tightened*"
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
 }
 
-@test "portability: the hook uses no bash-4-only constructs" {
+@test "portability: no bash-4-only constructs in the runtime shell surface" {
     # macOS ships bash 3.2.57 — frozen in 2007 because bash 4.0 relicensed to
     # GPLv3 — and it is what a bare `bash` resolves to there, which is exactly
     # how settings.json registers this hook. A bash-4 builtin therefore does
@@ -398,10 +398,28 @@ echo tightened*"
     # on a 3.2 host. CI runs a modern bash where the nameref works fine, so the
     # symptom is unreproducible there and the construct has to be pinned
     # directly. Extend this list if a newer builtin ever becomes tempting.
-    # `^[^#]*` keeps this to executable lines: the fix's own comments name the
+    # File discovery mirrors ws-shellcheck.sh: a `*.sh` glob PLUS a shebang
+    # sweep of extensionless files. The dispatcher `scripts/ws` has no
+    # extension — correctly, since it is what users type — so an extension
+    # glob silently skips the single most important file here. That is not
+    # hypothetical: the first pass of this sweep used `--include=*.sh`, missed
+    # `${remote,,}` in scripts/ws, and shipped a `ws diagnose` that died
+    # halfway through printing its own output.
+    local targets=("$REPO_ROOT/scripts" "$REPO_ROOT/.claude/hooks" "$REPO_ROOT/.codex/hooks")
+    local files=() p f
+    for p in "${targets[@]}"; do
+        [[ -d "$p" ]] || continue
+        while IFS= read -r f; do files+=("$f"); done < <(
+            find "$p" -type f -name '*.sh'
+            find "$p" -type f ! -name '*.*' -exec sh -c 'head -n1 "$1" | grep -qE "^#!.*[ /](ba)?sh($| )" && printf "%s\n" "$1"' _ {} \;
+        )
+    done
+    [ "${#files[@]}" -gt 0 ]
+
+    # `^[^#]*` keeps this to executable lines: the fixes' own comments name the
     # constructs they removed, and a test that forbids documenting a trap is a
     # test that guarantees the trap gets rediscovered the hard way.
-    run grep -nE '^[^#]*(local -n|declare -n|declare -A|mapfile|readarray)' "$HOOK_BIN"
+    run grep -nE '^[^#]*(mapfile|readarray|local -n|declare -n|declare -A|local -A|coproc|\$\{[^}]*(,,|\^\^)[^}]*\})' "${files[@]}"
     [ "$status" -ne 0 ]
 }
 
