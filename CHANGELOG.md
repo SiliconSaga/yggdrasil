@@ -6,6 +6,11 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Fixed
+
+- **macOS no longer hangs on every `git` / `gh` / `glab` tool call.** The permission hook used a bash 4.3 nameref, and macOS ships bash 3.2.57 — so the hook's token walk spun forever instead of failing, with no audit entry to show for it. The loop now refuses any index that is not strictly increasing and caps its own iterations, so a helper failure can never hang it again. The same bash-4 floor was also breaking `ws push` / `ws cr` / `ws issue` and quietly disabling the Kubernetes guard's cluster-scoped checks on every Mac (#163).
+- **`ws preflight` version-checks bash** (≥ 4.0) rather than only checking it is installed, probing the interpreter on PATH — the one shebangs and the hook registration actually select. macOS's system bash now reports as too old with a hint pointing at PATH order rather than the login shell (#163).
+
 ## [1.1.0] - 2026-08-24
 
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
