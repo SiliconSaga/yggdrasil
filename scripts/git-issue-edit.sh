@@ -50,7 +50,12 @@ trap 'rm -f "$RESOLVED_BODY" 2>/dev/null' EXIT
 gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
-mapfile -t _REMOTES < <(cd "$COMPONENT_DIR" && git remote)
+# Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships bash 3.2.57, where it does not exist. Same sweep as git-cr.sh and git-push.sh; this file arrived with #166 after the sweep was written, so it is caught here on the rebase.
+_REMOTES=()
+_remote_line=""
+while IFS= read -r _remote_line || [[ -n "$_remote_line" ]]; do
+  _REMOTES+=("$_remote_line")
+done < <(cd "$COMPONENT_DIR" && git remote)
 REMOTE_NAME=""
 if [[ ${#_REMOTES[@]} -eq 0 ]]; then
   echo "ERROR: No remotes configured in $COMPONENT_DIR." >&2

@@ -461,10 +461,15 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]];
   exit 1
 fi
 
-# Find the fork remote — see scripts/git-cr-remote.sh, shared with the edit path.
+# Find the fork remote — see scripts/git-cr-remote.sh, shared with the edit path. The bash 3.2 sweep this branch performs lands there rather than here, so the constructs are fixed in one place instead of in a copy that no longer exists.
 gdd_cr_resolve_fork_remote "$CR_REMOTE" "$_ECO" || exit 1
 # The --upstream block below reads this array to find the non-fork remote; keep the old name rather than churning every reference to it.
-mapfile -t _ALL_REMOTES < <(printf '%s\n' "${GDD_CR_ALL_REMOTES[@]}")
+# Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships bash 3.2.57 (frozen in 2007 over the GPLv3 relicense), where it does not exist at all. Same reasoning as git-push.sh.
+_ALL_REMOTES=()
+_line=""
+while IFS= read -r _line || [[ -n "$_line" ]]; do
+  _ALL_REMOTES+=("$_line")
+done < <(printf '%s\n' "${GDD_CR_ALL_REMOTES[@]}")
 
 if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")
