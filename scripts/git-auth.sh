@@ -155,6 +155,16 @@ git_auth_env_for_url() {
   local base="${GIT_CONFIG_COUNT:-0}"
   GIT_AUTH_ENV=(
     "GIT_TERMINAL_PROMPT=0"
+    # GIT_TERMINAL_PROMPT=0 only closes the *terminal* prompt; git still falls
+    # through to an askpass helper before giving up. Editors export one into
+    # every integrated-terminal shell (VS Code and Cursor both set GIT_ASKPASS
+    # to a bundled askpass.sh), and that helper waits on a GUI dialog nobody
+    # answers in an agent session — so an expired token turned this
+    # already-declared-non-interactive path into an unbounded hang instead of
+    # the intended fast failure. Clear both: git prefers GIT_ASKPASS but falls
+    # back to SSH_ASKPASS, so leaving either set reopens the hole.
+    "GIT_ASKPASS="
+    "SSH_ASKPASS="
     "GIT_CONFIG_COUNT=$((base + 2))"
     "GIT_CONFIG_KEY_${base}=credential.helper"
     "GIT_CONFIG_VALUE_${base}="
