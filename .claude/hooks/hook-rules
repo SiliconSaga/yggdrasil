@@ -132,14 +132,33 @@ ws realm use *
 # through CI on the pull request, which is where the preview and visual diff are
 # produced anyway.
 #
-# That leaves this section with no shipped entries — deliberately. The mechanism
-# is what ships; an operator adds patterns knowing nobody will be asked. Branch
-# creation, the one thing a sandbox cannot work without, is parsed in the hook
-# rather than listed here.
+# The entries below are the whole shipped set, and each is exact for a reason.
+# Branch creation, the one thing a sandbox cannot work without, is parsed in the
+# hook rather than listed here.
+#
+# `git checkout main` is spelled literally, with no options and no wildcard. That
+# is not caution for its own sake: `git checkout <token>` restores a PATH when the
+# token names one, discarding the edits in it, so `git checkout *` would be the
+# discard form wearing a different hat. Naming one known branch removes the
+# ambiguity. Measured need — a sandbox that had opened a pull request could not
+# get back to the default branch, so the next request branched off the previous
+# topic branch and its pull request carried both changes. Switching to any OTHER
+# branch still needs a human; the durable fix is a clean-tree check, or
+# `ws checkout` (#155).
+#
+# `identify` and `file` read an image and report what it is. A phone photo arrives
+# at several megabytes and print resolution, and an agent that cannot measure that
+# commits it blind. `convert` is deliberately ABSENT even though the image ships
+# it: it writes wherever it is pointed, which is the reasoning that removed the
+# site build above, and it belongs behind a `ws image` verb that can validate a
+# destination.
 #
 # None of this is a security boundary — an argument can still name a path outside
 # the component. The boundary is the container; this keeps the ordinary working
 # set free of prompts without widening the blast radius by default.
+ws exec __SANDBOX_TARGET__ git checkout main
+ws exec __SANDBOX_TARGET__ identify *
+ws exec __SANDBOX_TARGET__ file *
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
