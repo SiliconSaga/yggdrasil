@@ -207,6 +207,43 @@ else
     echo "       then open a fresh shell. (On Windows, Git's installer PATH option covers Git Bash itself.)"
 fi
 
+# Inherited GUI askpass? `ws` neutralizes this internally for every git call it
+# makes (see git_auth_run), so this is advisory: it exists because raw `git` in
+# the same shell is still exposed, and because the durable fix is an editor
+# setting the workspace cannot change. A GUI askpass blocks on a dialog nobody
+# answers in an agent session, turning a credential failure into a silent hang.
+# Matched on editor/app-bundle shapes rather than "set at all" so a deliberate
+# headless askpass doesn't nag. Advisory only — never flips the exit code.
+_ws_askpass_note() {
+    local var="$1" value="$2"
+    case "$value" in
+        *Cursor.app*|*"Visual Studio Code"*|*Code.app*|*VSCodium*|*.app/*|*/extensions/git/dist/askpass*)
+            echo "  ⚠ $var points at an editor's GUI askpass helper:"
+            echo "       $value"
+            echo "       Raw 'git' in this shell will hang on a credential prompt instead of failing."
+            echo "       'ws' clears it for its own git calls, so this only affects git you run directly."
+            echo "       Permanent fix — in the editor's settings, set:"
+            echo "         \"git.terminalAuthentication\": false"
+            echo "       then open a fresh terminal (the setting is read at terminal launch)."
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+echo ""
+echo "Environment:"
+_WS_ASKPASS_FOUND=0
+if [[ -n "${GIT_ASKPASS:-}" ]] && _ws_askpass_note GIT_ASKPASS "$GIT_ASKPASS"; then
+    _WS_ASKPASS_FOUND=1
+fi
+if [[ -n "${SSH_ASKPASS:-}" ]] && _ws_askpass_note SSH_ASKPASS "$SSH_ASKPASS"; then
+    _WS_ASKPASS_FOUND=1
+fi
+if [[ "$_WS_ASKPASS_FOUND" -eq 0 ]]; then
+    echo "  ✓ no GUI askpass helper inherited (git credential failures fail fast)"
+fi
+
 echo ""
 
 if [[ "$MISSING_REQUIRED" -eq 1 ]]; then

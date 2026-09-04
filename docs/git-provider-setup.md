@@ -448,6 +448,38 @@ Open a fresh terminal session. The installer updates PATH, but existing sessions
 
 - GitKraken users: check `~/.gitconfig` for `url.insteadOf` entries that redirect HTTPS to SSH. Remove or scope them if they interfere with CLI auth. GitKraken manages its own credentials separately from the system credential helper, so it is unaffected by the erase/store steps above.
 
+### A git command hangs forever with no output (VS Code / Cursor terminals)
+
+A `ws clone`, `ws pull`, `ws push`, or a raw `git fetch` that produces no output and never returns is usually **not** a network problem — it is an editor's graphical credential prompt waiting for an answer that never comes.
+
+VS Code and Cursor both export `GIT_ASKPASS` into every integrated-terminal shell, pointing at a bundled `askpass.sh`. Anything launched from that terminal inherits it, agents included. When git needs a credential it tries credential helpers, then **askpass**, then the terminal — so the helper opens a dialog and blocks. In an agent session nobody sees the dialog, and the command hangs indefinitely rather than failing.
+
+The trap is that `GIT_TERMINAL_PROMPT=0` does not prevent this. It disables only the *terminal* prompt, which git reaches last; a call that stops at askpass never gets there.
+
+Confirm it — the giveaway is an askpass process parented to the stuck git:
+
+```bash
+pgrep -fl askpass
+```
+
+`ws` clears `GIT_ASKPASS` and `SSH_ASKPASS` for every git call it makes, so its own commands fail fast instead of hanging. Raw `git` you run yourself is still exposed, and `ws preflight` reports an inherited helper under **Environment:**.
+
+For a permanent fix, turn the injection off in the editor's settings (`Cmd`/`Ctrl` + `,` → search "terminal authentication", or edit `settings.json`):
+
+```json
+"git.terminalAuthentication": false
+```
+
+Then open a fresh terminal — the setting is read when the terminal launches, so existing ones keep the old value. Note this is a different setting from `git.useIntegratedAskPass`, which governs the editor's own git operations rather than the terminal.
+
+For a one-off, override it inline:
+
+```bash
+GIT_ASKPASS= SSH_ASKPASS= git fetch origin main
+```
+
+If the command then reports `could not read Username`, the real problem is a missing or expired token — see the 401 entries above.
+
 ### "Cannot detect git provider for URL"
 
 Self-hosted domain not recognized. Add it to `defaults.gitProviders` in `ecosystem.local.yaml`:

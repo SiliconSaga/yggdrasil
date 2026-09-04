@@ -171,6 +171,40 @@ YAML
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_1=Authorization: Basic $expected"* ]]
 }
 
+@test "tokenless push clears the editor askpass but keeps git's terminal prompt" {
+    # The tokenless path (SSH, unmapped host) is a plain git call and populates
+    # no GIT_AUTH_ENV, so it was the one route still exposed to the editor's GUI
+    # askpass — a real `ws hoard` clone of an unmapped project hung on exactly
+    # this. git_auth_run now clears askpass for every call, token or not.
+    #
+    # GIT_TERMINAL_PROMPT must stay UNSET here: killing the GUI while leaving
+    # the terminal prompt intact is what lets a human still authenticate
+    # interactively, while an agent with no tty fails fast instead of hanging.
+    git -C "$REPO_DIR" remote set-url fork https://gitlab-evil.example/attacker/repo.git
+    cat > "$BATS_TEST_TMPDIR/ecosystem.yaml" <<'YAML'
+defaults: {}
+identity: {}
+components: {}
+YAML
+    export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
+    export GIT_ASKPASS="/Applications/Cursor.app/Contents/Resources/app/extensions/git/dist/askpass.sh"
+    export SSH_ASKPASS="/usr/lib/ssh/ssh-askpass"
+    install_git_push_spy
+
+    run_git_push main
+
+    [ "$status" -eq 0 ]
+    [ -f "$GIT_PUSH_SPY_LOG" ]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_ASKPASS="$'\n'* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"SSH_ASKPASS="$'\n'* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"askpass.sh"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"ssh-askpass"* ]]
+    # No token resolved, so no non-interactive git config rides along.
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"GIT_TERMINAL_PROMPT=0"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"extraheader"* ]]
+}
+
 @test "GitLab look-alike host gets NO GITLAB_TOKEN default (no credential leak)" {
     # A host that merely resembles GitLab must not harvest GITLAB_TOKEN via the
     # default fallback — only an explicit defaults.gitTokens mapping may send a
