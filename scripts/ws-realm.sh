@@ -767,6 +767,19 @@ HELP
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
+# Read one string field out of a JSON record, undoing the LF→CRLF translation jq's raw output mode performs on Windows.
+#
+# Measured, not assumed: `{"v":"a\nb"} | jq -r .v` emits `a\r\nb` there. Without this the trust summary reported a CR the realm never declared — on the surface a human reads to decide whether to trust that realm.
+#
+# Replacing every CRLF with LF is a faithful inverse rather than a blunt strip, because the translation is exactly "every LF becomes CRLF": a lone CR is passed through untouched by jq and survives here, and a genuine CRLF arrives as `\r\r\n` and keeps its own CR. So a hostile realm's embedded carriage return still reaches the escaper and is still shown.
+#
+# Applied here at the read site rather than in the renderer: the renderer also formats values that never passed through jq, and normalizing those would hide a real CR instead of revealing one.
+_ws_realm_jq_string() {
+    local filter="$1" record="$2" out=""
+    out="$(jq -er "$filter" <<< "$record" 2>/dev/null)" || return 1
+    printf '%s' "${out//$'\r\n'/$'\n'}"
+}
+
 # Render each realm-controlled field on one physical trust-summary line. The
 # record renderers add structural separators only after fields are escaped.
 _ws_realm_summary_inline_text() {
@@ -781,8 +794,8 @@ _ws_realm_render_key_value_records() {
     local records="$1" value_prefix="${2:-}" record key value
     while IFS= read -r record; do
         [[ -n "$record" ]] || continue
-        if ! key="$(jq -er '.key | select(type == "string")' <<< "$record" 2>/dev/null)" ||
-           ! value="$(jq -er '.value | select(type == "string")' <<< "$record" 2>/dev/null)"; then
+        if ! key="$(_ws_realm_jq_string '.key | select(type == "string")' "$record")" ||
+           ! value="$(_ws_realm_jq_string '.value | select(type == "string")' "$record")"; then
             return 1
         fi
         printf '    %s  →  %s%s\n' "$(_ws_realm_summary_inline_text "$key")" "$value_prefix" "$(_ws_realm_summary_inline_text "$value")"
@@ -836,8 +849,8 @@ ws_realm_trust_summary() {
         if [[ -n "$commands" ]]; then
             echo "    $adapter_name:"
             while IFS= read -r command_record; do
-                if ! command_key="$(jq -er '.key | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
-                   ! command_value="$(jq -er '.value | select(type == "string")' <<< "$command_record" 2>/dev/null)"; then
+                if ! command_key="$(_ws_realm_jq_string '.key | select(type == "string")' "$command_record")" ||
+                   ! command_value="$(_ws_realm_jq_string '.value | select(type == "string")' "$command_record")"; then
                     echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
                     return 1
                 fi
@@ -917,9 +930,9 @@ ws_realm_trust_summary() {
     if [[ -n "$commands" ]]; then
         while IFS= read -r command_record; do
             [[ -n "$command_record" ]] || continue
-            if ! command_key="$(jq -er '.key | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
-               ! command_value="$(jq -er '.url | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
-               ! route="$(jq -er '.transport | select(type == "string")' <<< "$command_record" 2>/dev/null)"; then
+            if ! command_key="$(_ws_realm_jq_string '.key | select(type == "string")' "$command_record")" ||
+               ! command_value="$(_ws_realm_jq_string '.url | select(type == "string")' "$command_record")" ||
+               ! route="$(_ws_realm_jq_string '.transport | select(type == "string")' "$command_record")"; then
                 echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
                 return 1
             fi

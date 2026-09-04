@@ -36,10 +36,21 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 
 @test "git_auth_run exports auth entries without placing them in parent argv" {
     local probe="$BATS_TEST_TMPDIR/auth-probe.sh"
+    # Read the parent's argv from /proc where it exists, falling back to ps.
+    # `ps -o command= -p` alone is not portable: the MSYS ps that Git Bash ships
+    # rejects -o outright ("unknown option -- o") and exits 1, which failed this
+    # test on its PROBE rather than on the behaviour under test — the secret was
+    # correctly kept out of argv the whole time. Linux and Git Bash both expose
+    # /proc; macOS has ps but no /proc, so both paths earn their place.
     cat > "$probe" <<'BASH'
 #!/bin/bash
 printf 'value=%s\n' "${AUTH_PROBE_SECRET:-missing}"
-ps -o command= -p "$PPID"
+if [ -r "/proc/$PPID/cmdline" ]; then
+    tr '\0' ' ' < "/proc/$PPID/cmdline"
+    printf '\n'
+else
+    ps -o command= -p "$PPID"
+fi
 BASH
     chmod +x "$probe"
     source "$REPO_ROOT/scripts/git-auth.sh"

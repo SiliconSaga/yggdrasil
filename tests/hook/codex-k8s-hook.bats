@@ -34,7 +34,8 @@ run_codex_hook() {
     local session_id="${2:-codex-test}"
     local tool_name="${3:-Bash}"
     local payload
-    payload="$(jq -nc \
+    # MSYS2_ARG_CONV_EXCL scoped to this jq call only: jq is a native Windows binary, so on Git Bash a fixture command like `/usr/bin/kubectl run …` was converted to `C:/Program Files/Git/usr/bin/kubectl run …` before it ever reached the hook. That path contains a SPACE, the hook split it on whitespace, and the guard never saw a kubectl invocation to classify. Exporting the exclusion for the whole test instead breaks three other tests here that rely on conversion. Inert off Windows.
+    payload="$(MSYS2_ARG_CONV_EXCL='*' jq -nc \
         --arg sid "$session_id" \
         --arg tool "$tool_name" \
         --arg command "$command" \

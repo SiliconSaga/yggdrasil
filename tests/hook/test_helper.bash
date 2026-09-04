@@ -46,6 +46,15 @@ init_hook_env() {
     export CLAUDE_PROJECT_DIR="$WORK"
 }
 
+# Build a hook payload without letting MSYS rewrite the command string.
+#
+# `jq` is a native Windows binary, so on Git Bash MSYS converts POSIX-looking arguments on the way in: a fixture command like `/usr/bin/git push` arrived as `C:/Program Files/Git/usr/bin/git push`. That path contains a SPACE, the hook's whitespace tokenizer split it in two, and canonicalization produced the nonsense `C:/Program git push`, which matches no rule. The tests read as "the hook fails to catch a path-qualified executable" while the hook was never shown one.
+#
+# Scoped to this one call rather than exported for the whole test: a blanket MSYS2_ARG_CONV_EXCL='*' also suppresses conversion the hook tests legitimately depend on, and breaks three otherwise-passing codex k8s tests. Inert off Windows.
+build_hook_payload() {
+    MSYS2_ARG_CONV_EXCL='*' jq -nc "$@"
+}
+
 # Write a synthetic project .claude/settings.json with the given
 # Bash(...) allowlist entries (passed as newline-separated strings).
 write_project_settings() {
@@ -128,7 +137,7 @@ run_hook_write() {
     local file_path="$2"
     local cwd="${3:-$WORK}"
     local payload
-    payload=$(jq -nc --arg t "$tool" --arg fp "$file_path" --arg cwd "$cwd" \
+    payload=$(build_hook_payload --arg t "$tool" --arg fp "$file_path" --arg cwd "$cwd" \
         '{tool_name:$t, tool_input:{file_path:$fp}, cwd:$cwd}')
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
@@ -150,7 +159,7 @@ run_hook_write_content() {
     local field="content"
     [[ "$tool" == "Edit" ]] && field="new_string"
     local payload
-    payload=$(jq -nc --arg t "$tool" --arg fp "$file_path" --arg c "$content" \
+    payload=$(build_hook_payload --arg t "$tool" --arg fp "$file_path" --arg c "$content" \
         --arg f "$field" --arg sid "$sid" --arg cwd "$cwd" \
         '{tool_name:$t, tool_input:({file_path:$fp} + {($f):$c}), cwd:$cwd}
          + (if $sid != "" then {session_id:$sid} else {} end)')
@@ -166,7 +175,7 @@ run_hook() {
     local cmd="$1"
     local cwd="${2:-$WORK}"
     local payload
-    payload=$(jq -nc --arg cmd "$cmd" --arg cwd "$cwd" \
+    payload=$(build_hook_payload --arg cmd "$cmd" --arg cwd "$cwd" \
         '{tool_input:{command:$cmd}, cwd:$cwd}')
     # `timeout` catches infinite-loop regressions — the original
     # collect_patterns bug hung forever on Windows paths until we
@@ -188,7 +197,7 @@ run_hook_with_session() {
     local session_id="$2"
     local cwd="${3:-$WORK}"
     local payload
-    payload=$(jq -nc --arg cmd "$cmd" --arg cwd "$cwd" --arg sid "$session_id" \
+    payload=$(build_hook_payload --arg cmd "$cmd" --arg cwd "$cwd" --arg sid "$session_id" \
         '{session_id:$sid, tool_input:{command:$cmd}, cwd:$cwd}')
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"
 }
@@ -205,7 +214,7 @@ run_hook_ps() {
     local session_id="${2:-}"
     local cwd="${3:-$WORK}"
     local payload
-    payload=$(jq -nc --arg cmd "$cmd" --arg cwd "$cwd" --arg sid "$session_id" \
+    payload=$(build_hook_payload --arg cmd "$cmd" --arg cwd "$cwd" --arg sid "$session_id" \
         '{tool_name:"PowerShell", tool_input:{command:$cmd}, cwd:$cwd}
          + (if $sid == "" then {} else {session_id:$sid} end)')
     run "$TIMEOUT_BIN" 10 bash "$HOOK_BIN" <<< "$payload"

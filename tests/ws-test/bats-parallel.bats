@@ -24,6 +24,8 @@ EOF
 
     write_incompatible_backend rush
     write_incompatible_backend parallel
+    # Stub a lock helper by default. ws-test.sh refuses to parallelize at all unless `flock` or `shlock` is on PATH, and Git Bash ships neither — so every backend-SELECTION test silently measured "no lock helper" instead of the selection logic it names, and failed on a precondition it was not written to test. These tests already stub their backends for exactly this reason; the lock helper is the same kind of precondition. `hide_lock_helpers` overrides the `type` builtin, so the one test that needs the helper absent still works.
+    write_lock_helper flock
 }
 
 teardown() {
@@ -336,7 +338,9 @@ EOF
 
 @test "bats recursive file counting suppresses symlink-loop diagnostics" {
     write_compatible_backend rush
-    ln -s . "$ROOT_DIR/tests/ws-bats-self-loop"
+    # Verify the link with `-L`, not `ln -s`'s exit code: Git Bash on Windows returns 0 and silently creates a real copy when symlink privileges are absent. A self-referential loop is the entire scenario here, and a copy is not one. Same check the hook tests use.
+    ln -s . "$ROOT_DIR/tests/ws-bats-self-loop" 2>/dev/null || true
+    [[ -L "$ROOT_DIR/tests/ws-bats-self-loop" ]] || skip "real symlinks not supported on this platform"
     write_noisy_recursive_find
 
     run --separate-stderr bash "$WS_TEST_BIN" yggdrasil --recursive tests

@@ -615,9 +615,9 @@ YAML
 @test "ws orient: rejects a symlinked ai_context path before probing its target" {
     mkdir -p "$WORK/components/demo/.git" "$WORK/components/demo/docs" "$WORK/realms/realm-fixture/adapters" "$WORK/outside"
     printf '# outside\n' > "$WORK/outside/secret.md"
-    if ! ln -s "$WORK/outside" "$WORK/components/demo/docs/link" 2>/dev/null; then
-        skip "symlinks unavailable"
-    fi
+    # Verify the link with `-L`, not `ln -s`'s exit code: Git Bash on Windows returns 0 from `ln -s` and silently creates a real copy when symlink privileges are absent, so an exit-code guard never fires and the test then fails on a fixture that is not a symlink at all. Same check the hook tests use.
+    ln -s "$WORK/outside" "$WORK/components/demo/docs/link" 2>/dev/null || true
+    [[ -L "$WORK/components/demo/docs/link" ]] || skip "real symlinks not supported on this platform"
     printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
     cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
 commands:

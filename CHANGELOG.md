@@ -21,6 +21,11 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 - **`ws issue` resolves a relative bodyfile against the workspace root**, as `ws cr` always did. It previously resolved against the caller's directory, so it worked only when `ws` was invoked from the workspace root.
 - **`ws issue` reads the raw configured remote URL** rather than the `url.insteadOf`-rewritten one, matching `ws cr`. On a repository using an `insteadOf` rewrite, provider detection failed for `ws issue` while `ws cr` succeeded on the same remote.
 
+### Fixed
+
+- **The realm trust summary no longer reports a carriage return the realm never declared.** `jq`'s raw output mode translates every LF to CRLF on Windows, so a multi-line adapter command rendered as `…pytest\r\n…` on the surface a human reads to decide whether to trust a realm. Genuine carriage returns are still surfaced — the correction is a faithful inverse, not a strip. Trust fingerprints were never affected; they are computed through `yq`, which does not translate.
+- **Fifteen tests that failed only on Git Bash now pass or skip honestly**, so a local `ws test yggdrasil` can serve as a gate on Windows again. Four were never shown the input they described (`jq` rewrote `/usr/bin/git` to a space-containing Windows path before the hook saw it); four asserted symlink behaviour on a platform where `ln -s` exits 0 and silently copies; five measured a missing `flock` instead of the backend selection they named; one failed on its own probe, because the MSYS `ps` rejects `-o`.
+
 ## [1.1.0] - 2026-08-24
 
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).

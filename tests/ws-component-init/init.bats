@@ -54,7 +54,9 @@ run_component_init() {
 @test "rejects a component flavor symlinked outside the template root" {
     mkdir -p "$WORK/private-template"
     printf 'private\n' > "$WORK/private-template/README.md"
-    ln -s "$WORK/private-template" "$TEMPLATES_DIR/components/linked"
+    # Verify the link with `-L`, not `ln -s`'s exit code: Git Bash on Windows returns 0 and silently creates a real copy when symlink privileges are absent. Without this the fixture is an ordinary directory, the code correctly does NOT reject it, and the test fails for a scenario the platform cannot express. Same check the hook tests use.
+    ln -s "$WORK/private-template" "$TEMPLATES_DIR/components/linked" 2>/dev/null || true
+    [[ -L "$TEMPLATES_DIR/components/linked" ]] || skip "real symlinks not supported on this platform"
 
     run_component_init linked escaped
 
