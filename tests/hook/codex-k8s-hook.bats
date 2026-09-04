@@ -219,7 +219,9 @@ assert_denied() {
     assert_denied
     local reason
     reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")"
-    [[ "${reason,,}" == *"no kubernetes guard scope is active"* ]]
+    # tr fold rather than ${reason,,} — bats runs under the PATH bash, which is
+    # 3.2.57 on a stock Mac, where that expansion is a hard error.
+    [[ "$(LC_ALL=C printf '%s' "$reason" | LC_ALL=C tr '[:upper:]' '[:lower:]')" == *"no kubernetes guard scope is active"* ]]
     [[ "$reason" == *"calls raw kubectl"* ]]
 }
 

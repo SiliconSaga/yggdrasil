@@ -83,7 +83,14 @@ sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
 #   1 remote  → use it (any name)
 #   N remotes + REMOTE hint → case-insensitive match
 #   N remotes, no match → fail with clear error
-mapfile -t _REMOTES < <(cd "$COMPONENT_DIR" && git remote)
+# Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships
+# bash 3.2.57 (frozen in 2007 over the GPLv3 relicense), where it does not
+# exist at all. See the matching note in git-push.sh.
+_REMOTES=()
+_line=""
+while IFS= read -r _line || [[ -n "$_line" ]]; do
+  _REMOTES+=("$_line")
+done < <(cd "$COMPONENT_DIR" && git remote)
 
 REMOTE_NAME=""
 if [[ ${#_REMOTES[@]} -eq 0 ]]; then

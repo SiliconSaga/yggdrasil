@@ -475,12 +475,24 @@ fi
 
 # Find the fork remote.
 # Explicit override: match it. Single remote: use it. Multiple: match forkRemote. No match: fail.
-mapfile -t _ALL_REMOTES < <(git remote)
+# Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships
+# bash 3.2.57 (frozen in 2007 over the GPLv3 relicense), where it does not
+# exist at all. See the matching note in git-push.sh.
+_ALL_REMOTES=()
+_line=""
+while IFS= read -r _line || [[ -n "$_line" ]]; do
+  _ALL_REMOTES+=("$_line")
+done < <(git remote)
+
+# Same GPLv3-era constraint rules out `${var,,}` (bash 4.0+) in the two
+# case-insensitive remote comparisons below; fold with tr instead, mirroring
+# _policy_path_fold in .claude/hooks/gdd-permission-hook.sh.
+_lc() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 
 FORK_REMOTE=""
 if [[ -n "$CR_REMOTE" ]]; then
   for _r in "${_ALL_REMOTES[@]}"; do
-    if [[ "${_r,,}" == "${CR_REMOTE,,}" ]]; then
+    if [[ "$(_lc "$_r")" == "$(_lc "$CR_REMOTE")" ]]; then
       FORK_REMOTE="$_r"
       break
     fi
@@ -497,7 +509,7 @@ elif [[ -n "$_ECO" ]]; then
   [[ "$_FORK_REMOTE" == "null" ]] && _FORK_REMOTE=""
   if [[ -n "$_FORK_REMOTE" ]]; then
     for _r in "${_ALL_REMOTES[@]}"; do
-      if [[ "${_r,,}" == "${_FORK_REMOTE,,}" ]]; then
+      if [[ "$(_lc "$_r")" == "$(_lc "$_FORK_REMOTE")" ]]; then
         FORK_REMOTE="$_r"
         break
       fi

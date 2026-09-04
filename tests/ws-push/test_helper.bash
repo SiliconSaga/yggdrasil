@@ -40,6 +40,11 @@ install_git_push_spy() {
 if [[ "${1:-}" == "push" ]]; then
     {
         printf 'GIT_TERMINAL_PROMPT=%s\n' "${GIT_TERMINAL_PROMPT-}"
+        # Literal <unset> rather than an empty string, so a test can tell
+        # "cleared to empty" (the non-interactive guarantee) apart from
+        # "never set" (an inherited editor askpass would still fire).
+        printf 'GIT_ASKPASS=%s\n' "${GIT_ASKPASS-<unset>}"
+        printf 'SSH_ASKPASS=%s\n' "${SSH_ASKPASS-<unset>}"
         printf 'GIT_CONFIG_COUNT=%s\n' "${GIT_CONFIG_COUNT-}"
         i=0
         while [[ $i -lt ${GIT_CONFIG_COUNT:-0} ]]; do
