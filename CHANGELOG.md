@@ -6,6 +6,10 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Added
+
+- **`[headless-allow]` ships three entries instead of none** — `git checkout main`, so a sandbox that has opened a pull request can get back to its default branch and cut the next one independently (without it, a second request branched off the first topic branch and its PR carried both changes); plus `identify` and `file`, so a multi-megabyte phone photo can be measured rather than committed blind. Each is exact: `git checkout <token>` restores a *path* when the token names one, so a wildcard would be the discard form in disguise, and `convert` stays denied because it writes wherever it is pointed. See the [hook README](.claude/hooks/README.md).
+
 ## [1.1.0] - 2026-08-24
 
 **The 1.1 headliner: sandboxed workspaces went from roadmap track to working capability.** [`gdd-sandbox`](https://github.com/SiliconSaga/gdd-sandbox) runs a scoped GDD agent in a Docker container, reachable over chat and pointed at one target component — a chat message becomes a reviewed pull request, and merging stays human. It ships as an optional companion component fetched independently of the workspace; see the [features tour entry](docs/gdd/features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).

@@ -159,16 +159,53 @@ setup() {
 
 @test "headless: nothing that discards uncommitted work is allowed" {
     # `git checkout -- .` and `git switch --discard-changes` throw away work with
-    # no undo, and a glob cannot tell them from switching branch. Switching to an
-    # existing branch therefore still needs a human — the deliberate trade until
-    # `ws checkout` exists as a whole verb to allow. Creating one is parsed
-    # separately; see the branch-creation test below.
+    # no undo, and a glob cannot tell them from switching branch. Switching to any
+    # branch but the default one therefore still needs a human — the deliberate
+    # trade until `ws checkout` exists as a whole verb to allow. Creating one is
+    # parsed separately; returning to the default branch has its own test below.
     seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -- .'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git switch --discard-changes main'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout some-other-branch'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: returning to the default branch is allowed, and only that" {
+    # Measured need: a sandbox that had opened a pull request could not get back
+    # to `main`, so the next request branched off the previous topic branch and
+    # its pull request carried both changes.
+    #
+    # Exact and literal because `git checkout <token>` restores a PATH when the
+    # token names one — a wildcard here would be the discard form wearing a
+    # different hat. `main` is one known branch, and no options are accepted.
+    seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout main'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    # The pathspec forms that name main first, or force, must not ride along.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout main -- about.html'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -f main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # ...and it stays pinned to the sandbox's own component.
+    GDD_SANDBOX=ken-site run_hook 'ws exec other-component git checkout main'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: an image can be measured but not rewritten" {
+    # A phone photo arrives at several megabytes and print resolution, and an
+    # agent that cannot measure that commits it blind. `identify` and `file` read.
+    # `convert` writes wherever it is pointed — the reasoning that removed the
+    # site build — so it stays denied until `ws image` can validate a destination.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site identify assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site convert big.png -resize 50% small.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site mogrify -resize 50% big.png'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
