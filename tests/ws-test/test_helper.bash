@@ -64,6 +64,18 @@ EOF
     approve_synthetic_realm
 }
 
+# Write both commands.test and the opt-in commands.testFilter, for runners
+# whose filter syntax ws-test cannot infer.
+write_adapter_test_filter() {
+    local cmd="$1" filter_cmd="$2"
+    cat > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml" <<EOF
+commands:
+  test: "$cmd"
+  testFilter: "$filter_cmd"
+EOF
+    approve_synthetic_realm
+}
+
 run_ws_test() {
     run bash "$WS_TEST_BIN" "$@"
 }

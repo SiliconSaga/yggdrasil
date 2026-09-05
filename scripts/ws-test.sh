@@ -105,6 +105,13 @@ test_help() {
         echo ""
         echo "For unittest adapters, a positional selector becomes a -k pattern:"
         echo "  ws test gangplank slack_prompt             # -k slack_prompt"
+        echo ""
+        echo "For any other runner — a make target, an npm script, a wrapper —"
+        echo "there is no filter syntax to infer, so the adapter declares its own"
+        echo "as commands.testFilter with {} marking where the selector goes:"
+        echo "  testFilter: \"make test-one NAME={}\""
+        echo "Without it a filter is refused rather than dropped, so a full green"
+        echo "suite is never mistaken for the one test you asked for."
     } >&"$stream"
 }
 
@@ -142,6 +149,13 @@ if [[ -n "$active_realm" ]]; then
         # exit (malformed adapter YAML) would abort before the auto-detect
         # fallback below. `// ""` already maps a missing key to empty.
         adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null) || adapter_cmd=""
+        # Optional escape hatch for runners this script cannot translate for.
+        # A make target, an npm script or a shell wrapper has no filter syntax
+        # we can infer, so the adapter declares its own and names where the
+        # selector goes with `{}`. Opt-in on purpose: silently dropping a
+        # filter and running everything would report a green full suite as
+        # though the one test asked for had passed.
+        adapter_filter_cmd=$(yq -r '.commands.testFilter // ""' "$adapter_file" 2>/dev/null) || adapter_filter_cmd=""
         if [[ -n "$adapter_cmd" ]]; then
             runner="adapter"
         fi
@@ -451,9 +465,30 @@ case "$runner" in
                         "${adapter_argv[@]}" -k "$test_filter" "${runner_args[@]}"
                         exit 0
                     fi
+                    # An adapter that declares commands.testFilter has told us
+                    # how to filter itself. `{}` marks where the selector goes,
+                    # so a runner with any syntax at all can opt in.
+                    if [[ -n "$adapter_filter_cmd" ]]; then
+                        if [[ ${#test_selectors[@]} -gt 1 ]]; then
+                            reject_multiple_keyword_selectors "this adapter"
+                        fi
+                        if [[ "$adapter_filter_cmd" != *"{}"* ]]; then
+                            echo "ERROR: commands.testFilter for '$comp' has no {} placeholder." >&2
+                            echo "  Name where the selector goes, e.g. 'make test-one NAME={}'." >&2
+                            echo "  Without it the selector would be dropped and the full suite would run." >&2
+                            exit 1
+                        fi
+                        filter_argv=()
+                        # shellcheck disable=SC2206
+                        read -r -a filter_argv <<< "${adapter_filter_cmd//\{\}/$test_filter}"
+                        "${filter_argv[@]}" "${runner_args[@]}"
+                        exit 0
+                    fi
                     echo "ERROR: Adapter command '${adapter_argv[*]}' is not Gradle, pytest, or unittest." >&2
                     echo "  Test name filters are only supported for Gradle, Go, Python, pytest adapters, and unittest adapters." >&2
-                    echo "  Use 'ws exec $comp <runner> <args>' to run '$test_filter' directly." >&2
+                    echo "  Declare commands.testFilter in this component's realm adapter to teach" >&2
+                    echo "  ws how to filter it, e.g. 'make test-one NAME={}'." >&2
+                    echo "  Or use 'ws exec $comp <runner> <args>' to run '$test_filter' directly." >&2
                     exit 1
                 fi
                 "${adapter_argv[@]}" "${runner_args[@]}"
