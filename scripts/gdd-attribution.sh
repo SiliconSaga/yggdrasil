@@ -14,8 +14,17 @@ _gdd_attribution_no_account() {
 
 # Resolve identity.human_account. Fails closed: a banner cannot be written, or meaningfully checked, without knowing who is driving.
 gdd_attribution_human_account() {
-    local eco="" human=""
-    eco=$(ws_resolve_ecosystem 2>/dev/null) || eco=""
+    local eco="" human="" resolve_err="" err_file=""
+    # Report an unresolvable ecosystem as itself, and replay why. ws_resolve_ecosystem fails closed on stale realm trust, and collapsing that into "human_account not set" sends the operator to edit a config file that is already correct — measured while opening this change's own CR, where the account WAS set and the realm had merely drifted after a hoard pull. The old inline code had the same flaw; it is fixed here rather than carried forward.
+    err_file=$(mktemp) || return 1
+    if ! eco=$(ws_resolve_ecosystem 2>"$err_file"); then
+        resolve_err=$(<"$err_file")
+        rm -f "$err_file"
+        echo "ERROR: cannot resolve the ecosystem config, so the attribution line cannot be built." >&2
+        [[ -n "$resolve_err" ]] && printf '%s\n' "$resolve_err" >&2
+        return 1
+    fi
+    rm -f "$err_file"
     if [[ -z "$eco" ]]; then
         _gdd_attribution_no_account
         return 1
