@@ -18,9 +18,10 @@
 #
 # Coverage grows in rings: templates/*.md and docs/gdd/*.md are fully
 # clean and locked; .agent/skills/ locks the clean files while the
-# GRANDFATHERED list carries the legacy-wrapped ones (per the doc-writing
-# convention, existing wrapped prose stays wrapped until deliberately
-# reflowed). Shrink the list as files get cleaned — never add to it.
+# GRANDFATHERED list carries the legacy-wrapped ones. Being on that list
+# is a debt, not a licence: the doc-writing convention says to ASK about
+# reflowing a wrapped file you are editing rather than quietly matching
+# it. Shrink the list as files get cleaned — never add to it.
 
 _wrap_detect() {
     awk '
@@ -59,7 +60,7 @@ _wrap_detect() {
 }
 
 # Legacy-wrapped skills awaiting deliberate reflow. Shrink-only.
-GRANDFATHERED="gdd gdd-bdd gdd-bdd-pytest gdd-branch-workflow gdd-doc-writing gdd-flow gdd-github-issues gdd-housekeeping gdd-mcp gdd-mentoring gdd-permissions gdd-quick gdd-review-triage gdd-scribe gdd-workflow-audit gdd-zen"
+GRANDFATHERED="gdd gdd-bdd gdd-bdd-pytest gdd-branch-workflow gdd-flow gdd-github-issues gdd-housekeeping gdd-mcp gdd-mentoring gdd-permissions gdd-quick gdd-review-triage gdd-scribe gdd-workflow-audit gdd-zen"
 
 @test "top-level templates contain no hard-wrapped prose" {
     local repo_root

@@ -25,7 +25,11 @@ It does *not* apply to:
 
 "One bullet per line" means literally one line per bullet — a bullet whose text breaks across several physical lines counts as hard-wrapped prose and is to be avoided.
 
-If a file already uses hard-wrapped prose throughout, the existing wrapped content stays wrapped — don't reflow it as a side-effect of unrelated edits. But **new content added to such a file still uses the don't-wrap convention**, even when the surrounding prose is wrapped. New files always use the don't-wrap convention.
+New files always use the don't-wrap convention, and so does **new content added to a file that is already hard-wrapped** — even when every paragraph around it is wrapped. The surrounding style is not the convention; the convention is.
+
+When you find yourself editing a hard-wrapped file, **say so and ask whether to reflow it** — don't reflow it silently as a side-effect, and don't quietly leave it either. Something like: *"local-dev.md is hard-wrapped throughout (85 lines). Want me to reflow it in a separate commit while I'm here?"* A separate commit keeps the reflow diff out of the change being reviewed. If the answer is no, or you're mid-task and it would derail things, leave the old prose wrapped and still write your new prose unwrapped.
+
+Why ask rather than follow the file: matching the surrounding paragraphs feels like care, so a wrapped file quietly recruits every later edit into staying wrapped, and the violation compounds invisibly. Asking costs one sentence and puts the choice where it belongs.
 
 ## Describe current state, not history
 
@@ -42,8 +46,7 @@ The record of change lives elsewhere, and that is where history belongs:
 
 ### Rule 1: Never use `\n` in node labels
 
-`\n` does NOT render as a newline in Mermaid in most contexts (GitHub, VS Code, many
-preview tools). Use `<br/>` instead.
+`\n` does NOT render as a newline in Mermaid in most contexts (GitHub, VS Code, many preview tools). Use `<br/>` instead.
 
 ```
 WRONG: NODE["Title\nSubtitle"]
@@ -52,23 +55,19 @@ RIGHT: NODE["Title<br/>Subtitle"]
 
 ### Rule 2: No background fill colors
 
-Never use `style` declarations with `fill:` color values. They render inconsistently
-across dark/light themes and break in many Mermaid renderers.
+Never use `style` declarations with `fill:` color values. They render inconsistently across dark/light themes and break in many Mermaid renderers.
 
-```
+```text
 WRONG: style NodeA fill:#f9d0d0
 WRONG: style NodeA fill:#d0f0d0,color:#000
 RIGHT: (omit the style declaration entirely)
 ```
 
-If you need to visually distinguish nodes, use shape variants (`([...])`, `{...}`, etc.)
-or subgraph grouping — not fill colors.
+If you need to visually distinguish nodes, use shape variants (`([...])`, `{...}`, etc.) or subgraph grouping — not fill colors.
 
 ### Rule 3: Layer cake diagrams use `graph BT`
 
-For hierarchy diagrams where a foundation layer sits at the bottom (e.g., the three
-Yggdrasil platform tiers), use `graph BT` (bottom-to-top). Arrows go from the
-lower/foundation tier to the upper tier it supports.
+For hierarchy diagrams where a foundation layer sits at the bottom (e.g., the three Yggdrasil platform tiers), use `graph BT` (bottom-to-top). Arrows go from the lower/foundation tier to the upper tier it supports.
 
 ```mermaid
 graph BT
@@ -80,8 +79,7 @@ This puts the Foundation subgraph at the bottom of the rendered diagram.
 
 ### Rule 4: Multi-word subgraph labels use em dashes
 
-For subgraph title strings with multiple logical parts, use ` — ` (em dash, not double
-hyphen) as the separator. This renders cleanly as plain text.
+For subgraph title strings with multiple logical parts, use ` — ` (em dash, not double hyphen) as the separator. This renders cleanly as plain text.
 
 ```
 subgraph T1["Tier 1 — Nordri — Cluster Substrate"]
@@ -175,5 +173,4 @@ Nidavellir (apps/) → references Demicracy app-of-apps
 Demicracy (apps/) → references its own components
 ```
 
-**Never** put a Demicracy Application in Nordri's `platform/argocd/`. Nordri only knows
-about Nidavellir. Nidavellir is the forge that deploys Demicracy.
+**Never** put a Demicracy Application in Nordri's `platform/argocd/`. Nordri only knows about Nidavellir. Nidavellir is the forge that deploys Demicracy.
