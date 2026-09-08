@@ -714,8 +714,18 @@ _k8s_supports_dry_run() {
 # namespace scope, so the guard fails closed on it regardless of -n. Best-effort
 # accident-prevention list of the common/dangerous types (this is not a security
 # boundary); accepts singular/plural/short-alias and PascalCase Kind forms.
+# ASCII lowercase fold. `${var,,}` would be shorter but is bash 4.0+, and this
+# file is sourced by .claude/hooks/gdd-permission-hook.sh — which runs under
+# whatever `bash` PATH resolves to, i.e. 3.2.57 on a stock Mac (Apple froze
+# there in 2007 over the GPLv3 relicense). A `bad substitution` here does not
+# fail loudly; it makes k8s_guard_evaluate return nothing, which the hook then
+# treats as "guard evaluation failed" and downgrades to an ask. Safe, but the
+# guard would be silently inert on every Mac. LC_ALL=C keeps the fold
+# locale-independent; kubectl resource types and Kinds are ASCII.
+_k8s_lc() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
+
 _k8s_is_cluster_scoped() {
-    local t="${1,,}"   # lowercase (folds PascalCase Kinds onto the same entries)
+    local t; t="$(_k8s_lc "$1")"   # folds PascalCase Kinds onto the same entries
     t="${t%%/*}"       # strip a /name suffix (ns/prod → ns)
     t="${t%%.*}"       # strip an api-group suffix (clusterroles.rbac.authorization.k8s.io → clusterroles)
     case "$t" in
@@ -738,7 +748,7 @@ _k8s_is_cluster_scoped() {
 # in-scope namespace's own create/delete through (see k8s_guard_evaluate) even
 # though _k8s_is_cluster_scoped also matches it for the general blanket block.
 _k8s_is_namespace_type() {
-    case "${1,,}" in namespace|namespaces|ns) return 0 ;; *) return 1 ;; esac
+    case "$(_k8s_lc "$1")" in namespace|namespaces|ns) return 0 ;; *) return 1 ;; esac
 }
 
 # Membership test: is $1 one of the comma-separated namespaces in $2?

@@ -68,7 +68,14 @@ gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 #   1 remote  → use it (any name)
 #   N remotes + REMOTE hint → case-insensitive match
 #   N remotes, no match → fail with clear error
-mapfile -t _REMOTES < <(cd "$COMPONENT_DIR" && git remote)
+# Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships
+# bash 3.2.57 (frozen in 2007 over the GPLv3 relicense), where it does not
+# exist at all. See the matching note in git-push.sh.
+_REMOTES=()
+_line=""
+while IFS= read -r _line || [[ -n "$_line" ]]; do
+  _REMOTES+=("$_line")
+done < <(cd "$COMPONENT_DIR" && git remote)
 
 REMOTE_NAME=""
 if [[ ${#_REMOTES[@]} -eq 0 ]]; then
@@ -77,7 +84,11 @@ if [[ ${#_REMOTES[@]} -eq 0 ]]; then
 elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
   REMOTE_NAME="${_REMOTES[0]}"
 elif [[ -n "$REMOTE" ]]; then
-  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1 || true)
+  # -F -x: same fix as git-issue-edit.sh. Review flagged only that file because only
+  # it was in the diff, but this copy carried the identical regex injection — a
+  # `$REMOTE` containing BRE metacharacters could select a different remote than the
+  # one named, and here that chooses which repository the issue is filed against.
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | LC_ALL=C grep -F -i -x -- "$REMOTE" | head -1 || true)
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
     echo "  Available remotes: ${_REMOTES[*]}" >&2

@@ -73,7 +73,7 @@ esac
 hint_for() {
     local tool="$1"
     case "$OS:$tool" in
-        mac:bash)         echo "Should be present. If not: 'brew install bash' (and add to /etc/shells)." ;;
+        mac:bash)         echo "macOS ships bash 3.2.57 (frozen since 2007 over GPLv3) — too old, and it is what 'bash' resolves to by default. 'brew install bash' installs 5.x; make sure its dir precedes /bin on PATH ('command -v bash' should NOT say /bin/bash). You do not need to change your login shell — zsh is fine." ;;
         mac:git)          echo "'brew install git' (or install Xcode Command Line Tools: 'xcode-select --install')." ;;
         mac:yq)           echo "'brew install yq' (Mike Farah's Go-based yq, NOT the Python pip one)." ;;
         mac:jq)           echo "'brew install jq'." ;;
@@ -150,7 +150,18 @@ echo "Workspace prerequisites check (OS: $OS)"
 echo ""
 
 echo "Required:"
-check_tool bash required
+# bash must be ≥ 4.0, and this is the prerequisite most likely to be silently
+# wrong on a Mac. Apple froze /bin/bash at 3.2.57 (2007) because bash 4.0
+# relicensed to GPLv3, and then made zsh the default login shell — so nothing
+# in daily use points at it and a stock macOS machine looks fine until a
+# workspace script hits a bash-4 builtin. `mapfile` in ws push / ws cr /
+# ws issue is the concrete floor; the permission hook's own token walk hit the
+# same wall via `local -n` (a 4.3 nameref) and hung every git/gh/glab tool call
+# outright before that was rewritten. Probe the bash on PATH rather than
+# $BASH_VERSINFO — that is the interpreter `#!/usr/bin/env bash` and the hook's
+# `bash <script>` registration will actually select, which is not necessarily
+# the one running this check.
+check_tool bash required 'bash -c '\''[[ ${BASH_VERSINFO[0]} -ge 4 ]]'\'''
 # git must be ≥ 2.31: the token-injected HTTPS auth path (ws push/clone/
 # clone-fork/pull) rides GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n environment
 # entries, which older git silently ignores — auth then falls through to
@@ -194,6 +205,43 @@ else
     echo "       Bash(ws …) permission allowlist can match. In your shell profile:"
     echo "         export PATH=\"$_WS_SCRIPTS_DIR:\$PATH\""
     echo "       then open a fresh shell. (On Windows, Git's installer PATH option covers Git Bash itself.)"
+fi
+
+# Inherited GUI askpass? `ws` neutralizes this internally for every git call it
+# makes (see git_auth_run), so this is advisory: it exists because raw `git` in
+# the same shell is still exposed, and because the durable fix is an editor
+# setting the workspace cannot change. A GUI askpass blocks on a dialog nobody
+# answers in an agent session, turning a credential failure into a silent hang.
+# Matched on editor/app-bundle shapes rather than "set at all" so a deliberate
+# headless askpass doesn't nag. Advisory only — never flips the exit code.
+_ws_askpass_note() {
+    local var="$1" value="$2"
+    case "$value" in
+        *Cursor.app*|*"Visual Studio Code"*|*Code.app*|*VSCodium*|*.app/*|*/extensions/git/dist/askpass*)
+            echo "  ⚠ $var points at an editor's GUI askpass helper:"
+            echo "       $value"
+            echo "       Raw 'git' in this shell will hang on a credential prompt instead of failing."
+            echo "       'ws' clears it for its own git calls, so this only affects git you run directly."
+            echo "       Permanent fix — in the editor's settings, set:"
+            echo "         \"git.terminalAuthentication\": false"
+            echo "       then open a fresh terminal (the setting is read at terminal launch)."
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+echo ""
+echo "Environment:"
+_WS_ASKPASS_FOUND=0
+if [[ -n "${GIT_ASKPASS:-}" ]] && _ws_askpass_note GIT_ASKPASS "$GIT_ASKPASS"; then
+    _WS_ASKPASS_FOUND=1
+fi
+if [[ -n "${SSH_ASKPASS:-}" ]] && _ws_askpass_note SSH_ASKPASS "$SSH_ASKPASS"; then
+    _WS_ASKPASS_FOUND=1
+fi
+if [[ "$_WS_ASKPASS_FOUND" -eq 0 ]]; then
+    echo "  ✓ no GUI askpass helper inherited (git credential failures fail fast)"
 fi
 
 echo ""

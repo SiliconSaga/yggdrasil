@@ -194,7 +194,13 @@ if [[ "$ROOT_DIR" =~ ^/([A-Za-z])(/.*)?$ ]]; then
     # in-repo. No-op on Linux/macOS roots (no single-letter prefix).
     _drv="${BASH_REMATCH[1]}"
     _rest="${BASH_REMATCH[2]}"
-    _ROOT_ALTS="$_ROOT_ALTS|$(_re_escape "${_drv^^}:$_rest")|$(_re_escape "${_drv,,}:$_rest")"
+    # `${var^^}` / `${var,,}` are bash 4.0+, and macOS ships bash 3.2.57
+    # (frozen in 2007 over the GPLv3 relicense). This branch only fires on an
+    # msys-form root so it never runs on a Mac today, but the whole point of a
+    # portability sweep is not to leave the next one to chance.
+    _drv_upper="$(LC_ALL=C printf '%s' "$_drv" | LC_ALL=C tr '[:lower:]' '[:upper:]')"
+    _drv_lower="$(LC_ALL=C printf '%s' "$_drv" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+    _ROOT_ALTS="$_ROOT_ALTS|$(_re_escape "${_drv_upper}:$_rest")|$(_re_escape "${_drv_lower}:$_rest")"
 fi
 WS_NORM_RE="s#bash (($_ROOT_ALTS)/)?scripts/ws([ :)])#ws\3#"
 BATS_NORM_RE="s#bash (($_ROOT_ALTS)/)?tests/vendor/bats-core/bin/bats tests/#bats tests/#"

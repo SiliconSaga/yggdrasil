@@ -106,7 +106,9 @@ git_auth_basic_header() {
 
 # Populate GIT_AUTH_ENV (array), GIT_AUTH_LABEL, GIT_AUTH_PROVIDER for a URL.
 # Leaves GIT_AUTH_ENV empty when no token applies (SSH, tokenless, unknown host),
-# in which case `git_auth_run git …` behaves like a plain git call.
+# in which case `git_auth_run git …` behaves like a plain git call — except that
+# git_auth_run always neutralizes an inherited askpass helper, so "plain" cannot
+# mean "blocks on the editor's GUI credential dialog". See git_auth_run.
 git_auth_env_for_url() {
   local remote_url="$1"
   local host provider="" default_token_var="" token="" user="" token_label="" header=""
@@ -169,6 +171,28 @@ git_auth_env_for_url() {
 # keeps the injected values scoped to this invocation, while avoiding an
 # external `env NAME=secret ...` process whose argument list exposes them.
 git_auth_run() (
+  # Neutralize any inherited askpass helper, for every call — token or not.
+  #
+  # When git needs a credential it tries credential helpers, then askpass, then
+  # the terminal. VS Code and Cursor both export GIT_ASKPASS into every
+  # integrated-terminal shell (`git.terminalAuthentication`, default on), and
+  # that helper blocks on a GUI dialog. Nothing answers it in an agent session,
+  # so a routine `ws clone` / `ws pull` / `ws push` hung indefinitely instead of
+  # failing — observed twice, including a `git fetch` wedged for 14h59m.
+  #
+  # Cleared here rather than in GIT_AUTH_ENV because that array is populated
+  # only when a token resolves; the tokenless path (SSH, unmapped host) is a
+  # plain git call and was left exposed. Both names matter: git prefers
+  # GIT_ASKPASS and falls back to SSH_ASKPASS.
+  #
+  # Deliberately NOT paired with GIT_TERMINAL_PROMPT=0 here. Killing only the
+  # GUI leaves git's terminal prompt intact, so a human running `ws clone` in a
+  # real terminal still gets asked for a username as before, while an agent
+  # (no tty) fails fast with a readable error. The token path sets
+  # GIT_TERMINAL_PROMPT=0 separately, because there a prompt means the token
+  # itself is wrong and asking a human to hand-type past it hides that.
+  export GIT_ASKPASS=''
+  export SSH_ASKPASS=''
   local entry
   for entry in ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"}; do
     export "$entry"

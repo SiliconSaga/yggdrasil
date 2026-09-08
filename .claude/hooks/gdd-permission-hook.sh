@@ -1709,10 +1709,21 @@ _t2_session_id=$(echo "$input" | jq -r '.session_id // ""')
 # we emit nothing and the caller matches the raw command exactly as it does
 # today. An unrecognized flag therefore costs a missed catch, never a wrong
 # deny — and never less coverage than before this function existed.
+# These two helpers take the token list by VALUE (start index, then every
+# token) rather than by nameref. `local -n` is a bash 4.3 feature, and the
+# stock /bin/bash on macOS is 3.2.57 — Apple froze there in 2007 because
+# bash 4.0 relicensed to GPLv3, so this is not a version that ages out.
+# On 3.2 the nameref spelling failed with `local: -n: invalid option`, the
+# helper then died on an unbound `_toks` under `set -u`, and the caller
+# silently inherited an empty index (see canonical_verb_form's progress
+# guard for the hang that produced). Positional arguments behave the same
+# on every bash the workspace might run under.
 _canon_git_globals() {
     # Echo the index of the first non-option token, or -1 to give up.
-    local -n _toks=$1
-    local i=$2 t
+    # Args: <start-index> <token>...
+    local i="$1"; shift
+    local -a _toks=("$@")
+    local t
     while [[ $i -lt ${#_toks[@]} ]]; do
         t="${_toks[$i]}"
         case "$t" in
@@ -1733,8 +1744,10 @@ _canon_git_globals() {
 
 _canon_hub_globals() {
     # gh / glab: --repo is the realistic one that precedes a subcommand.
-    local -n _toks=$1
-    local i=$2 t
+    # Args: <start-index> <token>... (by value — see _canon_git_globals).
+    local i="$1"; shift
+    local -a _toks=("$@")
+    local t
     while [[ $i -lt ${#_toks[@]} ]]; do
         t="${_toks[$i]}"
         case "$t" in
@@ -1759,8 +1772,26 @@ canonical_verb_form() {
     read -r -a toks <<< "$normalized"
     [[ ${#toks[@]} -gt 0 ]] || return 1
 
-    local i=0 base changed=0
+    # This loop advances $i from a value a helper prints on stdout, and the
+    # hook runs as a PreToolUse gate the harness waits on with no timeout of
+    # its own — so a loop that fails to advance here does not degrade, it
+    # hangs every affected tool call forever. Two independent guards, because
+    # this is the earliest code a fresh workspace touches and the failure is
+    # invisible (no audit entry is written for a call that never returns):
+    #
+    #   1. the progress guard below, which refuses any index that isn't a
+    #      strictly increasing integer, and
+    #   2. this ceiling, which bounds the loop at one iteration per token no
+    #      matter what a future edit does to the advance logic. It mirrors
+    #      the `edit_link_depth -le 32` cap on the symlink walk above.
+    #
+    # Either alone would have prevented the bash-3.2 nameref hang; both are
+    # here so that neither has to be the only thing standing between a
+    # helper bug and an unusable workspace.
+    local i=0 base changed=0 iterations=0
     while [[ $i -lt ${#toks[@]} ]]; do
+        iterations=$((iterations + 1))
+        [[ "$iterations" -le "${#toks[@]}" ]] || return 1
         base="${toks[$i]##*/}"
         case "$base" in
             git|gh|glab)
@@ -1771,13 +1802,29 @@ canonical_verb_form() {
                 # basename can only ever produce MORE denies — never an allow — and
                 # a deny here carries the wrapper pointer plus a named bypass.
                 out+=("$base")
-                [[ "$base" != "${toks[$i]}" ]] && changed=1
+                if [[ "$base" != "${toks[$i]}" ]]; then changed=1; fi
                 case "$base" in
-                    git) next="$(_canon_git_globals toks $((i + 1)))" ;;
-                    *)   next="$(_canon_hub_globals toks $((i + 1)))" ;;
+                    git) next="$(_canon_git_globals $((i + 1)) ${toks[@]+"${toks[@]}"})" ;;
+                    *)   next="$(_canon_hub_globals $((i + 1)) ${toks[@]+"${toks[@]}"})" ;;
                 esac
-                [[ "$next" == "-1" ]] && return 1
-                [[ "$next" -ne $((i + 1)) ]] && changed=1
+                # Progress guard. The helpers answer on stdout, so ANY way one
+                # of them fails — an unsupported builtin, a `set -u` abort, a
+                # future refactor that forgets to print — arrives here as an
+                # empty or non-numeric $next. Assigning that to $i unchecked is
+                # precisely what spun this loop forever: `[[ '' -lt 3 ]]` reads
+                # empty as 0, so $i reset to the same token every pass.
+                #
+                # Demand a plain integer STRICTLY greater than $i and soft-fail
+                # otherwise. Soft failure is the documented contract for this
+                # function (see the header above): emitting nothing costs a
+                # missed canonicalization — the caller then matches the raw
+                # command exactly as it did before this function existed —
+                # while trusting a bad index costs the whole workspace. The
+                # explicit `-1` give-up signal fails the integer test too, so
+                # it keeps its original meaning without a separate check.
+                [[ "$next" =~ ^[0-9]+$ ]] || return 1
+                [[ "$next" -gt "$i" ]] || return 1
+                if [[ "$next" -ne $((i + 1)) ]]; then changed=1; fi
                 i="$next"
                 ;;
             *)

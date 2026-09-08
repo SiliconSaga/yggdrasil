@@ -50,7 +50,12 @@ trap 'rm -f "$RESOLVED_BODY" 2>/dev/null' EXIT
 gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
-mapfile -t _REMOTES < <(cd "$COMPONENT_DIR" && git remote)
+# Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships bash 3.2.57, where it does not exist. Same sweep as git-cr.sh and git-push.sh; this file arrived with #166 after the sweep was written, so it is caught here on the rebase.
+_REMOTES=()
+_remote_line=""
+while IFS= read -r _remote_line || [[ -n "$_remote_line" ]]; do
+  _REMOTES+=("$_remote_line")
+done < <(cd "$COMPONENT_DIR" && git remote)
 REMOTE_NAME=""
 if [[ ${#_REMOTES[@]} -eq 0 ]]; then
   echo "ERROR: No remotes configured in $COMPONENT_DIR." >&2
@@ -58,7 +63,12 @@ if [[ ${#_REMOTES[@]} -eq 0 ]]; then
 elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
   REMOTE_NAME="${_REMOTES[0]}"
 elif [[ -n "$REMOTE" ]]; then
-  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1 || true)
+  # -F -x: match $REMOTE as a FIXED whole line, never as a regex. Interpolated into
+  # a basic regex it selected the wrong remote — `origin*` is BRE for "origi" plus
+  # any number of "n", so it matches `origin` — and this value decides which
+  # repository the edit is published to. LC_ALL=C keeps the -i fold ASCII-stable,
+  # matching the locale-pinned folds in git-cr-remote.sh and ws-k8s-guard.sh.
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | LC_ALL=C grep -F -i -x -- "$REMOTE" | head -1 || true)
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
     echo "  Available remotes: ${_REMOTES[*]}" >&2

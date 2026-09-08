@@ -118,6 +118,31 @@ setup() {
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_1=Authorization: Basic $expected"* ]]
 }
 
+@test "token push clears an inherited editor GIT_ASKPASS instead of hanging on it" {
+    # Regression: GIT_TERMINAL_PROMPT=0 closes only the *terminal* prompt. git
+    # consults an askpass helper first, and VS Code and Cursor both export
+    # GIT_ASKPASS into every integrated-terminal shell. That helper waits on a
+    # GUI dialog nobody answers in an agent session, so an expired token made
+    # this path hang forever instead of failing fast. Both vars must reach git
+    # cleared — git prefers GIT_ASKPASS but falls back to SSH_ASKPASS.
+    git -C "$REPO_DIR" remote set-url fork https://github.com/Example/repo.git
+    export GIT_ASKPASS="/Applications/Cursor.app/Contents/Resources/app/extensions/git/dist/askpass.sh"
+    export SSH_ASKPASS="/usr/lib/ssh/ssh-askpass"
+    install_git_push_spy
+    export GH_TOKEN="ghp_testtoken"
+
+    run_git_push main
+
+    [ "$status" -eq 0 ]
+    [ -f "$GIT_PUSH_SPY_LOG" ]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_TERMINAL_PROMPT=0"* ]]
+    # Cleared to empty, not merely absent, and not the inherited path.
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_ASKPASS="$'\n'* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"SSH_ASKPASS="$'\n'* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"askpass.sh"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"ssh-askpass"* ]]
+}
+
 @test "GitLab HTTPS push uses mapped gitTokens value without credential helper prompts" {
     git -C "$REPO_DIR" remote set-url fork https://gitlab.example.com/acme/forks/alice/yggdrasil.git
     cat > "$BATS_TEST_TMPDIR/ecosystem.yaml" <<'YAML'
@@ -144,6 +169,40 @@ YAML
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_0="* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_KEY_1=http.https://gitlab.example.com/.extraheader"* ]]
     [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_CONFIG_VALUE_1=Authorization: Basic $expected"* ]]
+}
+
+@test "tokenless push clears the editor askpass but keeps git's terminal prompt" {
+    # The tokenless path (SSH, unmapped host) is a plain git call and populates
+    # no GIT_AUTH_ENV, so it was the one route still exposed to the editor's GUI
+    # askpass — a real `ws hoard` clone of an unmapped project hung on exactly
+    # this. git_auth_run now clears askpass for every call, token or not.
+    #
+    # GIT_TERMINAL_PROMPT must stay UNSET here: killing the GUI while leaving
+    # the terminal prompt intact is what lets a human still authenticate
+    # interactively, while an agent with no tty fails fast instead of hanging.
+    git -C "$REPO_DIR" remote set-url fork https://gitlab-evil.example/attacker/repo.git
+    cat > "$BATS_TEST_TMPDIR/ecosystem.yaml" <<'YAML'
+defaults: {}
+identity: {}
+components: {}
+YAML
+    export ECOSYSTEM="$BATS_TEST_TMPDIR/ecosystem.yaml"
+    export ECOSYSTEM_LOCAL="$BATS_TEST_TMPDIR/missing-local.yaml"
+    export GIT_ASKPASS="/Applications/Cursor.app/Contents/Resources/app/extensions/git/dist/askpass.sh"
+    export SSH_ASKPASS="/usr/lib/ssh/ssh-askpass"
+    install_git_push_spy
+
+    run_git_push main
+
+    [ "$status" -eq 0 ]
+    [ -f "$GIT_PUSH_SPY_LOG" ]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"GIT_ASKPASS="$'\n'* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"SSH_ASKPASS="$'\n'* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"askpass.sh"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"ssh-askpass"* ]]
+    # No token resolved, so no non-interactive git config rides along.
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"GIT_TERMINAL_PROMPT=0"* ]]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" != *"extraheader"* ]]
 }
 
 @test "GitLab look-alike host gets NO GITLAB_TOKEN default (no credential leak)" {

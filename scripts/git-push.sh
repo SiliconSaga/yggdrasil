@@ -81,7 +81,18 @@ else
 fi
 
 # Find the push remote.
-mapfile -t REMOTES < <(git remote)
+# Read into the array with a plain read loop rather than `mapfile`, which is a
+# bash 4.0 builtin. macOS ships bash 3.2.57 — frozen in 2007 because bash 4.0
+# relicensed to GPLv3 — so on a stock Mac `mapfile` is simply not there and this
+# whole command dies at the first remote lookup. `ws preflight` now requires
+# bash >= 4.0, but a hard failure here is a poor way to learn that.
+# The `|| [[ -n "$_line" ]]` tail keeps a final line lacking a trailing newline,
+# matching the read-loop idiom in .claude/hooks/gdd-permission-hook.sh.
+REMOTES=()
+_line=""
+while IFS= read -r _line || [[ -n "$_line" ]]; do
+  REMOTES+=("$_line")
+done < <(git remote)
 
 if [[ ${#REMOTES[@]} -eq 0 ]]; then
   echo "ERROR: No remotes configured." >&2
@@ -99,10 +110,16 @@ if [[ ${#REMOTES[@]} -eq 1 ]]; then
     echo "" >&2
   fi
 elif [[ -n "${GIT_PUSH_REMOTE:-}" ]]; then
-  # Case-insensitive match against available remotes
+  # Case-insensitive match against available remotes.
+  # `${var,,}` is bash 4.0+ for the same GPLv3 reason as `mapfile` above, so
+  # fold with tr — the ASCII fold the permission hook already uses in
+  # _policy_path_fold. LC_ALL=C keeps the fold locale-independent; remote
+  # names are ASCII in every case this compares.
+  _lc() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
+  _want_remote="$(_lc "$GIT_PUSH_REMOTE")"
   REMOTE_NAME=""
   for _r in "${REMOTES[@]}"; do
-    if [[ "${_r,,}" == "${GIT_PUSH_REMOTE,,}" ]]; then
+    if [[ "$(_lc "$_r")" == "$_want_remote" ]]; then
       REMOTE_NAME="$_r"
       break
     fi

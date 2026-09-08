@@ -385,6 +385,44 @@ echo tightened*"
     [[ "$output" != *"\"permissionDecision\":\"deny\""* ]]
 }
 
+@test "portability: no bash-4-only constructs in the runtime shell surface" {
+    # macOS ships bash 3.2.57 — frozen in 2007 because bash 4.0 relicensed to
+    # GPLv3 — and it is what a bare `bash` resolves to there, which is exactly
+    # how settings.json registers this hook. A bash-4 builtin therefore does
+    # not fail loudly on a Mac. `local -n` (a 4.3 nameref) printed an option
+    # error, left the caller holding an empty index, and spun
+    # canonical_verb_form forever: every git / gh / glab tool call hung with no
+    # audit entry, because the hook writes one only when it reaches a decision.
+    #
+    # The suite's own `timeout 10` around run_hook would catch that — but only
+    # on a 3.2 host. CI runs a modern bash where the nameref works fine, so the
+    # symptom is unreproducible there and the construct has to be pinned
+    # directly. Extend this list if a newer builtin ever becomes tempting.
+    # File discovery mirrors ws-shellcheck.sh: a `*.sh` glob PLUS a shebang
+    # sweep of extensionless files. The dispatcher `scripts/ws` has no
+    # extension — correctly, since it is what users type — so an extension
+    # glob silently skips the single most important file here. That is not
+    # hypothetical: the first pass of this sweep used `--include=*.sh`, missed
+    # `${remote,,}` in scripts/ws, and shipped a `ws diagnose` that died
+    # halfway through printing its own output.
+    local targets=("$REPO_ROOT/scripts" "$REPO_ROOT/.claude/hooks" "$REPO_ROOT/.codex/hooks")
+    local files=() p f
+    for p in "${targets[@]}"; do
+        [[ -d "$p" ]] || continue
+        while IFS= read -r f; do files+=("$f"); done < <(
+            find "$p" -type f -name '*.sh'
+            find "$p" -type f ! -name '*.*' -exec sh -c 'head -n1 "$1" | grep -qE "^#!.*[ /](ba)?sh($| )" && printf "%s\n" "$1"' _ {} \;
+        )
+    done
+    [ "${#files[@]}" -gt 0 ]
+
+    # `^[^#]*` keeps this to executable lines: the fixes' own comments name the
+    # constructs they removed, and a test that forbids documenting a trap is a
+    # test that guarantees the trap gets rediscovered the hard way.
+    run grep -nE '^[^#]*(mapfile|readarray|local -n|declare -n|declare -A|local -A|coproc|\$\{[^}]*(,,|\^\^)[^}]*\})' "${files[@]}"
+    [ "$status" -ne 0 ]
+}
+
 @test "deny: | triggers pipes message" {
     run_hook "ls -la | head"
     [ "$status" -eq 0 ]
@@ -1968,16 +2006,21 @@ JSON
     seed_real_project_config
 
     # Assert NOT DENIED, not merely that the pointer text is absent. A rule that denied these for some other reason would satisfy the weaker check while still taking the capability away, which is the outcome this test exists to prevent.
+    # The status check carries that same reasoning one step further: a hook that timed out (124) or died before printing would emit no "deny" either, and would pass the negative assertion on a technicality. Reaching a decision is part of what is being asserted.
     run_hook 'ws gh pr edit 42 --add-label enhancement'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh pr edit 42 --add-reviewer someone'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh issue edit 7 --add-assignee someone'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh issue edit 7 --milestone v1.2'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
@@ -1986,9 +2029,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh api -X PATCH repos/o/r/pulls/27 -f state=closed'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh api -X PATCH repos/o/r/issues/7 -f milestone=3'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
@@ -2043,9 +2088,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh api repos/o/r/pulls/27 -X PATCH -f state=closed --jq .body'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
@@ -2112,9 +2159,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [ "$status" -eq 0 ]
     [[ "$output" != *"ws cr <comp> edit"* ]]
 
     run_hook 'ws gh api repos/o/r/issues/7'
+    [ "$status" -eq 0 ]
     [[ "$output" != *"ws issue <comp> edit"* ]]
 }
 
@@ -2137,6 +2186,7 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh issue comment 11 --body "note"'
+    [ "$status" -eq 0 ]
     [[ "$output" != *"ws review <comp> comment"* ]]
 }
 
@@ -2145,9 +2195,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws cr yggdrasil edit 42 --title "new" .crs/x.md'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws issue yggdrasil edit 7 --title "new" .issues/x.md'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 

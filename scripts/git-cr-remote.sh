@@ -5,6 +5,9 @@
 #
 # Requires git-provider.sh (for git_remote_host) to be sourced first.
 
+# The same GPLv3-era constraint that rules out `mapfile` rules out `${var,,}` (bash 4.0+) in the case-insensitive remote comparisons below; fold with tr instead, mirroring _policy_path_fold in .claude/hooks/gdd-permission-hook.sh.
+_gdd_cr_lc() { LC_ALL=C printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
+
 # Resolve the fork/head remote for a change request.
 #
 # Explicit override: match it. Single remote: use it. Multiple: match identity.forkRemote. No match: fail.
@@ -12,13 +15,17 @@
 # Sets FORK_REMOTE, FORK_URL, FORK_HOST and the GDD_CR_ALL_REMOTES array in the caller's scope.
 # Usage: gdd_cr_resolve_fork_remote <cr-remote-override-or-empty> <ecosystem-path-or-empty>
 gdd_cr_resolve_fork_remote() {
-    local cr_remote="$1" eco="$2" _r="" _fork_remote=""
-    mapfile -t GDD_CR_ALL_REMOTES < <(git remote)
+    local cr_remote="$1" eco="$2" _r="" _fork_remote="" _line=""
+    # Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships bash 3.2.57 (frozen in 2007 over the GPLv3 relicense), where it does not exist at all. See the matching note in git-push.sh.
+    GDD_CR_ALL_REMOTES=()
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        GDD_CR_ALL_REMOTES+=("$_line")
+    done < <(git remote)
 
     FORK_REMOTE=""
     if [[ -n "$cr_remote" ]]; then
         for _r in "${GDD_CR_ALL_REMOTES[@]}"; do
-            if [[ "${_r,,}" == "${cr_remote,,}" ]]; then
+            if [[ "$(_gdd_cr_lc "$_r")" == "$(_gdd_cr_lc "$cr_remote")" ]]; then
                 FORK_REMOTE="$_r"
                 break
             fi
@@ -35,7 +42,7 @@ gdd_cr_resolve_fork_remote() {
         [[ "$_fork_remote" == "null" ]] && _fork_remote=""
         if [[ -n "$_fork_remote" ]]; then
             for _r in "${GDD_CR_ALL_REMOTES[@]}"; do
-                if [[ "${_r,,}" == "${_fork_remote,,}" ]]; then
+                if [[ "$(_gdd_cr_lc "$_r")" == "$(_gdd_cr_lc "$_fork_remote")" ]]; then
                     FORK_REMOTE="$_r"
                     break
                 fi
