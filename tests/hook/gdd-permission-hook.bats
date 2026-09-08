@@ -2015,6 +2015,40 @@ JSON
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
+@test "redirect: short mutation flags deny like their long forms" {
+    # `gh pr edit` accepts -b, -F and -t (confirmed in its own --help), so a rule set covering only --body/--title let `gh pr edit 42 -F body.md` through untouched. One bracket glob per verb per spelling covers all three.
+    seed_real_project_config
+
+    run_hook 'gh pr edit 42 -F .crs/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh pr edit 42 -b "new body"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh pr edit 42 -t "new title"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'gh issue edit 7 -F .issues/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'glab mr update 42 -d "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws glab issue update 7 -t "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: a PATCH naming body only as an output selector is not denied" {
+    # `--jq .body` selects output; it writes nothing. Matching the bare word denied it, which is the same over-reach the field scoping was introduced to remove. Matching `body=` distinguishes the assignment from the selector.
+    seed_real_project_config
+
+    run_hook 'ws gh api repos/o/r/pulls/27 -X PATCH -f state=closed --jq .body'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
 @test "redirect: title writes deny across every spelling" {
     # A glob sees neither argument order nor the wrapper, so each field needs its raw, ws-wrapped and ws exec forms per provider. Review found the set half-populated: the body forms were covered and the title forms were not, which left the same bypass open one flag over.
     seed_real_project_config

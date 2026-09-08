@@ -139,6 +139,16 @@ run_ws_review() {
     [[ "$(cat "$BODY_LOG")" != *"@GDD_HOME"* ]]
 }
 
+@test "a relative bodyfile resolves against the workspace root" {
+    # ws cr edit and ws issue edit both resolve drafts from the workspace root; ws-review.sh never cd's, so a relative path was read against the caller's directory and failed from inside a component.
+    printf 'Corrected from elsewhere.\n' > "$WORK/.crs/note.md"
+    cd "$BATS_TEST_TMPDIR"
+    run_ws_review app edit 1 note-701 .crs/note.md
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$BODY_LOG")" == *"Corrected from elsewhere."* ]]
+}
+
 @test "an unprefixed comment id is rejected" {
     run_ws_review app edit 1 701 "$WORK/.crs/note.md"
 

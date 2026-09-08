@@ -13,7 +13,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Default-if-unset, matching ws-realm.sh's convention rather than overriding it. An unconditional assignment here made this script the one place an already-resolved ROOT_DIR was discarded, which mattered once bodyfile paths started being resolved against it.
+: "${ROOT_DIR:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
 
 # --- Function definitions (must precede routing block at bottom) ---
 
@@ -830,6 +831,8 @@ review_comment() {
     fi
 
     local cr_num="$1" bodyfile="$2"
+    # Same workspace-root resolution as review_edit and the ws cr / ws issue edit paths.
+    [[ "$bodyfile" == /* ]] || bodyfile="$ROOT_DIR/$bodyfile"
 
     if [[ ! "$cr_num" =~ ^[0-9]+$ ]]; then
         echo "ERROR: CR number must be numeric, got '$cr_num'" >&2
@@ -864,6 +867,8 @@ review_edit() {
     fi
 
     local cr_num="$1" comment_id="$2" bodyfile="$3"
+    # Resolve a relative bodyfile against the workspace root, as ws cr edit and ws issue edit do. ws-review.sh never cd's, so a relative draft path was read against the caller's directory and failed from inside a component — the same asymmetry already fixed for ws issue on this branch.
+    [[ "$bodyfile" == /* ]] || bodyfile="$ROOT_DIR/$bodyfile"
 
     if [[ ! "$cr_num" =~ ^[0-9]+$ ]]; then
         echo "ERROR: CR number must be numeric, got '$cr_num'" >&2
