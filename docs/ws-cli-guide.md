@@ -181,8 +181,10 @@ Side-effect commands (`push`, `cr`, `issue`) prompt for approval by default. (`w
 | Pattern | Matches | Example |
 |---|---|---|
 | `Bash(ws push *)` | Push with component or component + branch | `ws push mimir feat/foo` |
-| `Bash(ws cr *)` | CR creation with title and bodyfile, including rare remote overrides | `ws cr mimir --remote siliconsaga "feat: add X" .crs/x.md` |
-| `Bash(ws issue *)` | Issue creation with title, label, and bodyfile | `ws issue mimir "fix: Y" bug .issues/y.md` |
+| `Bash(ws cr *)` | CR creation and body/title edits, including rare remote overrides | `ws cr mimir --remote siliconsaga "feat: add X" .crs/x.md` · `ws cr mimir edit 42 .crs/x.md` |
+| `Bash(ws issue *)` | Issue creation and body/title edits with label and bodyfile | `ws issue mimir "fix: Y" bug .issues/y.md` · `ws issue mimir edit 7 .issues/y.md` |
+
+The edit forms are already covered by the two patterns above — `ws cr mimir edit 42 …` matches `ws cr *` and needs no separate entry. That places them in the same tier as creation, which is deliberate: both publish agent-authored text to a tracker, and both run the identity substitutions and the attribution check. What is denied is the raw provider CLI (`gh pr edit --body`, `glab mr update --description`), which runs neither.
 
 Use the bare `ws ...` form for normal GDD sessions. Add parallel `Bash(bash scripts/ws ...)` patterns only if you intentionally want native Claude Code permission matching to work when the GDD hook is absent or disabled; with the hook active, wrapper-form commands normalize to `ws ...` before matching.
 

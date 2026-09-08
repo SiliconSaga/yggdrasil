@@ -29,6 +29,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
 
+# shellcheck source=gdd-attribution.sh
+source "$SCRIPT_DIR/gdd-attribution.sh"
+
+# shellcheck source=git-cr-remote.sh
+source "$SCRIPT_DIR/git-cr-remote.sh"
+
 # Try to load ecosystem config for provider detection (optional — may not exist)
 _ECO=""
 _AUTH_ECO=""
@@ -440,32 +446,14 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
-# Resolve @HUMAN_ACCOUNT, @GDD_HOME and enforce AI attribution line
-_HUMAN_ACCOUNT=""
-_GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
-if [[ -n "$_ECO" ]]; then
-  _HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$_ECO" 2>/dev/null)
-  [[ "$_HUMAN_ACCOUNT" == "null" ]] && _HUMAN_ACCOUNT=""
-  _GDD_HOME_RAW=$(yq '.defaults.gddHome // ""' "$_ECO" 2>/dev/null)
-  [[ -n "$_GDD_HOME_RAW" && "$_GDD_HOME_RAW" != "null" ]] && _GDD_HOME="$_GDD_HOME_RAW"
-fi
-if [[ -z "$_HUMAN_ACCOUNT" ]]; then
-  echo "ERROR: identity.human_account not set in ecosystem config." >&2
-  echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
-  exit 1
-fi
-if ! head -n 1 "$BODYFILE" | grep -q '^> \*\*AI-assisted change proposal\.\*\*'; then
-  echo "ERROR: body file is missing the AI attribution line." >&2
-  echo "  First line must contain: > **AI-assisted change proposal.**" >&2
-  exit 1
-fi
-_RESOLVED_BODY=$(mktemp)
+# Attribution and placeholder resolution — see scripts/gdd-attribution.sh. The banner check runs on the template, the driver check on the substituted copy, and the leak guard refuses anything that still carries a placeholder. All three used to live here, on the creation path only, which is how an edit through the raw provider CLI came to run none of them.
+_HUMAN_ACCOUNT=$(gdd_attribution_human_account) || exit 1
+_GDD_HOME=$(gdd_attribution_gdd_home)
+gdd_attribution_check "$BODYFILE" "templates/change.md" || exit 1
+_RESOLVED_BODY=$(gdd_attribution_substitute "$BODYFILE" "$_HUMAN_ACCOUNT" "$_GDD_HOME") || exit 1
 trap 'rm -f "$_RESOLVED_BODY" 2>/dev/null' EXIT
-_ESC_HUMAN=$(printf '%s' "$_HUMAN_ACCOUNT" | sed 's/[&|\\]/\\&/g')
-_ESC_GDD_HOME=$(printf '%s' "$_GDD_HOME" | sed 's/[&|\\]/\\&/g')
-sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
-    -e "s|@GDD_HOME|${_ESC_GDD_HOME}|g" \
-    "$BODYFILE" > "$_RESOLVED_BODY"
+gdd_attribution_check_driver "$_RESOLVED_BODY" "$_HUMAN_ACCOUNT" || exit 1
+gdd_attribution_assert_resolved "$_RESOLVED_BODY" || exit 1
 BODYFILE="$_RESOLVED_BODY"
 
 if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
@@ -473,64 +461,10 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]];
   exit 1
 fi
 
-# Find the fork remote.
-# Explicit override: match it. Single remote: use it. Multiple: match forkRemote. No match: fail.
-mapfile -t _ALL_REMOTES < <(git remote)
-
-FORK_REMOTE=""
-if [[ -n "$CR_REMOTE" ]]; then
-  for _r in "${_ALL_REMOTES[@]}"; do
-    if [[ "${_r,,}" == "${CR_REMOTE,,}" ]]; then
-      FORK_REMOTE="$_r"
-      break
-    fi
-  done
-  if [[ -z "$FORK_REMOTE" ]]; then
-    echo "ERROR: No remote matching '$CR_REMOTE' (from --remote/GIT_CR_REMOTE)." >&2
-    echo "  Available remotes: ${_ALL_REMOTES[*]:-(none)}" >&2
-    exit 1
-  fi
-elif [[ ${#_ALL_REMOTES[@]} -eq 1 ]]; then
-  FORK_REMOTE="${_ALL_REMOTES[0]}"
-elif [[ -n "$_ECO" ]]; then
-  _FORK_REMOTE=$(yq '.identity.forkRemote // ""' "$_ECO" 2>/dev/null)
-  [[ "$_FORK_REMOTE" == "null" ]] && _FORK_REMOTE=""
-  if [[ -n "$_FORK_REMOTE" ]]; then
-    for _r in "${_ALL_REMOTES[@]}"; do
-      if [[ "${_r,,}" == "${_FORK_REMOTE,,}" ]]; then
-        FORK_REMOTE="$_r"
-        break
-      fi
-    done
-  fi
-fi
-if [[ -z "$FORK_REMOTE" ]]; then
-  if [[ ${#_ALL_REMOTES[@]} -eq 0 ]]; then
-    echo "ERROR: No remotes configured." >&2
-  else
-    echo "ERROR: Multiple remotes found — cannot determine fork remote." >&2
-    echo "  Available remotes: ${_ALL_REMOTES[*]}" >&2
-    echo "  Set identity.forkRemote in ecosystem.local.yaml." >&2
-  fi
-  exit 1
-fi
-# Read the remote's RAW configured URL (not `git remote get-url`, which
-# applies url.insteadOf rewrites): every consumer below is logical — provider
-# detection, token mapping, slug/host extraction — and should see the
-# canonical URL the operator configured. Transport operations address the
-# remote by NAME, so git still applies any insteadOf rewrite where it belongs.
-# Take the FIRST url entry (--get-all | head): that is the URL git fetches
-# from on a multi-URL remote, while --get would return the LAST — letting
-# provider detection disagree with the remote git actually talks to.
-FORK_URL=$(git config --get-all "remote.$FORK_REMOTE.url" 2>/dev/null | head -n1) || true
-if [[ -z "$FORK_URL" ]]; then
-  echo "ERROR: remote '$FORK_REMOTE' has no configured URL." >&2
-  exit 1
-fi
-FORK_HOST=$(git_remote_host "$FORK_URL") || {
-  echo "ERROR: Cannot determine host for fork remote '$FORK_REMOTE'." >&2
-  exit 1
-}
+# Find the fork remote — see scripts/git-cr-remote.sh, shared with the edit path.
+gdd_cr_resolve_fork_remote "$CR_REMOTE" "$_ECO" || exit 1
+# The --upstream block below reads this array to find the non-fork remote; keep the old name rather than churning every reference to it.
+mapfile -t _ALL_REMOTES < <(printf '%s\n' "${GDD_CR_ALL_REMOTES[@]}")
 
 if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   LOCAL_BRANCH_TIP=$(git rev-parse "refs/heads/$BRANCH")

@@ -165,7 +165,17 @@ probe_csi() { printf '\302\233'; }
     [ "$status" -eq 0 ]
     [[ "$output" == *"Replied to thread on CR #1 (example-group/forked-project)"* ]]
     [[ "$(cat "$BODY_LOG")" == *$'\n\n'"--remote=spoof" ]]
-    [[ "$(cat "$BODY_LOG")" == "> "*"AI-assisted reply"* ]]
+    [[ "$(cat "$BODY_LOG")" == "> _Agent-authored reply"* ]]
+}
+
+@test "reply substitutes placeholders in the message" {
+    # review_reply builds its message from a caller argument, so it never passed through the bodyfile substitution and a reply containing @HUMAN_ACCOUNT published it literally.
+    run_ws_review app reply 1 abc123 'filed by @HUMAN_ACCOUNT see [GDD](@GDD_HOME)' --remote fork
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$BODY_LOG")" == *"@reviewer"* ]]
+    [[ "$(cat "$BODY_LOG")" != *"@HUMAN_ACCOUNT"* ]]
+    [[ "$(cat "$BODY_LOG")" != *"@GDD_HOME"* ]]
 }
 
 @test "GitLab provider rejects a thread ID that can steer the API path" {

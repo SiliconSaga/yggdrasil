@@ -28,7 +28,9 @@ attribution trailers, auth, and remote selection automatically.
 |---------|---------|
 | `ws push <comp> [branch]` | Push current (or named) branch |
 | `ws cr <comp> [--upstream] <title> <bodyfile>` | Open CR from current branch |
+| `ws cr <comp> edit <cr#> [--title <t>] <bodyfile>` | Update an open CR's body (and title) with substitutions applied |
 | `ws issue <comp> <title> <label> <bodyfile>` | File an issue |
+| `ws issue <comp> edit <issue#> [--title <t>] <bodyfile>` | Update an open issue's body (and title) |
 | `ws commit <comp> <bodyfile>` | Commit with Co-Authored-By trailer (bodyfile-driven; see `templates/commit.md`) |
 | `ws diagnose <comp>` | Show remotes, provider, and token coverage — run before first push to a component |
 

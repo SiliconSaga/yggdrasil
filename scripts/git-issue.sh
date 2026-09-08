@@ -40,6 +40,9 @@ source "$SCRIPT_DIR/git-provider.sh"
 # Source shared realm/merge functions for ecosystem config
 source "$SCRIPT_DIR/ws-realm.sh"
 
+# shellcheck source=gdd-attribution.sh
+source "$SCRIPT_DIR/gdd-attribution.sh"
+
 # Validate arguments (REMOTE may be empty for auto-detection)
 if [[ -z "$COMPONENT_DIR" || -z "$TITLE" || -z "$LABEL" || -z "$BODYFILE" ]]; then
   echo "Usage: $0 COMPONENT_DIR [REMOTE] TITLE LABEL BODYFILE" >&2
@@ -51,33 +54,15 @@ if [[ ! -f "$BODYFILE" ]]; then
   exit 1
 fi
 
-# Resolve identity from merged ecosystem config
+# Attribution and placeholder resolution — see scripts/gdd-attribution.sh. ECO is still read here because gp_detect_and_load below needs it.
 ECO=$(ws_resolve_ecosystem)
-HUMAN_ACCOUNT=$(yq '.identity.human_account // ""' "$ECO" 2>/dev/null)
-GDD_HOME=$(yq '.defaults.gddHome // "https://siliconsaga.github.io/yggdrasil/gdd/"' "$ECO" 2>/dev/null)
-[[ "$GDD_HOME" == "null" || -z "$GDD_HOME" ]] && GDD_HOME="https://siliconsaga.github.io/yggdrasil/gdd/"
-
-if [[ -z "$HUMAN_ACCOUNT" ]]; then
-  echo "ERROR: identity.human_account not set in ecosystem config." >&2
-  echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
-  exit 1
-fi
-
-# Enforce AI attribution line referencing the driving human
-if ! head -n 1 "$BODYFILE" | grep -q '^> \*\*AI-assisted issue\.\*\*'; then
-  echo "ERROR: body file is missing the AI attribution line." >&2
-  echo "  First line must contain: > **AI-assisted issue.**" >&2
-  exit 1
-fi
-
-# Substitute @HUMAN_ACCOUNT and @GDD_HOME placeholders in a temp copy of the body file
-RESOLVED_BODY=$(mktemp)
+HUMAN_ACCOUNT=$(gdd_attribution_human_account) || exit 1
+GDD_HOME=$(gdd_attribution_gdd_home)
+gdd_attribution_check "$BODYFILE" "templates/issue.md" || exit 1
+RESOLVED_BODY=$(gdd_attribution_substitute "$BODYFILE" "$HUMAN_ACCOUNT" "$GDD_HOME") || exit 1
 trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
-_ESC_HUMAN=$(printf '%s' "$HUMAN_ACCOUNT" | sed 's/[&|\\]/\\&/g')
-_ESC_GDD_HOME=$(printf '%s' "$GDD_HOME" | sed 's/[&|\\]/\\&/g')
-sed -e "s|@HUMAN_ACCOUNT|@${_ESC_HUMAN}|g" \
-    -e "s|@GDD_HOME|${_ESC_GDD_HOME}|g" \
-    "$BODYFILE" > "$RESOLVED_BODY"
+gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
+gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
 # Resolve remote:
 #   1 remote  → use it (any name)
@@ -104,7 +89,12 @@ else
   echo "  Usage: ws issue <comp> <remote> <title> <label> <bodyfile>" >&2
   exit 1
 fi
-REMOTE_URL=$(cd "$COMPONENT_DIR" && git remote get-url "$REMOTE_NAME")
+# Read the remote's RAW configured URL (not `git remote get-url`, which applies url.insteadOf rewrites): every consumer below is logical — provider detection, token mapping, slug extraction — and should see the canonical URL the operator configured. Transport operations address the remote by NAME, so git still applies any insteadOf rewrite where it belongs. Take the FIRST url entry, which is the one git fetches from on a multi-URL remote, while --get would return the LAST. Same reasoning, and the same spelling, as git-cr.sh; reading the rewritten URL here made provider detection fail on a repo where `ws cr` worked.
+REMOTE_URL=$(cd "$COMPONENT_DIR" && git config --get-all "remote.$REMOTE_NAME.url" 2>/dev/null | head -n1) || true
+if [[ -z "$REMOTE_URL" ]]; then
+  echo "ERROR: remote '$REMOTE_NAME' has no configured URL." >&2
+  exit 1
+fi
 
 # Detect and load provider
 gp_detect_and_load "$REMOTE_URL" "$ECO"
@@ -125,8 +115,42 @@ echo "  Author: @$HUMAN_ACCOUNT (via agent)"
 echo "  Body  : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
 echo ""
 
+# Capture rather than stream so a disabled-issues refusal can be recognized and answered. Provider CLIs write their error body to STDOUT, not stderr, and exit non-zero — so judge by exit status and keep both streams.
+_ISSUE_OUTPUT=$(mktemp)
+_ISSUE_STATUS=0
 gp_create_issue \
   --repo "$TARGET_SLUG" \
   --title "$TITLE" \
   --label "$LABEL" \
-  --body-file "$RESOLVED_BODY"
+  --body-file "$RESOLVED_BODY" >"$_ISSUE_OUTPUT" 2>&1 || _ISSUE_STATUS=$?
+cat "$_ISSUE_OUTPUT"
+
+if [[ "$_ISSUE_STATUS" -ne 0 ]]; then
+  # A fork starts with issues DISABLED on GitHub, and nobody chooses that — it is inherited silently by anything ws clone-fork produced. The bare provider error names the state and not the way out, and the improvised way out is to post the finding as a PR comment instead, which is how an unattributed comment reached a public repo. Naming the three real options here is the cheaper half of preventing that.
+  if grep -qiE 'disabled issues|issues are disabled|issues.*disabled' "$_ISSUE_OUTPUT"; then
+    echo "" >&2
+    echo "Issues are disabled on $TARGET_SLUG, so there is nowhere to file this." >&2
+    # The match is provider-agnostic because both providers phrase it similarly, but the remediation is not — pointing a GitLab user at GitHub's repo settings and a `has_issues` field they do not have is worse than saying nothing. Step 1 is therefore provider-specific; steps 2 and 3 hold either way.
+    case "${_GP_LOADED_PROVIDER:-}" in
+      github)
+        echo "  A GitHub fork starts with issues disabled — a component from 'ws clone-fork' inherits that without anyone choosing it." >&2
+        echo "  Three ways forward, in the order usually wanted:" >&2
+        echo "    1. Enable issues on the fork: Settings → General → Features → Issues (or 'ws gh api -X PATCH repos/$TARGET_SLUG -F has_issues=true')." >&2
+        ;;
+      gitlab)
+        echo "  Three ways forward, in the order usually wanted:" >&2
+        echo "    1. Enable issues on the project: Settings → General → Visibility, project features, permissions → Issues." >&2
+        ;;
+      *)
+        echo "  Three ways forward, in the order usually wanted:" >&2
+        echo "    1. Enable issues on the project in its provider settings." >&2
+        ;;
+    esac
+    echo "    2. File it upstream instead: 'ws issue <comp> <upstream-remote> \"<title>\" <label> <bodyfile>'." >&2
+    echo "    3. Carry the finding in the change-request body, if it belongs to work already under review." >&2
+    echo "  Don't post it as a bare provider comment — that path attaches no attribution." >&2
+  fi
+  rm -f "$_ISSUE_OUTPUT"
+  exit "$_ISSUE_STATUS"
+fi
+rm -f "$_ISSUE_OUTPUT"

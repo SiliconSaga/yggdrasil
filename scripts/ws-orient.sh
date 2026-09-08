@@ -431,6 +431,9 @@ _emit_one_adapter() {
         ctx_desc_raw="$(jq -r '(.description // "" | tostring) + "\u001f"' <<< "$ctx_record" 2>/dev/null)" || continue
         ctx_path_raw="${ctx_path_raw%$'\037'}"
         ctx_desc_raw="${ctx_desc_raw%$'\037'}"
+        # Undo the LF→CRLF translation jq's raw output performs on Windows, so a multiline value renders as the realm wrote it rather than carrying a carriage return the realm never declared. Same correction, and the same faithful-inverse reasoning, as _ws_realm_jq_string: jq passes a lone CR through untouched and a genuine CRLF arrives as \r\r\n, so an embedded carriage return still reaches the neutralizer below and is still shown.
+        ctx_path_raw="${ctx_path_raw//$'\r\n'/$'\n'}"
+        ctx_desc_raw="${ctx_desc_raw//$'\r\n'/$'\n'}"
         [[ -n "$ctx_path_raw" ]] || continue
         ctx_path="$(_ws_orient_display_text "$ctx_path_raw")"
         ctx_desc="$(_ws_orient_display_text "$ctx_desc_raw")"

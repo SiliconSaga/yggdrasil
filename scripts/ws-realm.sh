@@ -677,27 +677,7 @@ ws_resolve_token_var() {
     printf '%s\n' "$token_var"
 }
 
-# Resolve the GDD AI-attribution banner line, shared by any script that posts agent-authored text to an external tracker (CR/issue bodies, review replies and comments). git-cr.sh / git-issue.sh enforce this line's presence in a user-supplied template instead of calling this — they predate it and their bodies are already template-sourced, so re-deriving here would just be a second copy of the same logic with no behavior change. New callers (like ws-review.sh's reply/comment) that build short messages ad hoc, without a template to copy from, should call this instead of typing the line by hand.
-# Usage: ws_gdd_attribution_line "<label>"   (label e.g. "comment", "reply")
-ws_gdd_attribution_line() {
-    local label="$1"
-    local eco
-    eco=$(ws_resolve_ecosystem 2>/dev/null) || eco=""
-    local human_account="" gdd_home="https://siliconsaga.github.io/yggdrasil/gdd/"
-    if [[ -n "$eco" ]]; then
-        human_account=$(yq '.identity.human_account // ""' "$eco" 2>/dev/null)
-        [[ "$human_account" == "null" ]] && human_account=""
-        local gdd_home_raw
-        gdd_home_raw=$(yq '.defaults.gddHome // ""' "$eco" 2>/dev/null)
-        [[ -n "$gdd_home_raw" && "$gdd_home_raw" != "null" ]] && gdd_home="$gdd_home_raw"
-    fi
-    if [[ -z "$human_account" ]]; then
-        echo "ERROR: identity.human_account not set in ecosystem config." >&2
-        echo "  Set it in ecosystem.local.yaml (see ecosystem.local.yaml.example)." >&2
-        return 1
-    fi
-    printf '> **AI-assisted %s.** Filed by agent driven by @%s via [GDD](%s).\n' "$label" "$human_account" "$gdd_home"
-}
+# ws_gdd_attribution_line now lives in scripts/gdd-attribution.sh, alongside the banner check and the placeholder substitution it belongs with. This file resolves realms, ecosystems and tokens; attribution is not that.
 
 # ---------------------------------------------------------------------------
 # Subcommands — only run when called directly (not when sourced)
@@ -787,6 +767,19 @@ HELP
     echo "Or browse the example projects:  ws clone --all   (clones the realm's suggested repos as-is)"
 }
 
+# Read one string field out of a JSON record, undoing the LF→CRLF translation jq's raw output mode performs on Windows.
+#
+# Measured, not assumed: `{"v":"a\nb"} | jq -r .v` emits `a\r\nb` there. Without this the trust summary reported a CR the realm never declared — on the surface a human reads to decide whether to trust that realm.
+#
+# Replacing every CRLF with LF is a faithful inverse rather than a blunt strip, because the translation is exactly "every LF becomes CRLF": a lone CR is passed through untouched by jq and survives here, and a genuine CRLF arrives as `\r\r\n` and keeps its own CR. So a hostile realm's embedded carriage return still reaches the escaper and is still shown.
+#
+# Applied here at the read site rather than in the renderer: the renderer also formats values that never passed through jq, and normalizing those would hide a real CR instead of revealing one.
+_ws_realm_jq_string() {
+    local filter="$1" record="$2" out=""
+    out="$(jq -er "$filter" <<< "$record" 2>/dev/null)" || return 1
+    printf '%s' "${out//$'\r\n'/$'\n'}"
+}
+
 # Render each realm-controlled field on one physical trust-summary line. The
 # record renderers add structural separators only after fields are escaped.
 _ws_realm_summary_inline_text() {
@@ -801,8 +794,8 @@ _ws_realm_render_key_value_records() {
     local records="$1" value_prefix="${2:-}" record key value
     while IFS= read -r record; do
         [[ -n "$record" ]] || continue
-        if ! key="$(jq -er '.key | select(type == "string")' <<< "$record" 2>/dev/null)" ||
-           ! value="$(jq -er '.value | select(type == "string")' <<< "$record" 2>/dev/null)"; then
+        if ! key="$(_ws_realm_jq_string '.key | select(type == "string")' "$record")" ||
+           ! value="$(_ws_realm_jq_string '.value | select(type == "string")' "$record")"; then
             return 1
         fi
         printf '    %s  →  %s%s\n' "$(_ws_realm_summary_inline_text "$key")" "$value_prefix" "$(_ws_realm_summary_inline_text "$value")"
@@ -856,8 +849,8 @@ ws_realm_trust_summary() {
         if [[ -n "$commands" ]]; then
             echo "    $adapter_name:"
             while IFS= read -r command_record; do
-                if ! command_key="$(jq -er '.key | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
-                   ! command_value="$(jq -er '.value | select(type == "string")' <<< "$command_record" 2>/dev/null)"; then
+                if ! command_key="$(_ws_realm_jq_string '.key | select(type == "string")' "$command_record")" ||
+                   ! command_value="$(_ws_realm_jq_string '.value | select(type == "string")' "$command_record")"; then
                     echo "ERROR: cannot safely render adapter commands from $adapter_file; refusing realm adoption." >&2
                     return 1
                 fi
@@ -937,9 +930,9 @@ ws_realm_trust_summary() {
     if [[ -n "$commands" ]]; then
         while IFS= read -r command_record; do
             [[ -n "$command_record" ]] || continue
-            if ! command_key="$(jq -er '.key | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
-               ! command_value="$(jq -er '.url | select(type == "string")' <<< "$command_record" 2>/dev/null)" ||
-               ! route="$(jq -er '.transport | select(type == "string")' <<< "$command_record" 2>/dev/null)"; then
+            if ! command_key="$(_ws_realm_jq_string '.key | select(type == "string")' "$command_record")" ||
+               ! command_value="$(_ws_realm_jq_string '.url | select(type == "string")' "$command_record")" ||
+               ! route="$(_ws_realm_jq_string '.transport | select(type == "string")' "$command_record")"; then
                 echo "ERROR: cannot safely render MCP endpoints from $realm_file; refusing realm adoption." >&2
                 return 1
             fi

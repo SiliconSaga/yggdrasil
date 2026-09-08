@@ -125,6 +125,63 @@ gp_create_issue() {
         --description "$(cat "$body_file")"
 }
 
+# Shared argument parser for the update functions. Sets _up_repo, _up_number, _up_body_file, _up_title.
+# Duplicated in providers/github.sh rather than shared: the two provider files are loaded exclusively of one another and neither reaches across, so hoisting this would mean moving it into git-provider.sh — a larger change than these two functions earn.
+_gp_parse_update_args() {
+    _up_repo=""; _up_number=""; _up_body_file=""; _up_title=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repo)      _up_repo="$2"; shift 2 ;;
+            --number)    _up_number="$2"; shift 2 ;;
+            --body-file) _up_body_file="$2"; shift 2 ;;
+            --title)     _up_title="$2"; shift 2 ;;
+            *) echo "ERROR: update: unknown arg '$1'" >&2; return 1 ;;
+        esac
+    done
+    # The number reaches an API path, so it is validated rather than trusted — the discipline _gl_validate_discussion_id already applies to thread ids.
+    if [[ ! "$_up_number" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: update: number must be numeric, got '$_up_number'" >&2
+        return 1
+    fi
+    if [[ ! -f "$_up_body_file" ]]; then
+        echo "ERROR: update: body file not found: $_up_body_file" >&2
+        return 1
+    fi
+}
+
+# Update a merge request's description, and its title when given.
+# GitLab calls the field `description`; the gp_* contract calls it a body, matching the create side.
+# Usage: gp_update_pr --repo SLUG --number N --body-file PATH [--title TEXT]
+gp_update_pr() {
+    local _up_repo _up_number _up_body_file _up_title body encoded
+    _gp_parse_update_args "$@" || return 1
+    body=$(cat "$_up_body_file")
+    encoded=$(_gl_encode "$_up_repo")
+    if [[ -n "$_up_title" ]]; then
+        glab api --method PUT "projects/$encoded/merge_requests/$_up_number" \
+            -f description="$body" -f title="$_up_title" >/dev/null
+    else
+        glab api --method PUT "projects/$encoded/merge_requests/$_up_number" \
+            -f description="$body" >/dev/null
+    fi
+}
+
+# Update an issue's description, and its title when given.
+# Usage: gp_update_issue --repo SLUG --number N --body-file PATH [--title TEXT]
+gp_update_issue() {
+    local _up_repo _up_number _up_body_file _up_title body encoded
+    _gp_parse_update_args "$@" || return 1
+    body=$(cat "$_up_body_file")
+    encoded=$(_gl_encode "$_up_repo")
+    if [[ -n "$_up_title" ]]; then
+        glab api --method PUT "projects/$encoded/issues/$_up_number" \
+            -f description="$body" -f title="$_up_title" >/dev/null
+    else
+        glab api --method PUT "projects/$encoded/issues/$_up_number" \
+            -f description="$body" >/dev/null
+    fi
+}
+
 # --- Review functions ---
 
 # Helper: URL-encode a slug for GitLab API paths.
@@ -167,7 +224,7 @@ gp_review_list_comments() {
         | . as $disc
         | .notes[]
         | '"$filter"'
-        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?")\n\(.body)\n"
+        | "---\n[\(.author.username)] \(.position.new_path // .position.old_path // $disc.notes[0].position.new_path // $disc.notes[0].position.old_path // "?"):\(.position.new_line // .position.old_line // $disc.notes[0].position.new_line // $disc.notes[0].position.old_line // "?") id:note-\(.id)\n\(.body)\n"
     ' 2>/dev/null
 }
 
@@ -183,7 +240,7 @@ gp_review_list_notes() {
         | select(.notes[0].system == false)
         | .notes[]
         | '"$filter"'
-        | "---\n[\(.author.username)] (note)\n\(.body)\n"
+        | "---\n[\(.author.username)] (note) id:note-\(.id)\n\(.body)\n"
     ' 2>/dev/null
 }
 
@@ -246,6 +303,26 @@ gp_review_post_comment() {
     local slug="$1" mr_num="$2" message="$3"
     local encoded; encoded=$(_gl_encode "$slug")
     glab api --method POST "projects/$encoded/merge_requests/$mr_num/notes" \
+        -f body="$message" >/dev/null
+}
+
+# Update an existing merge-request note.
+#
+# GitLab edits every note through one endpoint, so the id kind is always `note`. The prefix is kept anyway so the argument shape matches GitHub's, where the kind is load-bearing.
+# Usage: gp_update_comment SLUG MR_NUM COMMENT_ID MESSAGE
+gp_update_comment() {
+    local slug="$1" mr_num="$2" comment_id="$3" message="$4"
+    local kind="${comment_id%%-*}" num="${comment_id#*-}"
+    if [[ "$kind" != "note" ]]; then
+        echo "ERROR: unknown comment id kind '$kind' — expected note-." >&2
+        return 1
+    fi
+    if [[ ! "$num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: comment id must be note-<number>, got '$comment_id'" >&2
+        return 1
+    fi
+    local encoded; encoded=$(_gl_encode "$slug")
+    glab api --method PUT "projects/$encoded/merge_requests/$mr_num/notes/$num" \
         -f body="$message" >/dev/null
 }
 

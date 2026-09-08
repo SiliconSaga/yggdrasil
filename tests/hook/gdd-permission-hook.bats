@@ -1912,6 +1912,245 @@ JSON
     [[ "$output" != *"ws review"* ]]
 }
 
+@test "redirect: editing a CR body points at ws cr edit" {
+    # Substitution and the attribution check lived on the creation path only, so an update through the raw CLI ran neither and failed silently — yggdrasil#158 published both placeholders literal.
+    seed_real_project_config
+
+    run_hook 'gh pr edit 42 --body-file .crs/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh pr edit 42 --body-file .crs/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws exec ken-site gh pr edit 42 --body-file .crs/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+}
+
+@test "redirect: editing a CR title points at ws cr edit" {
+    seed_real_project_config
+
+    run_hook 'gh pr edit 42 --title "new title"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+}
+
+@test "redirect: editing an issue body points at ws issue edit" {
+    seed_real_project_config
+
+    run_hook 'gh issue edit 7 --body-file .issues/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+
+    run_hook 'ws gh issue edit 7 --body-file .issues/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: glab description edits point at the ws edit verbs" {
+    seed_real_project_config
+
+    run_hook 'glab mr update 42 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'glab issue update 7 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: edits that ws cannot express stay reachable" {
+    # `ws cr edit` rewrites a body and a title. It does not touch labels, reviewers, assignees or milestones, so catching those would deny a capability with no replacement — the same failure that got the glab mr note rule withdrawn rather than narrowed.
+    seed_real_project_config
+
+    # Assert NOT DENIED, not merely that the pointer text is absent. A rule that denied these for some other reason would satisfy the weaker check while still taking the capability away, which is the outcome this test exists to prevent.
+    run_hook 'ws gh pr edit 42 --add-label enhancement'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh pr edit 42 --add-reviewer someone'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh issue edit 7 --add-assignee someone'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh issue edit 7 --milestone v1.2'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: a raw PATCH that is not a body or title write stays reachable" {
+    # The first cut matched every PATCH to a pull request or issue, which denied state, base, milestone and assignee changes that `ws cr edit` cannot express — contradicting this section's own rule and the claim in the change-request body. Review caught it; these are the operations that must survive.
+    seed_real_project_config
+
+    run_hook 'ws gh api -X PATCH repos/o/r/pulls/27 -f state=closed'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh api -X PATCH repos/o/r/issues/7 -f milestone=3'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: ws exec twins deny for every mutation form" {
+    # A softer route around a redirect is a hole: `ws exec <comp> git commit` once merely ASKED where the raw form denied. Measured here rather than assumed — the title, glab and comment forms were reaching ask, not deny, until review pointed it out.
+    seed_real_project_config
+
+    run_hook 'ws exec app gh pr edit 42 --title "new"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh issue edit 7 --title "new"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app glab mr update 42 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app glab issue update 7 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh pr comment 11 --body "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh api -X PATCH repos/o/r/pulls/27 -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: short mutation flags deny like their long forms" {
+    # `gh pr edit` accepts -b, -F and -t (confirmed in its own --help), so a rule set covering only --body/--title let `gh pr edit 42 -F body.md` through untouched. One bracket glob per verb per spelling covers all three.
+    seed_real_project_config
+
+    run_hook 'gh pr edit 42 -F .crs/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh pr edit 42 -b "new body"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh pr edit 42 -t "new title"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'gh issue edit 7 -F .issues/x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'glab mr update 42 -d "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws glab issue update 7 -t "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: a PATCH naming body only as an output selector is not denied" {
+    # `--jq .body` selects output; it writes nothing. Matching the bare word denied it, which is the same over-reach the field scoping was introduced to remove. Matching `body=` distinguishes the assignment from the selector.
+    seed_real_project_config
+
+    run_hook 'ws gh api repos/o/r/pulls/27 -X PATCH -f state=closed --jq .body'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: title writes deny across every spelling" {
+    # A glob sees neither argument order nor the wrapper, so each field needs its raw, ws-wrapped and ws exec forms per provider. Review found the set half-populated: the body forms were covered and the title forms were not, which left the same bypass open one flag over.
+    seed_real_project_config
+
+    run_hook 'ws glab mr update 42 --title "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'glab issue update 7 --title "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app glab mr update 42 --title "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh api repos/o/r/pulls/27 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'gh api repos/o/r/issues/7 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh api -X PATCH repos/o/r/issues/7 -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: a raw PATCH of a CR body points at ws cr edit" {
+    # The spelling that actually caused the incident. realm-siliconsaga#27 sat for five days reading "driven by @HUMAN_ACCOUNT" because it was PATCHed through the API, not through `gh pr edit` — so a rule covering only the CLI subcommand would have missed the real reflex entirely.
+    seed_real_project_config
+
+    run_hook 'ws gh api -X PATCH repos/SiliconSaga/realm-siliconsaga/pulls/27 -F body=@.crs/x.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'gh api -X PATCH repos/o/r/pulls/27 -F body=@x.md'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+}
+
+@test "redirect: a raw PATCH is caught with the path before the method too" {
+    # A glob cannot see argument order, so each resource needs both spellings. Without the -alt rows, `gh api repos/… -X PATCH` walks straight past a rule that looked complete.
+    seed_real_project_config
+
+    run_hook 'gh api repos/o/r/pulls/27 --method PATCH -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh api repos/o/r/issues/7 --method PATCH -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: a raw PATCH of an issue body points at ws issue edit" {
+    seed_real_project_config
+
+    run_hook 'gh api -X PATCH repos/o/r/issues/7 -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: reading a PR through the API is still reachable" {
+    # The PATCH rules key on the method precisely so reads stay open. Denying a read would be denying a capability ws cannot replace.
+    seed_real_project_config
+
+    run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [[ "$output" != *"ws cr <comp> edit"* ]]
+
+    run_hook 'ws gh api repos/o/r/issues/7'
+    [[ "$output" != *"ws issue <comp> edit"* ]]
+}
+
+@test "redirect: posting a PR comment points at ws review comment" {
+    # Before #141 there was no verb at all, so the generic `gh *` rule pointed at `ws gh` — the bare passthrough that attaches no attribution, and the route by which a comment reading "AI-assisted **issue**" with a literal @HUMAN_ACCOUNT reached a public repo. A redirect aimed at the hole it should close is worse than none.
+    seed_real_project_config
+
+    run_hook 'gh pr comment 11 --body "looks good"'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> comment"* ]]
+
+    run_hook 'ws gh pr comment 11 --body "looks good"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> comment"* ]]
+}
+
+@test "redirect: gh issue comment stays reachable while no verb covers it" {
+    # ws review is change-request-scoped and cannot post to a plain issue. Redirecting this would deny a capability with no replacement — the failure that got the glab mr note rule withdrawn rather than narrowed.
+    seed_real_project_config
+
+    run_hook 'ws gh issue comment 11 --body "note"'
+    [[ "$output" != *"ws review <comp> comment"* ]]
+}
+
+@test "redirect: the edit verbs themselves are not caught by their own rules" {
+    # A redirect that blocks the wrapper it points at has overshot — the failure measured twice on the review rules before they were anchored.
+    seed_real_project_config
+
+    run_hook 'ws cr yggdrasil edit 42 --title "new" .crs/x.md'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws issue yggdrasil edit 7 --title "new" .issues/x.md'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
 @test "allow-path: non-mutating ws gh subcommands are untouched by the guard" {
     seed_real_project_config
 
