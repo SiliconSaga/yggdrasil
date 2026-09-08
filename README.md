@@ -1,14 +1,28 @@
 # Yggdrasil
 
-*The World Tree — GDD's Meta-Workspace*
+Meta-workspace containing the [Guardian Driven Development (GDD)](docs/gdd/index.md) methodology and tooling for agentic engineering. Includes the `ws` workspace CLI, the GDD skills, the shared-thinking Thalamus, the components/realms/hoards model, and the documentation, test, and git conventions that bind everything together. Components, realms, and hoards are for content you work on, and live in other Git repos included as part of your personalized ecosystem.
+
+GDD has reached the maturity for General Availability. See the [v1.0.0 release](https://github.com/SiliconSaga/yggdrasil/releases/tag/v1.0.0), the [CHANGELOG](CHANGELOG.md), and the [roadmap](docs/gdd/roadmap.md) for where it goes next.
+
+**How you actually work here:** you direct an AI coding agent to get real work done in the ecosystem's components, and GDD is the methodology that keeps that work safe, attributable, and legible. The `ws` CLI and the git / commit / branch conventions are mostly **guardrails the agent operates within** — attribution, auth, safe git and review flows — rather than commands you run by hand. 
+
+Day to day you mostly steer and review; the agent drives `ws`. GDD by itself is _not_ meant to withstand hostile intent, it is more about gentle guidance. Separate efforts like [gdd-sandbox](https://github.com/SiliconSaga/gdd-sandbox/) would help that when more mature and leaning on larger frameworks like [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell). 
+
+New to the idea? Start with [Guardian Driven Development](docs/gdd/index.md).
+
+## Why Yggdrasil
 
 > "An immense mythical tree that connects the nine worlds in Norse cosmology."
 
-**Yggdrasil** is the meta-workspace where [Guardian Driven Development (GDD)](docs/gdd/index.md) lives. It isn't just a wrapper around the ecosystem's repos — it's the home of the methodology itself: the `ws` workspace CLI, the GDD skills, the shared-thinking Thalamus, the components/realms/hoards model, and the documentation, commit, and branch conventions that bind everything together. Components, realms, and hoards are what Yggdrasil *orchestrates*; GDD is what Yggdrasil *is*.
+This project was started as a homelab tool by a nerdy Scandinavian for managing IT infrastructure eventually forming [the SiliconSaga Stack](https://github.com/SiliconSaga/realm-siliconsaga/blob/main/docs/stack.md) - but then GDD evolved out of that and largely took over the repo. 
 
-**Status: v1.0.0 — General Availability.** See the [release](https://github.com/SiliconSaga/yggdrasil/releases/tag/v1.0.0), the [CHANGELOG](CHANGELOG.md), and the [roadmap](docs/gdd/roadmap.md) for where it goes next.
+There are still traces here and there of its infrastructure beginnings, but most of that has now migrated to the [realm repo](https://github.com/SiliconSaga/realm-siliconsaga) and the various [SiliconSaga org repos](https://github.com/SiliconSaga) with weird Old Norse inspired names everywhere. 
 
-**How you actually work here:** you direct an AI coding agent to get real work done in the ecosystem's components, and GDD is the methodology that keeps that work safe, attributable, and legible. The `ws` CLI and the git / commit / branch conventions are mostly **guardrails the agent operates within** — attribution, auth, safe git and review flows — rather than commands you run by hand. Day to day you mostly steer and review; the agent drives `ws`. New to the idea? Start with [Guardian Driven Development](docs/gdd/index.md).
+GDD itself is now agnostic and available for a variety of uses, from software development to Obsidian Vault management including routine bill pay, supporting local community efforts, organizing hobby projects,and so on.
+
+A fundamental goal of GDD is finding the balance between too little agentic augmentation to keep up in this new world and the sort of swarm engineering / vibe coding that risks having you lose touch with the content you are authoring. 
+
+A crucial focus is also on not losing the humanity of the process, with AI etiqutte both for one human interacting with agents and a larger community using agentic tools together.
 
 ## Start here
 
@@ -19,6 +33,7 @@
 ## What lives here
 
 - **`ecosystem.yaml`** — the manifest declaring components and their tiers, three-layer-merged with an active realm and a per-developer `ecosystem.local.yaml`.
+  - This is the main piece left of the infrastructure beginning, and the added complexity can be ignored if you're not building an outright platform of some sort.
 - **`scripts/ws`** — the unified CLI: clone, status, commit, push, cr, review, test, plus realm / hoard / component management.
 - **`.agent/skills/`** — agent-facing workspace skills (GDD orchestration, orientation, housekeeping, the documentation conventions, and more). These are operational guidance the agent reads directly, not human reading material — humans get the higher-level concepts from `docs/`. Some practice flows also lean on the optional [Obra Superpowers](https://github.com/obra/superpowers) plugin.
 - **`docs/`** — ecosystem architecture, the GDD methodology, and design / plan docs. Component docs follow the **Component Documentation Convention** — a four-Shape graduation ladder, described human-side in [the organization stack](docs/gdd/organization-stack.md); the operational rules for agents writing docs live in the `gdd-doc-writing` skill.
@@ -26,7 +41,7 @@
 
 ## AI usage
 
-This ecosystem is built with heavy AI assistance (Claude Code, among others). General agent instructions live in [`AGENTS.md`](AGENTS.md); agent-specific files like `CLAUDE.md` point at it to avoid duplication. Custom skills go under `.agent/skills/`.
+This ecosystem is built with agentic assistance (Claude Code, among others). General agent instructions live in [`AGENTS.md`](AGENTS.md); agent-specific files like `CLAUDE.md` point at it to avoid duplication. Custom skills go under `.agent/skills/`.
 
 ### Claude Code skills
 
