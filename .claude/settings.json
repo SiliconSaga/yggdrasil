@@ -65,6 +65,8 @@
       "Bash(bash scripts/ws lint:*)",
       "Bash(ws review:*)",
       "Bash(bash scripts/ws review:*)",
+      "Bash(ws checkout:*)",
+      "Bash(bash scripts/ws checkout:*)",
       "Bash(ws log:*)",
       "Bash(bash scripts/ws log:*)",
       "Bash(ws commit:*)",

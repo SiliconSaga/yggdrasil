@@ -33,6 +33,37 @@ for _a in "$@"; do
     case "$_a" in --help|-h) exec glab "$@" ;; esac
 done
 
+# Same root-directory hazard as ws-gh.sh — see the longer note there. `ws glab`
+# has no target, so a subcommand that mutates the repo it stands in lands on the
+# workspace root rather than the project --repo names.
+_WS_GLAB_GROUP=""
+_WS_GLAB_SUB=""
+for _a in "$@"; do
+    [[ "$_a" == -* ]] && continue
+    if [[ -z "$_WS_GLAB_GROUP" ]]; then
+        _WS_GLAB_GROUP="$_a"
+    else
+        _WS_GLAB_SUB="$_a"
+        break
+    fi
+done
+
+case "$_WS_GLAB_GROUP${_WS_GLAB_SUB:+ $_WS_GLAB_SUB}" in
+    "mr checkout")
+        echo "ERROR: 'glab mr checkout' rewrites the working tree of whatever repo it runs in." >&2
+        echo "  'ws glab' has no target, so that repo is the workspace root." >&2
+        echo "  Run it inside the intended repo instead:" >&2
+        echo "    ws exec <comp> glab mr checkout <number>" >&2
+        exit 1
+        ;;
+    "repo clone")
+        echo "ERROR: 'glab repo clone' would clone into the workspace root." >&2
+        echo "  Use 'ws clone <comp>' (or 'ws clone-fork <comp>') so the clone lands in" >&2
+        echo "  components/ with its remotes wired." >&2
+        exit 1
+        ;;
+esac
+
 if [[ -z "${GITLAB_TOKEN:-}" ]]; then
     echo "ERROR: no GitLab token in the environment (GITLAB_TOKEN)." >&2
     echo "  Add 'export GITLAB_TOKEN=<token>' to .env (and 'export GITLAB_HOST=<host>'" >&2
