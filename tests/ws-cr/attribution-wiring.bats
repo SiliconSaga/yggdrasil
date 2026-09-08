@@ -63,6 +63,12 @@ esac
   printf ' %q' "$@"
   printf '\n'
 } >> "$GH_LOG"
+# Copy the body file's CONTENT aside at call time. Both create paths pass --body-file <path>, so the argv log holds a PATH and never the body — asserting against the log proves nothing about substitution, and the resolved temp file is unlinked as soon as the command returns. Capturing here is what makes that assertion real; review caught it passing vacuously.
+_prev=""
+for _a in "$@"; do
+  if [[ "$_prev" == "--body-file" && -f "$_a" ]]; then cat "$_a" >> "$GH_BODY_LOG"; fi
+  _prev="$_a"
+done
 case "${1:-} ${2:-}" in
   "pr create")    echo "https://github.com/example/fork/pull/1" ;;
   "issue create") echo "https://github.com/example/fork/issues/1" ;;
@@ -71,6 +77,7 @@ exit 0
 SH
     chmod +x "$GH_STUB_DIR/gh"
     export GH_LOG
+    export GH_BODY_LOG="$BATS_TEST_TMPDIR/gh-body.log"
     export PATH="$GH_STUB_DIR:$PATH"
 }
 
@@ -127,11 +134,14 @@ write_issue_body() {
     write_cr_body '> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).'
     run bash "$WS_BIN" cr yggdrasil "test: substitution" .crs/body.md
     [ "$status" -eq 0 ]
-    local sent
-    sent="$(cat "$GH_LOG")"
-    # The body reaches gh as a --body-file path; read what that file held at call time by re-reading the resolved copy the log names.
-    [[ "$sent" == *"--body-file"* ]]
-    [[ "$sent" != *"@HUMAN_ACCOUNT"* ]]
+    [[ "$(cat "$GH_LOG")" == *"--body-file"* ]]
+    # Assert against the body the stub captured, not the argv log. The log holds only the temp PATH, so the earlier form of this test passed no matter what the body contained.
+    local body
+    body="$(cat "$GH_BODY_LOG")"
+    [[ "$body" == *"@testuser"* ]]
+    [[ "$body" == *"https://example.test/gdd/"* ]]
+    [[ "$body" != *"@HUMAN_ACCOUNT"* ]]
+    [[ "$body" != *"@GDD_HOME"* ]]
 }
 
 # --- ws issue ---

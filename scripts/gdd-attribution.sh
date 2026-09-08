@@ -75,9 +75,16 @@ gdd_attribution_check() {
 # Verify the banner names the resolved driving human. Run on the SUBSTITUTED body, never on the template.
 # Usage: gdd_attribution_check_driver <resolved-bodyfile> <human-account>
 gdd_attribution_check_driver() {
-    local bodyfile="$1" human="$2" first=""
+    local bodyfile="$1" human="$2" first="" re="" esc_human=""
     first=$(head -n 1 "$bodyfile")
-    if [[ "$first" != *"@${human}"* ]]; then
+    # Match a COMPLETE mention, not a prefix. A substring test accepts a different account whose name merely starts with the configured one — configured `ann` passing on `@anna` — which is exactly the "someone else is named as the driver" case this check exists to catch.
+    #
+    # The dot needs its own arm. GitLab permits a dot inside a username, so a dot cannot simply end a mention or configured `a` would accept `@a.b`, a different person. But a sentence-ending period right after a mention is ordinary prose, and treating that as "the username continues" produced a false REJECTION of `driven by @testuser.` — caught by a test written for the opposite case. So a dot terminates the mention only when a username character does not follow it.
+    #
+    # The account is escaped before it becomes a pattern: an unescaped dot in a configured name would match any character and reopen the hole from the other side.
+    esc_human=$(printf '%s' "$human" | sed 's/[][\.^$*+?(){}|\\/]/\\&/g')
+    re="@${esc_human}(\$|[^A-Za-z0-9_.-]|\\.(\$|[^A-Za-z0-9_-]))"
+    if [[ ! "$first" =~ $re ]]; then
         echo "ERROR: the attribution line does not name the driving human." >&2
         echo "  After substitution the first line must contain '@${human}'." >&2
         echo "  Leave '@HUMAN_ACCOUNT' in the body — it is substituted for you." >&2
@@ -123,6 +130,27 @@ gdd_attribution_assert_resolved() {
     echo "  An unsubstituted placeholder is valid Markdown, so nothing downstream would have noticed." >&2
     echo "  Publish through ws cr / ws issue (create or edit) so substitution runs." >&2
     return 1
+}
+
+# Resolve placeholders in an outbound message assembled in memory, and refuse to return one that still carries them.
+#
+# Review replies and comments build their text from a caller argument or a bodyfile plus a generated banner, so they never passed through the bodyfile substitution — a reply containing `@HUMAN_ACCOUNT` published it literally, which is the very defect the bodyfile paths exist to prevent. Reported by review on this change; the gap predates it, since ws review comment shipped that way.
+#
+# The post-substitution check cannot normally fire, because substitution has just run. It stays as a regression guard: if a later refactor drops the substitution above it, this is what turns a silent literal placeholder into a refusal.
+#
+# Usage: resolved=$(gdd_attribution_resolve_message "$text") || exit 1
+gdd_attribution_resolve_message() {
+    local text="$1" human="" gdd_home=""
+    human=$(gdd_attribution_human_account) || return 1
+    gdd_home=$(gdd_attribution_gdd_home)
+    text="${text//@HUMAN_ACCOUNT/@$human}"
+    text="${text//@GDD_HOME/$gdd_home}"
+    if [[ "$text" == *"@HUMAN_ACCOUNT"* || "$text" == *"@GDD_HOME"* ]]; then
+        echo "ERROR: refusing to publish — the message still contains an unsubstituted placeholder." >&2
+        echo "  An unsubstituted placeholder is valid Markdown, so nothing downstream would have noticed." >&2
+        return 1
+    fi
+    printf '%s' "$text"
 }
 
 # Generate the attribution banner for agent-authored text that has no template to copy from — review replies and top-level comments.

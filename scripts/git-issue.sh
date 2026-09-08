@@ -130,9 +130,22 @@ if [[ "$_ISSUE_STATUS" -ne 0 ]]; then
   if grep -qiE 'disabled issues|issues are disabled|issues.*disabled' "$_ISSUE_OUTPUT"; then
     echo "" >&2
     echo "Issues are disabled on $TARGET_SLUG, so there is nowhere to file this." >&2
-    echo "  A GitHub fork starts with issues disabled — a component from 'ws clone-fork' inherits that without anyone choosing it." >&2
-    echo "  Three ways forward, in the order usually wanted:" >&2
-    echo "    1. Enable issues on the fork: Settings → General → Features → Issues (or 'ws gh api -X PATCH repos/$TARGET_SLUG -F has_issues=true')." >&2
+    # The match is provider-agnostic because both providers phrase it similarly, but the remediation is not — pointing a GitLab user at GitHub's repo settings and a `has_issues` field they do not have is worse than saying nothing. Step 1 is therefore provider-specific; steps 2 and 3 hold either way.
+    case "${_GP_LOADED_PROVIDER:-}" in
+      github)
+        echo "  A GitHub fork starts with issues disabled — a component from 'ws clone-fork' inherits that without anyone choosing it." >&2
+        echo "  Three ways forward, in the order usually wanted:" >&2
+        echo "    1. Enable issues on the fork: Settings → General → Features → Issues (or 'ws gh api -X PATCH repos/$TARGET_SLUG -F has_issues=true')." >&2
+        ;;
+      gitlab)
+        echo "  Three ways forward, in the order usually wanted:" >&2
+        echo "    1. Enable issues on the project: Settings → General → Visibility, project features, permissions → Issues." >&2
+        ;;
+      *)
+        echo "  Three ways forward, in the order usually wanted:" >&2
+        echo "    1. Enable issues on the project in its provider settings." >&2
+        ;;
+    esac
     echo "    2. File it upstream instead: 'ws issue <comp> <upstream-remote> \"<title>\" <label> <bodyfile>'." >&2
     echo "    3. Carry the finding in the change-request body, if it belongs to work already under review." >&2
     echo "  Don't post it as a bare provider comment — that path attaches no attribution." >&2

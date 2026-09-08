@@ -75,9 +75,34 @@ SH
     [[ "$output" == *"a.sh:10"* ]]
 }
 
-@test "gitlab list functions emit a note- prefixed id" {
-    run grep -c 'id:note-' "$REPO_ROOT/scripts/providers/gitlab.sh"
-    [ "$output" = "2" ]
+@test "gitlab inline comment output carries a note- prefixed id" {
+    # Executes the function rather than counting source text: a grep passes even if the jq filter emits a malformed id, attaches it to the wrong record, or produces nothing at all.
+    cat > "$STUB_DIR/glab" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "glab" "$@" >> "$API_LOG"
+echo '[{"notes":[{"id":701,"type":"DiffNote","system":false,"author":{"username":"rev"},"body":"inline text","position":{"new_path":"a.sh","new_line":10}}]}]'
+SH
+    chmod +x "$STUB_DIR/glab"
+    # shellcheck source=/dev/null
+    source "$REPO_ROOT/scripts/providers/gitlab.sh"
+    run gp_review_list_comments group/project 1
+    [[ "$output" == *"id:note-701"* ]]
+    [[ "$output" == *"inline text"* ]]
+    [[ "$output" == *"a.sh:10"* ]]
+}
+
+@test "gitlab note output carries a note- prefixed id" {
+    cat > "$STUB_DIR/glab" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "glab" "$@" >> "$API_LOG"
+echo '[{"notes":[{"id":801,"system":false,"author":{"username":"rev"},"body":"note text","position":null}]}]'
+SH
+    chmod +x "$STUB_DIR/glab"
+    # shellcheck source=/dev/null
+    source "$REPO_ROOT/scripts/providers/gitlab.sh"
+    run gp_review_list_notes group/project 1
+    [[ "$output" == *"id:note-801"* ]]
+    [[ "$output" == *"note text"* ]]
 }
 
 @test "gp_update_comment routes an inline id to the pulls endpoint" {

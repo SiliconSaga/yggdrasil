@@ -47,6 +47,10 @@ case "${1:-} ${2:-}" in
   "auth status") exit 0 ;;
 esac
 printf '%s\n' "gh" "$@" >> "$GH_LOG"
+# Emit the created-issue URL the real CLI prints, so a test can assert the success path REPLAYS provider output rather than swallowing it into the buffer the failure path needs.
+case "${1:-} ${2:-}" in
+  "issue create") echo "https://github.com/example/fork/issues/1" ;;
+esac
 exit 0
 SH
     chmod +x "$GH_STUB_DIR/gh"
@@ -196,11 +200,10 @@ SH
 }
 
 @test "a successful create still prints the provider output" {
-    # The failure path captures provider output to inspect it; the success path must still show the created issue URL.
+    # The failure path buffers provider output so it can be inspected; the success path must still REPLAY it, or the created issue URL disappears. Assert on the command's own output before anything else overwrites $output — a second `run` here checked only that gh was invoked, which is not what this test is named for.
     run bash "$WS_BIN" issue yggdrasil "test: success output" bug .issues/edit.md
     [ "$status" -eq 0 ]
-    run cat "$GH_LOG"
-    [[ "$output" == *"create"* ]]
+    [[ "$output" == *"https://github.com/example/fork/issues/1"* ]]
 }
 
 @test "issue create still requires title, label and bodyfile" {

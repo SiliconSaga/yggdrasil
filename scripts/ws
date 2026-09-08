@@ -339,6 +339,11 @@ HELP
             echo "Usage: ws cr <component> edit <cr#> [--remote <remote>] [--upstream] [--title <title>] <bodyfile>" >&2
             exit 1
         fi
+        # --source-branch selects which branch to PROPOSE, so it means nothing when only a description changes. Rejected rather than ignored: silently dropping an option the caller typed is the same failure the --title check below prevents on the create path.
+        if [[ -n "$source_branch" ]]; then
+            echo "ERROR: --source-branch applies to opening a CR, not to editing one." >&2
+            exit 1
+        fi
         local cr_number="${args[1]}"
         local cr_body="${args[2]}"
         if [[ "$cr_body" != /* ]]; then

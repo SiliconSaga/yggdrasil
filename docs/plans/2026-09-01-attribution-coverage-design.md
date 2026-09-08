@@ -131,4 +131,4 @@ Verification runs `ws test yggdrasil`. Note that this box has fourteen pre-exist
 
 - `git-cr.sh` and `git-issue.sh` each shed their duplicated attribution block. Behavior changes in exactly one direction: bodies that would have passed the exact-match check and carried an unresolved driver now fail.
 - `gdd-sandbox` can drop the `templates/change.md` host-side patch on its next rebuild.
-- The `docs/gdd/agent-communication.md` line stating that the disclaimer "covers bodies, not replies" becomes stale once #141 and this change are both in; it is updated to describe the coverage that then exists.
+- The `docs/gdd/agent-communication.md` line stating that the disclaimer "covers bodies, not replies" becomes stale once #141 and this change are both in. **That file is not touched here** — it arrives with #161, which is still open, so there is nothing in this repository to edit. Recorded as a follow-up owed by whichever of the two lands second, and named in this change's review notes so it is not lost.

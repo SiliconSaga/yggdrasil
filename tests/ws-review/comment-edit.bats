@@ -128,6 +128,17 @@ run_ws_review() {
     [[ "$output" == *"Updated comment note-701 on CR #1"* ]]
 }
 
+@test "an edited comment has its placeholders substituted" {
+    # review_edit assembles its message in memory, so it never reached the bodyfile substitution — a body carrying @HUMAN_ACCOUNT published it literally, which is the defect the whole change exists to close. Both review bots caught it; the gap predates this branch, since ws review comment shipped that way in #141.
+    printf 'Filed by @HUMAN_ACCOUNT — see [GDD](@GDD_HOME).\n' > "$WORK/.crs/note.md"
+    run_ws_review app edit 1 note-701 "$WORK/.crs/note.md"
+
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$BODY_LOG")" == *"@reviewer"* ]]
+    [[ "$(cat "$BODY_LOG")" != *"@HUMAN_ACCOUNT"* ]]
+    [[ "$(cat "$BODY_LOG")" != *"@GDD_HOME"* ]]
+}
+
 @test "an unprefixed comment id is rejected" {
     run_ws_review app edit 1 701 "$WORK/.crs/note.md"
 

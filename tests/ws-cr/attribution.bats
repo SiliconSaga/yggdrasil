@@ -92,6 +92,46 @@ YAML
     [[ "$output" == *"does not name the driving human"* ]]
 }
 
+@test "a longer account starting with the driver fails the driver check" {
+    # Configured `testuser` must not be satisfied by `@testuser2`, which names a DIFFERENT person. A substring test accepted it, which is the exact "someone else is credited as the driver" case this check exists to catch.
+    write_body '> **AI-assisted change proposal.** Filed by agent driven by @testuser2 via [GDD](https://example.test/gdd/).'
+    run gdd_attribution_check_driver "$WORK/body.md" testuser
+    [ "$status" -ne 0 ]
+}
+
+@test "a mention followed by a comma still passes the driver check" {
+    # The boundary must admit ordinary prose: a trailing delimiter is not part of the username.
+    write_body '> **AI-assisted change proposal.** Filed by agent driven by @testuser, via [GDD](https://example.test/gdd/).'
+    run gdd_attribution_check_driver "$WORK/body.md" testuser
+    [ "$status" -eq 0 ]
+}
+
+@test "a mention followed by a period still passes the driver check" {
+    write_body '> **AI-assisted change proposal.** Filed by agent driven by @testuser. See [GDD](https://example.test/gdd/).'
+    run gdd_attribution_check_driver "$WORK/body.md" testuser
+    [ "$status" -eq 0 ]
+}
+
+@test "a mention at end of line passes the driver check" {
+    write_body '> **AI-assisted change proposal.** Filed by agent driven by @testuser'
+    run gdd_attribution_check_driver "$WORK/body.md" testuser
+    [ "$status" -eq 0 ]
+}
+
+@test "a dotted account is not satisfied by its own prefix" {
+    # GitLab permits a dot inside a username, so a dot cannot simply end a mention: configured `a` must not accept `@a.b`, who is a different person.
+    write_body '> **AI-assisted change proposal.** Filed by agent driven by @a.b via [GDD](https://example.test/gdd/).'
+    run gdd_attribution_check_driver "$WORK/body.md" 'a'
+    [ "$status" -ne 0 ]
+}
+
+@test "a dot in the account cannot match an arbitrary character" {
+    # GitLab permits a dot in a username, and an unescaped dot in the pattern would match any character — reopening the hole from the other side, so `a.b` would accept `@axb`.
+    write_body '> **AI-assisted change proposal.** Filed by agent driven by @axb via [GDD](https://example.test/gdd/).'
+    run gdd_attribution_check_driver "$WORK/body.md" 'a.b'
+    [ "$status" -ne 0 ]
+}
+
 @test "a substituted banner passes the driver check" {
     write_body '> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).'
     resolved=$(gdd_attribution_substitute "$WORK/body.md" testuser https://example.test/gdd/)
@@ -178,6 +218,28 @@ YAML
     run gdd_attribution_gdd_home
     [ "$status" -eq 0 ]
     [ "$output" = "https://example.test/gdd/" ]
+}
+
+@test "resolve_message substitutes placeholders in an in-memory message" {
+    # Review replies and comments assemble text in memory rather than from a bodyfile, so they never reached the bodyfile substitution — a reply containing @HUMAN_ACCOUNT published it literally, which is the defect this whole module exists to prevent.
+    run gdd_attribution_resolve_message 'see @HUMAN_ACCOUNT and [GDD](@GDD_HOME)'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"@testuser"* ]]
+    [[ "$output" == *"https://example.test/gdd/"* ]]
+    [[ "$output" != *"@HUMAN_ACCOUNT"* ]]
+    [[ "$output" != *"@GDD_HOME"* ]]
+}
+
+@test "resolve_message leaves ordinary text untouched" {
+    run gdd_attribution_resolve_message 'Addressed in abc123 — no placeholders here.'
+    [ "$status" -eq 0 ]
+    [ "$output" = 'Addressed in abc123 — no placeholders here.' ]
+}
+
+@test "resolve_message fails closed with no human_account" {
+    clear_human_account
+    run gdd_attribution_resolve_message 'see @HUMAN_ACCOUNT'
+    [ "$status" -ne 0 ]
 }
 
 @test "the reply banner uses the compact italic form" {

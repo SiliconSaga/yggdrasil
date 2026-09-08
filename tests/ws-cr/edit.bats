@@ -143,9 +143,11 @@ write_body() {
 @test "edit works from a branch named main" {
     # Creation refuses main because a CR cannot be opened from it. An edit concerns a CR that already exists, so the branch you happen to stand on is irrelevant — inheriting that guard would refuse to fix a typo for the wrong reason.
     # The seed commit already sits on the init default branch, so check it out rather than creating it. Resolve the name instead of assuming "main": init.defaultBranch is configurable and this fixture must not depend on the runner's git config.
+    # Pick any branch that is not the feature branch, rather than assuming the init default is named main or master — init.defaultBranch is configurable and this fixture must not depend on the runner's git config. Asserted non-empty so a bad selection fails here instead of leaving the checkout a silent no-op.
     local default_branch
     default_branch=$(git -C "$WORK" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null) || default_branch=""
-    [[ -n "$default_branch" ]] || default_branch=$(git -C "$WORK" for-each-ref --format='%(refname:short)' refs/heads/ | grep -Ex 'main|master' | head -n1)
+    [[ -n "$default_branch" ]] || default_branch=$(git -C "$WORK" for-each-ref --format='%(refname:short)' refs/heads/ | grep -vx 'feature/cr-edit' | head -n1)
+    [ -n "$default_branch" ]
     git -C "$WORK" checkout -q "$default_branch"
     run bash "$WS_BIN" cr yggdrasil edit 42 .crs/edit.md
     [ "$status" -eq 0 ]
@@ -163,6 +165,14 @@ write_body() {
     [ "$status" -eq 0 ]
     run cat "$GH_LOG"
     [[ "$output" == *"repos/alt/project/pulls/42"* ]]
+}
+
+@test "--source-branch on an edit is rejected rather than silently ignored" {
+    # Option parsing runs before subcommand dispatch, so a creation-only flag reached the edit path and was quietly discarded — the same silent-option failure the --title check below prevents in the other direction.
+    run bash "$WS_BIN" cr yggdrasil edit 42 --source-branch feature/x .crs/edit.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--source-branch applies to opening a CR"* ]]
+    [ ! -f "$GH_LOG" ]
 }
 
 @test "--title on a create is rejected rather than silently ignored" {

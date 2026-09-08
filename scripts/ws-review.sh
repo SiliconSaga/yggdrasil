@@ -805,6 +805,7 @@ review_reply() {
     local banner
     banner=$(ws_gdd_attribution_line "reply") || exit 1
     message="${banner}"$'\n\n'"${message}"
+    message=$(gdd_attribution_resolve_message "$message") || exit 1
 
     gp_review_thread_reply "$REPO_SLUG" "$cr_num" "$thread_id" "$message" || {
         echo "ERROR: Failed to reply to thread $thread_id on CR #$cr_num." >&2
@@ -844,6 +845,7 @@ review_comment() {
     banner=$(ws_gdd_attribution_line "comment") || exit 1
     local message
     message="${banner}"$'\n\n'"$(cat "$bodyfile")"
+    message=$(gdd_attribution_resolve_message "$message") || exit 1
 
     gp_review_post_comment "$REPO_SLUG" "$cr_num" "$message" || {
         echo "ERROR: Failed to post comment on CR #$cr_num." >&2
@@ -883,6 +885,7 @@ review_edit() {
     banner=$(ws_gdd_attribution_line "comment") || exit 1
     local message
     message="${banner}"$'\n\n'"$(cat "$bodyfile")"
+    message=$(gdd_attribution_resolve_message "$message") || exit 1
 
     gp_update_comment "$REPO_SLUG" "$cr_num" "$comment_id" "$message" || {
         echo "ERROR: Failed to update comment $comment_id on CR #$cr_num." >&2

@@ -1967,17 +1967,52 @@ JSON
     # `ws cr edit` rewrites a body and a title. It does not touch labels, reviewers, assignees or milestones, so catching those would deny a capability with no replacement — the same failure that got the glab mr note rule withdrawn rather than narrowed.
     seed_real_project_config
 
+    # Assert NOT DENIED, not merely that the pointer text is absent. A rule that denied these for some other reason would satisfy the weaker check while still taking the capability away, which is the outcome this test exists to prevent.
     run_hook 'ws gh pr edit 42 --add-label enhancement'
-    [[ "$output" != *"ws cr <comp> edit"* ]]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh pr edit 42 --add-reviewer someone'
-    [[ "$output" != *"ws cr <comp> edit"* ]]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh issue edit 7 --add-assignee someone'
-    [[ "$output" != *"ws issue <comp> edit"* ]]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh issue edit 7 --milestone v1.2'
-    [[ "$output" != *"ws issue <comp> edit"* ]]
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: a raw PATCH that is not a body or title write stays reachable" {
+    # The first cut matched every PATCH to a pull request or issue, which denied state, base, milestone and assignee changes that `ws cr edit` cannot express — contradicting this section's own rule and the claim in the change-request body. Review caught it; these are the operations that must survive.
+    seed_real_project_config
+
+    run_hook 'ws gh api -X PATCH repos/o/r/pulls/27 -f state=closed'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh api -X PATCH repos/o/r/issues/7 -f milestone=3'
+    [[ "$output" != *'"permissionDecision":"deny"'* ]]
+}
+
+@test "redirect: ws exec twins deny for every mutation form" {
+    # A softer route around a redirect is a hole: `ws exec <comp> git commit` once merely ASKED where the raw form denied. Measured here rather than assumed — the title, glab and comment forms were reaching ask, not deny, until review pointed it out.
+    seed_real_project_config
+
+    run_hook 'ws exec app gh pr edit 42 --title "new"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh issue edit 7 --title "new"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app glab mr update 42 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app glab issue update 7 --description "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh pr comment 11 --body "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh api -X PATCH repos/o/r/pulls/27 -f body=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
 @test "redirect: a raw PATCH of a CR body points at ws cr edit" {
