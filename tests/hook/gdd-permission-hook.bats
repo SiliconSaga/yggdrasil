@@ -2015,6 +2015,29 @@ JSON
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
+@test "redirect: title writes deny across every spelling" {
+    # A glob sees neither argument order nor the wrapper, so each field needs its raw, ws-wrapped and ws exec forms per provider. Review found the set half-populated: the body forms were covered and the title forms were not, which left the same bypass open one flag over.
+    seed_real_project_config
+
+    run_hook 'ws glab mr update 42 --title "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'glab issue update 7 --title "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app glab mr update 42 --title "x"'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws gh api repos/o/r/pulls/27 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'gh api repos/o/r/issues/7 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh api -X PATCH repos/o/r/issues/7 -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
 @test "redirect: a raw PATCH of a CR body points at ws cr edit" {
     # The spelling that actually caused the incident. realm-siliconsaga#27 sat for five days reading "driven by @HUMAN_ACCOUNT" because it was PATCHed through the API, not through `gh pr edit` — so a rule covering only the CLI subcommand would have missed the real reflex entirely.
     seed_real_project_config

@@ -143,8 +143,9 @@ gdd_attribution_resolve_message() {
     local text="$1" human="" gdd_home=""
     human=$(gdd_attribution_human_account) || return 1
     gdd_home=$(gdd_attribution_gdd_home)
-    text="${text//@HUMAN_ACCOUNT/@$human}"
-    text="${text//@GDD_HOME/$gdd_home}"
+    # Quote the replacement operands. Bash 5.2 enables `patsub_replacement` by default, so a bare `&` in a replacement expands to the MATCHED text — a gddHome carrying a query string turned `@GDD_HOME` into `https://x.test/?a=1@GDD_HOMEb=2`, corrupting the URL and reinserting the very placeholder this function exists to remove. The sed-based bodyfile substituter escapes `&` already; this in-memory path did not.
+    text="${text//@HUMAN_ACCOUNT/@"$human"}"
+    text="${text//@GDD_HOME/"$gdd_home"}"
     if [[ "$text" == *"@HUMAN_ACCOUNT"* || "$text" == *"@GDD_HOME"* ]]; then
         echo "ERROR: refusing to publish — the message still contains an unsubstituted placeholder." >&2
         echo "  An unsubstituted placeholder is valid Markdown, so nothing downstream would have noticed." >&2

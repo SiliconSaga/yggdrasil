@@ -230,6 +230,22 @@ YAML
     [[ "$output" != *"@GDD_HOME"* ]]
 }
 
+@test "resolve_message survives an ampersand in gddHome" {
+    # Bash 5.2 enables patsub_replacement by default, so an unquoted `&` in the replacement expands to the MATCHED text — which both corrupted the URL and put `@GDD_HOME` back into the output, defeating the whole function.
+    cat > "$ECOSYSTEM" <<'YAML'
+identity:
+  human_account: testuser
+defaults:
+  gddHome: https://example.test/gdd/?a=1&b=2
+components: {}
+YAML
+    cp "$ECOSYSTEM" "$ECOSYSTEM_LOCAL"
+    run gdd_attribution_resolve_message 'see [GDD](@GDD_HOME)'
+    [ "$status" -eq 0 ]
+    [ "$output" = 'see [GDD](https://example.test/gdd/?a=1&b=2)' ]
+    [[ "$output" != *"@GDD_HOME"* ]]
+}
+
 @test "resolve_message leaves ordinary text untouched" {
     run gdd_attribution_resolve_message 'Addressed in abc123 — no placeholders here.'
     [ "$status" -eq 0 ]
