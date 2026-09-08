@@ -2006,16 +2006,21 @@ JSON
     seed_real_project_config
 
     # Assert NOT DENIED, not merely that the pointer text is absent. A rule that denied these for some other reason would satisfy the weaker check while still taking the capability away, which is the outcome this test exists to prevent.
+    # The status check carries that same reasoning one step further: a hook that timed out (124) or died before printing would emit no "deny" either, and would pass the negative assertion on a technicality. Reaching a decision is part of what is being asserted.
     run_hook 'ws gh pr edit 42 --add-label enhancement'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh pr edit 42 --add-reviewer someone'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh issue edit 7 --add-assignee someone'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh issue edit 7 --milestone v1.2'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
@@ -2024,9 +2029,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh api -X PATCH repos/o/r/pulls/27 -f state=closed'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh api -X PATCH repos/o/r/issues/7 -f milestone=3'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
@@ -2081,9 +2088,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh api repos/o/r/pulls/27 -X PATCH -f state=closed --jq .body'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 
@@ -2150,9 +2159,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh api repos/o/r/pulls/27 --jq .body'
+    [ "$status" -eq 0 ]
     [[ "$output" != *"ws cr <comp> edit"* ]]
 
     run_hook 'ws gh api repos/o/r/issues/7'
+    [ "$status" -eq 0 ]
     [[ "$output" != *"ws issue <comp> edit"* ]]
 }
 
@@ -2175,6 +2186,7 @@ JSON
     seed_real_project_config
 
     run_hook 'ws gh issue comment 11 --body "note"'
+    [ "$status" -eq 0 ]
     [[ "$output" != *"ws review <comp> comment"* ]]
 }
 
@@ -2183,9 +2195,11 @@ JSON
     seed_real_project_config
 
     run_hook 'ws cr yggdrasil edit 42 --title "new" .crs/x.md'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 
     run_hook 'ws issue yggdrasil edit 7 --title "new" .issues/x.md'
+    [ "$status" -eq 0 ]
     [[ "$output" != *'"permissionDecision":"deny"'* ]]
 }
 

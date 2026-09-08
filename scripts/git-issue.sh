@@ -84,7 +84,11 @@ if [[ ${#_REMOTES[@]} -eq 0 ]]; then
 elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
   REMOTE_NAME="${_REMOTES[0]}"
 elif [[ -n "$REMOTE" ]]; then
-  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1 || true)
+  # -F -x: same fix as git-issue-edit.sh. Review flagged only that file because only
+  # it was in the diff, but this copy carried the identical regex injection — a
+  # `$REMOTE` containing BRE metacharacters could select a different remote than the
+  # one named, and here that chooses which repository the issue is filed against.
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | LC_ALL=C grep -F -i -x -- "$REMOTE" | head -1 || true)
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
     echo "  Available remotes: ${_REMOTES[*]}" >&2

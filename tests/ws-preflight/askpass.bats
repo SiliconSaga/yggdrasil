@@ -54,10 +54,17 @@ run_preflight() {
 }
 
 @test "the askpass advisory never changes the exit code" {
-    # Everything else on this host passes, so a flagged askpass must still exit 0.
+    # Compare against this host's own baseline rather than asserting 0: preflight
+    # exits nonzero when a required tool is missing, so a hardcoded 0 would make
+    # this test report an unrelated environment gap as an askpass regression. What
+    # is actually under test is that the advisory shifts nothing either way.
+    run_preflight "GIT_ASKPASS=" "SSH_ASKPASS="
+    local baseline="$status"
+    [[ "$output" != *"points at an editor's GUI askpass helper"* ]]
+
     run_preflight \
         "GIT_ASKPASS=/Applications/Cursor.app/Contents/Resources/app/extensions/git/dist/askpass.sh"
 
     [[ "$output" == *"points at an editor's GUI askpass helper"* ]]
-    [ "$status" -eq 0 ]
+    [ "$status" -eq "$baseline" ]
 }

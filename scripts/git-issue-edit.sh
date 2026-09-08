@@ -63,7 +63,12 @@ if [[ ${#_REMOTES[@]} -eq 0 ]]; then
 elif [[ ${#_REMOTES[@]} -eq 1 ]]; then
   REMOTE_NAME="${_REMOTES[0]}"
 elif [[ -n "$REMOTE" ]]; then
-  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | grep -i "^${REMOTE}$" | head -1 || true)
+  # -F -x: match $REMOTE as a FIXED whole line, never as a regex. Interpolated into
+  # a basic regex it selected the wrong remote — `origin*` is BRE for "origi" plus
+  # any number of "n", so it matches `origin` — and this value decides which
+  # repository the edit is published to. LC_ALL=C keeps the -i fold ASCII-stable,
+  # matching the locale-pinned folds in git-cr-remote.sh and ws-k8s-guard.sh.
+  REMOTE_NAME=$(cd "$COMPONENT_DIR" && git remote | LC_ALL=C grep -F -i -x -- "$REMOTE" | head -1 || true)
   if [[ -z "$REMOTE_NAME" ]]; then
     echo "ERROR: No remote matching '$REMOTE' found in $COMPONENT_DIR." >&2
     echo "  Available remotes: ${_REMOTES[*]}" >&2
