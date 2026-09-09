@@ -492,15 +492,10 @@ review_comments() {
         local base_ref=""
         base_ref=$(gp_review_base_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || base_ref=""
         if [[ -n "$base_ref" && "$base_ref" != "null" ]]; then
-            # Forced non-interactive. This fetch uses the bare remote (no token
-            # injection), so on a repo whose credentials aren't cached git asks
-            # for a username — and under an editor-provided GIT_ASKPASS (VS Code
-            # and Cursor both export one) that ask is a GUI dialog nobody
-            # answers, which hung `ws review` outright rather than degrading to
-            # silence the way this check promises. GIT_TERMINAL_PROMPT=0 alone
-            # is not enough; askpass is consulted before the terminal.
-            if GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' SSH_ASKPASS='' \
-                git -C "$COMP_DIR" fetch --quiet "$_SELECTED_REMOTE" "$base_ref" 2>/dev/null; then
+            # Non-interactive by construction. A best-effort check must fail, never wait: an IDE-launched shell inherits a GUI GIT_ASKPASS that blocks a plain fetch forever on a 401, and Git Credential Manager would raise its own dialog. Inject the provider token when one applies (private repos), and close every prompt path; the fetch then errors fast and the check degrades to silence as documented above.
+            git_auth_env_for_url "$_SELECTED_URL"
+            GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GIT_ASKPASS=" "SSH_ASKPASS=" "GCM_INTERACTIVE=never")
+            if git_auth_run git -C "$COMP_DIR" fetch --quiet "$_SELECTED_REMOTE" "$base_ref" 2>/dev/null; then
                 local behind_count=""
                 behind_count=$(git -C "$COMP_DIR" rev-list --count HEAD..FETCH_HEAD 2>/dev/null) || behind_count=""
                 if [[ -n "$behind_count" && "$behind_count" -gt 0 ]]; then
