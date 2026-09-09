@@ -245,8 +245,13 @@ gp_review_push_timestamp() {
         local head_sha suite_ts
         head_sha=$(gh api "repos/$slug/branches/$branch" --jq '.commit.sha' 2>/dev/null) || head_sha=""
         if [[ -n "$head_sha" && "$head_sha" != "null" ]]; then
-            suite_ts=$(gh api "repos/$slug/commits/$head_sha/check-suites" \
-                --jq '[.check_suites[]?.created_at | select(. != null)] | min // empty' 2>/dev/null) || suite_ts=""
+            # Paginate and slurp: the endpoint pages at 30 by default, and the
+            # EARLIEST suite is the one that marks the push, so a busy repo with
+            # many apps must not lose it to a later page.
+            # `--slurp` and `--jq` are mutually exclusive in gh, so the pages are
+            # slurped raw and reduced with jq afterwards.
+            suite_ts=$(gh api --paginate --slurp "repos/$slug/commits/$head_sha/check-suites?per_page=100" 2>/dev/null \
+                | jq -r '[.[].check_suites[]?.created_at | select(. != null)] | min // empty' 2>/dev/null) || suite_ts=""
             if [[ -n "$suite_ts" ]]; then
                 echo "NOTE: GitHub's events feed has no push for '$branch' yet (it lags); using the head commit's check-suite creation time, which GitHub stamps at push." >&2
                 echo "$suite_ts"
