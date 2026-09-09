@@ -114,6 +114,7 @@ run_ws_review() {
         "GITLAB_HOST=gitlab.com" \
         "GLAB_EXPECTED_HOST=gitlab.com" \
         "GLAB_BODY_LOG=$BODY_LOG" \
+        ${WS_REVIEW_EXTRA_ENV[@]+"${WS_REVIEW_EXTRA_ENV[@]}"} \
         bash "$WS_BIN" review "$@"
 }
 
@@ -156,6 +157,44 @@ probe_csi() { printf '\302\233'; }
     [[ "$output" == *"Title: Fork MR"* ]]
     [[ "$output" != *"Upstream MR"* ]]
     [[ "$output" != *"found on multiple remotes"* ]]
+}
+
+@test "review drift check fetches without any credential prompt path open" {
+    # The base-branch drift check runs a real `git fetch` against the selected
+    # remote. On a 401 that fetch used to fall into whatever prompt the shell
+    # inherited — an IDE-launched terminal exports a GUI GIT_ASKPASS that
+    # blocks forever. A git shim forwards every call except fetch, which
+    # records the prompt-controlling environment it was handed and fails the
+    # way an unauthenticated fetch does. The real git is resolved before the
+    # shim shadows it on PATH.
+    local real_git
+    real_git="$(command -v git)"
+    cat > "$BIN_DIR/git" <<BASH
+#!/usr/bin/env bash
+for arg in "\$@"; do
+    if [[ "\$arg" == "fetch" ]]; then
+        {
+            echo "GIT_TERMINAL_PROMPT=\${GIT_TERMINAL_PROMPT-unset}"
+            echo "GIT_ASKPASS=\${GIT_ASKPASS-unset}"
+            echo "GCM_INTERACTIVE=\${GCM_INTERACTIVE-unset}"
+        } > "$WORK/fetch-env.txt"
+        exit 1
+    fi
+done
+exec "$real_git" "\$@"
+BASH
+    chmod +x "$BIN_DIR/git"
+
+    WS_REVIEW_EXTRA_ENV=("GIT_ASKPASS=$BIN_DIR/gui-askpass")
+    run_ws_review app 1 --remote fork --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Title: Fork MR"* ]]
+    # The fetch ran (the shim recorded it) and every prompt path was closed.
+    [ -f "$WORK/fetch-env.txt" ]
+    grep -qx 'GIT_TERMINAL_PROMPT=0' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_ASKPASS=' "$WORK/fetch-env.txt"
+    grep -qx 'GCM_INTERACTIVE=never' "$WORK/fetch-env.txt"
 }
 
 @test "reply preserves a message that begins with --remote" {
