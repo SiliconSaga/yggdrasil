@@ -253,10 +253,15 @@ gp_review_head_branch() {
 }
 
 # Get push event timestamp for a branch.
-# GitLab events API differs — use MR updated_at as approximation.
 # Usage: gp_review_push_timestamp SLUG BRANCH INDEX
+# GitLab has no equivalent of GitHub's per-branch push events here, so rather
+# than fail `--since last-push` outright, fall back to all history with a note —
+# the same noisier-but-cannot-hide-feedback posture the GitHub provider takes
+# when its events feed comes up empty.
 gp_review_push_timestamp() {
-    echo "" # Not directly supported — return empty to trigger fallback
+    local branch="$2"
+    echo "NOTE: GitLab exposes no push timestamps for '$branch'; showing all review history. Use --since <Nh|ISO 8601> to narrow." >&2
+    echo "1970-01-01T00:00:00Z"
 }
 
 # List unresolved discussion threads.

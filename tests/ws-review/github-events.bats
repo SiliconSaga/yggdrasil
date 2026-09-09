@@ -12,10 +12,12 @@ set -euo pipefail
 
 filter='.'
 path=''
+slurp=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --jq) filter="$2"; shift 2 ;;
-        repos/*) path="$1"; shift ;;
+        --slurp) slurp=1; shift ;;
+        repos/*) path="${1%%\?*}"; shift ;;
         *) shift ;;
     esac
 done
@@ -33,9 +35,62 @@ JSON
     exit 0
 fi
 
+# Branch head lookup, used by the last-push check-suite fallback.
+if [[ "$path" == repos/owner/repo/branches/* ]]; then
+    jq -r "$filter" <<'JSON'
+{"commit":{"sha":"dddddddddddddddddddddddddddddddddddddddd"}}
+JSON
+    exit 0
+fi
+
+# Check suites on the head commit: GitHub stamps these at push time. The real
+# call is `--paginate --slurp`, so the response is an ARRAY of pages; the
+# caller must never assume a single page.
+if [[ "$path" == "repos/owner/repo/commits/dddddddddddddddddddddddddddddddddddddddd/check-suites" ]]; then
+    if [[ "$slurp" != "1" ]]; then
+        echo "check-suites must be fetched with --paginate --slurp" >&2
+        exit 1
+    fi
+    if [[ "${NO_SUITES:-}" == "1" ]]; then
+        jq -r "$filter" <<'JSON'
+[{"total_count":0,"check_suites":[]}]
+JSON
+        exit 0
+    fi
+    if [[ "${PAGED_SUITES:-}" == "1" ]]; then
+        # The earliest suite sits on the SECOND page.
+        jq -r "$filter" <<'JSON'
+[
+  {"total_count":3,"check_suites":[
+    {"app":{"slug":"later-app"},"created_at":"2026-07-08T11:00:09Z"},
+    {"app":{"slug":"mid-app"},"created_at":"2026-07-08T11:00:05Z"}
+  ]},
+  {"total_count":3,"check_suites":[
+    {"app":{"slug":"first-app"},"created_at":"2026-07-08T11:00:01Z"}
+  ]}
+]
+JSON
+        exit 0
+    fi
+    jq -r "$filter" <<'JSON'
+[{"total_count":2,"check_suites":[
+  {"app":{"slug":"later-app"},"created_at":"2026-07-08T11:00:09Z"},
+  {"app":{"slug":"first-app"},"created_at":"2026-07-08T11:00:02Z"}
+]}]
+JSON
+    exit 0
+fi
+
 before="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 [[ "${EMPTY_BEFORE:-}" == "1" ]] && before=""
 [[ "${ZERO_BEFORE:-}" == "1" ]] && before="0000000000000000000000000000000000000000"
+if [[ "${NO_BRANCH_EVENTS:-}" == "1" ]]; then
+    # The lagging-feed case: pushes to other branches are visible, ours is not yet.
+    jq -n '[
+      {"type":"PushEvent","payload":{"ref":"refs/heads/feature/other","before":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"created_at":"2026-07-08T10:00:00Z"}
+    ]' | jq -r "$filter"
+    exit 0
+fi
 jq -n --arg before "$before" '[
   {"type":"PushEvent","payload":{"ref":"refs/heads/feature/other","before":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"created_at":"2026-07-08T10:00:00Z"},
   {"type":"PushEvent","payload":{"ref":"refs/heads/feature/\"quoted\"","before":"cccccccccccccccccccccccccccccccccccccccc"},"created_at":"2026-07-08T09:00:00Z"},
@@ -53,6 +108,55 @@ BASH
     [ "$status" -eq 0 ]
     [ "$output" = "1970-01-01T00:00:00Z" ]
     [[ "$stderr" == *"ignoring untrusted commit timestamps"* ]]
+}
+
+@test "GitHub last-push lookup uses the head commit's earliest check suite when the events feed lags" {
+    run --separate-stderr env "NO_BRANCH_EVENTS=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 0' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "2026-07-08T11:00:02Z" ]
+    [[ "$stderr" == *"check-suite creation time"* ]]
+}
+
+@test "GitHub last-push lookup takes the earliest check suite across pages" {
+    run --separate-stderr env "NO_BRANCH_EVENTS=1" "PAGED_SUITES=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 0' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "2026-07-08T11:00:01Z" ]
+}
+
+@test "GitHub last-push lookup falls back to all history when neither a push event nor a check suite exists" {
+    run --separate-stderr env "NO_BRANCH_EVENTS=1" "NO_SUITES=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 0' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
+    [[ "$stderr" == *"showing all review history"* ]]
+}
+
+@test "GitHub last-push lookup prefers the events feed when it has the push" {
+    run --separate-stderr env "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 0' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "2026-07-08T09:30:00Z" ]
+    [ -z "$stderr" ]
+}
+
+@test "GitHub previous-push lookup never borrows the head's check-suite time" {
+    run --separate-stderr env "NO_BRANCH_EVENTS=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 1' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
+    [[ "$stderr" == *"showing all review history"* ]]
 }
 
 @test "GitHub push lookup treats a quoted branch name literally" {
