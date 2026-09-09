@@ -884,7 +884,7 @@ else
     echo "         CLONE: $FORK_REMOTE_URL → $TARGET (remote: $FORK_REMOTE)"
     GIT_AUTH_ENV=()
     git_auth_env_for_url "$FORK_REMOTE_URL"
-    git_auth_run git clone --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
+    git_auth_run git clone --filter=blob:none --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
     git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
 fi
 
