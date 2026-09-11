@@ -39,6 +39,49 @@ if ! type -P yq &>/dev/null; then
     exit 1
 fi
 
+# Highlight a same-named branch on a NON-tracking remote that is ahead of what
+# we just pulled.
+#
+# Why this exists: a fork-cloned component tracks its fork, so `ws pull` follows
+# the fork and can legitimately report "Already up to date" while the canonical
+# upstream has moved on. The silence is the failure — the checkout looks current
+# and isn't, which is exactly the state that makes someone cut a release from
+# stale source. Only `ws clone-fork` syncs a fork from its upstream.
+#
+# Best-effort throughout: an unreachable remote, a missing branch, or a failed
+# fetch is not an error, because this is advisory on top of a pull that already
+# succeeded.
+report_ahead_siblings() {
+    local name="$1"
+    local target="$2"
+    local branch="$3"
+    local tracking_remote="$4"
+    local remote url ahead
+
+    while IFS= read -r remote; do
+        [[ -z "$remote" || "$remote" == "$tracking_remote" ]] && continue
+
+        url=$(git -C "$target" remote get-url "$remote" 2>/dev/null || echo "")
+        [[ -n "$url" ]] || continue
+
+        local -a GIT_AUTH_ENV=()
+        local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+        git_auth_env_for_url "$url"
+        # Explicit refspec: fetch only this one branch, and guarantee the
+        # remote-tracking ref updates so the comparison below isn't stale.
+        git_auth_run git -C "$target" fetch --quiet "$remote" \
+            "+refs/heads/$branch:refs/remotes/$remote/$branch" 2>/dev/null || continue
+
+        ahead=$(git -C "$target" rev-list --count "HEAD..refs/remotes/$remote/$branch" 2>/dev/null || echo "")
+        [[ "$ahead" =~ ^[0-9]+$ ]] || continue
+        [[ "$ahead" -gt 0 ]] || continue
+
+        echo "  AHEAD: $remote/$branch is $ahead commit(s) ahead of the '$branch' this pull followed."
+        echo "         '$name' tracks '$tracking_remote'. If '$remote' is canonical, reconcile before"
+        echo "         trusting this checkout — for a fork-based component: ws clone-fork $name"
+    done < <(git -C "$target" remote 2>/dev/null)
+}
+
 pull_repo() {
     local name="$1"
     local target="$2"
@@ -82,6 +125,8 @@ pull_repo() {
         git -C "$target" rebase --abort 2>/dev/null
         HAD_FAILURES=1
     fi
+
+    report_ahead_siblings "$name" "$target" "$branch" "$remote_name"
 }
 
 HAD_FAILURES=0
