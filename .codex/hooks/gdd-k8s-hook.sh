@@ -128,7 +128,7 @@ case "$k8s_match_cmd" in
 esac
 
 script_has_kubectl=0
-if [[ -n "$script_path" ]] && grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$script_path" 2>/dev/null; then
+if k8s_guard_script_mentions_kubectl "$script_path"; then
     script_has_kubectl=1
 fi
 k8s_candidate=0

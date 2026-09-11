@@ -244,6 +244,32 @@ assert_denied() {
     [ -z "$output" ]
 }
 
+@test "a binary embedding the kubectl string is not treated as a script calling it" {
+    # A compiled tool that links client-go carries "kubectl" in its rodata.
+    # kustomize is the one that bit us: `kustomize build` never invokes kubectl,
+    # but a content scan without -I denied it as though it did.
+    printf '\177ELF\002\001\001\000' > "$WORK/scripts/kustomize"
+    printf 'some rodata then kubectl then more\000\001\002\003' >> "$WORK/scripts/kustomize"
+    chmod +x "$WORK/scripts/kustomize"
+
+    run_codex_hook "$WORK/scripts/kustomize build overlays/plain" no-scope
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "a text script is still inspected even when it also holds non-UTF8 bytes" {
+    # Guards the -I change from over-reaching: grep's binary heuristic keys off
+    # NUL bytes, not merely non-ASCII, so a script with an accented comment must
+    # still be read as text and still be denied.
+    printf '#!/usr/bin/env bash\n# rôle: déployer\nkubectl apply -k overlays/plain\n' > "$WORK/scripts/accented.sh"
+
+    run_codex_hook "bash $WORK/scripts/accented.sh" no-scope
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"calls raw kubectl"* ]]
+}
+
 @test "other first-party scripts remain subject to content inspection" {
     printf '#!/usr/bin/env bash\nkubectl apply -k overlays/plain\n' > "$WORK/scripts/other.sh"
 
