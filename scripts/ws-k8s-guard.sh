@@ -442,6 +442,34 @@ k8s_guard_script_content_exempt() {
     return 1
 }
 
+# True when an executed FILE's own text invokes kubectl — the content-inspection
+# half of the guard, shared by both hooks so they cannot drift apart.
+#
+# `-I` is the whole point. Without it, grep matches the byte sequence "kubectl"
+# wherever it appears, including inside compiled executables — and a Go binary
+# that merely links Kubernetes libraries carries that string in its rodata. The
+# guard then denies `kustomize build` (and `helm`, `k9s`, `flux`, any client-go
+# consumer) as though it were a shell script shelling out to kubectl, with a
+# message telling the user to "run each step via ws k8s" for a command that never
+# invoked kubectl at all.
+#
+# This narrows nothing that was genuinely being enforced. The guard's reach has
+# always stopped at literal, readable invocations — the skill says as much: it
+# "does not claim to observe arbitrary nested execution through task runners,
+# client libraries, Helm, or a script that constructs the kubectl executable name
+# without the literal token", leaving server-side RBAC as the boundary for those.
+# A binary's embedded strings were never a control the guard could enforce; they
+# were only ever a source of false denials on the tools an operator reaches for
+# precisely BECAUSE they are not kubectl.
+#
+# Text scripts are unaffected: a real `#!/usr/bin/env bash` file that runs
+# kubectl still matches and is still denied.
+k8s_guard_script_mentions_kubectl() {
+    local path="$1"
+    [[ -n "$path" && -f "$path" ]] || return 1
+    grep -IEq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$path" 2>/dev/null
+}
+
 # Mask inert single- and double-quoted spans before deciding whether an unsafe
 # compound command is Kubernetes-related. Shell operators and words inside a
 # quoted search pattern are data, not executable syntax. Double-quoted spans
