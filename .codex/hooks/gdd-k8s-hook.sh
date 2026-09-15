@@ -128,7 +128,14 @@ case "$k8s_match_cmd" in
 esac
 
 script_has_kubectl=0
-if k8s_guard_script_mentions_kubectl "$script_path"; then
+# 0 = calls kubectl, 2 = could not be inspected. Both fail closed here: an
+# unreadable script is not evidence that it is safe.
+# `|| verdict=$?` rather than a bare call: this hook runs under `set -e`, where
+# a bare call returning 1 (the ordinary "no kubectl here" answer) would abort
+# the whole hook instead of continuing.
+script_verdict=0
+k8s_guard_script_mentions_kubectl "$script_path" || script_verdict=$?
+if [[ "$script_verdict" -eq 0 || "$script_verdict" -eq 2 ]]; then
     script_has_kubectl=1
 fi
 k8s_candidate=0

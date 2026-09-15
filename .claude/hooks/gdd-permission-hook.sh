@@ -1981,7 +1981,13 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                 [[ "$_k8s_floor_verdict" == "WRITE_NO_SCOPE" ]] && ask "No Kubernetes guard scope is active. Approve this Kubernetes write once, arm a scope with 'ws k8s scope set', or use the audited session bypass for deliberate automation."
                 ;;
             *)
-                if k8s_guard_script_mentions_kubectl "$_k8s_script_file" || [[ "$_k8s_inline_shell" == "1" ]]; then
+                # 2 = could not inspect. Treated like a match: an unreadable
+                # script is not evidence of safety.
+                # `|| verdict=$?`, never a bare call: under `set -e` the ordinary
+                # "no kubectl here" answer of 1 would abort the hook.
+                _k8s_script_verdict=0
+                k8s_guard_script_mentions_kubectl "$_k8s_script_file" || _k8s_script_verdict=$?
+                if [[ "$_k8s_script_verdict" -eq 0 || "$_k8s_script_verdict" -eq 2 ]] || [[ "$_k8s_inline_shell" == "1" ]]; then
                     if _k8s_bypass_active; then
                         echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
                         allow "unscoped Kubernetes script bypass"
@@ -2081,8 +2087,13 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
         deny "$_sr_suggestion"
     fi
     # (c) temp-script scan: a script-exec whose file contains a raw match.
-    if k8s_guard_script_mentions_kubectl "$_k8s_script_file"; then
+    _k8s_script_verdict=0
+    k8s_guard_script_mentions_kubectl "$_k8s_script_file" || _k8s_script_verdict=$?
+    if [[ "$_k8s_script_verdict" -eq 0 ]]; then
         deny "Script $_k8s_script_file calls raw kubectl within a guarded scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+    fi
+    if [[ "$_k8s_script_verdict" -eq 2 ]]; then
+        deny "Script $_k8s_script_file could not be read for inspection, so the guard cannot tell whether it calls kubectl. Failing closed. Fix the file's permissions, run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
     fi
     if [[ "$_k8s_inline_shell" == "1" ]]; then
         deny "Inline shell command calls raw kubectl within a guarded scope — use 'ws k8s', or 'ws hook-bypass $_sr_slug'."

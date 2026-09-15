@@ -442,32 +442,51 @@ k8s_guard_script_content_exempt() {
     return 1
 }
 
-# True when an executed FILE's own text invokes kubectl — the content-inspection
-# half of the guard, shared by both hooks so they cannot drift apart.
+# Does an executed FILE's own text invoke kubectl? The content-inspection half
+# of the guard, shared by both hooks so they cannot drift apart.
 #
-# `-I` is the whole point. Without it, grep matches the byte sequence "kubectl"
-# wherever it appears, including inside compiled executables — and a Go binary
-# that merely links Kubernetes libraries carries that string in its rodata. The
-# guard then denies `kustomize build` (and `helm`, `k9s`, `flux`, any client-go
-# consumer) as though it were a shell script shelling out to kubectl, with a
-# message telling the user to "run each step via ws k8s" for a command that never
-# invoked kubectl at all.
+#   0  yes — deny (or ask, unscoped)
+#   1  no
+#   2  COULD NOT INSPECT — callers must fail closed, never treat as "no"
 #
-# This narrows nothing that was genuinely being enforced. The guard's reach has
-# always stopped at literal, readable invocations — the skill says as much: it
-# "does not claim to observe arbitrary nested execution through task runners,
-# client libraries, Helm, or a script that constructs the kubectl executable name
-# without the literal token", leaving server-side RBAC as the boundary for those.
-# A binary's embedded strings were never a control the guard could enforce; they
-# were only ever a source of false denials on the tools an operator reaches for
-# precisely BECAUSE they are not kubectl.
+# WHY NOT `grep -I`
 #
-# Text scripts are unaffected: a real `#!/usr/bin/env bash` file that runs
-# kubectl still matches and is still denied.
+# The obvious fix for "a Go binary linking client-go carries `kubectl` in its
+# rodata, so `kustomize build` gets denied" is `grep -I`, which skips anything
+# grep considers binary. That is wrong, and measurably so: grep's binary
+# heuristic keys off NUL bytes, and a perfectly ordinary shell script with one
+# NUL in a comment is therefore "binary" to grep while still executing normally
+# under bash. `grep -IEq kubectl` on such a file exits 1 — no match — and the
+# guard waves through a script whose next line is `kubectl delete namespace`.
+# Trading a false-positive class for an evasion vector is not a fix.
+#
+# So the binary question is answered by FILE FORMAT, not by byte statistics.
+# Only recognised executable images are skipped — ELF, PE/COFF (Windows .exe),
+# Mach-O — because those are the things whose embedded strings were never a
+# control the guard could enforce anyway. The guard's reach has always stopped
+# at literal invocations in readable text; the skill says so, and RBAC is the
+# boundary beyond it.
+#
+# EVERYTHING ELSE IS SCANNED, with NULs stripped first so their presence cannot
+# hide the text around them. Unknown format therefore means inspected, which is
+# the fail-closed direction.
 k8s_guard_script_mentions_kubectl() {
-    local path="$1"
-    [[ -n "$path" && -f "$path" ]] || return 1
-    grep -IEq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' "$path" 2>/dev/null
+    local path="$1" magic text
+    [[ -n "$path" ]] || return 1
+    [[ -f "$path" ]] || return 1
+    # Unreadable is not "no kubectl", it is "no answer". Callers treat 2 as a
+    # reason to stop rather than a clean bill of health.
+    [[ -r "$path" ]] || return 2
+
+    magic="$(head -c 4 "$path" 2>/dev/null | od -An -tx1 -v 2>/dev/null | tr -d ' \n')" || return 2
+    case "$magic" in
+        7f454c46*) return 1 ;;                          # ELF
+        4d5a*) return 1 ;;                              # PE/COFF — .exe, .dll
+        feedface*|feedfacf*|cefaedfe*|cffaedfe*) return 1 ;;  # Mach-O, both endians
+    esac
+
+    text="$(tr -d '\000' < "$path" 2>/dev/null)" || return 2
+    grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$text"
 }
 
 # Mask inert single- and double-quoted spans before deciding whether an unsafe

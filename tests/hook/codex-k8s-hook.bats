@@ -244,10 +244,10 @@ assert_denied() {
     [ -z "$output" ]
 }
 
-@test "a binary embedding the kubectl string is not treated as a script calling it" {
+@test "an ELF binary embedding the kubectl string is not treated as a script calling it" {
     # A compiled tool that links client-go carries "kubectl" in its rodata.
     # kustomize is the one that bit us: `kustomize build` never invokes kubectl,
-    # but a content scan without -I denied it as though it did.
+    # but an unconditional content scan denied it as though it did.
     printf '\177ELF\002\001\001\000' > "$WORK/scripts/kustomize"
     printf 'some rodata then kubectl then more\000\001\002\003' >> "$WORK/scripts/kustomize"
     chmod +x "$WORK/scripts/kustomize"
@@ -258,16 +258,55 @@ assert_denied() {
     [ -z "$output" ]
 }
 
-@test "a text script is still inspected even when it also holds non-UTF8 bytes" {
-    # Guards the -I change from over-reaching: grep's binary heuristic keys off
-    # NUL bytes, not merely non-ASCII, so a script with an accented comment must
-    # still be read as text and still be denied.
-    printf '#!/usr/bin/env bash\n# rôle: déployer\nkubectl apply -k overlays/plain\n' > "$WORK/scripts/accented.sh"
+@test "a PE binary embedding the kubectl string is not treated as a script calling it" {
+    # The Windows spelling of the same thing — kustomize.exe is what an operator
+    # on Git Bash actually invokes, and MZ is its magic rather than ELF.
+    printf 'MZ\220\000\003\000\000\000' > "$WORK/scripts/kustomize.exe"
+    printf 'rodata kubectl rodata\000\000\001' >> "$WORK/scripts/kustomize.exe"
+    chmod +x "$WORK/scripts/kustomize.exe"
 
-    run_codex_hook "bash $WORK/scripts/accented.sh" no-scope
+    run_codex_hook "$WORK/scripts/kustomize.exe build overlays/plain" no-scope
+
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "a NUL byte cannot hide kubectl in an executable script" {
+    # THE regression this guards. `grep -I` decides "binary" from NUL bytes, so
+    # one NUL in a comment makes an ordinary script invisible to a -I scan while
+    # bash still runs it happily. Detecting binaries by FILE FORMAT instead means
+    # this file has no executable magic, so it is scanned with NULs stripped and
+    # the kubectl call is still found.
+    printf '#!/usr/bin/env bash\n# pad:\000 pad\nkubectl delete namespace prod\n' > "$WORK/scripts/nul.sh"
+
+    run_codex_hook "bash $WORK/scripts/nul.sh" no-scope
 
     assert_denied
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"calls raw kubectl"* ]]
+}
+
+@test "a text script holding an invalid UTF-8 byte is still inspected" {
+    # Not the same case as a NUL: \377 is invalid UTF-8 but does not trip grep's
+    # binary heuristic. Kept so that if the detection strategy is ever changed
+    # again, both the encoding case and the NUL case have to keep passing.
+    printf '#!/usr/bin/env bash\n# invalid byte: \377\nkubectl apply -k overlays/plain\n' > "$WORK/scripts/invalid-utf8.sh"
+
+    run_codex_hook "bash $WORK/scripts/invalid-utf8.sh" no-scope
+
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"calls raw kubectl"* ]]
+}
+
+@test "an unreadable script fails closed rather than reading as safe" {
+    printf '#!/usr/bin/env bash\nkubectl delete namespace prod\n' > "$WORK/scripts/locked.sh"
+    chmod 000 "$WORK/scripts/locked.sh" 2>/dev/null || true
+    if [[ -r "$WORK/scripts/locked.sh" ]]; then
+        skip "chmod cannot remove read permission on this platform"
+    fi
+
+    run_codex_hook "bash $WORK/scripts/locked.sh" no-scope
+
+    assert_denied
 }
 
 @test "other first-party scripts remain subject to content inspection" {
