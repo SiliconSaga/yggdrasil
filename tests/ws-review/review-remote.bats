@@ -159,14 +159,14 @@ probe_csi() { printf '\302\233'; }
     [[ "$output" != *"found on multiple remotes"* ]]
 }
 
-@test "review drift check fetches without any credential prompt path open" {
-    # The base-branch drift check runs a real `git fetch` against the selected
-    # remote. On a 401 that fetch used to fall into whatever prompt the shell
-    # inherited — an IDE-launched terminal exports a GUI GIT_ASKPASS that
-    # blocks forever. A git shim forwards every call except fetch, which
-    # records the prompt-controlling environment it was handed and fails the
-    # way an unauthenticated fetch does. The real git is resolved before the
-    # shim shadows it on PATH.
+# The base-branch drift check runs a real `git fetch` against the selected
+# remote. On a 401 that fetch used to fall into whatever prompt the shell
+# inherited — an IDE-launched terminal exports a GUI GIT_ASKPASS that blocks
+# forever, and an SSH remote can stop on a passphrase or host-key prompt. This
+# git shim forwards every call except fetch, which records the prompt-
+# controlling environment it was handed and fails the way an unauthenticated
+# fetch does. The real git is resolved before the shim shadows it on PATH.
+install_git_fetch_shim() {
     local real_git
     real_git="$(command -v git)"
     cat > "$BIN_DIR/git" <<BASH
@@ -177,6 +177,7 @@ for arg in "\$@"; do
             echo "GIT_TERMINAL_PROMPT=\${GIT_TERMINAL_PROMPT-unset}"
             echo "GIT_ASKPASS=\${GIT_ASKPASS-unset}"
             echo "GCM_INTERACTIVE=\${GCM_INTERACTIVE-unset}"
+            echo "GIT_SSH_COMMAND=\${GIT_SSH_COMMAND-unset}"
         } > "$WORK/fetch-env.txt"
         exit 1
     fi
@@ -184,6 +185,10 @@ done
 exec "$real_git" "\$@"
 BASH
     chmod +x "$BIN_DIR/git"
+}
+
+@test "review drift check fetches without any credential prompt path open" {
+    install_git_fetch_shim
 
     WS_REVIEW_EXTRA_ENV=("GIT_ASKPASS=$BIN_DIR/gui-askpass")
     run_ws_review app 1 --remote fork --compact
@@ -195,6 +200,24 @@ BASH
     grep -qx 'GIT_TERMINAL_PROMPT=0' "$WORK/fetch-env.txt"
     grep -qx 'GIT_ASKPASS=' "$WORK/fetch-env.txt"
     grep -qx 'GCM_INTERACTIVE=never' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes' "$WORK/fetch-env.txt"
+}
+
+@test "review drift check over an SSH remote keeps the configured ssh command and adds BatchMode" {
+    install_git_fetch_shim
+    # Leave a single SSH remote so the drift check fetches over ssh, with a
+    # configured identity that a BatchMode wrapper must extend, not replace.
+    git -C "$WORK/components/app" remote remove fork
+    git -C "$WORK/components/app" remote remove origin
+    git -C "$WORK/components/app" remote add origin git@gitlab.com:upstream-group/project.git
+    git -C "$WORK/components/app" config core.sshCommand "ssh -i /keys/review"
+
+    run_ws_review app 1 --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Title: Upstream MR"* ]]
+    [ -f "$WORK/fetch-env.txt" ]
+    grep -qx 'GIT_SSH_COMMAND=ssh -i /keys/review -o BatchMode=yes' "$WORK/fetch-env.txt"
 }
 
 @test "reply preserves a message that begins with --remote" {
