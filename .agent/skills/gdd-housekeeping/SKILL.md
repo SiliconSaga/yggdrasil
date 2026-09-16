@@ -90,23 +90,11 @@ once the PR has merged and the canonical doc is stable.
 
 ### Step 2.5: Walk the arcs list
 
-**Start with `ws hoard lint`.** It checks every host's thalamus in the
-active hoard, not just this machine's, and it answers the mechanical
-questions faster and more reliably than reading: does the frontmatter
-parse, do arcs carry the required keys, is `status` renderable, is
-`next` a single line short enough for the table. Work its findings
-first, then walk the list by judgment for the things a linter cannot
-decide.
+**Start with `ws hoard lint`.** It checks every host's thalamus in the active hoard, not just this machine's, and it answers the mechanical questions faster and more reliably than reading: does the frontmatter parse, do arcs carry the required keys, is `status` renderable, is `next` a single line short enough for the table. Work its findings first, then walk the list by judgment for the things a linter cannot decide.
 
-Treat `unparseable_files: 1` or more as the priority item in the whole
-pass. That file's arcs are absent from the ArcDashboard entirely —
-`WHERE arcs` cannot match a file whose frontmatter failed to parse —
-so the cross-host view has been quietly wrong since the day it broke,
-and no amount of reading the file reveals it. The usual cause is an
-unescaped `"` inside a quoted `next:` value.
+Treat `unparseable_files: 1` or more as the priority item in the whole pass. That file's arcs are absent from the ArcDashboard entirely — `WHERE arcs` cannot match a file whose frontmatter failed to parse — so the cross-host view has been quietly wrong since the day it broke, and no amount of reading the file reveals it. The usual cause is an unescaped `"` inside a quoted `next:` value.
 
-The lint exits 1 when it reports anything; that is its findings signal,
-not a failure. Read `status:`.
+The lint exits 1 when it reports anything; that is its findings signal, not a failure. Exit 2 is a tooling failure, such as a missing `yq`. Read `status:`.
 
 Then walk the list for the judgment calls:
 
@@ -121,14 +109,7 @@ Then walk the list for the judgment calls:
   `arcs:` entry, or `arcs:` entries with no body context, should be
   flagged for the human. Don't auto-resolve — ambiguous cases are
   judgment calls.
-- **Overgrown `next:` fields.** An arc's `next:` should stay under
-  ~10-20 words so the ArcDashboard reads at a glance. `ws hoard lint`
-  flags these by length; the judgment part is what to do with each.
-  Move extended context into a body section (the `Arc next-notes`
-  pattern) and leave a one-liner pointing at it. Watch for the shape
-  behind the length — a long `next:` is usually one that stopped being
-  a next step and became a running status report, so the fix is
-  rewriting it as an instruction, not just trimming words.
+- **Overgrown `next:` fields.** An arc's `next:` should stay under ~10-20 words so the ArcDashboard reads at a glance. `ws hoard lint` flags these by character length, which is a coarser proxy than the word budget; the judgment part is what to do with each. Move extended context into a body section (the `Arc next-notes` pattern) and leave a one-liner pointing at it. Watch for the shape behind the length — a long `next:` is usually one that stopped being a next step and became a running status report, so the fix is rewriting it as an instruction, not just trimming words.
 
 Beyond triage, the arcs walk also surfaces prioritization moves when arcs carry the optional `impact:` / `urgency:` / `project:` fields:
 

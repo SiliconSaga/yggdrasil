@@ -17,6 +17,4 @@ arcs:
 
 # Thalamus
 
-An unescaped `"` inside a double-quoted scalar closes it early, so the
-whole document fails to parse and BOTH arcs above stop matching the
-dashboard's `WHERE arcs`. Observed in the wild on 2026-08-24.
+An unescaped `"` inside a double-quoted scalar closes it early, so the whole document fails to parse and BOTH arcs above stop matching the dashboard's `WHERE arcs`. Observed in the wild on 2026-08-24.

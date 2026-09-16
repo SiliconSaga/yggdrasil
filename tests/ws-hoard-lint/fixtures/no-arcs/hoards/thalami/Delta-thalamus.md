@@ -6,5 +6,4 @@ arcs: []
 
 # Thalamus
 
-A host with no arcs in flight. Valid, and must not be reported as a finding —
-the orientation skill explicitly skips silently on an empty `arcs:`.
+A host with no arcs in flight. Valid, and must not be reported as a finding — the orientation skill explicitly skips silently on an empty `arcs:`.

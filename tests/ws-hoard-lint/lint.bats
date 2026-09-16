@@ -122,6 +122,38 @@ load test_helper
     [[ "$output" == *"no such hoard"* ]]
 }
 
+@test "a hoard name that climbs out of the hoards root is refused, not linted" {
+    # From fixtures/clean/hoards, this path reaches the unparseable fixture's
+    # real thalamus. Without validation it lints that file and exits 1 with
+    # findings — so exit 2 here proves the read never happened.
+    load_fixture clean
+    run_lint ../../unparseable/hoards/thalami
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"plain directory name"* ]]
+    [[ "$output" != *"unparseable_files"* ]]
+}
+
+@test "a hoard name containing a path separator is refused even when it starts safely" {
+    load_fixture clean
+    run_lint thalami/../thalami
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"plain directory name"* ]]
+}
+
+@test "missing yq exits 2, distinct from the findings exit" {
+    # lint documents 1 as findings; a missing dependency sharing that code
+    # would read as "your arcs have problems". Strip yq by using system bin
+    # dirs only, and skip if this host happens to have yq there.
+    load_fixture clean
+    local minimal_path="/usr/bin:/bin"
+    if PATH="$minimal_path" command -v yq >/dev/null 2>&1; then
+        skip "yq is in /usr/bin or /bin on this host — cannot simulate missing-yq"
+    fi
+    run env "PATH=$minimal_path" bash "$WS_BIN" hoard lint
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"yq (v4+) is required"* ]]
+}
+
 @test "an unknown flag exits 2 rather than being read as a hoard name" {
     load_fixture clean
     run_lint --nope

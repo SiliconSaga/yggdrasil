@@ -590,6 +590,16 @@ ws_hoard_lint() {
         fi
     fi
 
+    # A hoard name is a directory name under $HOARDS_DIR, never a path.
+    # `ws hoard lint:*` is allowlisted, so an unvalidated `../elsewhere`
+    # would read and report on any *-thalamus.md outside the hoards root
+    # without a prompt. Same safe-name rule `ws hoard init --name` and the
+    # clone path already enforce; the leading alnum is what rules out `..`.
+    if [[ ! "$hoard" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: hoard name must be a plain directory name (got: $hoard)." >&2
+        return 2
+    fi
+
     local hoard_path="$HOARDS_DIR/$hoard"
     if [[ ! -d "$hoard_path" ]]; then
         echo "ERROR: no such hoard: $hoard (looked in $HOARDS_DIR)" >&2
@@ -1196,6 +1206,9 @@ case "$SUBCMD" in
     *)
         if ! type -P yq &>/dev/null; then
             echo "ERROR: yq (v4+) is required. Install: https://github.com/mikefarah/yq" >&2
+            # lint documents 1 as "findings", so a missing dependency must not
+            # share it — callers read the exit code to tell the two apart.
+            [[ "$SUBCMD" == "lint" ]] && exit 2
             exit 1
         fi
         ;;
