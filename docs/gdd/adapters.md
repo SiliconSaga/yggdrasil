@@ -46,17 +46,23 @@ nested:
   - "modules/*"
 ```
 
-With that in place, every target-taking `ws` verb accepts `<component>/<repo>`:
+With that in place, every target-taking `ws` verb accepts `<component>/<repo>` — resolution is taught once in `ws_resolve_target`, so verbs inherit it rather than each learning the form:
 
 ```bash
+ws checkout terasology/Health fix/assets -b
 ws commit terasology/Health .commits/fix.md
 ws push terasology/Health
 ws cr terasology/Health "fix: ..." .crs/fix.md
+ws log terasology/Health
+ws diagnose terasology/Health
+ws clone-fork terasology/Health
 ```
+
+`ws clone-fork` is the one that behaves differently for a nested target: it *adopts* the checkout that is already there and wires the fork remote, rather than cloning. A module only compiles inside the engine tree it came from, so a clone out to `components/` would produce a checkout that cannot build. The upstream is read from the repo's own `origin`, since a nested repo is never declared in ecosystem config.
 
 The bare name is matched against the basename of each expanded glob, so you do not have to remember which typed subdirectory a repo lives under. When two nested repos share a name, qualify with the full relative path (`terasology/libs/Health`) — the ambiguity is reported rather than guessed.
 
-Patterns are relative and may not contain `..` or whitespace, and a resolved repo whose real path falls outside the component is refused — so a symlink cannot be used to walk a write verb out of the component tree.
+Patterns are relative and may not contain `..` or whitespace, and a candidate whose real path falls outside the component is dropped as it is discovered — so a symlink cannot walk a verb out of the component tree, and it cannot be counted or swept by `ws status --nested` either. The host segment must name an actual component: a realm or hoard whose name happens to fit the component naming rule is refused rather than treated as a host.
 
 **What stays out of scope, deliberately:** nothing recurses. `ws pull` never refreshes nested repos in its sweep (it reports how many it skipped), and there is no bulk commit or push across them. These are independent upstreams with their own review norms; a sweep that committed across a hundred of them would be a far worse accident than the one this feature exists to prevent. Nested targets are always explicit and always singular.
 
