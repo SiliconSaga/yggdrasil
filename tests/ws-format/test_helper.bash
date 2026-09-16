@@ -1,4 +1,4 @@
-# Shared helpers for ws-fmt bats tests.
+# Shared helpers for ws-format bats tests.
 #
 # Mirrors the ws-build harness: synthetic workspace under $BATS_TEST_TMPDIR,
 # the "yggdrasil" component name (→ COMPONENT_DIR=$ROOT_DIR), a single
@@ -6,7 +6,7 @@
 # how it was invoked (args + that it ran in the component dir).
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-WS_FMT_BIN="$REPO_ROOT/scripts/ws-fmt.sh"
+WS_FORMAT_BIN="$REPO_ROOT/scripts/ws-format.sh"
 REALM_LIB="$REPO_ROOT/scripts/ws-realm.sh"
 
 setup_synthetic_realm() {
@@ -22,21 +22,21 @@ setup_synthetic_realm() {
     # Stub formatter: drops a marker in its cwd (proves it ran in the
     # component dir, robust to /var vs /private/var symlink differences)
     # and echoes the args it received.
-    cat > "$ROOT_DIR/fmtstub" <<'EOF'
+    cat > "$ROOT_DIR/formatstub" <<'EOF'
 #!/usr/bin/env bash
-touch fmt_ran.marker
-echo "FMT_ARGS:$*"
+touch format_ran.marker
+echo "FORMAT_ARGS:$*"
 EOF
-    chmod +x "$ROOT_DIR/fmtstub"
+    chmod +x "$ROOT_DIR/formatstub"
 
     # Failing variant — a formatter that cannot rewrite its input. The verb
     # must surface that exit status rather than swallowing it.
-    cat > "$ROOT_DIR/fmtstub-fail" <<'EOF'
+    cat > "$ROOT_DIR/formatstub-fail" <<'EOF'
 #!/usr/bin/env bash
-echo "FMT_VIOLATIONS"
+echo "FORMAT_VIOLATIONS"
 exit 1
 EOF
-    chmod +x "$ROOT_DIR/fmtstub-fail"
+    chmod +x "$ROOT_DIR/formatstub-fail"
 
     approve_synthetic_realm
 }
@@ -52,16 +52,16 @@ approve_synthetic_realm() {
     ' "$ECOSYSTEM_LOCAL"
 }
 
-# Write the realm adapter with the given commands.fmt value.
-write_adapter_fmt() {
+# Write the realm adapter with the given commands.format value.
+write_adapter_format() {
     local cmd="$1"
     cat > "$REALMS_DIR/realm-test/adapters/yggdrasil.yaml" <<EOF
 commands:
-  fmt: "$cmd"
+  format: "$cmd"
 EOF
     approve_synthetic_realm
 }
 
-run_ws_fmt() {
-    run bash "$WS_FMT_BIN" "$@"
+run_ws_format() {
+    run bash "$WS_FORMAT_BIN" "$@"
 }

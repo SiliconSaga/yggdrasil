@@ -198,7 +198,7 @@ For CRs, `identity.forkRemote` remains the default fork/head remote. Use `ws cr 
 
 - **Subcommand survey** — every dispatched subcommand with its `# ws:use-when …` docstring, built dynamically by scanning the dispatcher in `scripts/ws`.
 - **Active realm** — the realm selected in `ecosystem.local.yaml`, with a pointer at its `AGENTS.md` guide. Every realm, including `realm-template`, activates only through the explicit `ws realm use` trust step; without a selector no realm is active.
-- **Per-component adapter wiring** — for each cloned component with a realm-side adapter file, the wired verbs (`ws test`, `ws lint`, `ws build`, `ws run`, `ws clean <comp>`) and the **resolved command** each dispatches (`runs: ./gradlew test`). Components without an adapter file are suppressed so the section stays signal-rich.
+- **Per-component adapter wiring** — for each cloned component with a realm-side adapter file, the wired verbs (`ws test`, `ws lint`, `ws format`, `ws build`, `ws run`, `ws clean <comp>`) and the **resolved command** each dispatches (`runs: ./gradlew test`). Components without an adapter file are suppressed so the section stays signal-rich.
 - **Skill index** — workspace skills (`/.agent/skills/`) and active-realm skills (`realms/<r>/.agent/skills/`), parsed from each SKILL.md frontmatter.
 
 The output stays cheap even with dozens of skills — frontmatter-only parsing on SKILL.md bodies, single-line per row. Read-only; no flags yet. Run at session start, after compaction, or whenever you're unsure what's available.
