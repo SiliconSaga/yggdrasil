@@ -71,7 +71,7 @@ Every subcommand falls into one of four tiers:
 
 | Tier | Auto-approve? | Committed prompt rule? | Representative examples |
 |------|---------------|------------|----------|
-| **Auto-approved wrapper** | Yes (allow) | No | `orient`, `status`, `clone`, `test`, `lint`, `format`, `build`, `commit`, `log`, `preflight` |
+| **Auto-approved wrapper** | Yes (allow) | No | `orient`, `status`, `clone`, `test`, `lint`, `format`, `build`, `commit`, `log`, `preflight`, `hoard cadence`, `hoard lint` |
 | **Side-effect** | User's choice (ask) | No | `push`, `cr`, `issue`, `run`, `realm <url>`, `hoard <url>` |
 | **Trust gate** | Always asks | Yes (`hook-rules` ask-list) | `realm use`, `mcp-setup`, `clone --add-to-ecosystem`, `review reply` / `--resolve`, `hook-bypass` |
 | **Arbitrary execution** | Always asks | Yes (`hook-rules` ask-list) | `exec` |
