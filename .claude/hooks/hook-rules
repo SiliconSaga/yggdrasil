@@ -139,14 +139,24 @@ ws realm use *
 # the pull request, which is where the preview and visual diff are produced
 # anyway.
 #
-# That leaves this section with no shipped entries — deliberately. The mechanism
-# is what ships; an operator adds patterns knowing nobody will be asked. Branch
-# work, the one thing a sandbox cannot do without, needs no entry: `ws checkout`
-# is never on the ask-list, so it reaches this tier already allowed.
+# Branch work, the one thing a sandbox cannot do without, needs no entry here:
+# `ws checkout` is never on the ask-list, so it reaches this tier already
+# allowed. What the shipped entries cover is narrower — reading an image.
+#
+# `identify` and `file` report what an image IS without touching it. A phone
+# photo arrives at several megabytes and print resolution, and an agent that
+# cannot measure that commits it blind. `convert` is deliberately ABSENT even
+# though the image ships it: it writes wherever it is pointed, which is the
+# reasoning that removed the site build above, and it belongs behind a `ws image`
+# verb that can validate a destination.
+#
+# An operator may add more, deliberately, knowing nobody will be asked.
 #
 # None of this is a security boundary — an argument can still name a path outside
 # the component. The boundary is the container; this keeps the ordinary working
 # set free of prompts without widening the blast radius by default.
+ws exec __SANDBOX_TARGET__ identify *
+ws exec __SANDBOX_TARGET__ file *
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2

@@ -172,6 +172,22 @@ setup() {
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
+@test "headless: an image can be measured but not rewritten" {
+    # A phone photo arrives at several megabytes and print resolution, and an
+    # agent that cannot measure that commits it blind. `identify` and `file` read.
+    # `convert` writes wherever it is pointed — the reasoning that removed the
+    # site build — so it stays denied until `ws image` can validate a destination.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site identify assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site convert big.png -resize 50% small.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site mogrify -resize 50% big.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
 @test "headless: a branch can be created or switched, and that is all checkout can do" {
     # `ws checkout` is branch-only by construction — `git switch` underneath has
     # no path mode, `--` is refused before git sees it, and a path-shaped name is

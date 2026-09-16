@@ -57,7 +57,9 @@ The conversion lives in the hook's `ask()` helper rather than beside the ask-lis
 
 **Committed policy only.** Unlike `[allow-extras]`, entries in this section are ignored when they appear in `hook-rules.local` — that file is gitignored and writable by the agent the section governs, so honoring it would let a sandbox grant itself anything by writing a single `*`. Local config may tighten the safety floor and never loosen it; `[ask-commands]` remains additive from both files.
 
-**The section ships empty.** The mechanism is what ships; an operator adds patterns deliberately, knowing nobody will be asked. Branch creation — the one thing a sandbox cannot work without — is parsed in the hook rather than listed as a pattern.
+**The section ships two entries, both read-only.** `identify` and `file` report what an image is without touching it, so an agent handed a multi-megabyte phone photo can measure it rather than committing it blind; `convert` is deliberately absent, because it writes wherever it is pointed. Branch work needs no entry — `ws checkout` is never on the ask-list, so it reaches this tier already allowed.
+
+An operator may add more, deliberately, knowing nobody will be asked.
 
 Constraints on any entry added, all deliberate. `__SANDBOX_TARGET__` in a pattern expands to the `GDD_SANDBOX` value, so the allowance covers only that component; a wildcard there would also match `ws exec yggdrasil …`, the workspace repo itself. The value must be a valid component name and must not be `yggdrasil` — patterns keeping the placeholder are skipped otherwise. Commands must be named per verb and down to the subcommand: `ws exec *`, `bundle exec *`, even `bundle exec jekyll *` amount to arbitrary or unintended execution.
 
