@@ -16,15 +16,16 @@ It also explains the ranking that follows: **identity matters more than disclosu
 
 ## What GDD already does, and where it stops
 
-GDD ships two of the four pieces and should be honest about which:
+GDD ships the identity and disclosure pieces, and should be honest that they are not the same as the register:
 
 - **Separate agent identities** are documented and practised — see [access.md](access.md), which covers running a distinct agent account with its own scoped token.
-- **A disclaimer is mechanically enforced** on change-request bodies and issue bodies. `ws cr` and `ws issue` both refuse a bodyfile whose first line does not carry it, naming the human driving the agent.
+- **A disclaimer is mechanically enforced on every outbound writing surface.** Change-request and issue bodies refuse a body whose banner is missing, and `ws review reply`, `ws review comment` and the three edit verbs attach or reattach it. Publishing also refuses a body still carrying an unsubstituted placeholder, so an unresolved `@HUMAN_ACCOUNT` cannot reach a public tracker the way one did on `realm-siliconsaga` #27.
 
-Two gaps follow from that:
+That coverage took two pull requests to complete, and the shape of the gap is worth keeping in view: the guarantee held on the creation path and evaporated on every other route to the same tracker, silently, because an unattributed comment is valid Markdown and nothing reads a body after it publishes. Enforcement that lives on one path is a property of that path, not of the system.
 
-- **The disclaimer covers bodies, not replies.** `ws review reply` enforces nothing today. Review replies and issue comments are where dispositions actually get typed, which makes the least-protected surface the highest-exposure one.
-- **Nothing constrains register anywhere.** No skill and no template says how agent-authored text should read.
+One gap remains, and it is the one this page exists for:
+
+- **Nothing constrains register.** No skill and no template says how agent-authored text should read, and no check can — the disclaimer proves a machine wrote it, not that the machine avoided passing judgement.
 
 ## Name the decision, never the verdict
 

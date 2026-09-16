@@ -128,9 +128,9 @@ A community running several agent-driving maintainers has two workable identity 
 
 Both are legitimate. The shared model is easier to administer and makes the "this is not a person" reading immediate; the individual model keeps attribution trivial.
 
-That last point is the shared model's non-obvious cost. **Under a shared identity, "who drove this?" is answerable only from what the content itself carries.** Two things carry it today: the `Co-Authored-By` trailer on commits, and the disclaimer line on change-request and issue bodies. Neither reaches review replies or issue comments — and those are exactly where dispositions get typed. A shared account posting there produces comments attributable to no one in particular.
+That last point used to be the shared model's decisive cost. **Under a shared identity, "who drove this?" is answerable only from what the content itself carries** — and until recently that was the `Co-Authored-By` trailer on commits and the disclaimer on change-request and issue bodies, neither of which reached review replies or issue comments, which is exactly where dispositions get typed.
 
-Yggdrasil [#141](https://github.com/SiliconSaga/yggdrasil/pull/141) extends attribution to replies and comments. Until it lands, prefer individual machine accounts, or accept that reply-level attribution is missing and say so where the policy is written down.
+Yggdrasil [#141](https://github.com/SiliconSaga/yggdrasil/pull/141) and [#166](https://github.com/SiliconSaga/yggdrasil/pull/166) closed that: the banner now attaches on replies, comments and edits, and publishing refuses a body whose placeholders never resolved. A shared account is therefore a reasonable choice today rather than a deferred one. The episode is still worth remembering when weighing the two models — the guarantee existed in the code and held only on the creation path, so "attribution is enforced" was true of one route and false of the tracker.
 
 Machine accounts themselves are permitted by the major platforms. The part that strains platform terms is **credential sharing** — which is also, and not coincidentally, what erodes accountability.
 
