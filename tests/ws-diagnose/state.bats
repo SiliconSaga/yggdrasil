@@ -104,7 +104,10 @@ run_diagnose() {
     run_diagnose app
 
     [[ "$output" == *"Nested repos   : 2"* ]]
-    [[ "$output" == *"ws status app --nested"* ]]
+    # Not "ws status app --nested": ws status takes no target, so the old
+    # guidance printed a command that exits with "Unknown option".
+    [[ "$output" == *"ws status --nested"* ]]
+    [[ "$output" != *"ws status app"* ]]
 }
 
 @test "omits the nested line for a component that declares none" {

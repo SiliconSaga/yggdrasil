@@ -123,7 +123,10 @@ print_nested_status() {
     while IFS= read -r line; do
         [[ -n "$line" ]] || continue
         nested_paths+=("$line")
-    done < <(ws_nested_candidates "$name" "$target" 2>/dev/null)
+        # stderr left alone on purpose: a nested declaration that cannot be
+        # expanded, or a candidate resolving outside the component, says so
+        # there. Discarding it turned both into a silently smaller count.
+    done < <(ws_nested_candidates "$name" "$target")
 
     total="${#nested_paths[@]}"
     [[ "$total" -gt 0 ]] || return 0
@@ -162,7 +165,8 @@ echo ""
 # must read as empty, not surface a yq "cannot get keys of !!null" error.
 while IFS= read -r name; do
     target="$COMPONENTS_DIR/$name"
-    if [[ ! -d "$target/.git" ]]; then
+    # -e: matches the nested enumerator, which accepts a `.git` file.
+    if [[ ! -e "$target/.git" ]]; then
         echo "=== $name === (not cloned)"
         echo ""
         continue

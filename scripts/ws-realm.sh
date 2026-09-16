@@ -287,9 +287,26 @@ ws_classify_target_name() {
 # Expand a component's declared nested globs and echo every match that is itself
 # a git repo, as "<relative-path>\t<absolute-path>". A `.git` file counts as well
 # as a directory — worktrees and submodules both present that way.
+# True when <candidate> resolves inside <comp_dir>.
+#
+# The segment and glob rules already forbid spelling a traversal, so this is
+# aimed at what they cannot see: a symlink inside the component pointing
+# somewhere else entirely. Compares resolved real paths.
+#
+# Shared by enumeration and resolution because they need the same answer for
+# different reasons — the enumerator drops an escapee so counts and sweeps stay
+# inside the component, while resolution explains it, which is the more useful
+# message when someone named the thing directly.
+ws_nested_is_contained() {
+    local candidate="$1" comp_dir="$2" real_candidate real_comp
+    real_candidate="$(cd "$candidate" 2>/dev/null && pwd -P)" || return 1
+    real_comp="$(cd "$comp_dir" 2>/dev/null && pwd -P)" || return 1
+    [[ "$real_candidate" == "$real_comp"/* ]]
+}
+
 ws_nested_candidates() {
-    local comp="$1" comp_dir="$2" glob candidate relative
-    local -a matches=()
+    local comp="$1" comp_dir="$2" glob candidate relative nullglob_was_set
+    local -a matches=() emitted=()
 
     while IFS= read -r glob; do
         [[ -n "$glob" ]] || continue
@@ -298,21 +315,41 @@ ws_nested_candidates() {
             echo "  Patterns are relative, may not contain '..', and may not contain whitespace." >&2
             return 1
         fi
+        # Save and restore rather than force-clear: nullglob is a shell-wide
+        # option and this function is sourced into callers that may want it set.
+        nullglob_was_set=""
+        shopt -q nullglob && nullglob_was_set="yes"
         shopt -s nullglob
         # $glob unquoted so it globs; comp_dir quoted so spaces in it stay intact.
+        # shellcheck disable=SC2206 # deliberate glob expansion; the glob is validated whitespace-free above
         matches=("$comp_dir"/$glob)
-        shopt -u nullglob
+        [[ -n "$nullglob_was_set" ]] || shopt -u nullglob
         for candidate in "${matches[@]}"; do
             [[ -d "$candidate" ]] || continue
             [[ -e "$candidate/.git" ]] || continue
             relative="${candidate#"$comp_dir"/}"
+            # Two globs may cover the same repo ("modules/*" and "modules/He*").
+            # Emitting it twice makes a bare-name lookup report an ambiguity
+            # against itself, and inflates every count built on this list.
+            if [[ " ${emitted[*]-} " == *" $relative "* ]]; then
+                continue
+            fi
+            # Containment is checked here, not only where a target is resolved:
+            # status, pull and diagnose enumerate without ever resolving, so a
+            # check that lived only in resolution left them counting — and
+            # git-statusing — a repo outside the component.
+            if ! ws_nested_is_contained "$candidate" "$comp_dir"; then
+                echo "WARNING: '$comp': skipping nested '$relative' — it resolves outside the component." >&2
+                continue
+            fi
+            emitted+=("$relative")
             printf '%s\t%s\n' "$relative" "$candidate"
         done
     done < <(ws_nested_globs_for_component "$comp")
 }
 
 # Resolve "<component>/<subpath>" to a nested repo inside the component.
-# Sets COMPONENT_DIR, WS_TARGET_NESTED_HOST and WS_TARGET_NESTED_PATH.
+# Sets COMPONENT_DIR.
 #
 # The subpath matches either a full relative path ("modules/Health") or a bare
 # repo name ("Health"). The bare form is what makes this usable — nobody should
@@ -336,8 +373,17 @@ ws_resolve_nested_target() {
 
     if [[ "${#hits[@]}" -eq 0 ]]; then
         echo "ERROR: No nested repo '$subpath' inside component '$host'." >&2
-        if ws_nested_globs_for_component "$host" >/dev/null 2>&1; then
-            echo "  The component declares nested repos, but none matched. Run 'ws status $host' to list them." >&2
+        # An untrusted realm and a component with no declaration both leave the
+        # glob lookup empty, and they want opposite advice. Separated on whether
+        # a realm is active at all: with none, there are no adapters to read and
+        # "add a nested: list" is still the right answer.
+        local _active_realm=""
+        _active_realm="$(ws_detect_realm 2>/dev/null)" || true
+        if [[ -n "$_active_realm" ]] && ! ws_nested_trusted_realm >/dev/null 2>&1; then
+            echo "  Realm '$_active_realm' is active but not trusted, so its nested declarations are not read." >&2
+            echo "  Review and re-approve it with 'ws realm use --trust $_active_realm', then try again." >&2
+        elif ws_nested_globs_for_component "$host" >/dev/null 2>&1; then
+            echo "  The component declares nested repos, but none matched. Run 'ws status --nested' to list them." >&2
         else
             echo "  Component '$host' does not declare nested repos." >&2
             echo "  Add a 'nested:' list of globs (e.g. 'modules/*') to realms/<realm>/adapters/$host.yaml," >&2
@@ -357,28 +403,11 @@ ws_resolve_nested_target() {
 
     candidate="${hits[0]}"
 
-    # Containment check. The segment and glob rules above already forbid spelling
-    # a traversal, so this is aimed at what they cannot see: a symlink inside the
-    # component pointing somewhere else entirely. Compare resolved real paths.
-    local real_candidate real_comp
-    if ! real_candidate="$(cd "$candidate" 2>/dev/null && pwd -P)"; then
-        echo "ERROR: Cannot resolve nested repo path for '$host/$subpath'." >&2
-        return 1
-    fi
-    if ! real_comp="$(cd "$comp_dir" 2>/dev/null && pwd -P)"; then
-        echo "ERROR: Cannot resolve component path for '$host'." >&2
-        return 1
-    fi
-    if [[ "$real_candidate" != "$real_comp"/* ]]; then
-        echo "ERROR: Nested repo '$host/$subpath' resolves outside component '$host'." >&2
-        echo "  Resolved: $real_candidate" >&2
-        echo "  Refusing to operate on it — a nested target must stay inside its host component." >&2
-        return 1
-    fi
-
+    # No containment check here: every candidate reaching this point came from
+    # ws_nested_candidates, which drops anything resolving outside the component
+    # and says so on stderr. Repeating it would be unreachable code asserting a
+    # guarantee made upstream.
     COMPONENT_DIR="$candidate"
-    WS_TARGET_NESTED_HOST="$host"
-    WS_TARGET_NESTED_PATH="${candidate#"$comp_dir"/}"
 }
 
 # Resolve a workspace target name to its directory.
@@ -391,13 +420,9 @@ ws_resolve_nested_target() {
 #
 # Every repo-touching verb funnels through here, so nested support is added once
 # and inherited rather than taught to each verb separately.
-WS_TARGET_NESTED_HOST=""
-WS_TARGET_NESTED_PATH=""
 ws_resolve_target() {
     local name="$1"
 
-    WS_TARGET_NESTED_HOST=""
-    WS_TARGET_NESTED_PATH=""
 
     # Nested form. Resolved before classification because a name containing a
     # slash can never be a component, realm, or hoard directory name.

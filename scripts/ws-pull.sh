@@ -50,7 +50,8 @@ pull_repo() {
     local name="$1"
     local target="$2"
 
-    if [[ ! -d "$target/.git" ]]; then
+    # -e: see ws-realm.sh's enumerator, which accepts a `.git` file.
+    if [[ ! -e "$target/.git" ]]; then
         echo "SKIP: $name (not cloned)"
         return 0
     fi
@@ -112,7 +113,12 @@ else
         # Deliberately not recursed into. These are independent upstreams whose
         # checkout state the host project's own tooling manages; pulling them
         # from under it is how a working tree and a build go out of sync.
-        nested_count=$(ws_nested_candidates "$name" "$COMPONENTS_DIR/$name" 2>/dev/null | wc -l | tr -d '[:space:]')
+        # stderr is NOT discarded: an invalid nested glob explains itself there,
+        # and a silent zero count reads as "no nested repos" rather than "the
+        # declaration is broken". `|| true` keeps a rejected declaration from
+        # ending the sweep for every remaining component under set -e/pipefail —
+        # the count falls to 0 and the reason has already been printed.
+        nested_count=$( { ws_nested_candidates "$name" "$COMPONENTS_DIR/$name" || true; } | wc -l | tr -d '[:space:]')
         if [[ "${nested_count:-0}" -gt 0 ]]; then
             echo "  NOTE: $nested_count nested repo(s) not pulled — 'ws pull $name/<repo>' to do one explicitly"
         fi

@@ -50,6 +50,26 @@ dirty_nested() {
     [[ "$output" == *"--nested"* ]]
 }
 
+@test "ws status drops a nested repo that resolves outside the component" {
+    # Regression: containment lived only in the target resolver, so status, pull
+    # and diagnose — which enumerate and never resolve — counted an escaping
+    # symlink and would have run git inside it. The check belongs where
+    # candidates are produced, or every non-resolving caller inherits the hole.
+    mkdir -p "$BATS_TEST_TMPDIR/outside/Escapee/.git"
+    if ! ln -s "$BATS_TEST_TMPDIR/outside/Escapee" "$COMPONENTS_DIR/terasology/modules/Escapee" 2>/dev/null; then
+        skip "symlink creation unavailable"
+    fi
+    [ -L "$COMPONENTS_DIR/terasology/modules/Escapee" ] || skip "symlink created as a copy (MSYS copy-mode)"
+
+    run bash "$WS_BIN" status
+
+    [ "$status" -eq 0 ]
+    # Health and Inventory are the fixture; the escapee is not a third.
+    [[ "$output" == *"nested: 2 repo(s)"* ]]
+    [[ "$output" != *"nested: 3 repo(s)"* ]]
+    [[ "$output" == *"resolves outside the component"* ]]
+}
+
 @test "ws status --nested reports a dirty nested repo by path" {
     dirty_nested Health
 

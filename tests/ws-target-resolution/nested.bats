@@ -146,8 +146,12 @@ setup() {
     run_ws exec terasology/Escapee pwd
 
     [ "$status" -ne 0 ]
-    [[ "$output" == *"resolves outside component"* ]]
+    # Dropped during enumeration rather than at resolution, so the reason is the
+    # warning and the refusal is the candidate never existing.
+    [[ "$output" == *"resolves outside the component"* ]]
+    [[ "$output" == *"No nested repo"* ]]
 }
+
 
 @test "a nested glob that tries to climb out is rejected" {
     setup_nested_component

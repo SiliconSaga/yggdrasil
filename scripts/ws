@@ -1086,7 +1086,9 @@ HELP
         # are what matter for push/cr diagnosis.
         echo "  Realm/hoard target (not a declared ecosystem component)"
     fi
-    if [[ -d "$comp_dir/.git" ]]; then
+    # -e, not -d: the nested enumerator already accepts a `.git` file, so a
+    # directory-only check here rejected what it had just handed us.
+    if [[ -e "$comp_dir/.git" ]]; then
         local branch
         branch=$(git -C "$comp_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "(unknown)")
         echo "  Clone          : ✓ present (branch: $branch)"
@@ -1127,9 +1129,13 @@ HELP
         local nested_count=0 _n
         while IFS= read -r _n; do
             [[ -n "$_n" ]] && nested_count=$((nested_count + 1))
-        done < <(ws_nested_candidates "$comp" "$comp_dir" 2>/dev/null || true)
+        # See ws-status.sh: the reason a candidate was dropped belongs on stderr,
+        # not in the difference between two counts nobody compared.
+        done < <(ws_nested_candidates "$comp" "$comp_dir" || true)
         if [[ "$nested_count" -gt 0 ]]; then
-            echo "  Nested repos   : $nested_count — git status via: ws status $comp --nested"
+            # `ws status` sweeps and takes no target, so naming one here printed
+            # a command that exits with "Unknown option".
+            echo "  Nested repos   : $nested_count — git status via: ws status --nested"
         fi
     fi
 
