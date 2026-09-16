@@ -1,0 +1,26 @@
+# Values ws-pii.sh should not flag. One per line; `#` comments and blanks ignored.
+#
+# Committed on purpose. An exemption is a decision, and a decision belongs where
+# a reviewer can see it rather than in someone's shell history. Add a line when
+# an address genuinely belongs in this repository, not to silence a finding you
+# have not looked at.
+#
+# Role addresses (noreply@, git@, …) and RFC-reserved domains (example.com,
+# *.invalid, *.test, *.example) are handled in the script and need no entry.
+
+# Test fixtures in tests/ws-pii/guard.bats. Invented, but deliberately on
+# ordinary TLDs — the reserved domains are filtered by the script, so the
+# flagging path can only be exercised with addresses that look real.
+jane.doe@realcompany.co.uk
+sample.only@realcompany.co.uk
+known.contact@partner.co.uk
+fresh@newdomain.co.uk
+a@one.co.uk
+b@two.co.uk
+
+# Malformed forms quoted in comments that explain the script's normalisation:
+# a diff marker fused to the address, and the `n` of a `\n` escape. Documenting
+# either bug requires writing the broken string down, and the scanner is right
+# to see them — they are novel to this repository and email-shaped.
++a@one.co.uk
+nknown.contact@partner.co.uk

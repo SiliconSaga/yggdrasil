@@ -25,6 +25,8 @@ ws_load_env "$ROOT_DIR/.env"
 source "$SCRIPT_DIR/ws-realm.sh"
 # shellcheck source=ws-session.sh
 source "$SCRIPT_DIR/ws-session.sh"
+# shellcheck source=ws-pii.sh
+source "$SCRIPT_DIR/ws-pii.sh"
 
 commit_help() {
     local stream="${1:-2}"
@@ -112,11 +114,13 @@ fi
 dry_run=false
 human=false
 co_author_name=""
+allow_pii=false
 _positional=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) dry_run=true; shift ;;
         --human)   human=true; shift ;;
+        --allow-pii) allow_pii=true; shift ;;
         --co-author-file)
             if [[ $# -lt 2 ]]; then
                 echo "ERROR: --co-author-file needs a name (a file under .tmp/gdd-agent-sessions/, sans .env)." >&2
@@ -411,6 +415,46 @@ else
     fi
 fi
 
+# Advisory budget check on the assembled body. Never blocks: a genuinely
+# intricate change sometimes earns a long body, and a wrapper that refused one
+# would just get worked around with `--human` or a raw commit.
+#
+# It exists because the budget was previously stated only in templates/commit.md
+# and rendered by `ws orient`, i.e. in two places nobody is looking at while
+# writing the body. Bodies ran an order of magnitude over the configured terse
+# budget for a whole session before anyone noticed, which is the argument for
+# putting the number where the writing happens.
+#
+# Counts non-blank lines, matching how the template phrases the budget. Fenced
+# code and pasted output are excluded — they are evidence rather than prose, and
+# counting them would push every commit that quotes a failure over the limit and
+# train the warning into noise.
+_ws_commit_budget_note() {
+    local body="$1" style="" limit="" count=0
+    [[ -n "$body" ]] || return 0
+
+    style="$(yq -r '.style.changeNotes // ""' "$(ws_resolve_ecosystem)" 2>/dev/null)" || style=""
+    [[ "$style" == "null" ]] && style=""
+    case "$style" in
+        terse)    limit=3 ;;
+        detailed) return 0 ;;
+        *)        limit=8 ;;
+    esac
+
+    count="$(printf '%s\n' "$body" | awk '
+        /^[[:space:]]*```/ { fence = !fence; next }
+        fence              { next }
+        NF                 { n++ }
+        END                { print n + 0 }
+    ')"
+    [[ "$count" -gt "$limit" ]] || return 0
+
+    echo "NOTE: commit body is $count lines against a budget of $limit (style.changeNotes: ${style:-standard})." >&2
+    echo "  Evidence, traps, and why it matters earn their lines; restating the diff does not." >&2
+    echo "  Raise the budget in ecosystem config if this repo wants fuller notes." >&2
+    return 0
+}
+
 # Trim leading and trailing blank lines from the body (portable awk).
 # Logic: buffer only once we've seen a non-blank line (skips leading blanks);
 # track the index of the last non-blank line so trailing blanks are dropped;
@@ -421,6 +465,21 @@ if [[ -n "$body_content" ]]; then
         n > 0 { buf[++n] = $0 }
         END   { for (i = 1; i <= last; i++) print buf[i] }
     ')"
+fi
+
+# Runs for --dry-run too: a dry run is where you would still act on it.
+_ws_commit_budget_note "$body_content"
+
+# Blocks, unlike the budget note above. A long commit body is a nuisance someone
+# can fix later; a published address is in history and possibly indexed, and no
+# later commit takes it back. Scans the staged diff and the body together —
+# either can carry a value the other does not.
+if [[ "$allow_pii" != true ]]; then
+    _pii_subject="$(ws_pii_staged_added_lines "$COMPONENT_DIR")
+$body_content"
+    if ! ws_pii_guard "this change" "$_pii_subject" "$COMPONENT_DIR"; then
+        exit 1
+    fi
 fi
 
 # Build the final commit message — used for the real commit OR for

@@ -64,6 +64,18 @@ trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
+# Same surface as the CR body: an issue can name someone who appears in no
+# commit at all.
+if [[ "${ISSUE_ALLOW_PII:-}" != "1" ]]; then
+  # shellcheck source=ws-pii.sh
+  source "$SCRIPT_DIR/ws-pii.sh"
+  _issue_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
+  if ! ws_pii_guard "this issue body" "$(cat "$RESOLVED_BODY")" "$_issue_repo_root"; then
+    echo "  Set ISSUE_ALLOW_PII=1 to publish anyway." >&2
+    exit 1
+  fi
+fi
+
 # Resolve remote:
 #   1 remote  → use it (any name)
 #   N remotes + REMOTE hint → case-insensitive match
