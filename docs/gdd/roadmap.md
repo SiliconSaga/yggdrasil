@@ -60,7 +60,6 @@ The methodology docs explain how GDD works; longer-form pieces about *why* and *
 Designed-but-deferred `ws` growth, each picked up when real usage demands it:
 
 - `ws rebase` — script the repeatable rebase ceremony (backup branch, conflict preview, verification).
-- `ws run <comp> <action>` — execute any adapter-declared action, not just test/lint/build.
 - `ws changelog --stack` — stack-level change-note aggregation across the ecosystem manifest (see [versioning.md](versioning.md) § Stack-level aggregation).
 - **Setup wizard** — guided token/identity/remote onboarding during orientation.
 - `ws realm new` — interactive realm scaffolding (today: fork-and-edit the template on GitHub).

@@ -22,7 +22,7 @@ Maintainers will acknowledge receipt, validate whether the report crosses the tr
 
 Yggdrasil is a local CLI, documentation, and agent-methodology repository. Its main executable surface is the Bash-based `ws` workspace CLI under `scripts/`, plus the Claude Code PreToolUse hook under `.claude/hooks/`. It is not a network service and does not expose an HTTP listener, database, or long-running daemon from this repository.
 
-The repository orchestrates independent local clones under gitignored directories: `components/`, `realms/`, and `hoards/`. Root `ecosystem.yaml`, active realm configuration, and per-developer `ecosystem.local.yaml` merge into the working workspace contract. Realm adapters can declare test, lint, and build commands that `ws test`, `ws lint`, and future build flows execute for trusted components.
+The repository orchestrates independent local clones under gitignored directories: `components/`, `realms/`, and `hoards/`. Root `ecosystem.yaml`, active realm configuration, and per-developer `ecosystem.local.yaml` merge into the working workspace contract. Realm adapters can declare test, lint, format, build, run, and clean commands that the matching `ws` verbs execute for trusted components.
 
 The main trust boundaries are local-machine boundaries, not network perimeter boundaries. Yggdrasil assumes the local user, local shell, selected realm, selected hoards, provider CLIs, and checked-out components have been deliberately adopted. It provides prompts, deny messages, audits, and wrapper discipline to reduce agent drift, but those controls are not a substitute for OS sandboxing or endpoint security.
 

@@ -1075,12 +1075,13 @@ ws_actions() {
             cat <<'HELP'
 Usage: ws actions <component>
 
-List adapter commands declared for a component (test runners,
-build commands, etc.). Source of truth is
-`realms/<active>/adapters/<comp>.yaml` in the active realm — the
-realm-side adapter file lists test/build/lint/etc. commands the
-workspace can invoke. Falls back to auto-detection from the
-component directory when no adapter file exists.
+List adapter commands declared for a component. Source of truth is
+`realms/<active>/adapters/<comp>.yaml` in the active realm. Six keys
+dispatch as verbs — `ws test` / `ws lint` / `ws format` / `ws build`
+/ `ws run` / `ws clean <comp>` read commands.test / lint / format /
+build / run / clean; any other key is listed here for reference only.
+Falls back to auto-detection from the component directory when no
+adapter file exists.
 HELP
             return 0
         fi

@@ -190,7 +190,7 @@ Read every key under `commands:` in `realms/<active>/adapters/*.yaml` — any of
 - `curl … | sh` / `wget … | sh` — fetch-and-execute (the pipeline form, not regex alternation)
 - `base64 -d | sh` and variants
 - Writes to paths outside the component dir (`> /etc/…`, `> ~/.ssh/…`)
-- Outbound network calls in test/lint runners
+- Outbound network calls in adapter commands
 - `eval` of any non-local string
 
 Provenance scales rigor. Compare the active realm's git remote origin (read with `git -C realms/<r> remote get-url origin`) against `identity` in `ecosystem.local.yaml`:

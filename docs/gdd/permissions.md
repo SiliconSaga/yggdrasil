@@ -77,7 +77,7 @@ Because the patterns are start-anchored *prefixes*, every `ws commit` flag — `
 
 `ws test`, `ws lint`, `ws format` and `ws build` run adapter-defined commands (the component's own runners, resolved through the active realm's adapter). They're allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
 
-The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `commands.*` key in every `realms/<r>/adapters/*.yaml` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor: light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `commands.*` key in every `realms/<r>/adapters/*.yaml` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network calls, or `eval`. Provenance scales rigor: light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
 
 #### Tier 3 adapter-redirect (allow-with-nudge / deny-with-bypass)
 
