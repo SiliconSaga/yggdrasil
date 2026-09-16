@@ -6,6 +6,7 @@
 #   ws-status.sh             Short status (branch, dirty flag, up to 10 changed files)
 #   ws-status.sh --verbose   Full git status per component (all changed files)
 #   ws-status.sh --nested    Also git-status repos nested inside components
+#   ws-status.sh --help      Usage
 
 set -euo pipefail
 
@@ -17,19 +18,47 @@ REALMS_DIR="${REALMS_DIR:-$ROOT_DIR/realms}"
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
+DEFAULT_LIMIT=10
+
+status_help() {
+    local stream="${1:-2}"
+    {
+        echo "Usage: ws status [--verbose] [--nested]"
+        echo ""
+        echo "Git state for every cloned component, realm and hoard at a glance:"
+        echo "the branch, whether the tree is dirty, and what changed."
+        echo ""
+        echo "Options:"
+        echo "  --verbose   List every changed file, not just the first $DEFAULT_LIMIT"
+        echo "  --nested    Also git-status repos nested inside a component, listing"
+        echo "              only the dirty ones — an edit sitting in a repo nobody is"
+        echo "              watching. Off by default because a component can nest well"
+        echo "              over a hundred repos and sweeping them is not free."
+        echo ""
+        echo "Takes no target: sweeping everything at once is the point. To ask about"
+        echo "a single repo, nested ones included, use 'ws log <target>' or"
+        echo "'ws diagnose <target>'."
+    } >&"$stream"
+}
+
 VERBOSE=""
 NESTED=""
 for arg in "$@"; do
     case "$arg" in
+        --help|-h)
+            status_help 1
+            exit 0
+            ;;
         --verbose) VERBOSE="--verbose" ;;
         --nested) NESTED="--nested" ;;
         *)
             echo "ERROR: Unknown option '$arg'. Expected --verbose and/or --nested." >&2
+            echo "" >&2
+            status_help 2
             exit 1
             ;;
     esac
 done
-DEFAULT_LIMIT=10
 
 if ! type -P yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2

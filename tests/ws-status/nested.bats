@@ -92,11 +92,35 @@ dirty_nested() {
     [[ "$output" == *"nested: 2 repo(s), 1 dirty"* ]]
 }
 
-@test "ws status rejects an unknown option" {
+@test "ws status rejects an unknown option, and says what it wanted instead" {
     run bash "$WS_BIN" status --bogus
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"Unknown option"* ]]
+    # The error teaches the form. A bare rejection sent the last reader looking
+    # for a target argument that does not exist.
+    [[ "$output" == *"Usage: ws status"* ]]
+}
+
+@test "ws status prints help on request, like every other verb" {
+    run bash "$WS_BIN" status --help
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws status"* ]]
+    [[ "$output" == *"--nested"* ]]
+    run bash "$WS_BIN" status -h
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: ws status"* ]]
+}
+
+@test "ws status help names where a single-repo question goes instead" {
+    # `ws status <comp>` reads like it should work — it does not, and the sweep
+    # is why. Point at the verbs that do take a target, nested ones included.
+    run bash "$WS_BIN" status --help
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ws log <target>"* ]]
+    [[ "$output" == *"ws diagnose <target>"* ]]
 }
 
 @test "ws status says nothing about nesting for a component that declares none" {
