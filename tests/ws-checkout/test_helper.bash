@@ -25,44 +25,38 @@ declare_component() {
     COMPONENT_NAME="$name" yq -i '.components[strenv(COMPONENT_NAME)] = {"repo": "https://example.invalid/repo.git"}' "$ECOSYSTEM"
 }
 
-clone_component() {
-    mkdir -p "$COMPONENTS_DIR/$1"
-}
-
-create_realm() {
-    mkdir -p "$REALMS_DIR/$1/.git"
-}
-
-create_hoard() {
-    mkdir -p "$HOARDS_DIR/$1/.git"
-}
-
 run_ws() {
     run bash "$WS_BIN" "$@"
 }
 
-create_nested_repo() {
-    mkdir -p "$COMPONENTS_DIR/$1/$2/.git"
+# A real git repo, not a bare .git directory - these tests assert on actual
+# branch state, so the fixtures have to be something git will operate on.
+make_repo() {
+    local dir="$1"
+    mkdir -p "$dir"
+    git -C "$dir" init -q -b main
+    git -C "$dir" config user.email "test@example.invalid"
+    git -C "$dir" config user.name "Test"
+    printf 'seed\n' > "$dir/seed.txt"
+    git -C "$dir" add seed.txt
+    git -C "$dir" commit -qm "seed"
 }
 
-add_nested_glob() {
-    local comp="$1" glob="$2"
-    NESTED_GLOB="$glob" yq -i '.nested += [strenv(NESTED_GLOB)]' \
-        "$REALMS_DIR/community/adapters/$comp.yaml"
-    approve_nested_realm
+current_branch() {
+    git -C "$1" rev-parse --abbrev-ref HEAD
 }
 
-approve_nested_realm() {
-    run bash "$WS_BIN" realm use --trust community
-    [ "$status" -eq 0 ]
-}
-
-# A component that declares nested repos, with one present and the realm
-# approved — the shape Terasology's modules/ actually has.
-setup_nested_component() {
+# A cloned component that is a real repo.
+setup_component_repo() {
     declare_component terasology
-    clone_component terasology
-    create_nested_repo terasology modules/Health
+    make_repo "$COMPONENTS_DIR/terasology"
+}
+
+# The Terasology shape: a component with real nested module repos, declared by
+# glob in an approved realm adapter.
+setup_nested_component() {
+    setup_component_repo
+    make_repo "$COMPONENTS_DIR/terasology/modules/Cooking"
 
     mkdir -p "$REALMS_DIR/community/adapters" "$REALMS_DIR/community/.git"
     printf 'components: {}\n' > "$REALMS_DIR/community/ecosystem.yaml"
@@ -71,5 +65,6 @@ nested:
   - "modules/*"
 YAML
     printf 'realm: community\n' > "$ECOSYSTEM_LOCAL"
-    approve_nested_realm
+    run bash "$WS_BIN" realm use --trust community
+    [ "$status" -eq 0 ]
 }

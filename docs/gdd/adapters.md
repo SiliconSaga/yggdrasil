@@ -23,10 +23,52 @@ ai_context:
     description: "Contribution guidelines and PR conventions"
   - path: "docs/architecture.md"
     description: "Architecture overview for AI orientation"
+
+nested:
+  - "modules/*"
+  - "libs/*"
 ```
 
 - **`commands`** — a map from action name to shell command. Keys are free-form (`build`, `test`, `lint`, `serve`, anything the community cares to expose). Values run from the component directory.
 - **`ai_context`** — optional list of paths agents should orient against when working on the component, with one-line descriptions.
+- **`nested`** — optional list of globs, relative to the component directory, describing where independent git repos live *inside* this component. See below.
+
+---
+
+## Nested repos — components that contain other repos
+
+Some projects are workspaces in their own right. Terasology's `modules/` holds well over a hundred independent repos, each with its own upstream and review norms, gitignored by the parent because they are meant to be checked out *inside* the engine tree where they can actually build.
+
+Those repos are not components: they are not declared in ecosystem config, they churn far too fast to enumerate, and their names are upstream-controlled CamelCase that the component naming rule rejects. Declaring the **shape** instead keeps the config stable while the contents move:
+
+```yaml
+nested:
+  - "modules/*"
+```
+
+With that in place, every target-taking `ws` verb accepts `<component>/<repo>` — resolution is taught once in `ws_resolve_target`, so verbs inherit it rather than each learning the form:
+
+```bash
+ws checkout terasology/Health fix/assets -b
+ws commit terasology/Health .commits/fix.md
+ws push terasology/Health
+ws cr terasology/Health "fix: ..." .crs/fix.md
+ws log terasology/Health
+ws diagnose terasology/Health
+ws clone-fork terasology/Health
+```
+
+`ws clone-fork` is the one that behaves differently for a nested target: it *adopts* the checkout that is already there and wires the fork remote, rather than cloning. A module only compiles inside the engine tree it came from, so a clone out to `components/` would produce a checkout that cannot build. The upstream is read from the repo's own `origin`, since a nested repo is never declared in ecosystem config.
+
+The bare name is matched against the basename of each expanded glob, so you do not have to remember which typed subdirectory a repo lives under. When two nested repos share a name, qualify with the full relative path (`terasology/libs/Health`) — the ambiguity is reported rather than guessed.
+
+Patterns are relative and may not contain `..` or whitespace, and a candidate whose real path falls outside the component is dropped as it is discovered — so a symlink cannot walk a verb out of the component tree, and it cannot be counted or swept by `ws status --nested` either. The host segment must name an actual component: a realm or hoard whose name happens to fit the component naming rule is refused rather than treated as a host.
+
+**What stays out of scope, deliberately:** nothing recurses. `ws pull` never refreshes nested repos in its sweep (it reports how many it skipped), and there is no bulk commit or push across them. These are independent upstreams with their own review norms; a sweep that committed across a hundred of them would be a far worse accident than the one this feature exists to prevent. Nested targets are always explicit and always singular.
+
+`ws status` shows a nested repo count per component for free, and `ws status --nested` runs git status across them, listing only the dirty ones — the case where an edit is sitting in a repo nobody is watching.
+
+Because `nested` lives in the adapter, adding or changing it makes realm trust stale: re-approve with `ws realm use --trust <realm>` so the change passes through the same review as a command string.
 
 A starter file with comments ships in the upstream [`realm-template`](https://github.com/SiliconSaga/realm-template) repo (cloned via `ws realm init`) at `adapters/example.yaml`. Copy it to your community realm at `realms/<your-realm>/adapters/<comp>.yaml` and edit. See [Realms](realms.md) for the realm-template's role in the workspace.
 

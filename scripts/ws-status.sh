@@ -5,18 +5,60 @@
 # Usage:
 #   ws-status.sh             Short status (branch, dirty flag, up to 10 changed files)
 #   ws-status.sh --verbose   Full git status per component (all changed files)
+#   ws-status.sh --nested    Also git-status repos nested inside components
+#   ws-status.sh --help      Usage
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-COMPONENTS_DIR="$ROOT_DIR/components"
+ROOT_DIR="${ROOT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+COMPONENTS_DIR="${COMPONENTS_DIR:-$ROOT_DIR/components}"
+REALMS_DIR="${REALMS_DIR:-$ROOT_DIR/realms}"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
 
-VERBOSE="${1:-}"
 DEFAULT_LIMIT=10
+
+status_help() {
+    local stream="${1:-2}"
+    {
+        echo "Usage: ws status [--verbose] [--nested]"
+        echo ""
+        echo "Git state for every cloned component, realm and hoard at a glance:"
+        echo "the branch, whether the tree is dirty, and what changed."
+        echo ""
+        echo "Options:"
+        echo "  --verbose   List every changed file, not just the first $DEFAULT_LIMIT"
+        echo "  --nested    Also git-status repos nested inside a component, listing"
+        echo "              only the dirty ones — an edit sitting in a repo nobody is"
+        echo "              watching. Off by default because a component can nest well"
+        echo "              over a hundred repos and sweeping them is not free."
+        echo ""
+        echo "Takes no target: sweeping everything at once is the point. To ask about"
+        echo "a single repo, nested ones included, use 'ws log <target>' or"
+        echo "'ws diagnose <target>'."
+    } >&"$stream"
+}
+
+VERBOSE=""
+NESTED=""
+for arg in "$@"; do
+    case "$arg" in
+        --help|-h)
+            status_help 1
+            exit 0
+            ;;
+        --verbose) VERBOSE="--verbose" ;;
+        --nested) NESTED="--nested" ;;
+        *)
+            echo "ERROR: Unknown option '$arg'. Expected --verbose and/or --nested." >&2
+            echo "" >&2
+            status_help 2
+            exit 1
+            ;;
+    esac
+done
 
 if ! type -P yq &>/dev/null; then
     echo "ERROR: yq (v4+) is required." >&2
@@ -62,6 +104,57 @@ print_repo_status() {
     fi
 }
 
+# Report on repos nested inside a component (Terasology's modules/, etc).
+#
+# Counting them is just directory globbing and effectively free, so the count is
+# always shown — that alone answers "does this component hide other repos?".
+# Running git status across all of them is not free (a component can nest well
+# over a hundred), so it stays behind --nested rather than silently taxing every
+# ws status run.
+#
+# Only dirty nested repos are listed even under --nested. A clean one is not news;
+# an uncommitted edit sitting in a nested repo nobody is watching is exactly the
+# thing this is for.
+print_nested_status() {
+    local name="$1" target="$2" line relative candidate
+    local total=0 dirty=0
+    local -a nested_paths=() dirty_lines=()
+
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        nested_paths+=("$line")
+        # stderr left alone on purpose: a nested declaration that cannot be
+        # expanded, or a candidate resolving outside the component, says so
+        # there. Discarding it turned both into a silently smaller count.
+    done < <(ws_nested_candidates "$name" "$target")
+
+    total="${#nested_paths[@]}"
+    [[ "$total" -gt 0 ]] || return 0
+
+    if [[ "$NESTED" != "--nested" ]]; then
+        echo "  nested: $total repo(s) — run with --nested for their status"
+        return 0
+    fi
+
+    for line in "${nested_paths[@]}"; do
+        relative="${line%%$'\t'*}"
+        candidate="${line#*$'\t'}"
+        local status_lines
+        status_lines=$(git -C "$candidate" status --porcelain 2>/dev/null || true)
+        [[ -n "$status_lines" ]] || continue
+        dirty=$((dirty + 1))
+        local count branch
+        count=$(printf '%s\n' "$status_lines" | wc -l | tr -d '[:space:]')
+        branch=$(git -C "$candidate" branch --show-current 2>/dev/null || echo "detached")
+        dirty_lines+=("    $relative  [$branch]  $count file(s)")
+    done
+
+    echo "  nested: $total repo(s), $dirty dirty"
+    if [[ "$dirty" -gt 0 ]]; then
+        printf '%s\n' "${dirty_lines[@]}"
+    fi
+}
+
 # Status of yggdrasil itself
 echo "=== yggdrasil ==="
 print_repo_status "$ROOT_DIR"
@@ -72,7 +165,8 @@ echo ""
 # must read as empty, not surface a yq "cannot get keys of !!null" error.
 while IFS= read -r name; do
     target="$COMPONENTS_DIR/$name"
-    if [[ ! -d "$target/.git" ]]; then
+    # -e: matches the nested enumerator, which accepts a `.git` file.
+    if [[ ! -e "$target/.git" ]]; then
         echo "=== $name === (not cloned)"
         echo ""
         continue
@@ -80,6 +174,7 @@ while IFS= read -r name; do
 
     echo "=== $name ==="
     print_repo_status "$target"
+    print_nested_status "$name" "$target"
     echo ""
 done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 

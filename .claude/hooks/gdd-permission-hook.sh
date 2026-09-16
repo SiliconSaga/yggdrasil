@@ -2262,18 +2262,38 @@ if [[ -n "${GDD_SANDBOX:-}" ]]; then
        && [[ "${GDD_SANDBOX}" != "yggdrasil" ]]; then
         _hl_target="$GDD_SANDBOX"
     fi
-    # Branch creation, parsed instead of globbed — the one write the sandbox
-    # cannot work without, and the reason `git checkout` still has no pattern in
-    # [headless-allow]. `git checkout -b <name>` and nothing else cannot discard
-    # anything; add `-f`, a start-point or a `--` pathspec and it can, which a
-    # glob cannot see. The name must be a single ordinary token, so no second
-    # argument survives this. Spelled `checkout -b` rather than `switch -c`
-    # because a bare `-c` is rejected earlier as a Git execution modifier.
-    # Withdraw once `ws checkout` (#155) can be allowed as a whole verb.
-    if [[ -n "$_hl_target" && "$match_cmd" == "ws exec $_hl_target git checkout -b "* ]]; then
-        _hl_branch="${match_cmd#"ws exec $_hl_target git checkout -b "}"
-        if [[ "$_hl_branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ && "$_hl_branch" != *..* ]]; then
-            allow "headless-allow branch creation (GDD_SANDBOX=$GDD_SANDBOX)"
+    # `ws checkout` supersedes the parsed `git checkout -b` allowance this block
+    # used to carry. The verb is branch-only by construction — built on `git
+    # switch`, which has no path mode at all, refusing `--` and path-shaped names
+    # — so creating AND switching are both safe to grant without parsing
+    # arguments, which is the withdrawal that landing it was waiting for. The raw
+    # `git checkout` and `git switch` spellings never reach this tier; their
+    # Tier 2 redirect denies them first.
+    #
+    # What the verb does not carry is the sandbox scope. It is allowed wholesale
+    # in settings.json, being local and non-destructive, so without the pin below
+    # every component is reachable from a sandbox — `yggdrasil` included, the
+    # workspace repo where this hook and these rules live, and whose branch
+    # decides which rules judge the next command. Pinned here rather than by
+    # narrowing the allowlist entry, which would cost every ordinary session a
+    # prompt for a verb that cannot discard anything.
+    if [[ "$match_cmd" == "ws checkout "* ]]; then
+        # The first positional, not the first word: `ws checkout -b <target>
+        # <branch>` is as valid as `... <target> <branch> -b`, because the verb
+        # accepts the flag anywhere. Reading the first word made `-b` the target
+        # and denied a correctly scoped command. Split with read -a rather than
+        # unquoted expansion so a branch name containing a glob character cannot
+        # expand against the filesystem on its way through this check.
+        _hl_ck_words=()
+        read -r -a _hl_ck_words <<< "${match_cmd#ws checkout }"
+        _hl_ck=""
+        for _hl_ck_word in ${_hl_ck_words[@]+"${_hl_ck_words[@]}"}; do
+            [[ "$_hl_ck_word" == -* ]] && continue
+            _hl_ck="$_hl_ck_word"
+            break
+        done
+        if [[ -z "$_hl_target" ]] || { [[ "$_hl_ck" != "$_hl_target" ]] && [[ "$_hl_ck" != "$_hl_target"/* ]]; }; then
+            deny "A headless sandbox switches branches only in the component it is scoped to (GDD_SANDBOX=${GDD_SANDBOX}); this named ${_hl_ck:-no target}."
         fi
     fi
     for _hl in ${headless_allows[@]+"${headless_allows[@]}"}; do

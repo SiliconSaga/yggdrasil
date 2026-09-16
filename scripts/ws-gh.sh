@@ -34,6 +34,67 @@ for _a in "$@"; do
     case "$_a" in --help|-h) exec gh "$@" ;; esac
 done
 
+# `ws gh` takes no target, so it runs at the workspace root. Most gh subcommands
+# are remote API calls and do not care, but a few mutate whatever repo they are
+# standing in — and from here that repo is yggdrasil itself. `ws gh pr checkout
+# <n> --repo <other/repo>` reads as though --repo scopes it; it does not, and it
+# has already replaced this workspace's own working tree once, silently.
+#
+# The PreToolUse hook denies these too, but only for Claude Code. This wrapper is
+# the harness-independent half: it protects Codex, other agents, and a human
+# typing the same line into their own terminal.
+# Read the command group and subcommand.
+#
+# Options are skipped, and a value-taking one takes its value with it: without
+# that, `gh --repo owner/repo pr checkout` hands the scanner "owner/repo" as the
+# group and "pr" as the subcommand, so the guard below never matches and the
+# mutating form runs anyway. The separated spelling is the dangerous one; the
+# `--repo=value` form keeps the value in the same word and needs no lookahead.
+_WS_GH_GROUP=""
+_WS_GH_SUB=""
+_ws_gh_skip_value=0
+for _a in "$@"; do
+    if [[ "$_ws_gh_skip_value" -eq 1 ]]; then
+        _ws_gh_skip_value=0
+        continue
+    fi
+    case "$_a" in
+        --repo|-R|--hostname|--jq|--template|--method|-X|--field|-F|--raw-field|-f|--header|-H)
+            _ws_gh_skip_value=1
+            continue
+            ;;
+    esac
+    [[ "$_a" == -* ]] && continue
+    if [[ -z "$_WS_GH_GROUP" ]]; then
+        _WS_GH_GROUP="$_a"
+    else
+        _WS_GH_SUB="$_a"
+        break
+    fi
+done
+
+case "$_WS_GH_GROUP${_WS_GH_SUB:+ $_WS_GH_SUB}" in
+    "pr checkout"|"pr co"|"co"|"co "*)
+        echo "ERROR: 'gh pr checkout' rewrites the working tree of whatever repo it runs in." >&2
+        echo "  'ws gh' has no target, so that repo is the workspace root — not the one --repo names." >&2
+        echo "  Run it inside the intended repo instead:" >&2
+        echo "    ws exec <comp> gh pr checkout <number>" >&2
+        echo "  Use component 'yggdrasil' if you really did mean the workspace repo." >&2
+        exit 1
+        ;;
+    "repo sync")
+        echo "ERROR: 'gh repo sync' mutates the repo it runs in, which here is the workspace root." >&2
+        echo "  Use 'ws pull <comp>', or 'ws exec <comp> gh repo sync …' to scope it." >&2
+        exit 1
+        ;;
+    "repo clone")
+        echo "ERROR: 'gh repo clone' would clone into the workspace root." >&2
+        echo "  Use 'ws clone <comp>' (or 'ws clone-fork <comp>' to work on a fork) so the" >&2
+        echo "  clone lands in components/ with its remotes wired." >&2
+        exit 1
+        ;;
+esac
+
 # gh reads GH_TOKEN, then GITHUB_TOKEN. Require one rather than letting gh prompt.
 if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]]; then
     echo "ERROR: no GitHub token in the environment (GH_TOKEN / GITHUB_TOKEN)." >&2

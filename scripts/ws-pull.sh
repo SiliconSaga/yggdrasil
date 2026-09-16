@@ -22,6 +22,13 @@ Usage:
 Skips repos with an unclean working tree — commit or stash first.
 Walks ecosystem-declared components plus on-disk realms/ and hoards/
 (parallel to `ws status`).
+
+Repos nested inside a component (see `nested:` in the component's realm
+adapter) are never pulled by the sweep — their checkout lifecycle belongs
+to the host project's own tooling, and refreshing them behind its back can
+desync a build. Pull one explicitly instead:
+
+  ws pull terasology/Health
 HELP
         exit 0
     fi
@@ -43,7 +50,8 @@ pull_repo() {
     local name="$1"
     local target="$2"
 
-    if [[ ! -d "$target/.git" ]]; then
+    # -e: see ws-realm.sh's enumerator, which accepts a `.git` file.
+    if [[ ! -e "$target/.git" ]]; then
         echo "SKIP: $name (not cloned)"
         return 0
     fi
@@ -102,6 +110,27 @@ else
     ws_validate_component_keys "$ECO" || exit 1
     while IFS= read -r name; do
         pull_repo "$name" "$COMPONENTS_DIR/$name"
+        # Deliberately not recursed into. These are independent upstreams whose
+        # checkout state the host project's own tooling manages; pulling them
+        # from under it is how a working tree and a build go out of sync.
+        # stderr is NOT discarded: an invalid nested glob explains itself there,
+        # and a silent zero count reads as "no nested repos" rather than "the
+        # declaration is broken". `|| true` keeps a rejected declaration from
+        # ending the sweep for every remaining component under set -e/pipefail —
+        # the count falls to 0 and the reason has already been printed.
+        nested_rel=()
+        while IFS= read -r nested_line; do
+            [[ -n "$nested_line" ]] || continue
+            nested_rel+=("${nested_line%%$'\t'*}")
+        done < <( { ws_nested_candidates "$name" "$COMPONENTS_DIR/$name" || true; } )
+        if [[ "${#nested_rel[@]}" -gt 0 ]]; then
+            # One real path rather than a `<repo>` placeholder, so the suggestion
+            # is copy-pasteable. Deliberately not all of them: Terasology nests
+            # well over a hundred, and a wall of paths in a sweep that already
+            # decided not to touch them is noise, not information. `ws status
+            # --nested` is the place that lists.
+            echo "  NOTE: ${#nested_rel[@]} nested repo(s) not pulled — e.g. 'ws pull $name/${nested_rel[0]}'; 'ws status --nested' lists them"
+        fi
     done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 
     realms_dir="${REALMS_DIR:-$ROOT_DIR/realms}"
