@@ -40,8 +40,8 @@ format_help() {
         echo "comes from the active realm adapter's 'commands.format' (run"
         echo "'ws actions <comp>' to see what's configured). Extra args pass"
         echo "through to the formatter:"
-        echo "  ws format kanidm"
-        echo "  ws format kanidm --all"
+        echo "  ws format ting"
+        echo "  ws format ting --diff"
         echo ""
         echo "To *check* formatting without rewriting, put the check form"
         echo "(e.g. 'cargo fmt --check') in the adapter's 'commands.lint' —"
@@ -94,7 +94,7 @@ if [[ -z "$runner" ]]; then
     echo "    realms/<realm>/adapters/$comp.yaml" >&2
     echo "  Example:" >&2
     echo "    commands:" >&2
-    echo "      format: \"cargo fmt\"" >&2
+    echo "      format: \"ruff format .\"" >&2
     echo "  Run 'ws actions $comp' to see what's configured." >&2
     exit 1
 fi

@@ -200,9 +200,9 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `git mv*` redirect-deny | `git mv a b` | Denied (redirect to plain `mv` + bodyfile) | Start-anchored bare-form match (like `git commit*`); a `git -C <dir> mv` form isn't caught — same accepted gap as the other git redirects, and avoids over-matching `mv` in unrelated git args |
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
-| `Bash(ws format:*)` | `ws format kanidm --all` | Allowed without prompt | `ws format` allowlisted under the realm trust model; it rewrites files, but only through the fingerprinted adapter command |
-| `Bash(ws build:*)` | `ws build terasology` | Allowed without prompt | `ws build` allowlisted under the realm trust model |
-| (no `ws run` entry) | `ws run terasology` | Prompted | Deliberately not allowlisted — run targets are long-lived or interactive |
+| `Bash(ws format:*)` | `ws format ting` | Allowed without prompt | `ws format` allowlisted under the realm trust model; it rewrites files, but only through the fingerprinted adapter command |
+| `Bash(ws build:*)` | `ws build gdd-sandbox` | Allowed without prompt | `ws build` allowlisted under the realm trust model |
+| (no `ws run` entry) | `ws run leidangr` | Prompted | Deliberately not allowlisted — run targets are long-lived or interactive |
 
 When you add a new allow pattern, also add at least one positive case (matches → allowed) and one negative case (close-but-not-quite → prompts) to this table. Mismatches between the table and observed behavior are PR-blocking — they indicate either a stale doc or a matcher behavior change.
 

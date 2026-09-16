@@ -3384,17 +3384,17 @@ EOF
     # command — same trust model as test/lint. Pin both spellings so a
     # matcher or config regression can't quietly turn it into a prompt.
     seed_real_project_config
-    run_hook "ws format kanidm --all"
+    run_hook "ws format ting --diff"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
-    run_hook "bash scripts/ws format kanidm"
+    run_hook "bash scripts/ws format ting"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
 @test "allow: ws build is allowlisted" {
     seed_real_project_config
-    run_hook "ws build terasology"
+    run_hook "ws build gdd-sandbox"
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
@@ -3403,7 +3403,7 @@ EOF
     # Run targets are long-lived or interactive, so each invocation stays
     # behind the normal permission prompt rather than auto-approving.
     seed_real_project_config
-    run_hook "ws run terasology"
+    run_hook "ws run leidangr"
     [ "$status" -eq 0 ]
     [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
 }
