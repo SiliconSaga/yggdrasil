@@ -201,6 +201,24 @@ setup() {
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
+@test "headless: the scope pin reads the target, not the first word" {
+    # `ws checkout` takes -b anywhere, so the pin has to find the first
+    # positional. Reading the first word made the flag the target and denied a
+    # correctly scoped command — while a version that simply skipped the check
+    # on seeing a flag would have opened the hole the pin exists to close, so
+    # both orderings are asserted against both a matching and a foreign target.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws checkout -b ken-site feat/x'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws checkout --create ken-site feat/x'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws checkout -b other-component feat/x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # Options and nothing else names no component, so it fails closed.
+    GDD_SANDBOX=ken-site run_hook 'ws checkout -b'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
 @test "headless: the allowance is pinned to the sandbox's own component" {
     # A wildcard component would also match `ws exec yggdrasil …` — the
     # workspace repo, where this hook and its rules live. The sandbox is scoped

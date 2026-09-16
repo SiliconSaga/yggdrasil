@@ -2278,10 +2278,22 @@ if [[ -n "${GDD_SANDBOX:-}" ]]; then
     # narrowing the allowlist entry, which would cost every ordinary session a
     # prompt for a verb that cannot discard anything.
     if [[ "$match_cmd" == "ws checkout "* ]]; then
-        _hl_ck="${match_cmd#ws checkout }"
-        _hl_ck="${_hl_ck%% *}"
+        # The first positional, not the first word: `ws checkout -b <target>
+        # <branch>` is as valid as `... <target> <branch> -b`, because the verb
+        # accepts the flag anywhere. Reading the first word made `-b` the target
+        # and denied a correctly scoped command. Split with read -a rather than
+        # unquoted expansion so a branch name containing a glob character cannot
+        # expand against the filesystem on its way through this check.
+        _hl_ck_words=()
+        read -r -a _hl_ck_words <<< "${match_cmd#ws checkout }"
+        _hl_ck=""
+        for _hl_ck_word in ${_hl_ck_words[@]+"${_hl_ck_words[@]}"}; do
+            [[ "$_hl_ck_word" == -* ]] && continue
+            _hl_ck="$_hl_ck_word"
+            break
+        done
         if [[ -z "$_hl_target" ]] || { [[ "$_hl_ck" != "$_hl_target" ]] && [[ "$_hl_ck" != "$_hl_target"/* ]]; }; then
-            deny "A headless sandbox switches branches only in the component it is scoped to (GDD_SANDBOX=${GDD_SANDBOX}); this named ${_hl_ck}."
+            deny "A headless sandbox switches branches only in the component it is scoped to (GDD_SANDBOX=${GDD_SANDBOX}); this named ${_hl_ck:-no target}."
         fi
     fi
     for _hl in ${headless_allows[@]+"${headless_allows[@]}"}; do

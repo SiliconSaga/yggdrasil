@@ -42,12 +42,51 @@ dirty_nested() {
     printf 'scratch\n' > "$COMPONENTS_DIR/terasology/modules/$1/untracked.txt"
 }
 
+# Records every git invocation, so a test can assert which ones did not happen.
+# Installed after fixture creation so the setup's own git calls stay out of it.
+instrument_git() {
+    GIT_CALLS="$BATS_TEST_TMPDIR/git-calls.log"
+    : > "$GIT_CALLS"
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    local real_git
+    real_git="$(command -v git)"
+    {
+        echo "#!/usr/bin/env bash"
+        echo "printf '%s\n' \"\$*\" >> \"$GIT_CALLS\""
+        echo "exec \"$real_git\" \"\$@\""
+    } > "$BATS_TEST_TMPDIR/bin/git"
+    chmod +x "$BATS_TEST_TMPDIR/bin/git"
+    export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+}
+
 @test "ws status counts nested repos without running git on them" {
+    # The count is directory globbing; the sweep is what costs, and a component
+    # can nest well over a hundred repos. Asserting only the wording would pass
+    # an implementation that git-statused every one of them and then printed a
+    # number, so the absence of those calls is what gets pinned.
+    instrument_git
+
     run bash "$WS_BIN" status
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"nested: 2 repo(s)"* ]]
     [[ "$output" == *"--nested"* ]]
+    ! grep -q "modules/Health" "$GIT_CALLS"
+    ! grep -q "modules/Inventory" "$GIT_CALLS"
+    # Control: the host component WAS inspected, so an empty log cannot make
+    # the assertions above pass for the wrong reason.
+    grep -q "components/terasology" "$GIT_CALLS"
+}
+
+@test "ws status --nested does run git on them" {
+    # The inverse of the test above, so the pair brackets the behaviour rather
+    # than only forbidding one half of it.
+    instrument_git
+
+    run bash "$WS_BIN" status --nested
+
+    [ "$status" -eq 0 ]
+    grep -q "modules/Health" "$GIT_CALLS"
 }
 
 @test "ws status drops a nested repo that resolves outside the component" {

@@ -176,6 +176,30 @@ source "$SCRIPT_DIR/ws-realm.sh"
 # shellcheck source=git-provider.sh
 source "$SCRIPT_DIR/git-provider.sh"
 
+# Canonical "host/namespace/repo" for a remote URL, so the same project reached
+# over https and over ssh compares equal. Host handling is delegated to
+# git_remote_host, which already normalizes case, userinfo, ports and bracketed
+# IPv6 literals; this only adds the path. Returns non-zero for anything it
+# cannot parse — a local path remote, say — so callers can fall back rather than
+# comparing against an empty string, which would make everything match.
+cf_remote_identity() {
+    local value="${1:-}" host="" path=""
+    host="$(git_remote_host "$value")" || return 1
+    case "$value" in
+        https://*|http://*|ssh://*|git://*)
+            path="${value#*://}"
+            path="${path#*/}"
+            ;;
+        *)
+            path="${value#*:}"
+            ;;
+    esac
+    path="${path%.git}"
+    path="${path#/}"
+    [[ -n "$path" ]] || return 1
+    printf '%s/%s' "$host" "$path"
+}
+
 # --- dependency checks ------------------------------------------------------
 # Generic tools only here; the provider CLI (gh or glab) is checked after the
 # source URL tells us which provider we're talking to.
@@ -921,11 +945,20 @@ if [[ -e "$TARGET/.git" ]]; then
     # — the host tooling cloned it, so `origin` IS the source — and two remotes
     # for one URL later breaks `ws cr --upstream`, which cannot tell which of
     # them to target.
+    #
+    # Compared by identity rather than by string: a module cloned over https can
+    # be matched against an UPSTREAM_REMOTE_URL the provider handed back as ssh
+    # (which is what happens when no token covers the host), and a literal
+    # comparison sees two different remotes for one repository — reintroducing
+    # exactly the ambiguity this block exists to prevent.
+    _upstream_identity="$(cf_remote_identity "$UPSTREAM_REMOTE_URL")" \
+        || _upstream_identity="${UPSTREAM_REMOTE_URL%.git}"
     existing_upstream_remote=""
     while IFS= read -r _rname; do
         [[ -n "$_rname" ]] || continue
         _rurl=$(git -C "$TARGET" remote get-url "$_rname" 2>/dev/null) || continue
-        if [[ "${_rurl%.git}" == "${UPSTREAM_REMOTE_URL%.git}" ]]; then
+        _rurl_identity="$(cf_remote_identity "$_rurl")" || _rurl_identity="${_rurl%.git}"
+        if [[ "$_rurl_identity" == "$_upstream_identity" ]]; then
             existing_upstream_remote="$_rname"
             break
         fi
@@ -985,6 +1018,10 @@ if ! git -C "$TARGET" rev-parse --verify "$DEFAULT_BRANCH" &>/dev/null; then
     # instead; the branch is what the caller is working in, not ours to change.
     if [[ -n "$NESTED_TARGET" ]]; then
         git -C "$TARGET" update-ref "refs/heads/$DEFAULT_BRANCH" "$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
+        # update-ref writes the ref and nothing else, where `checkout -B` would
+        # also have set upstream tracking. Without this the branch exists but
+        # reports no upstream, so the next sync has nothing to compare against.
+        git -C "$TARGET" branch --set-upstream-to="$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH" "$DEFAULT_BRANCH" >/dev/null 2>&1 || true
         echo "         created $DEFAULT_BRANCH ref from $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH (without checkout; '$current' left alone)"
     else
         git -C "$TARGET" checkout -B "$DEFAULT_BRANCH" "$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
