@@ -62,7 +62,7 @@ Codex consumes the same `[redirect-commands]` rows through a focused deny-or-def
 
 ### `ws commit` flags auto-approve
 
-`ws commit`, `ws whoami`, `ws test`, and `ws lint` are allowlisted by default in this workspace's `.claude/settings.json`. The `ws commit` allow patterns are:
+`ws commit`, `ws whoami`, `ws test`, `ws lint`, `ws format`, and `ws build` are allowlisted by default in this workspace's `.claude/settings.json`. The `ws commit` allow patterns are:
 
 ```text
 Bash(ws commit:*)
@@ -73,11 +73,11 @@ The `:*` suffix here is Claude Code's *prefix* form — it matches the command p
 
 Because the patterns are start-anchored *prefixes*, every `ws commit` flag — `--dry-run`, `--human`, `--co-author-file <name>` — auto-approves with no extra entry. The sub-agent attribution path `ws commit --co-author-file <name> …` passes only a bare file name (no env-assignment prefix, no angle brackets), so it clears the Tier 1 redirect check and matches `Bash(ws commit:*)` directly. There is no env-prefix stripping: an env-assignment prefix (`LD_PRELOAD=…`, or any `VAR=…`) stays in the match string and fails every allow glob, so it cannot auto-approve. See [`ws commit` attribution in the CLI guide](../ws-cli-guide.md#ws-commit) for the resolution rules.
 
-#### `ws test` / `ws lint` under the realm trust model
+#### `ws test` / `ws lint` / `ws format` / `ws build` under the realm trust model
 
-`ws test` and `ws lint` run adapter-defined commands (the component's own test/lint runner, resolved through the active realm's adapter). They're allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
+`ws test`, `ws lint`, `ws format` and `ws build` run adapter-defined commands (the component's own runners, resolved through the active realm's adapter). They're allowlisted under the **realm trust model**: trust is established when a realm is scanned and activated, and surfaced to the agent at session start by [`ws orient`](../ws-cli-guide.md#ws-orient) — NOT by withholding the allowlist. Treating adapter-defined runners as trusted-once-activated is the same posture as the rest of the realm's declared commands.
 
-The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `realms/<r>/adapters/*.yaml`'s `commands.{test,lint,build}` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor: light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+The trust is kept honest by `gdd-orientation`'s **adapter command risk scan** — on realm activation, the skill reads every `commands.*` key in every `realms/<r>/adapters/*.yaml` and flags `curl | sh`, `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network in test/lint, or `eval`. Provenance scales rigor: light for your own / team realms, heavy for community / wild realms. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
 
 #### Tier 3 adapter-redirect (allow-with-nudge / deny-with-bypass)
 
@@ -200,6 +200,9 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | `git mv*` redirect-deny | `git mv a b` | Denied (redirect to plain `mv` + bodyfile) | Start-anchored bare-form match (like `git commit*`); a `git -C <dir> mv` form isn't caught — same accepted gap as the other git redirects, and avoids over-matching `mv` in unrelated git args |
 | `Bash(ws test:*)` | `ws test mimir` | Allowed without prompt | `ws test` allowlisted under the realm trust model |
 | `Bash(ws lint:*)` | `ws lint mimir` | Allowed without prompt | `ws lint` allowlisted under the realm trust model |
+| `Bash(ws format:*)` | `ws format kanidm --all` | Allowed without prompt | `ws format` allowlisted under the realm trust model; it rewrites files, but only through the fingerprinted adapter command |
+| `Bash(ws build:*)` | `ws build terasology` | Allowed without prompt | `ws build` allowlisted under the realm trust model |
+| (no `ws run` entry) | `ws run terasology` | Prompted | Deliberately not allowlisted — run targets are long-lived or interactive |
 
 When you add a new allow pattern, also add at least one positive case (matches → allowed) and one negative case (close-but-not-quite → prompts) to this table. Mismatches between the table and observed behavior are PR-blocking — they indicate either a stale doc or a matcher behavior change.
 
