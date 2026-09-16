@@ -5,6 +5,10 @@
 # Git Bash crash artifacts (Windows) — dropped in the cwd when bash segfaults
 *.stackdump
 
+# Sass compiler cache — dropped in the cwd wherever sass runs (the gh-pages
+# component template builds its site with sass); regenerated on the next compile.
+.sass-cache/
+
 # Nested Git repos — cloned by ws-clone.sh, ignored by yggdrasil's Git.
 # Only .gitkeep is tracked so the directory structure is preserved.
 /components/*
