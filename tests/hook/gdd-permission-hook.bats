@@ -84,18 +84,18 @@ setup() {
 
 # ─── Headless (sandbox) mode ────────────────────────────────────────
 
-@test "headless: an ask the sandbox needs is decided, not prompted" {
-    # An ask means "a human decides". In a sandboxed workspace the only human
-    # reachable is a chat user who cannot evaluate a tool prompt, so every card
-    # is either rubber-stamped or left to time out. Paired against the same
-    # command without the flag, which is what shows the flag is doing the work:
-    # `ws exec *` is on the ask-list either way.
+@test "headless: the sandbox can still branch, through the wrapper" {
+    # A sandbox cannot open a pull request without creating a branch. That was a
+    # parsed `git checkout -b` allowance until `ws checkout` existed to grant as
+    # a whole verb; the raw spelling now meets its Tier 2 redirect instead,
+    # headless or not, because a redirect is not a question anyone must answer.
     seed_real_project_config
-    run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
-    [[ "$output" == *'"permissionDecision":"ask"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    GDD_SANDBOX=ken-site run_hook 'ws checkout ken-site feat/orange-photo -b'
     [ "$status" -eq 0 ]
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws checkout"* ]]
 }
 
 @test "headless: a prompt raised before the ask-list resolves too" {
@@ -159,10 +159,10 @@ setup() {
 
 @test "headless: nothing that discards uncommitted work is allowed" {
     # `git checkout -- .` and `git switch --discard-changes` throw away work with
-    # no undo, and a glob cannot tell them from switching branch. Switching to an
-    # existing branch therefore still needs a human — the deliberate trade until
-    # `ws checkout` exists as a whole verb to allow. Creating one is parsed
-    # separately; see the branch-creation test below.
+    # no undo, and a glob cannot tell them from switching branch, so the raw
+    # spellings stay denied. Switching is no longer a casualty of that: the test
+    # below grants it through `ws checkout`, which cannot express the shapes that
+    # discard, so the human is only needed for the raw forms.
     seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -- .'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
@@ -172,22 +172,32 @@ setup() {
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
-@test "headless: a branch can be created, and that is all checkout can do" {
-    # Opening a pull request needs a branch, so this one write is parsed rather
-    # than globbed: `git checkout -b <name>` alone cannot discard anything, while
-    # a start-point, a `-f` or a `--` pathspec can. The name has to be a single
-    # ordinary token, which is what stops a second argument riding along.
+@test "headless: a branch can be created or switched, and that is all checkout can do" {
+    # `ws checkout` is branch-only by construction — `git switch` underneath has
+    # no path mode, `--` is refused before git sees it, and a path-shaped name is
+    # rejected — so both halves are safe to grant whole, with no argument parsing
+    # left to get wrong. Switching to an existing branch is the half the raw form
+    # could never be trusted with.
     seed_real_project_config
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/orange-photo'
+    GDD_SANDBOX=ken-site run_hook 'ws checkout ken-site feat/orange-photo -b'
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x -f'
+    GDD_SANDBOX=ken-site run_hook 'ws checkout ken-site main'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    # A repo nested inside the scoped component travels with it.
+    GDD_SANDBOX=ken-site run_hook 'ws checkout ken-site/modules/Cooking fix/x -b'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    # Pinned to the sandbox component. The verb is allowed wholesale in
+    # settings.json, being local and unable to discard work, so without the pin a
+    # sandbox could switch any component — `yggdrasil` included, the repo these
+    # rules live in, whose branch decides which rules judge the next command.
+    GDD_SANDBOX=ken-site run_hook 'ws checkout other-component feat/x -b'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x main'
+    GDD_SANDBOX=ken-site run_hook 'ws checkout yggdrasil main'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x -- .'
+    # The raw spellings stay redirected; nothing here re-grants them.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git checkout -b feat/x'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
-    # Still pinned to the sandbox's own component, like every other allowance.
-    GDD_SANDBOX=ken-site run_hook 'ws exec other-component git checkout -b feat/x'
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site git switch -c feat/x'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 

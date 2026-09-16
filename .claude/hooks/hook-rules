@@ -106,13 +106,17 @@ ws realm use *
 # `git checkout` and `git switch` are absent for a different reason. Both have
 # forms that discard uncommitted work (`git checkout -- .`,
 # `git switch --discard-changes`), and a glob cannot separate those from
-# switching branches. Creating a branch is the one exception, since a sandbox
-# cannot open a pull request without it: the hook parses
-# `ws exec <target> git checkout -b <name>` directly rather than matching a
-# pattern here, because it has to reject a start-point, a `-f` and a `--`
-# pathspec, none of which a glob can see. Switching to an existing branch still
-# needs a human, until `ws checkout` lands (yggdrasil #155) and can be allowed as
-# a whole verb.
+# switching branches — so neither raw spelling is listed, and both now meet a
+# Tier 2 redirect before this section is consulted at all.
+#
+# Branching is granted through `ws checkout` instead, which is why no pattern is
+# needed for it here. The verb cannot express the discarding forms: it is built
+# on `git switch`, which has no path mode, it refuses `--` before git sees it,
+# and it rejects path-shaped branch names. Creating and switching are therefore
+# both safe to grant whole, which is what the parsed `git checkout -b` allowance
+# in the hook was holding the line for until the verb existed. The hook still
+# pins it to the sandbox component, since the verb is allowed wholesale in
+# settings.json and would otherwise reach every component including yggdrasil.
 #
 # Wrapped verbs (git commit, git push, gh pr create) stay denied through their
 # Tier 2 redirects regardless of this section.
@@ -137,8 +141,8 @@ ws realm use *
 #
 # That leaves this section with no shipped entries — deliberately. The mechanism
 # is what ships; an operator adds patterns knowing nobody will be asked. Branch
-# creation, the one thing a sandbox cannot work without, is parsed in the hook
-# rather than listed here.
+# work, the one thing a sandbox cannot do without, needs no entry: `ws checkout`
+# is never on the ask-list, so it reaches this tier already allowed.
 #
 # None of this is a security boundary — an argument can still name a path outside
 # the component. The boundary is the container; this keeps the ordinary working
