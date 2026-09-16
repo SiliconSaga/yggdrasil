@@ -43,12 +43,27 @@ done
 # The PreToolUse hook denies these too, but only for Claude Code. This wrapper is
 # the harness-independent half: it protects Codex, other agents, and a human
 # typing the same line into their own terminal.
-# Read the command group and subcommand. gh has no value-taking global flags —
-# only --help and --version, both handled above — so the first two non-flag args
-# are the command path. Flags after the subcommand (--repo, -R) are skipped.
+# Read the command group and subcommand.
+#
+# Options are skipped, and a value-taking one takes its value with it: without
+# that, `gh --repo owner/repo pr checkout` hands the scanner "owner/repo" as the
+# group and "pr" as the subcommand, so the guard below never matches and the
+# mutating form runs anyway. The separated spelling is the dangerous one; the
+# `--repo=value` form keeps the value in the same word and needs no lookahead.
 _WS_GH_GROUP=""
 _WS_GH_SUB=""
+_ws_gh_skip_value=0
 for _a in "$@"; do
+    if [[ "$_ws_gh_skip_value" -eq 1 ]]; then
+        _ws_gh_skip_value=0
+        continue
+    fi
+    case "$_a" in
+        --repo|-R|--hostname|--jq|--template|--method|-X|--field|-F|--raw-field|-f|--header|-H)
+            _ws_gh_skip_value=1
+            continue
+            ;;
+    esac
     [[ "$_a" == -* ]] && continue
     if [[ -z "$_WS_GH_GROUP" ]]; then
         _WS_GH_GROUP="$_a"
@@ -59,7 +74,7 @@ for _a in "$@"; do
 done
 
 case "$_WS_GH_GROUP${_WS_GH_SUB:+ $_WS_GH_SUB}" in
-    "pr checkout"|"co"|"co "*)
+    "pr checkout"|"pr co"|"co"|"co "*)
         echo "ERROR: 'gh pr checkout' rewrites the working tree of whatever repo it runs in." >&2
         echo "  'ws gh' has no target, so that repo is the workspace root — not the one --repo names." >&2
         echo "  Run it inside the intended repo instead:" >&2

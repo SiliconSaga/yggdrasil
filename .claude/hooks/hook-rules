@@ -176,13 +176,40 @@ gh-repo-fork-raw | gh repo fork*    | Use `ws clone-fork <component>` — create
 # the recommended `ws exec <comp> gh …` form cannot match its own redirect.
 gh-checkout      | ws gh pr checkout* | `ws gh` runs at the workspace ROOT — `gh pr checkout` here rewrites the workspace's working tree, not the repo you meant. Fetch the PR ref into the target, then switch with the wrapper: `ws exec <comp> git fetch <remote> pull/<n>/head:pr-<n>` followed by `ws checkout <comp> pr-<n>` (component `yggdrasil` if the workspace repo is intended). `gh`'s own one-shot resolution is still there as `ws exec <comp> gh pr checkout <n>` when you want it. `ws hook-bypass gh-checkout` for a session-scoped bypass.
 gh-checkout-raw  | gh pr checkout*    | `gh pr checkout` mutates whatever repo it stands in — from the workspace root that is the workspace itself. Fetch the PR ref into the target, then `ws checkout <comp> <branch>`; or `ws exec <comp> gh pr checkout <n>` for gh's one-shot form (component `yggdrasil` if the workspace repo is intended). `ws hook-bypass gh-checkout-raw` for a session-scoped bypass.
-# Branch switching reached through `ws exec` rather than the wrapper. Scoped to
-# the `ws exec` spellings ONLY — deliberately no raw `git checkout*` rule. Raw
-# `git checkout -- <path>` restores files, `ws checkout` refuses to do that on
-# purpose, and a glob cannot tell a branch from a path; redirecting the raw form
-# would deny a real operation that has no wrapper equivalent.
+# `pr co` is a real gh alias for `pr checkout`, and an option before the
+# subcommand pushes the command path further along the line than an anchored
+# pattern expects. Both spellings reach the same working-tree rewrite, so both
+# are named here. The `-*` forms carry a space on each side so they match an
+# option and its value without swallowing an unrelated command.
+#
+# The wrapper (scripts/ws-gh.sh) is the authoritative guard — it parses the
+# argument list and consumes option values, which a glob cannot — and it covers
+# every harness, not just this one. These patterns are the Claude-Code-side
+# defence in depth; keep them in step with that case statement rather than
+# treating either as the whole story.
+# `co` is matched as a whole word, not as a prefix: `gh pr co*` also swallows
+# `gh pr comment`, which belongs to the ws review redirect further down. Hence a
+# bare form and a space-terminated form rather than one trailing wildcard.
+gh-checkout-co       | ws gh pr co         | Same as `gh pr checkout` under its alias — see `gh-checkout`. Fetch the ref into the target, then `ws checkout <comp> <branch>`. `ws hook-bypass gh-checkout-co` for a session-scoped bypass.
+gh-checkout-co-args  | ws gh pr co *       | Same as `gh pr checkout` under its alias — see `gh-checkout`. Fetch the ref into the target, then `ws checkout <comp> <branch>`. `ws hook-bypass gh-checkout-co-args` for a session-scoped bypass.
+gh-checkout-co-raw   | gh pr co            | Same as `gh pr checkout` under its alias — see `gh-checkout-raw`. `ws hook-bypass gh-checkout-co-raw` for a session-scoped bypass.
+gh-checkout-co-raw-args | gh pr co *       | Same as `gh pr checkout` under its alias — see `gh-checkout-raw`. `ws hook-bypass gh-checkout-co-raw-args` for a session-scoped bypass.
+gh-checkout-opt-raw  | gh -* pr checkout*  | `gh pr checkout` behind a global option still rewrites the tree it stands in; `--repo` names the API target, not the checkout. Fetch the ref into the component, then `ws checkout <comp> <branch>`. `ws hook-bypass gh-checkout-opt-raw` for a session-scoped bypass.
+gh-checkout-optco-raw | gh -* pr co *      | As `gh-checkout-opt-raw`, under the `co` alias. `ws hook-bypass gh-checkout-optco-raw` for a session-scoped bypass.
+glab-checkout-opt-raw | glab -* mr checkout* | `glab mr checkout` behind a global option still rewrites the tree it stands in — and `-R` really is a root-level option there, so this is the ordinary spelling. Run it inside the target: `ws exec <comp> glab mr checkout <n>`. `ws hook-bypass glab-checkout-opt-raw` for a session-scoped bypass.
+# Branch switching reached through `ws exec` rather than the wrapper. Raw
+# `git checkout*` is deliberately absent: `git checkout -- <path>` restores
+# files, `ws checkout` refuses to do that on purpose, and a glob cannot tell a
+# branch from a path, so redirecting the raw form would deny a real operation
+# with no wrapper equivalent.
+#
+# Raw `git switch*` IS redirected, and the asymmetry is the point: `git switch`
+# has no path mode at all, so everything it can do, `ws checkout` can express.
+# The one exception is `--discard-changes`, which has no wrapper equivalent and
+# is exactly the sort of thing worth asking for out loud — hence the bypass.
 ws-exec-checkout | ws exec * git checkout* | Use `ws checkout <target> <branch>` (add `-b` to create) — same target resolution including nested repos like `terasology/modules/Cooking`, and one auditable verb instead of reaching past the wrapper. If you actually meant `git checkout -- <path>` to restore files, `ws checkout` cannot express that by design: `ws hook-bypass ws-exec-checkout` for a session-scoped bypass.
 ws-exec-switch   | ws exec * git switch*   | Use `ws checkout <target> <branch>` (add `-b` to create) — same target resolution including nested repos, and it keeps branch changes on one auditable verb. `ws hook-bypass ws-exec-switch` for a session-scoped bypass.
+git-switch-raw   | git switch*             | Use `ws checkout <target> <branch>` (add `-b` to create) — `git switch` has no path-restoring mode, so the wrapper covers everything it does, with target resolution and one auditable verb. `git switch --discard-changes` is the exception and throws work away: `ws hook-bypass git-switch-raw` for a session-scoped bypass.
 gh-repo-sync     | ws gh repo sync*   | `ws gh` runs at the workspace ROOT — `gh repo sync` here syncs the workspace repo, not the component you meant. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync` for a session-scoped bypass.
 gh-repo-sync-raw | gh repo sync*      | `gh repo sync` mutates the repo it stands in. Use `ws pull <comp>`, or `ws exec <comp> gh repo sync …`. `ws hook-bypass gh-repo-sync-raw` for a session-scoped bypass.
 # Review READING has a wrapper; reaching past it costs the thread ids, the
