@@ -185,7 +185,7 @@ Trust levels:
 
 **Adapter command risk scan** — runs when a realm is loaded or switched.
 
-Read every key under `commands:` in `realms/<active>/adapters/*.yaml` — any of them can be dispatched by a pre-allowed verb (`ws test` / `ws lint` / `ws format` / `ws build`), and `format` rewrites files by design. Flag patterns:
+Read every key under `commands:` in `realms/<active>/adapters/*.yaml` — all of it is executable configuration. Four of those keys (`test`, `lint`, `format`, `build`) dispatch through pre-allowed verbs with no prompt, and `format` rewrites files by design. Flag patterns:
 
 - `curl … | sh` / `wget … | sh` — fetch-and-execute (the pipeline form, not regex alternation)
 - `base64 -d | sh` and variants

@@ -3379,6 +3379,35 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
 }
 
+@test "allow: ws format is allowlisted in both dispatch forms" {
+    # format rewrites files, but only through the fingerprinted adapter
+    # command — same trust model as test/lint. Pin both spellings so a
+    # matcher or config regression can't quietly turn it into a prompt.
+    seed_real_project_config
+    run_hook "ws format kanidm --all"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    run_hook "bash scripts/ws format kanidm"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "allow: ws build is allowlisted" {
+    seed_real_project_config
+    run_hook "ws build terasology"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
+
+@test "passthrough: ws run is deliberately not allowlisted" {
+    # Run targets are long-lived or interactive, so each invocation stays
+    # behind the normal permission prompt rather than auto-approving.
+    seed_real_project_config
+    run_hook "ws run terasology"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+}
+
 # ws orient / ws audit-permissions are MUST-run session-start commands (the
 # orientation contract). Both are read-only and were missing from the shipped
 # allowlist, so every fresh session prompted on them. Regression guards.

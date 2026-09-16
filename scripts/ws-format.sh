@@ -9,8 +9,8 @@
 # and runs it in the component directory. Extra args pass through.
 #
 # `format` writes, `lint` checks — the split every ecosystem already makes
-# (`cargo fmt` vs `cargo fmt --check`, `gofmt -w` vs `gofmt -l`,
-# `black .` vs `black --check .`). So a formatting *violation* is a lint
+# (`cargo fmt` vs `cargo fmt --check`, `ruff format` vs `ruff format
+# --check`, `black .` vs `black --check .`). So a formatting *violation* is a lint
 # failure and belongs in `commands.lint`; this verb is how you fix it.
 # Declaring a --check form here would give you a verb named format that
 # refuses to format.
