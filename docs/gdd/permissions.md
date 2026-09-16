@@ -175,6 +175,8 @@ Verified in interactive testing. Each row is a (pattern, attempted command, expe
 | Hook `ws exec` Git-read fast path | `ws exec yggdrasil git status` | Allowed without prompt | Narrow exception to the general `ws exec *` ask rule |
 | `Bash(ws hoard cadence)` | `ws hoard cadence` | Allowed without prompt | Exact-form for the cadence reporter |
 | `Bash(ws hoard cadence)` | `ws hoard cadence --debug` | Prompted | Exact-form pinning — extra arg doesn't match |
+| `Bash(ws hoard lint)` | `ws hoard lint` | Allowed without prompt | Exact-form for the frontmatter linter (read-only) |
+| `Bash(ws hoard lint:*)` | `ws hoard lint thalami-Cervator` | Allowed without prompt | Prefix-form — the optional argument is a hoard name, resolved through `ws_resolve_target` |
 | `Bash(ws hoard thalamus-path)` | `ws hoard thalamus-path` | Allowed without prompt | Exact-form for path resolution |
 | `Bash(ws preflight)` | `ws preflight` | Allowed without prompt | Exact-form for the bare prereq check |
 | `Bash(ws preflight --soft)` | `ws preflight --soft` | Allowed without prompt | Exact-form for the soft-exit variant |
