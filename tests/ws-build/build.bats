@@ -75,6 +75,16 @@ EOF
     [ ! -f "$ROOT_DIR/build_ran.marker" ]
 }
 
+@test "build dispatches through the ws entry point" {
+    # The other tests call ws-build.sh directly, so they'd stay green with
+    # the dispatcher arm missing — the exact gap this verb was added to close.
+    write_adapter_build "./buildstub"
+    run bash "$REPO_ROOT/scripts/ws" build yggdrasil --release
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"BUILD_ARGS:--release"* ]]
+    [ -f "$ROOT_DIR/build_ran.marker" ]
+}
+
 @test "build with no component prints usage and exits nonzero" {
     run_ws_build
     [ "$status" -ne 0 ]

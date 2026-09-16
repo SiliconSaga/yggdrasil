@@ -25,9 +25,9 @@ gh repo create <yourname>/<name> --public \
 
 Run that. It creates a public repo on your GitHub account, sets your username as the remote name (avoids the generic `origin`), and pushes the initial commit.
 
-> **Why public?** Free GitHub Pages on personal accounts requires a public repo. A private Pages site is paid (GitHub Pro / Team / Enterprise). If you want it private, swap `--public` for `--private` in the suggested command and accept the cost on your end.
+> **Why public?** Free GitHub Pages on personal accounts requires a public repo. Paid plans (GitHub Pro / Team) can publish Pages from a private repo, but `--private` only hides the *repository* — the published site is still public to anyone with the URL. Access-restricted sites are a GitHub Enterprise Cloud organization feature, not something a personal account can turn on.
 >
-> **Auth wrinkle for agent-account tokens.** If your `.env` holds a bot/agent token (e.g. one issued to `agent-refr`) rather than a personal PAT, `gh repo create <yourname>/<name>` may fail with *"cannot create a repository for `<yourname>`"* — the agent identity can't create repos under your username. **Recommended fix:** open a fresh shell, `export GH_TOKEN=<your-personal-pat>`, and run the create command under your personal token. The tutorial repo lives under your account — that's what Chapter 2's CodeRabbit/Copilot install assumes (you need admin on the repo's account to install GitHub Apps), and what `<yourname>.github.io` deploys reflect.
+> **Auth wrinkle for agent-account tokens.** If `GH_TOKEN` or `GITHUB_TOKEN` in your shell holds a bot/agent token (e.g. one issued to `agent-refr`) rather than your own credentials, `gh repo create <yourname>/<name>` fails with *"cannot create a repository for `<yourname>`"* — the agent identity can't create repos under your username, and an environment token overrides whatever `gh auth login` stored. **Fix:** run the create command in a shell where neither variable is set, so `gh` falls back to your own login (`gh auth status` shows which account is active; `gh auth login` if none is). The tutorial repo lives under your account — that's what Chapter 2's CodeRabbit/Copilot install assumes (you need admin on the repo's account to install GitHub Apps), and what `<yourname>.github.io` deploys reflect.
 >
 > Creating the repo under the agent's namespace (`gh repo create <agent-account>/<name>`) is a stopgap **only** if you also administer that namespace yourself (rare). Otherwise Chapter 2 stalls — you can't install CodeRabbit on an account you don't control, so the bot-reviewed half of the tutorial becomes impossible to complete.
 
@@ -63,7 +63,7 @@ gh api -X POST repos/<yourname>/<name>/pages \
   --raw-field 'source[path]=/'
 ```
 
-Either way, wait ~1 minute. Refresh the Pages settings page; it'll show a green banner with the URL once the first build is done.
+Either way, give it a moment — the first build usually lands within a minute or two, but GitHub allows up to 10. Refresh the Pages settings page; it'll show a green banner with the URL once the first build is done. If nothing appears after that, check the repo's **Actions** tab for a failed `pages-build-deployment` run before assuming the setup went wrong.
 
 Your site lives at `https://<yourname>.github.io/<name>/`. Visit it and you should see the placeholder page.
 
@@ -140,7 +140,7 @@ ws cr <name> "First post + placeholder cleanup" .crs/first-post.md
 
 ## 5. Merge and see it live
 
-1. Click **Merge pull request** on the PR, then **Create a merge commit**. The GDD convention is to keep the original commit (with its body and Co-Authored-By trailer) in `main` history rather than collapse it via *Squash and merge* — the trail is more useful when you're scanning history later, and AI-pair- programming attribution stays intact.
+1. Click **Merge pull request** on the PR, then **Create a merge commit**. The GDD convention is to keep the original commit (with its body and Co-Authored-By trailer) in `main` history rather than collapse it via *Squash and merge* — the trail is more useful when you're scanning history later, and AI pair-programming attribution stays intact.
 2. GitHub Pages rebuilds the site within a minute or so. There's no click required — the rebuild fires on every push to `main`.
 3. Refresh `https://<yourname>.github.io/<name>/`. Your edit is live, the placeholders are gone, and the browser tab shows your real title.
 
@@ -165,7 +165,7 @@ CodeRabbit is a GitHub App. Free for public repos.
 
 > **Why this is its own chapter:** if your tutorial repo is on a bot/agent account (not your personal namespace), the App install needs to happen on whichever account hosts the repo. A fresh user shouldn't have to authorise a third-party app just to ship a first deploy — that's why Chapter 1 skipped it.
 >
-> **If your Ch 1 repo ended up under an agent namespace** you don't administer, Chapter 2 is blocked here — you can't install CodeRabbit on someone else's account. Re-create the tutorial repo under your personal account first (per the Ch 1 §1 auth wrinkle): `export GH_TOKEN=<your-personal-pat>` in a fresh shell, then `gh repo create <yourname>/<name> --public --source=components/<name> --remote=<yourname> --push`, then come back here.
+> **If your Ch 1 repo ended up under an agent namespace** you don't administer, Chapter 2 is blocked here — you can't install CodeRabbit on someone else's account. Re-create the tutorial repo under your personal account first (per the Ch 1 §1 auth wrinkle): in a shell with no `GH_TOKEN` / `GITHUB_TOKEN` set, run `gh repo create <yourname>/<name> --public --source=components/<name> --remote=<yourname> --push`, then come back here.
 
 ## 2. Optional: enable Copilot review
 
@@ -209,7 +209,7 @@ ws review <name> <pr#>
 
 The output groups inline diff comments by file, plus a summary at the bottom. For each finding, decide:
 
-- **Address it.** Edit the file, write a fixup bodyfile, `ws commit` and `ws push` — CodeRabbit auto-resolves the thread when the next commit lands.
+- **Address it.** Edit the file, write a fixup bodyfile, `ws commit` and `ws push`. CodeRabbit usually re-checks on the next push and resolves the thread itself; if it stays open, close it yourself with `ws review <name> threads <pr#> --resolve <thread-id>`.
 - **Reply with reasoning.** `ws review <name> reply <pr#> <thread-id> "<message>" --resolve` lets you respond and close the thread in one go.
 - **Decline.** Sometimes the bot's suggestion isn't right. Reply explaining why, mark resolved, move on.
 

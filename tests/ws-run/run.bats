@@ -72,6 +72,16 @@ EOF
     [ ! -f "$ROOT_DIR/run_ran.marker" ]
 }
 
+@test "run dispatches through the ws entry point" {
+    # The other tests call ws-run.sh directly, so they'd stay green with
+    # the dispatcher arm missing.
+    write_adapter_run "./runstub"
+    run bash "$REPO_ROOT/scripts/ws" run yggdrasil --port 3001
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RUN_ARGS:--port 3001"* ]]
+    [ -f "$ROOT_DIR/run_ran.marker" ]
+}
+
 @test "run with no component prints usage and exits nonzero" {
     run_ws_run
     [ "$status" -ne 0 ]

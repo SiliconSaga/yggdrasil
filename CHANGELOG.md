@@ -8,6 +8,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Added
 
+- **`ws build`, `ws run`, and `ws clean <comp>`** — adapter-routed verbs for `commands.build` / `commands.run` / `commands.clean`, run from the component directory with extra args passed through, and `ws orient` now advertises all five adapter verbs. `ws build` is pre-allowed like `ws test` and `ws lint`; `ws run` stays behind the permission prompt because run targets are long-lived or interactive.
 - **`ws cr <comp> edit` and `ws issue <comp> edit`** — update an open change request's or issue's body and title through the wrapper, so the identity substitutions and the AI-attribution check run on edits the way they already ran on creation. Raw `gh pr edit --body`, `gh issue edit --body`, the `glab` equivalents and a raw `gh api -X PATCH .../pulls/<n>` now redirect here; label, reviewer and assignee edits, and reads through the API, stay reachable.
 - **`ws review <comp> edit <cr#> <comment-id> <bodyfile>`** — rewrite a comment you already posted, reattaching the attribution banner, so a comment posted without one gains it on first edit. Comment ids now print beside each comment and note in `ws review` output as `id:<kind>-<n>`.
 - **`ws review <comp> comment`** — post a top-level comment on a change request with the attribution banner attached; `ws review reply` gained the same banner (#141). Raw `gh pr comment` now redirects here, where it previously fell through to a rule pointing at `ws gh` — the unguarded passthrough that attaches no attribution at all.
@@ -23,6 +24,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Fixed
 
+- **Adapter verbs refuse a whitespace-only command** instead of executing the passthrough args as the command — `ws lint` included, which had the same gap.
 - **The realm trust summary no longer reports a carriage return the realm never declared.** `jq`'s raw output mode translates every LF to CRLF on Windows, so a multi-line adapter command rendered as `…pytest\r\n…` on the surface a human reads to decide whether to trust a realm. Genuine carriage returns are still surfaced — the correction is a faithful inverse, not a strip. Trust fingerprints were never affected; they are computed through `yq`, which does not translate.
 - **Fifteen tests that failed only on Git Bash now pass or skip honestly**, so a local `ws test yggdrasil` can serve as a gate on Windows again. Four were never shown the input they described (`jq` rewrote `/usr/bin/git` to a space-containing Windows path before the hook saw it); four asserted symlink behaviour on a platform where `ln -s` exits 0 and silently copies; five measured a missing `flock` instead of the backend selection they named; one failed on its own probe, because the MSYS `ps` rejects `-o`.
 
