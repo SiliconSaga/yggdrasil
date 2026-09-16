@@ -1,6 +1,6 @@
 # Adapters
 
-An **adapter file** declares per-component commands the workspace can list and (where wired) invoke. Five verbs dispatch straight from it: `ws test`, `ws lint`, `ws build`, `ws run`, and `ws clean <component>` read `commands.test` / `commands.lint` / `commands.build` / `commands.run` / `commands.clean` — adapter > auto-detection. Other declared commands (`serve`, anything you care to expose) are surfaced by `ws actions <component>` for human and agent reference without a dedicated `ws` subcommand. Adapter files live in the active realm at `realms/<active>/adapters/<component>.yaml` — realm-side configuration, kept out of the component repo so a community can wire up commands without forking upstream.
+An **adapter file** declares per-component commands the workspace can list and (where wired) invoke. Six verbs dispatch straight from it: `ws test`, `ws lint`, `ws format`, `ws build`, `ws run`, and `ws clean <component>` read `commands.test` / `commands.lint` / `commands.format` / `commands.build` / `commands.run` / `commands.clean` — adapter > auto-detection. `format` rewrites files and `lint` checks them, so a formatter's `--check` form belongs under `commands.lint`. Other declared commands (`serve`, anything you care to expose) are surfaced by `ws actions <component>` for human and agent reference without a dedicated `ws` subcommand. Adapter files live in the active realm at `realms/<active>/adapters/<component>.yaml` — realm-side configuration, kept out of the component repo so a community can wire up commands without forking upstream.
 
 Components without an adapter file fall back to auto-detection (Gradle, Make, Go, Python, npm) for `ws test`. Adapters are optional; add one to override the test runner, document project-specific commands, or pin a different default for your community.
 
@@ -34,7 +34,7 @@ A starter file with comments ships in the upstream [`realm-template`](https://gi
 
 ## Adapter trust — executable config is config that executes
 
-An adapter file is **executable configuration**: when `ws test` runs, the string in `commands.test` is what actually gets exec'd in the component dir. That makes the adapter file a trust boundary, not just a config surface. Allowlisting `ws test` / `ws lint` by default is reasonable because the *wrapper* is trusted to dispatch what the realm wires — but the wrapped command itself comes from a YAML file the realm author controls.
+An adapter file is **executable configuration**: when `ws test` runs, the string in `commands.test` is what actually gets exec'd in the component dir. That makes the adapter file a trust boundary, not just a config surface. Allowlisting `ws test` / `ws lint` / `ws format` / `ws build` by default is reasonable because the *wrapper* is trusted to dispatch what the realm wires — but the wrapped command itself comes from a YAML file the realm author controls.
 
 **`ws orient` surfaces the resolved command** for every wired component so the executable-config surface stays auditable:
 
@@ -49,7 +49,7 @@ ting
 
 If you can't audit what `ws test` will actually run from `ws orient` output, the wrapper is hiding the executable-config surface — that's the regression the `runs:` form prevents.
 
-The orientation skill runs a **risk scan** on every realm activation, flagging adapter commands that contain `curl | sh` / `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network calls in test/lint runners, or `eval`. Rigor scales by realm provenance — light for your own / team realms, heavy for community / wild realms. Realm approval fingerprints each adapter and any realm-owned regular file its command strings reference, so changing an executable wrapper makes trust stale while editing unrelated realm documentation does not. Final symlinks and intermediate symlinks that escape the realm are rejected rather than followed across the reviewed boundary. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
+The orientation skill runs a **risk scan** on every realm activation, flagging adapter commands that contain `curl | sh` / `wget | sh`, base64 decode-execute, writes outside the component dir, outbound network calls, or `eval` — across every `commands.*` key, since all of it is executable configuration and four of those keys (`test`, `lint`, `format`, `build`) dispatch with no prompt. Rigor scales by realm provenance — light for your own / team realms, heavy for community / wild realms. Realm approval fingerprints each adapter and any realm-owned regular file its command strings reference, so changing an executable wrapper makes trust stale while editing unrelated realm documentation does not. Final symlinks and intermediate symlinks that escape the realm are rejected rather than followed across the reviewed boundary. See [Trust and Safety § Adapter Command Trust](trust-and-safety.md#adapter-command-trust).
 
 ---
 

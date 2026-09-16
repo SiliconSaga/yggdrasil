@@ -185,12 +185,12 @@ Trust levels:
 
 **Adapter command risk scan** — runs when a realm is loaded or switched.
 
-Read `realms/<active>/adapters/*.yaml` `commands.test` / `commands.lint` / `commands.build`. Flag patterns:
+Read every key under `commands:` in `realms/<active>/adapters/*.yaml` — all of it is executable configuration. Four of those keys (`test`, `lint`, `format`, `build`) dispatch through pre-allowed verbs with no prompt, and `format` rewrites files by design. Flag patterns:
 
 - `curl … | sh` / `wget … | sh` — fetch-and-execute (the pipeline form, not regex alternation)
 - `base64 -d | sh` and variants
 - Writes to paths outside the component dir (`> /etc/…`, `> ~/.ssh/…`)
-- Outbound network calls in test/lint runners
+- Outbound network calls in adapter commands
 - `eval` of any non-local string
 
 Provenance scales rigor. Compare the active realm's git remote origin (read with `git -C realms/<r> remote get-url origin`) against `identity` in `ecosystem.local.yaml`:
@@ -201,7 +201,7 @@ Provenance scales rigor. Compare the active realm's git remote origin (read with
 | Remote URL namespace is under a configured trusted home namespace, such as `identity.homes.fork.namespace`; compare the Git URL owner/group path, not the local remote name | Light |
 | Anything else (community / internet / unverified) | Heavy — write to Thalamus Concerns immediately, surface in framing, refuse to run unverified adapter commands until the human OKs |
 
-The `ws test` / `ws lint` blanket allowlist trusts the realm author. The risk scan is what keeps that trust honest. See `docs/gdd/trust-and-safety.md` for the framing.
+The adapter-verb allowlist (`ws test` / `ws lint` / `ws format` / `ws build`) trusts the realm author. The risk scan is what keeps that trust honest. See `docs/gdd/trust-and-safety.md` for the framing.
 
 **Black-box pattern** for untrusted or suspicious content:
 
@@ -321,5 +321,5 @@ Load on demand; don't preload. The footer on every `ws` subcommand keeps `ws ori
 - Commit Thalamus to git under any circumstances (it's gitignored at workspace root; hoard thalami are the human's commit decision).
 - Replace the AI's private memory system — Thalamus is shared thinking between one human and one local agent; the AI's memory system is AI-internal recall.
 - Run `ws orient` silently — always preface (one line minimum, even for experienced users).
-- Skip the adapter-command risk scan on a wild-realm activation — that scan is the load-bearing trust check for the test/lint allowlist.
+- Skip the adapter-command risk scan on a wild-realm activation — that scan is the load-bearing trust check for the adapter-verb allowlist.
 - Repeat startup ceremony on every turn. Run on session start, after compaction, on new-component/realm discovery, on explicit re-orient request. Otherwise silent.

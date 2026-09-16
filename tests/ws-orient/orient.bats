@@ -223,17 +223,25 @@ YAML
 commands:
   test: "python3 -m pytest --ignore=tests/features"
   lint: "python3 -m ruff check src/ tests/"
+  format: "python3 -m ruff format src/ tests/"
+  build: "python3 -m build"
+  run: "python3 -m knarr"
+  clean: "rm -rf dist/"
 YAML
     run_ws orient
     [ "$status" -eq 0 ]
     # Adapter-trust mitigation per design § Adapter trust: the
     # executed command must be visible from `ws orient` output, not
     # hidden behind the ws wrapper. Pin both the `runs:` token and
-    # the actual command tail so an agent can verify what fires.
-    [[ "$output" == *"ws test"* ]]
-    [[ "$output" == *"runs: python3 -m pytest --ignore=tests/features"* ]]
-    [[ "$output" == *"ws lint"* ]]
-    [[ "$output" == *"runs: python3 -m ruff check"* ]]
+    # the actual command tail so an agent can verify what fires —
+    # for every adapter verb the dispatcher knows, so discovery
+    # cannot silently drop one.
+    [[ "$output" == *"ws test [runs: python3 -m pytest --ignore=tests/features]"* ]]
+    [[ "$output" == *"ws lint [runs: python3 -m ruff check src/ tests/]"* ]]
+    [[ "$output" == *"ws format [runs: python3 -m ruff format src/ tests/]"* ]]
+    [[ "$output" == *"ws build [runs: python3 -m build]"* ]]
+    [[ "$output" == *"ws run [runs: python3 -m knarr]"* ]]
+    [[ "$output" == *"ws clean [runs: rm -rf dist/]"* ]]
 }
 
 @test "ws orient: adapter commands cannot repaint the trust display" {

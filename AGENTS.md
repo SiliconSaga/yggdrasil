@@ -49,9 +49,9 @@ The PreToolUse hook denies `git commit` / `git push` / `gh pr create` at Tier 2 
 
 The comment-fetching forms are enforced rather than merely advised — `gh pr view --comments`, the `pulls/*/comments` and `pulls/*/reviews` endpoints, and `glab mr note` all deny with a pointer at `ws review`. Things `ws review` genuinely cannot do (checks, diffs, unrelated API endpoints) stay reachable, because a prohibition with no alternative is worse than the habit it prevents. **If you need a bypass here, that is a feature request for `ws review`** — say what was missing rather than routing around it quietly, since a silent fallback is exactly how the gap stays invisible.
 
-Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint, build, run, clean) also accept realm and hoard names, not just components.
+Subcommands that take a target (commit, push, cr, issue, review, log, diagnose, test, lint, format, build, run, clean) also accept realm and hoard names, not just components.
 
-**Adapter-routed verbs — consult `ws orient` first:** `ws test` / `ws lint` / `ws build` / `ws run <comp>` / `ws clean <comp>` (bare `ws clean` sweeps workspace drafts instead).
+**Adapter-routed verbs — consult `ws orient` first:** `ws test` / `ws lint` / `ws format` / `ws build` / `ws run <comp>` / `ws clean <comp>` (bare `ws clean` sweeps workspace drafts instead).
 
 The adapter wiring per component lives in `realms/<active>/adapters/<comp>.yaml`. **Run `ws orient` to see what each component's adapter resolves to** — the output surfaces each row's executed command (`knarr → ws test [runs: python3 -m pytest --ignore=tests/features]`) so you can verify what `ws test` will actually run. When an adapter is wired, the hook redirects raw `pytest` / `ruff` / `gradle test` to the corresponding `ws` form. When no adapter exists, raw runs through with a one-time nudge.
 

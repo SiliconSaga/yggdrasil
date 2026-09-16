@@ -8,7 +8,8 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Added
 
-- **`ws build`, `ws run`, and `ws clean <comp>`** — adapter-routed verbs for `commands.build` / `commands.run` / `commands.clean`, run from the component directory with extra args passed through, and `ws orient` now advertises all five adapter verbs. `ws build` is pre-allowed like `ws test` and `ws lint`; `ws run` stays behind the permission prompt because run targets are long-lived or interactive.
+- **`ws build`, `ws run`, and `ws clean <comp>`** — adapter-routed verbs for `commands.build` / `commands.run` / `commands.clean`, run from the component directory with extra args passed through, and `ws orient` now advertises every adapter verb with its resolved command. `ws build` is pre-allowed like `ws test` and `ws lint`; `ws run` stays behind the permission prompt because run targets are long-lived or interactive (#152).
+- **`ws format <comp>`** — runs the adapter's `commands.format` to rewrite a component's sources, pre-allowed like `ws lint`. It formats rather than checks: put a formatter's `--check` form under `commands.lint`, where a violation is a lint failure, and use this verb to fix it (#157).
 - **`ws cr <comp> edit` and `ws issue <comp> edit`** — update an open change request's or issue's body and title through the wrapper, so the identity substitutions and the AI-attribution check run on edits the way they already ran on creation. Raw `gh pr edit --body`, `gh issue edit --body`, the `glab` equivalents and a raw `gh api -X PATCH .../pulls/<n>` now redirect here; label, reviewer and assignee edits, and reads through the API, stay reachable.
 - **`ws review <comp> edit <cr#> <comment-id> <bodyfile>`** — rewrite a comment you already posted, reattaching the attribution banner, so a comment posted without one gains it on first edit. Comment ids now print beside each comment and note in `ws review` output as `id:<kind>-<n>`.
 - **`ws review <comp> comment`** — post a top-level comment on a change request with the attribution banner attached; `ws review reply` gained the same banner (#141). Raw `gh pr comment` now redirects here, where it previously fell through to a rule pointing at `ws gh` — the unguarded passthrough that attaches no attribution at all.
@@ -16,6 +17,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Changed
 
+- **The orientation risk scan reads every `commands.*` key in a realm's adapters**, not just test, lint and build, since any of them can now be dispatched by a pre-allowed verb and `format` rewrites files by design. The permissions matcher table and the trust docs follow (#157).
 - **Publishing refuses a body that still carries an unsubstituted `@HUMAN_ACCOUNT` or `@GDD_HOME`.** Such a body used to publish as-is, silently, because an unsubstituted placeholder is valid Markdown and nothing looks at a body after it goes out.
 - **The attribution-line check accepts wording variants** that still carry the attribution, rather than one exact sentence — and now verifies that the driving account actually resolved, which the exact-match check never did.
 - **The banner on review replies and comments is shorter** than the one on a change-request body: a body banner is read once at the top of a review, a reply banner repeats down the thread.

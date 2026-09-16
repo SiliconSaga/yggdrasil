@@ -348,8 +348,8 @@ emit_workspace_selftest() {
     printf '    ws test yggdrasil [runs: bats tests/**/*.bats]\n'
 }
 
-# Render one component's adapter wiring. Walks the three plan-named
-# verbs explicitly (test/lint/build) so a typo in the YAML doesn't
+# Render one component's adapter wiring. Walks the adapter verbs
+# explicitly (test/lint/format/build/run/clean) so a typo in the YAML doesn't
 # silently swallow a missing slot — the diagnostic message stays
 # loud either way.
 #
@@ -403,7 +403,7 @@ _emit_one_adapter() {
     echo "  $comp"
     local adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     local verb cmd rc=0 any=0 parse_failed=0
-    for verb in test lint build run clean; do
+    for verb in test lint format build run clean; do
         rc=0
         cmd="$(ADAPTER_VERB="$verb" yq -r '.commands[strenv(ADAPTER_VERB)] // ""' "$adapter_file" 2>/dev/null)" || rc=$?
         if [[ $rc -ne 0 ]]; then
@@ -460,7 +460,7 @@ _emit_one_adapter() {
         ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
         echo "    (adapter present but YAML parse failed — fix $adapter_file)"
     elif [[ $any -eq 0 ]]; then
-        echo "    (adapter present but no commands.{test,lint,build,run,clean} wired)"
+        echo "    (adapter present but no commands.{test,lint,format,build,run,clean} wired)"
     fi
 }
 

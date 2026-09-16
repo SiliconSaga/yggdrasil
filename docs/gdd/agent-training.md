@@ -14,7 +14,7 @@ The workspace trains agents through three concentric layers, each loaded only wh
 | **L1** | `ws orient` — run at session start | The deterministic discovery menu: subcommands with "use when …" docstrings, active realm, per-component adapter wiring (with the resolved command surfaced), and the skill index across workspace + realm scopes. |
 | **L2** | `ws <cmd> --help` — on demand | Per-subcommand depth: flags, bodyfile shapes, environment variables. Source of truth for command behavior — skills defer to it rather than restating. |
 
-**The reflex contract** at L0 names the unconditional verbs (`ws commit`, `ws push`, `ws cr`, `ws issue`, `ws clone`, `ws exec`) and the adapter-routed verbs (`ws test`, `ws lint`, `ws build`) that consult `ws orient` first. A fresh agent's instinct is to reach for raw `git commit` / `git push` / `gh pr create` — the contract redirects that reflex to the workspace wrappers, which handle attribution, auth, remote selection, and bodyfile-driven flows that raw tools don't.
+**The reflex contract** at L0 names the unconditional verbs (`ws commit`, `ws push`, `ws cr`, `ws issue`, `ws clone`, `ws exec`) and the adapter-routed verbs (`ws test`, `ws lint`, `ws format`, `ws build`, `ws run`, `ws clean <comp>`) that consult `ws orient` first. A fresh agent's instinct is to reach for raw `git commit` / `git push` / `gh pr create` — the contract redirects that reflex to the workspace wrappers, which handle attribution, auth, remote selection, and bodyfile-driven flows that raw tools don't.
 
 ### The per-command footer keeps L1 discoverable
 
