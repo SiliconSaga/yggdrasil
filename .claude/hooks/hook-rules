@@ -127,10 +127,13 @@ ws realm use *
 # workspace, with no flag involved and no container escape. A pattern cannot see
 # a value that lives in a file, so no glob here can make this safe.
 #
-# `ws build` is the fix: an adapter verb that resolves the effective destination
-# and refuses one outside the component. Until it exists the sandbox builds
-# through CI on the pull request, which is where the preview and visual diff are
-# produced anyway.
+# `ws build` does not change this. It runs the adapter's `commands.build` as
+# declared and passes arguments through without reading Jekyll's config, so it
+# is pre-allowed in settings.json on the same footing as `ws test` — a
+# fingerprinted realm adapter, not a destination check. Do not wire a sandbox
+# target's `commands.build` to `jekyll build`; the sandbox builds through CI on
+# the pull request, which is where the preview and visual diff are produced
+# anyway.
 #
 # That leaves this section with no shipped entries — deliberately. The mechanism
 # is what ships; an operator adds patterns knowing nobody will be asked. Branch

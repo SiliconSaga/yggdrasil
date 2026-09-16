@@ -65,6 +65,14 @@ EOF
     [[ "$output" == *"trust reapproval is required"* ]]
 }
 
+@test "lint rejects a whitespace-only commands.lint without executing args" {
+    write_adapter_lint "   "
+    run_ws_lint yggdrasil ./lintstub
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"whitespace-only"* ]]
+    [ ! -f "$ROOT_DIR/lint_ran.marker" ]
+}
+
 @test "lint --help prints usage and exits 0" {
     run_ws_lint --help
     [ "$status" -eq 0 ]

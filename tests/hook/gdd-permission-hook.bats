@@ -138,7 +138,7 @@ setup() {
     # destination, and the destination can come from `_config.yml` — an ordinary
     # component file the agent edits — so pinning the CLI flag out does not make
     # the bare command safe, and no pattern can see a value that lives in a file.
-    # Reinstating this needs `ws build` resolving the effective destination.
+    # Reinstating this would need a destination check no adapter verb performs.
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build --destination /work/ws'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site bundle exec jekyll build'
