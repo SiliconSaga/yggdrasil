@@ -110,7 +110,9 @@ host_head() {
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"NOTE: 1 nested repo(s) not pulled"* ]]
-    [[ "$output" == *"ws pull terasology/<repo>"* ]]
+    # A real path, not a `<repo>` placeholder the reader has to resolve.
+    [[ "$output" == *"ws pull terasology/modules/Health"* ]]
+    [[ "$output" != *"<repo>"* ]]
 }
 
 @test "a component declaring no nesting gets no note" {

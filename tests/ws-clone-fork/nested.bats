@@ -98,6 +98,27 @@ make_nested_repo() {
     [[ "$output" == *"already points into the fork home"* ]]
 }
 
+@test "refuses an SCP-style origin pointing into the fork home" {
+    # git@host:ns/repo.git has no slash before the namespace, so a guard written
+    # against the https shape alone let this through and would have forked the
+    # fork. Both spellings are ordinary; neither is a corner case.
+    make_nested_repo "git@github.com:ForkHome/Cooking.git" >/dev/null
+
+    run bash "$CLONE_FORK_BIN" terasology/modules/Cooking
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"already points into the fork home"* ]]
+}
+
+@test "an SCP-style origin outside the fork home is still adopted" {
+    # The guard must key on the namespace, not on the URL shape.
+    make_nested_repo "git@github.com:Terasology/Cooking.git" >/dev/null
+
+    run bash "$CLONE_FORK_BIN" terasology/modules/Cooking
+
+    [[ "$output" != *"already points into the fork home"* ]]
+}
+
 @test "derives the upstream from origin rather than ecosystem config" {
     make_nested_repo "https://github.com/Terasology/Cooking.git" >/dev/null
 

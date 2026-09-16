@@ -153,6 +153,19 @@ setup() {
 }
 
 
+@test "a realm cannot stand in as the host of a nested target" {
+    # "community" is component-SHAPED, so the syntax check passes and the
+    # recursive resolve classifies it as a realm and hands back the realm
+    # directory. Without an explicit component check, an adapter file of the
+    # same name would let a realm host nested repos.
+    setup_nested_component
+
+    run_ws exec community/Health pwd
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not a component"* ]]
+}
+
 @test "a nested glob that tries to climb out is rejected" {
     setup_nested_component
     NESTED_GLOB='../../*' yq -i '.nested = [strenv(NESTED_GLOB)]' \

@@ -118,9 +118,18 @@ else
         # declaration is broken". `|| true` keeps a rejected declaration from
         # ending the sweep for every remaining component under set -e/pipefail —
         # the count falls to 0 and the reason has already been printed.
-        nested_count=$( { ws_nested_candidates "$name" "$COMPONENTS_DIR/$name" || true; } | wc -l | tr -d '[:space:]')
-        if [[ "${nested_count:-0}" -gt 0 ]]; then
-            echo "  NOTE: $nested_count nested repo(s) not pulled — 'ws pull $name/<repo>' to do one explicitly"
+        nested_rel=()
+        while IFS= read -r nested_line; do
+            [[ -n "$nested_line" ]] || continue
+            nested_rel+=("${nested_line%%$'\t'*}")
+        done < <( { ws_nested_candidates "$name" "$COMPONENTS_DIR/$name" || true; } )
+        if [[ "${#nested_rel[@]}" -gt 0 ]]; then
+            # One real path rather than a `<repo>` placeholder, so the suggestion
+            # is copy-pasteable. Deliberately not all of them: Terasology nests
+            # well over a hundred, and a wall of paths in a sweep that already
+            # decided not to touch them is noise, not information. `ws status
+            # --nested` is the place that lists.
+            echo "  NOTE: ${#nested_rel[@]} nested repo(s) not pulled — e.g. 'ws pull $name/${nested_rel[0]}'; 'ws status --nested' lists them"
         fi
     done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 

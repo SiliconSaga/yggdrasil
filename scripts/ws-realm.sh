@@ -359,6 +359,14 @@ ws_resolve_nested_target() {
     local relative candidate line
     local -a hits=()
 
+    # Captured rather than read through a process substitution, whose exit status
+    # is lost: with one valid glob and one invalid, resolution would otherwise
+    # accept whatever the valid one happened to find and act on a declaration it
+    # had already rejected. A broken declaration is answered, not worked around.
+    local candidates_out=""
+    if ! candidates_out="$(ws_nested_candidates "$host" "$comp_dir")"; then
+        return 1
+    fi
     while IFS= read -r line; do
         [[ -n "$line" ]] || continue
         relative="${line%%$'\t'*}"
@@ -369,7 +377,7 @@ ws_resolve_nested_target() {
             [[ "${relative##*/}" == "$subpath" ]] || continue
         fi
         hits+=("$candidate")
-    done < <(ws_nested_candidates "$host" "$comp_dir")
+    done <<< "$candidates_out"
 
     if [[ "${#hits[@]}" -eq 0 ]]; then
         echo "ERROR: No nested repo '$subpath' inside component '$host'." >&2
@@ -442,6 +450,16 @@ ws_resolve_target() {
         # target inherits declaration and clone checks rather than bypassing them.
         ws_resolve_target "$nested_host"
         local nested_comp_dir="$COMPONENT_DIR"
+        # The name being component-SHAPED is not the same as it being a
+        # component. `realm-siliconsaga` passes the syntax check, and the
+        # recursive resolve above will happily classify it as a realm and hand
+        # back the realm directory — after which an adapter file of the same name
+        # would make a realm host "nested" repos. Only a component can.
+        if [[ "$nested_comp_dir" != "$COMPONENTS_DIR/"* ]]; then
+            echo "ERROR: '$nested_host' is not a component, so it cannot host a nested repo." >&2
+            echo "  Nested targets are '<component>/<repo>'. Realms and hoards are addressed by name alone." >&2
+            exit 1
+        fi
         ws_resolve_nested_target "$nested_host" "$nested_subpath" "$nested_comp_dir" || exit 1
         return 0
     fi

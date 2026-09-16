@@ -110,6 +110,31 @@ run_diagnose() {
     [[ "$output" != *"ws status app"* ]]
 }
 
+@test "counts a dirty nested repo without reporting its state" {
+    # The count is directory globbing and effectively free; running git across
+    # a hundred nested repos is not, which is the whole reason diagnose counts
+    # and points at `ws status --nested` rather than sweeping. A dirty nested
+    # repo must therefore change the count and nothing else.
+    make_repo "$COMPONENTS_DIR/app"
+    make_repo "$COMPONENTS_DIR/app/modules/Alpha"
+    make_repo "$COMPONENTS_DIR/app/modules/Beta"
+    : > "$COMPONENTS_DIR/app/modules/Alpha/dirty.txt"
+
+    mkdir -p "$REALMS_DIR/community/adapters" "$REALMS_DIR/community/.git"
+    printf 'components: {}\n' > "$REALMS_DIR/community/ecosystem.yaml"
+    printf 'nested:\n  - "modules/*"\n' > "$REALMS_DIR/community/adapters/app.yaml"
+    printf 'realm: community\n' > "$ECOSYSTEM_LOCAL"
+    run bash "$WS_BIN" realm use --trust community
+    [ "$status" -eq 0 ]
+
+    run_diagnose app
+
+    [[ "$output" == *"Nested repos   : 2"* ]]
+    # The nested repo is never named, let alone git-statused: diagnose reports a
+    # number and points elsewhere for the sweep.
+    [[ "$output" != *"Alpha"* ]]
+}
+
 @test "omits the nested line for a component that declares none" {
     make_repo "$COMPONENTS_DIR/app"
 

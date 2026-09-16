@@ -225,7 +225,12 @@ if [[ -n "$COMPONENT" && "$COMPONENT" == */* ]]; then
     # and we would otherwise derive a fork of the fork.
     _nested_fork_ns=$(yq '.identity.homes.fork.namespace // ""' "$ECO" 2>/dev/null)
     [[ "$_nested_fork_ns" == "null" ]] && _nested_fork_ns=""
-    if [[ -n "$_nested_fork_ns" && "$NESTED_UPSTREAM_URL" == *"/$_nested_fork_ns/"* ]]; then
+    # Both URL shapes, because git accepts both and only one has a leading slash
+    # before the namespace: https://host/ns/repo.git and git@host:ns/repo.git.
+    # Matching only the slash form let an SCP-style origin through the guard.
+    if [[ -n "$_nested_fork_ns" ]] \
+        && { [[ "$NESTED_UPSTREAM_URL" == *"/$_nested_fork_ns/"* ]] \
+          || [[ "$NESTED_UPSTREAM_URL" == *":$_nested_fork_ns/"* ]]; }; then
         echo "ERROR: origin for '$COMPONENT' already points into the fork home '$_nested_fork_ns'." >&2
         echo "  origin: $NESTED_UPSTREAM_URL" >&2
         echo "  Point origin at the source project before adopting it, or the fork" >&2
@@ -869,7 +874,8 @@ select_available_source_remote_name() {
 # A non-empty directory without a .git — the user's own work parked
 # under components/, or a half-broken clone — must NOT be rm -rf'd.
 # Stop and let the user decide rather than risk silent data loss.
-if [[ -d "$TARGET" && ! -d "$TARGET/.git" ]]; then
+# -e on the inner check: a nested adoption target may carry a `.git` file.
+if [[ -d "$TARGET" && ! -e "$TARGET/.git" ]]; then
     if [[ -z "$(ls -A "$TARGET" 2>/dev/null)" ]]; then
         rmdir "$TARGET"
     else
@@ -880,7 +886,7 @@ if [[ -d "$TARGET" && ! -d "$TARGET/.git" ]]; then
     fi
 fi
 
-if [[ -d "$TARGET/.git" ]]; then
+if [[ -e "$TARGET/.git" ]]; then
     # Pre-existing real clone — verify remotes and proceed
     echo "         ✓ clone already present; verifying remotes"
 
@@ -970,12 +976,21 @@ git_auth_run git -C "$TARGET" fetch "$UPSTREAM_REMOTE_NAME" --quiet
 DEFAULT_BRANCH=$(echo "$local_upstream_details" | jq -r '.default_branch // "main"')
 [[ -z "$DEFAULT_BRANCH" || "$DEFAULT_BRANCH" == "null" ]] && DEFAULT_BRANCH="main"
 
-# Ensure local default branch exists and is checked out
+# Ensure local default branch exists, and is checked out where that is safe.
+current=$(git -C "$TARGET" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 if ! git -C "$TARGET" rev-parse --verify "$DEFAULT_BRANCH" &>/dev/null; then
-    git -C "$TARGET" checkout -B "$DEFAULT_BRANCH" "$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
-    echo "         created local $DEFAULT_BRANCH from $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
+    # The don't-yank rule below applied only when the branch already existed, so
+    # a nested repo missing the source default — a module sitting on a topic
+    # branch, say — was still moved off it by `checkout -B`. Create the ref
+    # instead; the branch is what the caller is working in, not ours to change.
+    if [[ -n "$NESTED_TARGET" ]]; then
+        git -C "$TARGET" update-ref "refs/heads/$DEFAULT_BRANCH" "$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
+        echo "         created $DEFAULT_BRANCH ref from $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH (without checkout; '$current' left alone)"
+    else
+        git -C "$TARGET" checkout -B "$DEFAULT_BRANCH" "$UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
+        echo "         created local $DEFAULT_BRANCH from $UPSTREAM_REMOTE_NAME/$DEFAULT_BRANCH"
+    fi
 else
-    current=$(git -C "$TARGET" rev-parse --abbrev-ref HEAD)
     if [[ "$current" != "$DEFAULT_BRANCH" ]]; then
         # Don't yank the user out of an in-progress branch silently.
         #
