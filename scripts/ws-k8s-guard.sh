@@ -442,6 +442,53 @@ k8s_guard_script_content_exempt() {
     return 1
 }
 
+# Does an executed FILE's own text invoke kubectl? The content-inspection half
+# of the guard, shared by both hooks so they cannot drift apart.
+#
+#   0  yes — deny (or ask, unscoped)
+#   1  no
+#   2  COULD NOT INSPECT — callers must fail closed, never treat as "no"
+#
+# WHY NOT `grep -I`
+#
+# The obvious fix for "a Go binary linking client-go carries `kubectl` in its
+# rodata, so `kustomize build` gets denied" is `grep -I`, which skips anything
+# grep considers binary. That is wrong, and measurably so: grep's binary
+# heuristic keys off NUL bytes, and a perfectly ordinary shell script with one
+# NUL in a comment is therefore "binary" to grep while still executing normally
+# under bash. `grep -IEq kubectl` on such a file exits 1 — no match — and the
+# guard waves through a script whose next line is `kubectl delete namespace`.
+# Trading a false-positive class for an evasion vector is not a fix.
+#
+# So the binary question is answered by FILE FORMAT, not by byte statistics.
+# Only recognised executable images are skipped — ELF, PE/COFF (Windows .exe),
+# Mach-O — because those are the things whose embedded strings were never a
+# control the guard could enforce anyway. The guard's reach has always stopped
+# at literal invocations in readable text; the skill says so, and RBAC is the
+# boundary beyond it.
+#
+# EVERYTHING ELSE IS SCANNED, with NULs stripped first so their presence cannot
+# hide the text around them. Unknown format therefore means inspected, which is
+# the fail-closed direction.
+k8s_guard_script_mentions_kubectl() {
+    local path="$1" magic text
+    [[ -n "$path" ]] || return 1
+    [[ -f "$path" ]] || return 1
+    # Unreadable is not "no kubectl", it is "no answer". Callers treat 2 as a
+    # reason to stop rather than a clean bill of health.
+    [[ -r "$path" ]] || return 2
+
+    magic="$(head -c 4 "$path" 2>/dev/null | od -An -tx1 -v 2>/dev/null | tr -d ' \n')" || return 2
+    case "$magic" in
+        7f454c46*) return 1 ;;                          # ELF
+        4d5a*) return 1 ;;                              # PE/COFF — .exe, .dll
+        feedface*|feedfacf*|cefaedfe*|cffaedfe*) return 1 ;;  # Mach-O, both endians
+    esac
+
+    text="$(tr -d '\000' < "$path" 2>/dev/null)" || return 2
+    grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$text"
+}
+
 # Mask inert single- and double-quoted spans before deciding whether an unsafe
 # compound command is Kubernetes-related. Shell operators and words inside a
 # quoted search pattern are data, not executable syntax. Double-quoted spans
