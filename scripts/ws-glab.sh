@@ -15,8 +15,10 @@ if [[ $# -eq 0 ]]; then
 Usage: ws glab <glab args...>
 
 Runs the GitLab CLI (glab) with the workspace .env token (GITLAB_TOKEN)
-injected, so agent/non-interactive sessions don't fall through to
-`glab auth login`. Self-hosted instances also need GITLAB_HOST in .env.
+injected if set, otherwise glab's own already-valid stored login for the
+target host (GITLAB_HOST, default gitlab.com) — so agent/non-interactive
+sessions don't fall through to `glab auth login`. Self-hosted instances
+also need GITLAB_HOST in .env.
 Pass any glab args through, e.g.:
   ws glab mr list
   ws glab ci status
@@ -84,11 +86,17 @@ case "$_WS_GLAB_GROUP${_WS_GLAB_SUB:+ $_WS_GLAB_SUB}" in
         ;;
 esac
 
+# Use .env token if set, else glab's own stored login for the target host —
+# the same fallback ws-gh.sh and the ws cr provider path use.
 if [[ -z "${GITLAB_TOKEN:-}" ]]; then
-    echo "ERROR: no GitLab token in the environment (GITLAB_TOKEN)." >&2
-    echo "  Add 'export GITLAB_TOKEN=<token>' to .env (and 'export GITLAB_HOST=<host>'" >&2
-    echo "  for self-hosted), then retry — or run 'ws gitlab-auth' for full setup." >&2
-    exit 1
+    _ws_glab_host="${GITLAB_HOST:-gitlab.com}"
+    if ! glab auth status --hostname "$_ws_glab_host" >/dev/null 2>&1; then
+        echo "ERROR: no GitLab token in the environment (GITLAB_TOKEN)," >&2
+        echo "  and 'glab' has no valid stored login for $_ws_glab_host either." >&2
+        echo "  Add 'export GITLAB_TOKEN=<token>' to .env (and 'export GITLAB_HOST=<host>'" >&2
+        echo "  for self-hosted), then retry — or run 'ws gitlab-auth' for full setup." >&2
+        exit 1
+    fi
 fi
 
 exec glab "$@"

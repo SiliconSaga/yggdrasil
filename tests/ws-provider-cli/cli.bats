@@ -2,6 +2,10 @@
 # ws gh / ws glab — provider-CLI passthrough wrappers that make the workspace
 # .env token available without a mid-session `source .env`, and never fall
 # through to an interactive login or leak the token to the transcript.
+#
+# The stubs report NO stored login (`auth status` exits 1), so "no token" here
+# means "nothing to authenticate with" and the wrapper must refuse. The
+# stored-login fallback itself is covered in auth-fallback.bats.
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_BIN="$REPO_ROOT/scripts/ws"
 
@@ -12,12 +16,14 @@ setup() {
     # but NEVER echo the token value (the wrapper must not leak it either).
     cat > "$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+[[ "$1" == "auth" && "$2" == "status" ]] && exit 1
 echo "GH_ARGS: $*"
 # Mirror the wrapper contract: GH_TOKEN or GITHUB_TOKEN counts as authenticated.
 [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]] && echo "GH_TOKEN_PRESENT" || echo "GH_TOKEN_ABSENT"
 EOF
     cat > "$WORK/bin/glab" <<'EOF'
 #!/usr/bin/env bash
+[[ "$1" == "auth" && "$2" == "status" ]] && exit 1
 echo "GLAB_ARGS: $*"
 [[ -n "${GITLAB_TOKEN:-}" ]] && echo "GITLAB_TOKEN_PRESENT" || echo "GITLAB_TOKEN_ABSENT"
 EOF
@@ -36,7 +42,7 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [[ "$output" == *"GH_TOKEN_PRESENT"* ]]
     [[ "$output" != *"secret-gh-tok"* ]]
 }
-@test "ws gh without a token errors and does NOT exec gh" {
+@test "ws gh without a token or a stored login errors and does NOT exec gh" {
     printf '\n' > "$WORK/.env"
     run_ws gh pr list
     [ "$status" -ne 0 ]
@@ -83,7 +89,7 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [[ "$output" == *"GITLAB_TOKEN_PRESENT"* ]]
     [[ "$output" != *"secret-gl-tok"* ]]
 }
-@test "ws glab without a token errors and does NOT exec glab" {
+@test "ws glab without a token or a stored login errors and does NOT exec glab" {
     printf '\n' > "$WORK/.env"
     run_ws glab mr list
     [ "$status" -ne 0 ]
