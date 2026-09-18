@@ -94,7 +94,8 @@ if [[ -z "${GITLAB_TOKEN:-}" ]]; then
         echo "ERROR: no GitLab token in the environment (GITLAB_TOKEN)," >&2
         echo "  and 'glab' has no valid stored login for $_ws_glab_host either." >&2
         echo "  Add 'export GITLAB_TOKEN=<token>' to .env (and 'export GITLAB_HOST=<host>'" >&2
-        echo "  for self-hosted), then retry — or run 'ws gitlab-auth' for full setup." >&2
+        echo "  for self-hosted) — 'ws gitlab-auth' then registers it with glab and git —" >&2
+        echo "  or run 'glab auth login --hostname $_ws_glab_host' interactively, then retry." >&2
         exit 1
     fi
 fi

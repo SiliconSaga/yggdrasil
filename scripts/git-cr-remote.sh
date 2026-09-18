@@ -67,6 +67,8 @@ gdd_cr_resolve_fork_remote() {
         echo "ERROR: remote '$FORK_REMOTE' has no configured URL." >&2
         return 1
     fi
+    # Read by git-cr.sh after this returns (see the header contract).
+    # shellcheck disable=SC2034
     FORK_HOST=$(git_remote_host "$FORK_URL") || {
         echo "ERROR: Cannot determine host for fork remote '$FORK_REMOTE'." >&2
         return 1

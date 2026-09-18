@@ -190,6 +190,7 @@ gp_review_list_notes() {
 # CR_NUM is accepted for contract symmetry with GitLab, whose notes are nested under the merge request. GitHub does not need it.
 # Usage: gp_update_comment SLUG CR_NUM COMMENT_ID MESSAGE
 gp_update_comment() {
+    # shellcheck disable=SC2034
     local slug="$1" cr_num="$2" comment_id="$3" message="$4"
     local kind="${comment_id%%-*}" num="${comment_id#*-}"
     if [[ ! "$num" =~ ^[0-9]+$ ]]; then

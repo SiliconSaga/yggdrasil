@@ -1128,6 +1128,9 @@ ws_hoard_clone_url() {
 
     mkdir -p "$HOARDS_DIR"
     echo "CLONE: hoard -> $target"
+    # Written by git_auth_env_for_url (sourced) and read by git_auth_run;
+    # local so the auth env stays scoped to this call.
+    # shellcheck disable=SC2034
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"

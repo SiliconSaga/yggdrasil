@@ -549,7 +549,11 @@ changelog_reminder() {
 check_base_branch_fresh() {
   local remote="$1" remote_url="$2" base_branch="$3"
   [[ "$STALE_BASE_OK" == "1" ]] && return 0
+  # Written by git_auth_env_for_url (sourced) and read by git_auth_run;
+  # local so the auth env stays scoped to this call.
+  # shellcheck disable=SC2034
   declare -a GIT_AUTH_ENV=()
+  # shellcheck disable=SC2034
   local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
   git_auth_env_for_url "$remote_url"
   local _bs=0 _out _tip

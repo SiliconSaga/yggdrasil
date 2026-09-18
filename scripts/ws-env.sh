@@ -90,7 +90,8 @@ ws_load_env() {
         fi
 
         printf -v "$__WS_ENV_KEY" '%s' "$__WS_ENV_VALUE"
-        export "$__WS_ENV_KEY"
+        # Exporting the variable NAMED by the key is the intent.
+        export "${__WS_ENV_KEY?}"
     done < "$__WS_ENV_FILE"
 }
 

@@ -28,6 +28,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # PROJECT_ROOT can be set by callers (tests) or falls back to one
 # level up from this script's directory (scripts/) — the yggdrasil root.
 : "${PROJECT_ROOT:="$(cd "$SCRIPT_DIR/.." && pwd)"}"
+# ws-session.sh (sourced below) anchors the session file under ROOT_DIR.
+# shellcheck disable=SC2034
 ROOT_DIR="$PROJECT_ROOT"
 # shellcheck source=ws-session.sh
 source "$SCRIPT_DIR/ws-session.sh"

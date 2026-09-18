@@ -82,7 +82,11 @@ pull_repo() {
     upstream_ref=$(git -C "$target" rev-parse --abbrev-ref "@{upstream}" 2>/dev/null)
     remote_name="${upstream_ref%%/*}"
     remote_url=$(git -C "$target" remote get-url "$remote_name" 2>/dev/null || echo "")
+    # Written by git_auth_env_for_url (sourced) and read by git_auth_run;
+    # local so the auth env stays scoped to this call.
+    # shellcheck disable=SC2034
     local -a GIT_AUTH_ENV=()
+    # shellcheck disable=SC2034
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     [[ -n "$remote_url" ]] && git_auth_env_for_url "$remote_url"
     if ! git_auth_run git -C "$target" pull --rebase 2>&1 | sed 's/^/  /'; then
