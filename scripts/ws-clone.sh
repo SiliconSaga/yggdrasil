@@ -35,6 +35,11 @@ Usage:
 
 Components are cloned into components/<component-name>/ as independent
 Git repos. If the directory already exists, it is skipped.
+
+Clones are blobless partial clones (git --filter=blob:none): seconds rather
+than minutes for a large history, with the contents of older revisions
+fetched from the remote on first read. Set WS_CLONE_FILTER= (empty) for a
+full clone, or to another git filter spec to pass that through instead.
 HELP
         exit 0
     fi
@@ -180,6 +185,18 @@ explicit_clone_ecosystem() {
     ws_resolve_local_ecosystem
 }
 
+# Blobless partial clone by default. Trees and commits arrive up front, so log,
+# blame and diff work at once; file contents fetch lazily on checkout and on
+# the first read of an older revision. A full clone of a large history (e.g.
+# DestinationSol) sat for minutes before any file existed; this makes it
+# seconds. The cost is a network round-trip the first time old content is
+# read, and needing the remote when it is. WS_CLONE_FILTER= (empty) restores a
+# full clone; any other value is passed to git as the filter spec.
+CLONE_FILTER_ARGS=()
+if [[ -n "${WS_CLONE_FILTER-blob:none}" ]]; then
+    CLONE_FILTER_ARGS=("--filter=${WS_CLONE_FILTER-blob:none}")
+fi
+
 clone_component() {
     local name="$1"
     local eco="$2"
@@ -227,7 +244,7 @@ clone_component() {
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$repo_url"
-    git_auth_run git clone --origin "$remote" -- "$repo_url" "$target"
+    git_auth_run git clone ${CLONE_FILTER_ARGS[@]+"${CLONE_FILTER_ARGS[@]}"} --origin "$remote" -- "$repo_url" "$target"
 }
 
 clone_url() {
@@ -293,10 +310,14 @@ clone_url() {
         remote=$(remote_name_from_url "$url")
 
         echo "CLONE: $safe_url -> $target (remote: $remote)"
+        # Written by git_auth_env_for_url (sourced) and read by git_auth_run;
+        # local so the auth env stays scoped to this call.
+        # shellcheck disable=SC2034
         local -a GIT_AUTH_ENV=()
+        # shellcheck disable=SC2034
         local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
         git_auth_env_for_url "$url"
-        git_auth_run git clone --origin "$remote" -- "$url" "$target"
+        git_auth_run git clone ${CLONE_FILTER_ARGS[@]+"${CLONE_FILTER_ARGS[@]}"} --origin "$remote" -- "$url" "$target"
     fi
 
     if [[ "$add_eco" == "true" ]]; then

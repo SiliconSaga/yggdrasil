@@ -1415,6 +1415,8 @@ EOF
     done < <(yq '.components[].repo // ""' "$eco" 2>/dev/null)
 
     if [[ -n "$test_url" ]]; then
+        # Written by git_auth_env_for_url (sourced), read by git_auth_run.
+        # shellcheck disable=SC2034
         GIT_AUTH_ENV=()
         git_auth_env_for_url "$test_url"
         if git_auth_run git ls-remote "$test_url" HEAD &>/dev/null; then

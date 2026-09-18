@@ -397,7 +397,7 @@ _ws_bats_job_count() {
 _ws_bats_file_count() {
     local recursive="$1"
     shift
-    local count=0 path file
+    local count=0 path
     local extension="${BATS_FILE_EXTENSION:-bats}"
     local -a direct_files=()
     for path in "$@"; do
@@ -406,7 +406,7 @@ _ws_bats_file_count() {
             continue
         fi
         if [[ "$recursive" == true ]]; then
-            while IFS= read -r -d '' file; do
+            while IFS= read -r -d '' _; do
                 count=$((count + 1))
             done < <(find -L "$path" -type f -name "*.$extension" -print0 2>/dev/null)
         else

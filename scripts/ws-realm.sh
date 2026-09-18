@@ -1040,7 +1040,9 @@ _ws_realm_summary_inline_text() {
 }
 
 _ws_realm_render_key_value_records() {
-    local records="$1" value_prefix="${2:-}" record key value
+    # Not `records`: that name is an array in the fingerprint function above,
+    # and shellcheck tracks names file-wide.
+    local record_lines="$1" value_prefix="${2:-}" record key value
     while IFS= read -r record; do
         [[ -n "$record" ]] || continue
         if ! key="$(_ws_realm_jq_string '.key | select(type == "string")' "$record")" ||
@@ -1048,7 +1050,7 @@ _ws_realm_render_key_value_records() {
             return 1
         fi
         printf '    %s  →  %s%s\n' "$(_ws_realm_summary_inline_text "$key")" "$value_prefix" "$(_ws_realm_summary_inline_text "$value")"
-    done <<< "$records"
+    done <<< "$record_lines"
 }
 
 ws_realm_trust_summary() {
@@ -1333,7 +1335,11 @@ ws_realm_clone_url() {
     fi
     mkdir -p "$REALMS_DIR"
     echo "CLONE: community realm -> $target"
+    # Written by git_auth_env_for_url (sourced) and read by git_auth_run;
+    # local so the auth env stays scoped to this call.
+    # shellcheck disable=SC2034
     local -a GIT_AUTH_ENV=()
+    # shellcheck disable=SC2034
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$url"
     git_auth_run git clone -- "$url" "$target"

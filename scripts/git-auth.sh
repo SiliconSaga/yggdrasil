@@ -163,7 +163,10 @@ git_auth_env_for_url() {
     "GIT_CONFIG_KEY_$((base + 1))=http.https://${host}/.extraheader"
     "GIT_CONFIG_VALUE_$((base + 1))=$header"
   )
+  # Read by callers (ws push, ws hoard, ws diagnose) after this returns.
+  # shellcheck disable=SC2034
   GIT_AUTH_LABEL="$token_label"
+  # shellcheck disable=SC2034
   GIT_AUTH_PROVIDER="$provider"
 }
 
@@ -195,7 +198,8 @@ git_auth_run() (
   export SSH_ASKPASS=''
   local entry
   for entry in ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"}; do
-    export "$entry"
+    # Each entry is NAME=value; exporting the expansion is the intent.
+    export "${entry?}"
   done
   builtin command "$@"
 )
