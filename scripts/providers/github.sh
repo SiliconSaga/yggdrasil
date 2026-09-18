@@ -224,25 +224,71 @@ gp_review_push_timestamp() {
     # the branch's Nth PushEvent isn't crowded out of the default first 30 by
     # unrelated repo activity. Keep each event's prior branch head so prev-push
     # can recover conservatively when GitHub's lossy event feed omits that event.
-    local events timestamp
+    local events timestamp event_head
     events=$(gh api --paginate "repos/$slug/events?per_page=100" \
-        --jq ".[] | select(.type == \"PushEvent\") | select(.payload.ref == $ref_json) | [.created_at, .payload.before] | @tsv" \
+        --jq ".[] | select(.type == \"PushEvent\") | select(.payload.ref == $ref_json) | [.created_at, .payload.before, .payload.head] | @tsv" \
         2>/dev/null) || return 1
 
     timestamp=$(awk -F $'\t' -v row="$((index + 1))" 'NR == row { print $1; exit }' <<< "$events")
-    if [[ -n "$timestamp" ]]; then
-        echo "$timestamp"
-        return 0
+    event_head=$(awk -F $'\t' -v row="$((index + 1))" 'NR == row { print $3; exit }' <<< "$events")
+
+    # The events feed is not only lossy but LATE: a push made minutes ago is
+    # routinely absent, which is exactly when `--since last-push` gets run. Worse,
+    # it can be STALE: the feed keeps an older push to the branch and never
+    # receives the force-push that replaced it, so it answers with a timestamp
+    # weeks old and a whole round of already-fixed findings reads as new
+    # (measured on #155). The feed's newest push is therefore trusted only when
+    # the head it reports is still the branch's head.
+    #
+    # For the latest push there is a server-side stamp that depends on neither
+    # and that a PR author cannot forge: GitHub creates the head commit's check
+    # suites the moment the push lands, so the earliest check-suite created_at
+    # is the push time (a few seconds late). Only the newest push has such a
+    # stamp on the current head, so this covers index 0 alone.
+    local head_sha=""
+    if [[ "$index" -eq 0 ]]; then
+        head_sha=$(gh api "repos/$slug/branches/$branch" --jq '.commit.sha' 2>/dev/null) || head_sha=""
+        [[ "$head_sha" == "null" ]] && head_sha=""
     fi
 
-    # If GitHub's lossy event feed omitted the preceding push, do not substitute
-    # the previous head's committer date: a PR author controls that timestamp and
-    # can forge it forward to suppress review comments. Fall back to all history;
-    # this is noisier but cannot hide feedback.
+    if [[ -n "$timestamp" ]]; then
+        # An event without a head (not a shape GitHub emits) proves nothing
+        # either way, so it is taken at face value rather than called stale.
+        if [[ "$index" -ne 0 || -z "$head_sha" || -z "$event_head" || "$event_head" == "$head_sha" ]]; then
+            echo "$timestamp"
+            return 0
+        fi
+        echo "NOTE: GitHub's events feed's newest push for '$branch' is not the branch's current head (the feed missed a later push); using the head commit's check-suite creation time instead." >&2
+    fi
+
+    if [[ "$index" -eq 0 ]]; then
+        local suite_ts
+        if [[ -n "$head_sha" ]]; then
+            # Paginate and slurp: the endpoint pages at 30 by default, and the
+            # EARLIEST suite is the one that marks the push, so a busy repo with
+            # many apps must not lose it to a later page.
+            # `--slurp` and `--jq` are mutually exclusive in gh, so the pages are
+            # slurped raw and reduced with jq afterwards.
+            suite_ts=$(gh api --paginate --slurp "repos/$slug/commits/$head_sha/check-suites?per_page=100" 2>/dev/null \
+                | jq -r '[.[].check_suites[]?.created_at | select(. != null)] | min // empty' 2>/dev/null) || suite_ts=""
+            if [[ -n "$suite_ts" ]]; then
+                [[ -z "$timestamp" ]] && echo "NOTE: GitHub's events feed has no push for '$branch' yet (it lags); using the head commit's check-suite creation time, which GitHub stamps at push." >&2
+                echo "$suite_ts"
+                return 0
+            fi
+        fi
+    fi
+
+    # If GitHub's lossy event feed omitted the push, do not substitute the
+    # commit's committer date: a PR author controls that timestamp and can forge
+    # it forward to suppress review comments. Fall back to all history; this is
+    # noisier but cannot hide feedback.
     if [[ "$index" -eq 1 ]]; then
         echo "NOTE: GitHub omitted the previous push event; ignoring untrusted commit timestamps and showing all review history." >&2
-        echo "1970-01-01T00:00:00Z"
+    else
+        echo "NOTE: GitHub has no push event for '$branch' and no check suite on its head; ignoring untrusted commit timestamps and showing all review history." >&2
     fi
+    echo "1970-01-01T00:00:00Z"
 }
 
 # List unresolved review threads.
