@@ -23,6 +23,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Changed
 
+- **`ws gh` and `ws glab` fall back to the CLI's own stored login** when no `.env` token is set, checked per target host (`GH_HOST` / `GITLAB_HOST`, defaulting to the public host) so a stale account elsewhere cannot block a valid one. Same fallback `ws cr` already used; with neither a token nor a login the wrappers still refuse and name both fixes (#153).
 - **`ws log` works on a gitflow repository.** It compared against `main` or `master` and hard-errored otherwise, so it could answer nothing about a repo whose trunk is `develop`. Trunk detection now prefers what the remote calls its default branch before falling back, and gained `--against <ref>` for an explicit base, `--incoming` for what the upstream has that this branch does not, and `--stat` (#155).
 - **`ws diagnose` reports whether there is anything to send**, not only whether the remote is reachable: working-tree state, upstream tracking with divergence, and a count of nested repos. The nested line is a count rather than a sweep, since a component can nest well over a hundred (#155).
 - **The realm trust summary renders `nested:` declarations.** Changing them correctly made trust stale, but the summary showed only `commands`, so a realm whose sole change was its nested lineup re-prompted with a surface identical to the one already approved — an approval that cannot show what changed teaches approving without reading (#155).

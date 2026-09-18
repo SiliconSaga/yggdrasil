@@ -16,10 +16,10 @@ if [[ $# -eq 0 ]]; then
     cat <<'HELP'
 Usage: ws gh <gh args...>
 
-Runs the GitHub CLI (gh) with the workspace .env token (GH_TOKEN) injected
-if set, otherwise gh's own already-valid stored login — so agent/non-
-interactive sessions don't fall through to `gh auth login`. Pass any gh args
-through, e.g.:
+Runs the GitHub CLI (gh) with the workspace .env token (GH_TOKEN or
+GITHUB_TOKEN) injected if set, otherwise gh's own already-valid stored login
+for the target host (GH_HOST, default github.com) — so agent/non-interactive
+sessions don't fall through to `gh auth login`. Pass any gh args through, e.g.:
   ws gh pr list --limit 5
   ws gh pr checks 123
   ws gh api /repos/{owner}/{repo}/pulls
@@ -98,10 +98,14 @@ case "$_WS_GH_GROUP${_WS_GH_SUB:+ $_WS_GH_SUB}" in
 esac
 
 # Use .env token if set, else gh's own stored login (same fallback ws cr uses).
+# Scoped to one host: unscoped `gh auth status` exits 1 when ANY known host has
+# a stale account, so an old login on an unrelated host would block a valid one
+# here. GH_HOST is what gh itself reads to pick the host.
 if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]]; then
-    if ! gh auth status >/dev/null 2>&1; then
+    _ws_gh_host="${GH_HOST:-github.com}"
+    if ! gh auth status --hostname "$_ws_gh_host" >/dev/null 2>&1; then
         echo "ERROR: no GitHub token in the environment (GH_TOKEN / GITHUB_TOKEN)," >&2
-        echo "  and 'gh' has no valid stored login either." >&2
+        echo "  and 'gh' has no valid stored login for $_ws_gh_host either." >&2
         echo "  Add 'export GH_TOKEN=<token>' to .env (see docs/git-provider-setup.md)," >&2
         echo "  or run 'gh auth login' interactively, then retry." >&2
         echo "  'ws diagnose <comp>' shows which token covers a remote." >&2
