@@ -80,13 +80,14 @@ Applies to the yggdrasil workspace and any component that keeps a changelog. Not
 
 ## Rebasing onto Updated Main (or Resuming a Branch)
 
-Same fetch-then-rebase move, two triggers: main moved ahead during code
-review, or you're resuming a branch that may have moved on its own
-remote (another session, another push). Don't assume — fetch first:
+Same fetch-then-rebase move, two triggers: main moved ahead during code review, or you're resuming a branch that may have moved on its own remote (another session, another push). Don't assume — fetch first, and if the remote branch is ahead of your local copy, rebase onto it before doing anything else:
 
 ```bash
-git fetch origin <branch> && git rebase origin/<branch>
+git fetch <remote> <branch>
+git rebase <remote>/<branch>
 ```
+
+`<remote>` is the named remote the branch lives on (`siliconsaga`, your fork's name), never a bare `origin`. Two commands, not one `&&` chain — the hook denies composition, and a fetch that fails should be seen before a rebase runs on stale refs.
 
 ### Pre-rebase checklist
 
