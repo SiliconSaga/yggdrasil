@@ -67,7 +67,7 @@ export PATH="/path/to/yggdrasil/scripts:$PATH"
   ws k8s exec -n ntfy deploy/ntfy -- sh -c 'cat /etc/ntfy/templates/heimdall.yml'
   ```
 
-  The same idiom fixes `docker exec`. It is worth preferring over `MSYS_NO_PATHCONV=1` even where the variable would work, because it behaves identically on every platform and leaves no environment state behind. **`docker cp` is the case that proves the point:** its source path must be converted to a Windows path while its destination must not, so no single setting of the variable can satisfy both. Pipe the file in on stdin instead — `docker exec -i <c> sh -c 'cat > /path/in/container' < localfile` — which sidesteps the conflict entirely. See `components/nidavellir/ntfy/test-template.sh` for a worked example.
+  The same idiom fixes `docker exec`. It is worth preferring over `MSYS_NO_PATHCONV=1` even where the variable would work, because it behaves identically on every platform and leaves no environment state behind. **A host-to-container `docker cp` is the case that proves the point:** the local source path must be converted to a Windows path while the container destination must not (a container-to-host copy reverses the roles), so no single setting of the variable can satisfy both. Pipe the file in on stdin instead — `docker exec -i <c> sh -c 'cat > /path/in/container' < localfile` — which sidesteps the conflict entirely. See `components/nidavellir/ntfy/test-template.sh` for a worked example.
 
 ## Workspace CLI (`ws`)
 

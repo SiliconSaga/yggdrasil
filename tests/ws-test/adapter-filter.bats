@@ -19,8 +19,19 @@ setup() {
     cat > "$ROOT_DIR/make" <<'EOF'
 #!/usr/bin/env bash
 echo "ARGS:$*"
+for a in "$@"; do echo "ARG:<$a>"; done
 EOF
     chmod +x "$ROOT_DIR/make"
+}
+
+@test "a selector containing spaces reaches the runner as one argument" {
+    # Substituting into the template string and then word-splitting would hand
+    # the runner NAME=some, keyword — two arguments where one was given.
+    write_adapter_test_filter "./make test" "./make test-one NAME={}"
+    run_ws_test yggdrasil "some keyword"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARG:<NAME=some keyword>"* ]]
+    [[ "$output" != *"ARG:<keyword>"* ]]
 }
 
 @test "testFilter substitutes the selector at the placeholder" {

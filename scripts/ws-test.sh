@@ -478,9 +478,15 @@ case "$runner" in
                             echo "  Without it the selector would be dropped and the full suite would run." >&2
                             exit 1
                         fi
+                        # Tokenize the template first, then substitute into
+                        # each token: a selector with spaces ('some keyword')
+                        # must reach the runner as the one argument it was.
                         filter_argv=()
                         # shellcheck disable=SC2206
-                        read -r -a filter_argv <<< "${adapter_filter_cmd//\{\}/$test_filter}"
+                        read -r -a filter_argv <<< "$adapter_filter_cmd"
+                        for i in "${!filter_argv[@]}"; do
+                            filter_argv[i]="${filter_argv[i]//\{\}/$test_filter}"
+                        done
                         "${filter_argv[@]}" "${runner_args[@]}"
                         exit 0
                     fi
