@@ -78,10 +78,16 @@ bash scripts/ws cr <component> "type: description" .crs/<description>.md
 
 Applies to the yggdrasil workspace and any component that keeps a changelog. Not every branch earns an entry — internal refactors, test-only changes and doc typos usually do not. Ask whether someone *using* the workspace would notice, and write for them rather than restating the commit log. `docs/gdd/versioning.md` covers the format and the release ceremony.
 
-## Rebasing onto Updated Main
+## Rebasing onto Updated Main (or Resuming a Branch)
 
-When main moves ahead during code review (e.g., another CR merges), rebase
-to keep a clean linear history before merging.
+Same fetch-then-rebase move, two triggers: main moved ahead during code review, or you're resuming a branch that may have moved on its own remote (another session, another push). Don't assume — fetch first, and if the remote branch is ahead of your local copy, rebase onto it before doing anything else:
+
+```bash
+git fetch <remote> <branch>
+git rebase <remote>/<branch>
+```
+
+`<remote>` is the named remote the branch lives on (`siliconsaga`, your fork's name), never a bare `origin`. Two commands, not one `&&` chain — the hook denies composition, and a fetch that fails should be seen before a rebase runs on stale refs.
 
 ### Pre-rebase checklist
 
