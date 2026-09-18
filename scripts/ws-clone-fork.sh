@@ -90,6 +90,9 @@ same-hierarchy access, or GitLab project/group sharing to the fork-home
 group. When the configured fork token cannot read the source project, this
 script emits a one-click fork-via-UI URL and exits with code 2 ("manual
 step needed"). Re-run after user interaction.
+
+The clone is a blobless partial clone (git --filter=blob:none), as with
+ws clone; set WS_CLONE_FILTER= (empty) for a full clone.
 HELP
         exit 0
     fi
@@ -989,11 +992,16 @@ if [[ -e "$TARGET/.git" ]]; then
         echo "         added source remote: $UPSTREAM_REMOTE_NAME"
     fi
 else
-    # Fresh clone from fork
+    # Fresh clone from fork. Blobless by default, as in ws-clone.sh — see the
+    # note there. WS_CLONE_FILTER= (empty) restores a full clone.
     echo "         CLONE: $FORK_REMOTE_URL → $TARGET (remote: $FORK_REMOTE)"
+    CLONE_FILTER_ARGS=()
+    if [[ -n "${WS_CLONE_FILTER-blob:none}" ]]; then
+        CLONE_FILTER_ARGS=("--filter=${WS_CLONE_FILTER-blob:none}")
+    fi
     GIT_AUTH_ENV=()
     git_auth_env_for_url "$FORK_REMOTE_URL"
-    git_auth_run git clone --filter=blob:none --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
+    git_auth_run git clone ${CLONE_FILTER_ARGS[@]+"${CLONE_FILTER_ARGS[@]}"} --origin "$FORK_REMOTE" -- "$FORK_REMOTE_URL" "$TARGET"
     git -C "$TARGET" remote add "$UPSTREAM_REMOTE_NAME" "$UPSTREAM_REMOTE_URL"
 fi
 
