@@ -492,9 +492,9 @@ review_comments() {
         local base_ref=""
         base_ref=$(gp_review_base_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || base_ref=""
         if [[ -n "$base_ref" && "$base_ref" != "null" ]]; then
-            # Non-interactive by construction. A best-effort check must fail, never wait: an IDE-launched shell inherits a GUI GIT_ASKPASS that blocks a plain fetch forever on a 401, and Git Credential Manager would raise its own dialog. Inject the provider token when one applies (private repos), and close every prompt path; the fetch then errors fast and the check degrades to silence as documented above.
+            # Non-interactive by construction. A best-effort check must fail, never wait: an editor-launched shell inherits a GUI GIT_ASKPASS that blocks a plain fetch forever on a 401 (VS Code, Cursor and Antigravity all export one), and Git Credential Manager would raise its own dialog. git_auth_run clears the askpass pair on every call (#163); this adds the provider token when one applies (private repos), refuses the terminal prompt — a prompt here means the token is wrong, and the check must not wait on a human — and refuses GCM's dialog. The fetch then errors fast and the check degrades to silence as documented above.
             git_auth_env_for_url "$_SELECTED_URL"
-            GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GIT_ASKPASS=" "SSH_ASKPASS=" "GCM_INTERACTIVE=never")
+            GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GCM_INTERACTIVE=never")
             # SSH remotes prompt through ssh itself (passphrase, unknown host key), which none of the above reaches. BatchMode=yes refuses those prompts. It is appended to whatever ssh command is already in force — GIT_SSH_COMMAND overrides core.sshCommand, so replacing rather than extending would silently drop a configured identity file.
             local ssh_cmd="${GIT_SSH_COMMAND:-}"
             [[ -n "$ssh_cmd" ]] || ssh_cmd=$(git -C "$COMP_DIR" config --get core.sshCommand 2>/dev/null) || ssh_cmd=""
