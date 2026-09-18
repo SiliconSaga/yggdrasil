@@ -84,6 +84,11 @@ fi
 before="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 [[ "${EMPTY_BEFORE:-}" == "1" ]] && before=""
 [[ "${ZERO_BEFORE:-}" == "1" ]] && before="0000000000000000000000000000000000000000"
+# The feed's newest push for our branch normally reports the current head. The
+# stale-feed case: an older push is still in the feed but the force-push that
+# replaced it never arrived, so the event names a head the branch no longer has.
+head="dddddddddddddddddddddddddddddddddddddddd"
+[[ "${STALE_FEED:-}" == "1" ]] && head="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 if [[ "${NO_BRANCH_EVENTS:-}" == "1" ]]; then
     # The lagging-feed case: pushes to other branches are visible, ours is not yet.
     jq -n '[
@@ -91,10 +96,10 @@ if [[ "${NO_BRANCH_EVENTS:-}" == "1" ]]; then
     ]' | jq -r "$filter"
     exit 0
 fi
-jq -n --arg before "$before" '[
+jq -n --arg before "$before" --arg head "$head" '[
   {"type":"PushEvent","payload":{"ref":"refs/heads/feature/other","before":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"created_at":"2026-07-08T10:00:00Z"},
-  {"type":"PushEvent","payload":{"ref":"refs/heads/feature/\"quoted\"","before":"cccccccccccccccccccccccccccccccccccccccc"},"created_at":"2026-07-08T09:00:00Z"},
-  {"type":"PushEvent","payload":{"ref":"refs/heads/feature/review","before":$before},"created_at":"2026-07-08T09:30:00Z"}
+  {"type":"PushEvent","payload":{"ref":"refs/heads/feature/\"quoted\"","before":"cccccccccccccccccccccccccccccccccccccccc","head":"dddddddddddddddddddddddddddddddddddddddd"},"created_at":"2026-07-08T09:00:00Z"},
+  {"type":"PushEvent","payload":{"ref":"refs/heads/feature/review","before":$before,"head":$head},"created_at":"2026-07-08T09:30:00Z"}
 ]' | jq -r "$filter"
 BASH
     chmod +x "$BIN_DIR/gh"
@@ -147,6 +152,31 @@ BASH
     [ "$status" -eq 0 ]
     [ "$output" = "2026-07-08T09:30:00Z" ]
     [ -z "$stderr" ]
+}
+
+@test "GitHub last-push lookup distrusts a feed push that is not the branch's current head" {
+    # The case measured on yggdrasil #155: the feed still held a push from
+    # three weeks earlier and never received the force-push, so last-push
+    # answered with the old timestamp and an entire fixed round re-triaged.
+    run --separate-stderr env "STALE_FEED=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 0' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "2026-07-08T11:00:02Z" ]
+    [[ "$stderr" == *"not the branch's current head"* ]]
+}
+
+@test "GitHub previous-push lookup is unaffected by a stale feed head" {
+    # prev-push reads the second event and must keep doing so: the staleness
+    # check is about the newest push, and the head stamp cannot stand in for
+    # an older one.
+    run --separate-stderr env "STALE_FEED=1" "PATH=$BIN_DIR:$PATH" bash -c \
+        'source "$1"; gp_review_push_timestamp owner/repo feature/review 1' \
+        _ "$REPO_ROOT/scripts/providers/github.sh"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "1970-01-01T00:00:00Z" ]
 }
 
 @test "GitHub previous-push lookup never borrows the head's check-suite time" {
