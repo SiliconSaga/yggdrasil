@@ -254,7 +254,7 @@ The flag value is a bare name (no angle brackets), so it passes the hook and nee
 
 An address is flagged only when it is new: absent from the committed tree at `HEAD`, not on an RFC-reserved domain (`example.com`, `*.test`, `*.invalid`, …), not a role local part (`noreply@`, `git@`, …), and not listed in the repository's `.gdd-pii-allow` as staged in the index. Matching is whole-address and case-insensitive. The working tree does not count as prior art — an uncommitted sample file is the usual source of a leak — and an untracked allowlist exempts nothing, so an exemption is always on its way into a commit a reviewer will see.
 
-`ws commit --dry-run` stages into a scratch copy of the index and scans that, allowlist included, so a dry run and the real run reach the same verdict. Staged files are diffed as text, so a NUL byte cannot hide what follows it.
+`ws commit --dry-run` stages into a scratch copy of the index and scans that, allowlist included, so a dry run and the real run reach the same verdict. Whether a staged file is text is decided by its content (the share of control bytes), not by git's first-8K guess: a PDF whose compressed streams start late is skipped rather than scanned, and a script with one NUL in a comment is scanned rather than skipped.
 
 To exempt a value permanently, add it to `.gdd-pii-allow` (one per line, `#` comments) and stage it with the change. To skip the check once: `ws commit --allow-pii`, `CR_ALLOW_PII=1 ws cr …`, `ISSUE_ALLOW_PII=1 ws issue …`. The refusal names the form that applies to the command that printed it. Every one-off form is on the hook's ask list, so an agent using it lands on a human.
 

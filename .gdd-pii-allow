@@ -23,6 +23,8 @@ alice@corp.co.uk
 +alice@corp.co.uk
 titled.person@newdomain.co.uk
 someone.new@newdomain.co.uk
+leak@newdomain.co.uk
+k@k.do
 
 # Malformed forms quoted in comments that explain the script's normalisation:
 # a diff marker fused to the address, and the `n` of a `\n` escape. Documenting

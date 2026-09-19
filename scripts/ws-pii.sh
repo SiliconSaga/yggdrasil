@@ -49,7 +49,7 @@ _ws_pii_lower() {
 _ws_pii_extract() {
     printf '%s\n' "$1" \
         | sed -e 's/\\[nrt]/ /g' \
-        | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' \
+        | grep -aoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' \
         | tr '[:upper:]' '[:lower:]' \
         | sort -u \
         || true
@@ -162,21 +162,56 @@ ws_pii_guard_publication() {
 $(cat "$bodyfile")" "$repo" "$override"
 }
 
+# Text or binary, decided by content rather than by git's guess. Git looks for a
+# NUL in the first 8K, which fails both ways here: a PDF whose compressed
+# streams start later reads as text and its bytes reach the scanner (one
+# produced `k@k.do`, another crashed the caller), while a script with one NUL
+# in a comment reads as binary and every address after it is hidden. Control
+# bytes — anything below 0x20 except NUL, tab, LF, CR, plus DEL — settle it:
+# text has almost none, compressed or encoded data runs around 12%. NUL is left
+# out because it is the one byte the scan tolerates (stripped before matching),
+# and bytes above 0x7F are not counted, so non-ASCII prose stays text.
+_ws_pii_blob_is_text() {
+    local repo="$1" path="$2" index_file="${3:-}" sample total control
+    if [[ -n "$index_file" ]]; then
+        sample="$(GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" 2>/dev/null | head -c 65536 | od -An -v -tu1)" || return 1
+    else
+        sample="$(git -C "$repo" show ":$path" 2>/dev/null | head -c 65536 | od -An -v -tu1)" || return 1
+    fi
+    read -r total control < <(printf '%s\n' "$sample" | awk '
+        { for (i = 1; i <= NF; i++) { n++; b = $i + 0; if ((b < 32 && b != 0 && b != 9 && b != 10 && b != 13) || b == 127) c++ } }
+        END { print n + 0, c + 0 }')
+    [[ "$total" -gt 0 ]] || return 0
+    [[ $((control * 100)) -lt $((total * 2)) ]]
+}
+
 # Added lines of the staged diff, diff marker removed — the only part of a
 # change that can publish something new. Context and removed lines cannot.
 # [index_file] reads a scratch index instead, which is how a dry run scans what
 # it WOULD stage rather than what happens to be staged already.
 #
-# `--text`, because git calls a file with a NUL byte binary and prints no lines
-# for it, and one NUL in a comment would have hidden every address after it.
-# Header lines (`+++ b/path`) are skipped by position, between `diff --git` and
-# the first hunk, not by shape: a content line starting `++` looks the same.
+# Only blobs that _ws_pii_blob_is_text accepts are diffed, and those with
+# `--text` so git's own guess cannot drop one. Header lines (`+++ b/path`) are
+# skipped by position, between `diff --git` and the first hunk, not by shape: a
+# content line starting `++` looks the same.
 ws_pii_staged_added_lines() {
-    local repo="${1:-$PWD}" index_file="${2:-}"
+    local repo="${1:-$PWD}" index_file="${2:-}" path
+    local -a text_paths=()
+    while IFS= read -r path; do
+        [[ -n "$path" ]] || continue
+        _ws_pii_blob_is_text "$repo" "$path" "$index_file" && text_paths+=("$path")
+    done < <(
+        if [[ -n "$index_file" ]]; then
+            GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only --diff-filter=AMCR 2>/dev/null
+        else
+            git -C "$repo" diff --cached --name-only --diff-filter=AMCR 2>/dev/null
+        fi
+    )
+    [[ ${#text_paths[@]} -gt 0 ]] || return 0
     if [[ -n "$index_file" ]]; then
-        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text 2>/dev/null
+        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null
     else
-        git -C "$repo" diff --cached -U0 --no-color --text 2>/dev/null
+        git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null
     fi \
         | tr -d '\000' \
         | awk '/^diff --git / { header = 1; next }

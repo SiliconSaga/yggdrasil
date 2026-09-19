@@ -192,6 +192,25 @@ stage_allowlist() {
     [[ "$output" == *"fresh@newdomain.co.uk"* ]]
 }
 
+@test "a binary blob is not scanned, even when git would diff it as text" {
+    # A PDF whose compressed streams begin after git's 8K probe. The bytes
+    # carried a fake `k@k.do` once and crashed the caller another time.
+    {
+        printf '%%PDF-1.4\n'
+        printf 'x%.0s' $(seq 1 9000)
+        printf '\nstream\n'
+        head -c 20000 /dev/zero | tr '\000' '\001'
+        printf 'k@k.do leak@newdomain.co.uk\nendstream\n'
+    } > "$REPO/export.pdf"
+    git -C "$REPO" add export.pdf
+
+    run ws_pii_staged_added_lines "$REPO"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"newdomain.co.uk"* ]]
+    [[ "$output" != *"k@k.do"* ]]
+}
+
 @test "a content line starting with ++ is not a diff header" {
     # In the diff it renders as `+++…`, the same shape as the file header.
     printf '++fresh@newdomain.co.uk\n' > "$REPO/plus.txt"
