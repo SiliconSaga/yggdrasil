@@ -172,6 +172,53 @@ setup() {
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
+@test "headless: an image can be measured but not rewritten" {
+    # A phone photo arrives at several megabytes and print resolution, and an
+    # agent that cannot measure that commits it blind. `identify` and `file` read.
+    # `convert` writes wherever it is pointed — the reasoning that removed the
+    # site build — so it stays denied until `ws image` can validate a destination.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site identify assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file -- assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site convert big.png -resize 50% small.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site mogrify -resize 50% big.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: file is allowed only after --, because -C writes" {
+    # `file -C -m <magic>` compiles a magic file and writes `<magic>.mgc` into the
+    # working directory — measured, not assumed. A bare `file *` entry therefore
+    # granted a write under a policy that promised reads. After `--` every token
+    # is a filename, so compiler mode cannot be reached through the allowance.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file -C -m mymagic'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file --compile -m mymagic'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # The operand-first spelling is refused too: the entry is the `--` form, and
+    # a glob cannot tell a filename from an option without it.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: the image entries stay pinned to the sandbox's own component" {
+    # A regression that turned __SANDBOX_TARGET__ into `*` would still pass every
+    # in-scope assertion above while letting the sandbox run these in yggdrasil —
+    # the workspace repo, hook rules included — or in any other component.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec yggdrasil identify x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec yggdrasil file -- x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec nordri identify x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec nordri file -- x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
 @test "headless: a branch can be created or switched, and that is all checkout can do" {
     # `ws checkout` is branch-only by construction — `git switch` underneath has
     # no path mode, `--` is refused before git sees it, and a path-shaped name is
@@ -2204,6 +2251,16 @@ JSON
 
     run_hook 'ws exec app gh api -X PATCH repos/o/r/issues/7 -f title=x'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    # Both argument orders, on the `ws exec` twins specifically. Measured before
+    # the -alt rows existed: path-first reached ASK where method-first DENIED —
+    # the softer route this whole section exists to close, and half-populated the
+    # same way the title rows themselves were.
+    run_hook 'ws exec app gh api repos/o/r/pulls/27 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh api repos/o/r/issues/7 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
 @test "redirect: a raw PATCH of a CR body points at ws cr edit" {
@@ -3492,7 +3549,9 @@ EOF
     seed_real_project_config
     run_hook "ws run leidangr"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+    # No decision at all, not merely "not allow": a deny would block the verb
+    # outright and an ask would double-prompt, and `!= allow` passed both.
+    [[ "$output" != *"permissionDecision"* ]]
 }
 
 # ws orient / ws audit-permissions are MUST-run session-start commands (the

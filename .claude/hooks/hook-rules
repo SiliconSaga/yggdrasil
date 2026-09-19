@@ -139,14 +139,35 @@ ws realm use *
 # the pull request, which is where the preview and visual diff are produced
 # anyway.
 #
-# That leaves this section with no shipped entries — deliberately. The mechanism
-# is what ships; an operator adds patterns knowing nobody will be asked. Branch
-# work, the one thing a sandbox cannot do without, needs no entry: `ws checkout`
-# is never on the ask-list, so it reaches this tier already allowed.
+# Branch work, the one thing a sandbox cannot do without, needs no entry here:
+# `ws checkout` is never on the ask-list, so it reaches this tier already
+# allowed. What the shipped entries cover is narrower — reading an image.
+#
+# `identify` and `file` report what an image IS. A phone photo arrives at several
+# megabytes and print resolution, and an agent that cannot measure that commits
+# it blind. `convert` is deliberately ABSENT even though the image ships it: it
+# writes wherever it is pointed, which is the reasoning that removed the site
+# build above, and it belongs behind a `ws image` verb that can validate a
+# destination.
+#
+# "Reads only" has to hold for every argument the glob accepts, not just the
+# intended one, and for `file` it did not: `file -C -m <magic>` compiles a magic
+# file and WRITES `<magic>.mgc` into the working directory (measured on the
+# image's own Debian bookworm package). So `file` is allowed only after `--`,
+# which makes every later token a filename — `file -- -C` is a missing file, not
+# compiler mode. `identify` has no write option in its option set, and the
+# coder routes that could turn a read into a write or delete (`ephemeral:`,
+# `msl:`, `@`-includes) were measured inert under Debian's shipped policy.xml;
+# ImageMagick treats `--` as a filename, so the same narrowing is not available
+# to it anyway.
+#
+# An operator may add more, deliberately, knowing nobody will be asked.
 #
 # None of this is a security boundary — an argument can still name a path outside
 # the component. The boundary is the container; this keeps the ordinary working
 # set free of prompts without widening the blast radius by default.
+ws exec __SANDBOX_TARGET__ identify *
+ws exec __SANDBOX_TARGET__ file -- *
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
@@ -294,6 +315,7 @@ gh-api-patch-pr-ws-alt      | ws gh api*pulls/*PATCH*body=*  | Use `ws cr <comp>
 gh-api-patch-pr-ws-title    | ws gh api*PATCH*pulls/*title=* | Use `ws cr <comp> edit <cr#> --title <t> <bodyfile>`. `ws hook-bypass gh-api-patch-pr-ws-title` for a session-scoped bypass.
 gh-api-patch-pr-ws-title-alt | ws gh api*pulls/*PATCH*title=* | Use `ws cr <comp> edit <cr#> --title <t> <bodyfile>`. `ws hook-bypass gh-api-patch-pr-ws-title-alt` for a session-scoped bypass.
 gh-api-patch-pr-exec-title   | ws exec * gh api*PATCH*pulls/*title=* | Use `ws cr <comp> edit <cr#> --title <t> <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-pr-exec-title` for a session-scoped bypass.
+gh-api-patch-pr-exec-title-alt | ws exec * gh api*pulls/*PATCH*title=* | Use `ws cr <comp> edit <cr#> --title <t> <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-pr-exec-title-alt` for a session-scoped bypass.
 gh-api-patch-pr-exec-alt     | ws exec * gh api*pulls/*PATCH*body=* | Use `ws cr <comp> edit <cr#> [--title <t>] <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-pr-exec-alt` for a session-scoped bypass.
 gh-api-patch-pr-exec        | ws exec * gh api*PATCH*pulls/*body=* | Use `ws cr <comp> edit <cr#> [--title <t>] <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-pr-exec` for a session-scoped bypass.
 gh-api-patch-issue-body     | gh api*PATCH*issues/*body=*    | Use `ws issue <comp> edit <issue#> [--title <t>] <bodyfile>` — a raw PATCH applies neither the identity substitutions nor the attribution check. `ws hook-bypass gh-api-patch-issue-body` for a session-scoped bypass.
@@ -303,6 +325,7 @@ gh-api-patch-issue-title-alt | gh api*issues/*PATCH*title=*  | Use `ws issue <co
 gh-api-patch-issue-ws-title  | ws gh api*PATCH*issues/*title=* | Use `ws issue <comp> edit <issue#> --title <t> <bodyfile>`. `ws hook-bypass gh-api-patch-issue-ws-title` for a session-scoped bypass.
 gh-api-patch-issue-ws-title-alt | ws gh api*issues/*PATCH*title=* | Use `ws issue <comp> edit <issue#> --title <t> <bodyfile>`. `ws hook-bypass gh-api-patch-issue-ws-title-alt` for a session-scoped bypass.
 gh-api-patch-issue-exec-title | ws exec * gh api*PATCH*issues/*title=* | Use `ws issue <comp> edit <issue#> --title <t> <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-issue-exec-title` for a session-scoped bypass.
+gh-api-patch-issue-exec-title-alt | ws exec * gh api*issues/*PATCH*title=* | Use `ws issue <comp> edit <issue#> --title <t> <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-issue-exec-title-alt` for a session-scoped bypass.
 gh-api-patch-issue-exec-alt  | ws exec * gh api*issues/*PATCH*body=* | Use `ws issue <comp> edit <issue#> [--title <t>] <bodyfile>` — `ws exec` is not a way to reach past the wrapper. `ws hook-bypass gh-api-patch-issue-exec-alt` for a session-scoped bypass.
 gh-api-patch-issue-ws       | ws gh api*PATCH*issues/*body=* | Use `ws issue <comp> edit <issue#> [--title <t>] <bodyfile>` — `ws gh` injects the token and nothing else. `ws hook-bypass gh-api-patch-issue-ws` for a session-scoped bypass.
 gh-api-patch-issue-ws-alt   | ws gh api*issues/*PATCH*body=* | Use `ws issue <comp> edit <issue#> [--title <t>] <bodyfile>` — `ws gh` injects the token and nothing else. `ws hook-bypass gh-api-patch-issue-ws-alt` for a session-scoped bypass.
