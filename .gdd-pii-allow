@@ -17,6 +17,8 @@ known.contact@partner.co.uk
 fresh@newdomain.co.uk
 a@one.co.uk
 b@two.co.uk
+data@one.co.uk
+jane.doe@notexample.com
 
 # Malformed forms quoted in comments that explain the script's normalisation:
 # a diff marker fused to the address, and the `n` of a `\n` escape. Documenting

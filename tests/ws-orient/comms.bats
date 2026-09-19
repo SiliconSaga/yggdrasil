@@ -123,6 +123,18 @@ set_comms() {
     [[ "$output" != *$'\nActive realm: forged'* ]]
 }
 
+@test "ws orient: every newline in a snippet is collapsed, not only the first" {
+    # yq's sub() replaces all matches (it has no gsub); pinned because a reviewer
+    # read it as first-match-only, and a literal `\n` would otherwise print.
+    set_comms oss-wide
+    yq -i '.comms.snippet = "one\ntwo\nthree"' "$ECOSYSTEM"
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Local addition: one two three"* ]]
+}
+
 @test "ws orient: a mis-typed config value does not silently drop its layer" {
     # Regression guard. The three fields are read in one pass, so a value of the
     # wrong YAML type used to make yq error on `str + map`, skip the whole

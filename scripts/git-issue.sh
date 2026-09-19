@@ -69,12 +69,21 @@ gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 if [[ "${ISSUE_ALLOW_PII:-}" != "1" ]]; then
   # shellcheck source=ws-pii.sh
   source "$SCRIPT_DIR/ws-pii.sh"
-  _issue_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
+  # From COMPONENT_DIR, not the caller's cwd: ws issue never cd's, so for a
+  # nested target a bare rev-parse reads the workspace's history and allowlist
+  # while the issue publishes to the nested repo.
+  _issue_repo_root="$(git -C "$COMPONENT_DIR" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$COMPONENT_DIR")"
   if ! ws_pii_guard "this issue body" "$(cat "$RESOLVED_BODY")" "$_issue_repo_root"; then
     echo "  Set ISSUE_ALLOW_PII=1 to publish anyway." >&2
     exit 1
   fi
 fi
+
+# Same advisory word budget ws commit applies, on the body about to publish.
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
+_issue_style="$(yq -r '.style.changeNotes // ""' "$ECO" 2>/dev/null)" || _issue_style=""
+ws_budget_note issue "$(cat "$RESOLVED_BODY")" "$_issue_style"
 
 # Resolve remote:
 #   1 remote  → use it (any name)

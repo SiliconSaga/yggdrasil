@@ -469,6 +469,13 @@ if [[ "${CR_ALLOW_PII:-}" != "1" ]]; then
   fi
 fi
 
+# Same advisory word budget ws commit applies, on the body about to publish.
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
+_cr_style=""
+[[ -n "${_ECO:-}" ]] && { _cr_style="$(yq -r '.style.changeNotes // ""' "$_ECO" 2>/dev/null)" || _cr_style=""; }
+ws_budget_note cr "$(cat "$BODYFILE")" "$_cr_style"
+
 if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
   echo "ERROR: current branch is '$BRANCH' — check out a topic branch first" >&2
   exit 1

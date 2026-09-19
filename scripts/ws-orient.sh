@@ -23,6 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
 
 orient_help() {
     cat <<'HELP'
@@ -699,7 +701,16 @@ emit_change_note_style() {
         *) style="standard (ignoring invalid style.changeNotes: $style)" ;;
     esac
     printf '\nChange-note style: %s\n' "$style"
-    echo "  Prose budget for commit/CR/issue bodies — budgets in templates/*.md; set style.changeNotes (terse|standard|detailed) in ecosystem config."
+    # The numbers, not a pointer to them: a budget nobody can see is not one.
+    local budget_style="${style%% *}" commit_w cr_w issue_w
+    commit_w="$(ws_budget_limit commit "$budget_style")"
+    cr_w="$(ws_budget_limit cr "$budget_style")"
+    issue_w="$(ws_budget_limit issue "$budget_style")"
+    if [[ -n "$commit_w" ]]; then
+        echo "  Word budget — commit body ${commit_w}, CR body ${cr_w}, issue body ${issue_w}; ws commit/cr/issue note an overrun. Set style.changeNotes (terse|standard|detailed) in ecosystem config."
+    else
+        echo "  No word budget (detailed). Set style.changeNotes (terse|standard|detailed) in ecosystem config."
+    fi
 }
 
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats

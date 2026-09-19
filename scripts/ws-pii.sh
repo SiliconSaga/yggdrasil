@@ -62,16 +62,20 @@ _ws_pii_is_role_address() {
     return 1
 }
 
+# Exact domain or a dot-delimited subdomain — never a bare suffix, or
+# `notexample.com` would pass as reserved.
 _ws_pii_is_reserved_domain() {
     local domain="${1#*@}" suffix
     for suffix in $_WS_PII_RESERVED_SUFFIXES; do
-        [[ "$domain" == *"$suffix" ]] && return 0
+        suffix="${suffix#.}"
+        [[ "$domain" == "$suffix" || "$domain" == *".$suffix" ]] && return 0
     done
     return 1
 }
 
 _ws_pii_is_allowlisted() {
-    local value="$1" repo="$2" file="$repo/$WS_PII_ALLOW_FILE" line
+    local value="$1" repo="$2" line
+    local file="$repo/$WS_PII_ALLOW_FILE"
     [[ -f "$file" ]] || return 1
     while IFS= read -r line; do
         line="${line%%#*}"
@@ -89,10 +93,15 @@ _ws_pii_is_allowlisted() {
 # Searches HEAD rather than the working tree — an uncommitted sample file is
 # exactly where the leaked value was sitting, so counting it as prior art would
 # defeat the check on the one case it exists for.
+#
+# Whole-address match: a substring search would let `a@one.co.uk` ride in on a
+# committed `data@one.co.uk`. The boundaries are the characters an address can
+# contain, so anything else — or a line edge — ends it.
 _ws_pii_in_repo() {
-    local value="$1" repo="$2"
+    local value="$1" repo="$2" escaped
     git -C "$repo" rev-parse --verify --quiet HEAD >/dev/null 2>&1 || return 1
-    git -C "$repo" grep -qiF -- "$value" HEAD 2>/dev/null
+    escaped="$(printf '%s' "$value" | sed -e 's/[.+]/\\&/g')"
+    git -C "$repo" grep -qiE -- "(^|[^A-Za-z0-9._%+-])${escaped}([^A-Za-z0-9.-]|\$)" HEAD 2>/dev/null
 }
 
 # ws_pii_guard <label> <text> [repo_dir]

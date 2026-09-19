@@ -70,6 +70,29 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+@test "a domain that merely ends in a reserved name is not reserved" {
+    # `notexample.com` ends in `example.com`; a suffix match waved it through.
+    run ws_pii_guard "probe" "contact: jane.doe@notexample.com" "$REPO"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"jane.doe@notexample.com"* ]]
+}
+
+@test "a committed address does not vouch for a shorter one inside it" {
+    # `a@one.co.uk` is a substring of a committed `data@one.co.uk`; a substring
+    # search called it prior art.
+    printf 'owner: data@one.co.uk\n' > "$REPO/owner.yaml"
+    git -C "$REPO" add owner.yaml
+    git -C "$REPO" commit -q -m "owner"
+
+    run ws_pii_guard "probe" "contact: a@one.co.uk" "$REPO"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"a@one.co.uk"* ]]
+
+    run ws_pii_guard "probe" "contact: data@one.co.uk" "$REPO"
+    [ "$status" -eq 0 ]
+}
+
 @test "the allowlist exempts a value and is read from the repo" {
     printf '# reviewed 2026-09-08\nknown.contact@partner.co.uk\n' > "$REPO/.gdd-pii-allow"
 
