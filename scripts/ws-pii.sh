@@ -74,16 +74,22 @@ _ws_pii_is_reserved_domain() {
     return 1
 }
 
+# Reads the allowlist from the INDEX, not the working tree: an entry has to be
+# on its way into a commit to count, or an untracked copy could exempt an address
+# and vanish. `WS_PII_INDEX_FILE` points a dry run at its scratch index.
 _ws_pii_is_allowlisted() {
-    local value="$1" repo="$2" line
-    local file="$repo/$WS_PII_ALLOW_FILE"
-    [[ -f "$file" ]] || return 1
+    local value="$1" repo="$2" line content
+    if [[ -n "${WS_PII_INDEX_FILE:-}" ]]; then
+        content="$(GIT_INDEX_FILE="$WS_PII_INDEX_FILE" git -C "$repo" show ":$WS_PII_ALLOW_FILE" 2>/dev/null)" || return 1
+    else
+        content="$(git -C "$repo" show ":$WS_PII_ALLOW_FILE" 2>/dev/null)" || return 1
+    fi
     while IFS= read -r line; do
         line="${line%%#*}"
         line="$(printf '%s' "$line" | tr -d '[:space:]')"
         [[ -n "$line" ]] || continue
         [[ "$(_ws_pii_lower "$line")" == "$value" ]] && return 0
-    done < "$file"
+    done <<< "$content"
     return 1
 }
 
@@ -160,14 +166,21 @@ $(cat "$bodyfile")" "$repo" "$override"
 # change that can publish something new. Context and removed lines cannot.
 # [index_file] reads a scratch index instead, which is how a dry run scans what
 # it WOULD stage rather than what happens to be staged already.
+#
+# `--text`, because git calls a file with a NUL byte binary and prints no lines
+# for it, and one NUL in a comment would have hidden every address after it.
+# Header lines (`+++ b/path`) are skipped by position, between `diff --git` and
+# the first hunk, not by shape: a content line starting `++` looks the same.
 ws_pii_staged_added_lines() {
     local repo="${1:-$PWD}" index_file="${2:-}"
     if [[ -n "$index_file" ]]; then
-        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color 2>/dev/null
+        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text 2>/dev/null
     else
-        git -C "$repo" diff --cached -U0 --no-color 2>/dev/null
+        git -C "$repo" diff --cached -U0 --no-color --text 2>/dev/null
     fi \
-        | grep -E '^\+' \
-        | grep -vE "^\+\+\+" \
-        | sed -e 's/^+//' || true
+        | tr -d '\000' \
+        | awk '/^diff --git / { header = 1; next }
+               /^@@/ { header = 0; next }
+               header { next }
+               /^\+/ { print substr($0, 2) }' || true
 }

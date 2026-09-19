@@ -69,6 +69,11 @@ ws review * threads * --resolve*
 # endpoints, component catalog). --trust exists so a HUMAN can skip the
 # interactive confirm — an agent passing it must still land on a person.
 ws realm use *
+# Skipping the PII guard publishes an address the repository has never held.
+# The wrappers are allowlisted (ws commit, ws cr, ws issue), so the one-off
+# escapes have to land on a human here; the durable route is .gdd-pii-allow.
+ws commit *--allow-pii*
+*ALLOW_PII=*
 
 [headless-allow]
 # Honored only when GDD_SANDBOX is set in the hook's environment (Tier 4). In a

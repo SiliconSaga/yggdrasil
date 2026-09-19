@@ -664,10 +664,21 @@ emit_comms_register() {
     flavor="$(_ws_orient_display_text "$_ORIENT_CFG_COMMS_FLAVOR")"
     snippet="$(_ws_orient_display_text "$_ORIENT_CFG_COMMS_SNIPPET")"
 
+    # One line per flavor, each the summary of its block in
+    # docs/gdd/agent-communication.md — the three differ on register and on who
+    # may close or merge, so one shared line would misstate two of them.
     case "$flavor" in
-        oss-wide|solo|corporate)
-            printf '\nCommunication register: %s\n' "$flavor"
-            echo "  Neutral tone, fairly concise, simple language, no judgement. The agent prepares and tests work so others can review and judge it."
+        oss-wide)
+            printf '\nCommunication register: oss-wide\n'
+            echo "  Neutral tone, fairly concise, simple language, no judgement. The agent prepares and tests work so others can review and judge it. Never close, merge, resolve, or characterise someone's contribution; name the decision needed."
+            ;;
+        solo)
+            printf '\nCommunication register: solo\n'
+            echo "  Neutral tone, concise, plain language, no judgement. Disclose that a comment is agent-authored. Close or merge nothing without the maintainer saying so for that specific item."
+            ;;
+        corporate)
+            printf '\nCommunication register: corporate\n'
+            echo "  Register unconstrained internally; colleagues share the vocabulary and context. Closing, merging and approving follow the organisation's existing change control."
             ;;
         none)
             printf '\nCommunication register: none (deliberately unconstrained)\n'

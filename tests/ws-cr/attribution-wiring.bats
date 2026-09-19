@@ -210,14 +210,43 @@ write_issue_body() {
     [ "$status" -eq 0 ]
 }
 
-@test "all four publication paths run the PII guard on title and body" {
-    # Create-only coverage is how the attribution checks were bypassed once
-    # already; an edit publishes the same text a create does.
-    local script
-    for script in git-cr.sh git-cr-edit.sh git-issue.sh git-issue-edit.sh; do
-        run grep -q 'ws_pii_guard_publication ' "$REPO_ROOT/scripts/$script"
-        [ "$status" -eq 0 ]
-    done
+@test "ws cr refuses a novel address in the body and never reaches the provider" {
+    write_cr_body '> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).
+Ping someone.new@newdomain.co.uk'
+    run bash "$WS_BIN" cr yggdrasil "test: pii body" .crs/body.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"someone.new@newdomain.co.uk"* ]]
+    [[ "$output" == *"CR_ALLOW_PII=1"* ]]
+    [ ! -f "$GH_LOG" ]
+}
+
+@test "ws cr refuses a novel address in the title, and the override publishes it" {
+    write_cr_body '> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).'
+    run bash "$WS_BIN" cr yggdrasil "test: ask someone.new@newdomain.co.uk" .crs/body.md
+    [ "$status" -ne 0 ]
+    [ ! -f "$GH_LOG" ]
+
+    CR_ALLOW_PII=1 run bash "$WS_BIN" cr yggdrasil "test: ask someone.new@newdomain.co.uk" .crs/body.md
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GH_LOG")" == *"pr create"* ]]
+}
+
+@test "ws issue refuses a novel address in the title or body, and the override publishes it" {
+    write_issue_body '> **AI-assisted issue.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).
+Ping someone.new@newdomain.co.uk'
+    run bash "$WS_BIN" issue yggdrasil "test: pii body" bug "$ISSUE_BODY"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ISSUE_ALLOW_PII=1"* ]]
+    [ ! -f "$GH_LOG" ]
+
+    write_issue_body '> **AI-assisted issue.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).'
+    run bash "$WS_BIN" issue yggdrasil "test: ask someone.new@newdomain.co.uk" bug "$ISSUE_BODY"
+    [ "$status" -ne 0 ]
+    [ ! -f "$GH_LOG" ]
+
+    ISSUE_ALLOW_PII=1 run bash "$WS_BIN" issue yggdrasil "test: ask someone.new@newdomain.co.uk" bug "$ISSUE_BODY"
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GH_LOG")" == *"issue create"* ]]
 }
 
 @test "git-issue.sh calls the leak guard before publishing" {

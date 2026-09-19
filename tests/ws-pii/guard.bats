@@ -24,6 +24,12 @@ setup() {
     git -C "$REPO" commit -q -m "seed"
 }
 
+# An exemption counts once it is staged — on its way into a commit.
+stage_allowlist() {
+    printf '%s' "$1" > "$REPO/.gdd-pii-allow"
+    git -C "$REPO" add .gdd-pii-allow
+}
+
 @test "an address new to the repository is refused" {
     run ws_pii_guard "probe" "contact: jane.doe@realcompany.co.uk" "$REPO"
 
@@ -94,15 +100,25 @@ setup() {
 }
 
 @test "the allowlist exempts a value and is read from the repo" {
-    printf '# reviewed 2026-09-08\nknown.contact@partner.co.uk\n' > "$REPO/.gdd-pii-allow"
+    stage_allowlist $'# reviewed 2026-09-08\nknown.contact@partner.co.uk\n'
 
     run ws_pii_guard "probe" "contact: known.contact@partner.co.uk" "$REPO"
 
     [ "$status" -eq 0 ]
 }
 
+@test "an untracked allowlist exempts nothing" {
+    # An exemption is a decision a reviewer must be able to see. A working-tree
+    # copy that never reaches the commit would exempt an address and vanish.
+    printf 'known.contact@partner.co.uk\n' > "$REPO/.gdd-pii-allow"
+
+    run ws_pii_guard "probe" "contact: known.contact@partner.co.uk" "$REPO"
+
+    [ "$status" -ne 0 ]
+}
+
 @test "allowlist comments and blank lines do not exempt everything" {
-    printf '# known.contact@partner.co.uk\n\n' > "$REPO/.gdd-pii-allow"
+    stage_allowlist $'# known.contact@partner.co.uk\n\n'
 
     run ws_pii_guard "probe" "contact: known.contact@partner.co.uk" "$REPO"
 
@@ -110,7 +126,7 @@ setup() {
 }
 
 @test "matching ignores case in both directions" {
-    printf 'Known.Contact@Partner.CO.UK\n' > "$REPO/.gdd-pii-allow"
+    stage_allowlist $'Known.Contact@Partner.CO.UK\n'
 
     run ws_pii_guard "probe" "contact: KNOWN.CONTACT@partner.co.uk" "$REPO"
 
@@ -158,12 +174,33 @@ setup() {
 @test "a leading plus in prose stays part of the address" {
     # Only a diff has markers. Stripping `+` from a CR body would turn
     # `+alice@…` into `alice@…` and let an allowlisted value vouch for it.
-    printf 'alice@corp.co.uk\n' > "$REPO/.gdd-pii-allow"
+    stage_allowlist $'alice@corp.co.uk\n'
 
     run ws_pii_guard "probe" "+alice@corp.co.uk" "$REPO"
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"+alice@corp.co.uk"* ]]
+}
+
+@test "a NUL byte does not hide the addresses after it" {
+    # git calls a file with a NUL binary and prints no lines for it.
+    printf 'note\000\ncontact: fresh@newdomain.co.uk\n' > "$REPO/blob.txt"
+    git -C "$REPO" add blob.txt
+
+    run ws_pii_staged_added_lines "$REPO"
+
+    [[ "$output" == *"fresh@newdomain.co.uk"* ]]
+}
+
+@test "a content line starting with ++ is not a diff header" {
+    # In the diff it renders as `+++…`, the same shape as the file header.
+    printf '++fresh@newdomain.co.uk\n' > "$REPO/plus.txt"
+    git -C "$REPO" add plus.txt
+
+    run ws_pii_staged_added_lines "$REPO"
+
+    [[ "$output" == *"fresh@newdomain.co.uk"* ]]
+    [[ "$output" != *"+++ b/"* ]]
 }
 
 @test "a scratch index shows what a dry run would stage" {
@@ -198,7 +235,7 @@ setup() {
 @test "a string escape before an address is not part of it" {
     # Same commit, same cause: `\n` in a quoted test string yielded
     # `nknown.contact@partner.co.uk`, because `n` is legal in a local part too.
-    printf 'known.contact@partner.co.uk\n' > "$REPO/.gdd-pii-allow"
+    stage_allowlist $'known.contact@partner.co.uk\n'
 
     run ws_pii_guard "probe" 'printf "\nknown.contact@partner.co.uk"' "$REPO"
 

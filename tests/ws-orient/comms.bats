@@ -47,6 +47,22 @@ set_comms() {
     done
 }
 
+@test "ws orient: each flavor renders its own register, not oss-wide's" {
+    # The three differ on register and on who may close or merge; one shared
+    # line told a corporate session to use no judgement.
+    set_comms corporate
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"unconstrained internally"* ]]
+    [[ "$output" != *"no judgement"* ]]
+
+    set_comms solo
+    run_ws orient
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Disclose that a comment is agent-authored"* ]]
+    [[ "$output" == *"for that specific item"* ]]
+}
+
 @test "ws orient: 'none' renders as a deliberate choice, not as unset" {
     set_comms none
 

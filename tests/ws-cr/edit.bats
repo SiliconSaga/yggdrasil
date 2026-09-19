@@ -69,6 +69,25 @@ write_body() {
     [[ "$output" != *"@GDD_HOME"* ]]
 }
 
+@test "edit refuses a body carrying an address the repository has never held" {
+    printf '> **AI-assisted change proposal.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).\n\nPing someone.new@newdomain.co.uk\n' > "$WORK/.crs/edit.md"
+    run bash "$WS_BIN" cr yggdrasil edit 42 .crs/edit.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"someone.new@newdomain.co.uk"* ]]
+    [[ "$output" == *"CR_ALLOW_PII=1"* ]]
+    [ ! -f "$GH_LOG" ]
+}
+
+@test "edit refuses a title carrying a novel address, and the override publishes it" {
+    run bash "$WS_BIN" cr yggdrasil edit 42 --title "ask someone.new@newdomain.co.uk" .crs/edit.md
+    [ "$status" -ne 0 ]
+    [ ! -f "$GH_LOG" ]
+
+    CR_ALLOW_PII=1 run bash "$WS_BIN" cr yggdrasil edit 42 --title "ask someone.new@newdomain.co.uk" .crs/edit.md
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GH_LOG")" == *"someone.new@newdomain.co.uk"* ]]
+}
+
 @test "edit targets the pulls endpoint with the given number" {
     run bash "$WS_BIN" cr yggdrasil edit 42 .crs/edit.md
     [ "$status" -eq 0 ]

@@ -29,4 +29,5 @@ someone.new@newdomain.co.uk
 # either bug requires writing the broken string down, and the scanner is right
 # to see them — they are novel to this repository and email-shaped.
 +a@one.co.uk
+++fresh@newdomain.co.uk
 nknown.contact@partner.co.uk

@@ -453,7 +453,9 @@ if [[ "$allow_pii" != true ]]; then
     _pii_subject="$(ws_pii_staged_added_lines "$COMPONENT_DIR" "${_dry_index:-}")
 $message
 $body_content"
-    if ! ws_pii_guard "this change" "$_pii_subject" "$COMPONENT_DIR" "re-run with --allow-pii"; then
+    # The allowlist is read from the same index, so a dry run that stages a new
+    # exemption sees it the way the real run will.
+    if ! WS_PII_INDEX_FILE="${_dry_index:-}" ws_pii_guard "this change" "$_pii_subject" "$COMPONENT_DIR" "re-run with --allow-pii"; then
         exit 1
     fi
 fi

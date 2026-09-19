@@ -1288,6 +1288,21 @@ JSON
     [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
+@test "ask: skipping the PII guard lands on a human, in every spelling" {
+    # The wrappers are allowlisted, so without this the one blocking check
+    # could be waved through by the agent it is meant to stop.
+    seed_real_project_config
+
+    run_hook "ws commit --allow-pii yggdrasil .commits/x.md"
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+
+    run_hook "CR_ALLOW_PII=1 ws cr yggdrasil 'feat: x' .crs/x.md"
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+
+    run_hook "env ISSUE_ALLOW_PII=1 ws issue yggdrasil 'x' bug .issues/x.md"
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+}
+
 @test "ask: adding an arbitrary clone to the trusted ecosystem lands on a human" {
     seed_real_project_config
 
