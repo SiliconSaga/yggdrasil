@@ -351,8 +351,9 @@ review_comments() {
 
     # CodeRabbit (and occasionally other bots) sometimes embed findings
     # *inside* the main review body rather than as inline threads — the
-    # two patterns to watch are `Outside diff range comments (N)` and
-    # `Nitpick comments (N)` collapsibles. These never appear in the
+    # two patterns to watch are `Outside diff range comments (N)` (renamed
+    # `Outside the diff (N)` in late 2026) and `Nitpick comments (N)`
+    # collapsibles. These never appear in the
     # inline-comments fetch and are easy to miss when scrolling through
     # the rendered review text. Surface their counts in the Index so
     # they don't silently disappear under a long review body.
@@ -552,7 +553,10 @@ review_comments() {
     review_states=$(printf '%s\n' "$reviews" | _list_review_states)
 
     local n_outside n_embedded_nits n_low_conf
-    n_outside=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Outside diff range comments')
+    # CodeRabbit renamed this collapsible from `Outside diff range comments (N)`
+    # to `Outside the diff (N)` in September 2026; match both, since older
+    # reviews on an open CR keep the old heading.
+    n_outside=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Outside (diff range comments|the diff)')
     n_embedded_nits=$(printf '%s\n' "$reviews" | _count_embedded_findings 'Nitpick comments')
     # Copilot's reviewer bot wraps "low confidence" findings inside the
     # leading review body as a collapsed <details> block — they never
