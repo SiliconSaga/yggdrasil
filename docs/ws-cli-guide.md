@@ -71,7 +71,7 @@ Every subcommand falls into one of four tiers:
 
 | Tier | Auto-approve? | Committed prompt rule? | Representative examples |
 |------|---------------|------------|----------|
-| **Auto-approved wrapper** | Yes (allow) | No | `orient`, `status`, `clone`, `test`, `lint`, `format`, `build`, `commit`, `log`, `preflight`, `hoard cadence`, `hoard lint` |
+| **Auto-approved wrapper** | Yes (allow) | No | `orient`, `status`, `clone`, `test`, `lint`, `format`, `build`, `commit`, `checkout`, `log`, `preflight`, `hoard cadence`, `hoard lint` |
 | **Side-effect** | User's choice (ask) | No | `push`, `cr`, `issue`, `run`, `realm <url>`, `hoard <url>` |
 | **Trust gate** | Always asks | Yes (`hook-rules` ask-list) | `realm use`, `mcp-setup`, `clone --add-to-ecosystem`, `review reply` / `--resolve`, `hook-bypass` |
 | **Arbitrary execution** | Always asks | Yes (`hook-rules` ask-list) | `exec` |
@@ -125,7 +125,7 @@ These apply to all subcommands:
 
 ### Why `exec` always requires human approval
 
-`ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were auto-approvable, a compromised prompt or injected instruction could run anything on the system. The committed ask-list entry in `.claude/hooks/hook-rules` ensures every `exec` invocation requires human approval before it can run.
+`ws exec <comp> <cmd...>` runs **arbitrary commands**. If it were auto-approvable, a compromised prompt or injected instruction could run anything on the system. The committed ask-list entry in `.claude/hooks/hook-rules` ensures every `exec` invocation requires human approval before it can run. A headless sandbox has no human to ask, so there the same entry denies instead — except for the few exact, target-pinned forms `[headless-allow]` names ([Permissions § Headless sessions](gdd/permissions.md#headless-sessions-gdd_sandbox)).
 
 Recurring `ws exec` shapes should not become muscle memory. If a command is common enough to want auto-approval, promote it into an adapter-backed `ws test` / `ws lint` / `ws build` type path, a focused `ws` subcommand, or a reviewed component-local script invoked by a narrower wrapper.
 

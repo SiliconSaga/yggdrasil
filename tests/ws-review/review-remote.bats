@@ -87,7 +87,10 @@ case "$path" in
             '[
               {notes: [
                 {system:false, author:{username:"a.b"}, body:$b1, created_at:"2026-01-01T00:00:00Z", position:null},
-                {system:false, author:{username:"aXb"}, body:"regex wildcard note", created_at:"2026-01-01T00:00:00Z", position:null}]},
+                {system:false, author:{username:"aXb"}, body:"regex wildcard note", created_at:"2026-01-01T00:00:00Z", position:null},
+                {system:false, author:{username:"coderabbitai[bot]"}, body:"bot suffix note", created_at:"2026-01-01T00:00:00Z", position:null},
+                {system:false, author:{username:"copilot-pull-request-reviewer[bot]"}, body:"copilot review-identity note", created_at:"2026-01-01T00:00:00Z", position:null},
+                {system:false, author:{username:"Copilot"}, body:"copilot inline-identity note", created_at:"2026-01-01T00:00:00Z", position:null}]},
               {id:"thr1", notes: [
                 {system:false, resolvable:true, resolved:false, author:{username:"a.b"}, body:$b2, created_at:"2026-01-01T00:00:00Z", position:null}]}
             ]'
@@ -274,6 +277,57 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"literal reviewer note"* ]]
     [[ "$output" != *"regex wildcard note"* ]]
+}
+
+@test "review --reviewer finds a bot by its bare name" {
+    # GitHub's REST login for an app carries a `[bot]` suffix — coderabbitai[bot],
+    # copilot-pull-request-reviewer[bot] — while the help text's own example says
+    # `--reviewer coderabbitai`. An exact comparison made every bot unfilterable:
+    # the documented example returned nothing on a PR with three of its reviews.
+    # The filter is shared by both providers, so this fixture drives it directly.
+    run_ws_review app 1 --remote fork --reviewer coderabbitai --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"bot suffix note"* ]]
+    [[ "$output" != *"literal reviewer note"* ]]
+}
+
+@test "review --reviewer accepts the login exactly as the provider prints it" {
+    # The header shows `[coderabbitai[bot]]`, so copying the name from the output
+    # must work too — and did not: the validator refused `[`.
+    run_ws_review app 1 --remote fork --reviewer 'coderabbitai[bot]' --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"bot suffix note"* ]]
+    [[ "$output" != *"literal reviewer note"* ]]
+}
+
+@test "review --reviewer copilot finds both of Copilot's identities" {
+    # Copilot posts its review as copilot-pull-request-reviewer[bot] and its
+    # inline comments as Copilot. Filtering by either name returned the review
+    # overview and hid the inline findings — the half that says what to fix.
+    local name
+    for name in copilot copilot-pull-request-reviewer 'copilot-pull-request-reviewer[bot]' Copilot; do
+        run_ws_review app 1 --remote fork --reviewer "$name" --compact
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"copilot review-identity note"* ]]
+        [[ "$output" == *"copilot inline-identity note"* ]]
+        [[ "$output" != *"bot suffix note"* ]]
+    done
+}
+
+@test "review --reviewer still refuses a bracket anywhere but a trailing [bot]" {
+    # The validator is belt-and-braces over a jq string literal, and widening it
+    # must not widen it further than the one suffix a provider actually uses.
+    run_ws_review app 1 --remote fork --reviewer 'a[b]c'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid reviewer name"* ]]
+
+    run_ws_review app notes 1 --remote fork --reviewer 'a[bot]b'
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid reviewer name"* ]]
+    # Both paths say what IS allowed — the [bot] exception is not guessable.
+    [[ "$output" == *"optionally ending in [bot]"* ]]
 }
 
 @test "review strips terminal control bytes from provider text" {
