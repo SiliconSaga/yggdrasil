@@ -3518,7 +3518,9 @@ EOF
     seed_real_project_config
     run_hook "ws run leidangr"
     [ "$status" -eq 0 ]
-    [[ "$output" != *"\"permissionDecision\":\"allow\""* ]]
+    # No decision at all, not merely "not allow": a deny would block the verb
+    # outright and an ask would double-prompt, and `!= allow` passed both.
+    [[ "$output" != *"permissionDecision"* ]]
 }
 
 # ws orient / ws audit-permissions are MUST-run session-start commands (the
