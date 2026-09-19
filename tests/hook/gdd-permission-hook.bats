@@ -2220,6 +2220,16 @@ JSON
 
     run_hook 'ws exec app gh api -X PATCH repos/o/r/issues/7 -f title=x'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    # Both argument orders, on the `ws exec` twins specifically. Measured before
+    # the -alt rows existed: path-first reached ASK where method-first DENIED —
+    # the softer route this whole section exists to close, and half-populated the
+    # same way the title rows themselves were.
+    run_hook 'ws exec app gh api repos/o/r/pulls/27 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+
+    run_hook 'ws exec app gh api repos/o/r/issues/7 -X PATCH -f title=x'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
 @test "redirect: a raw PATCH of a CR body points at ws cr edit" {
