@@ -31,7 +31,8 @@ review_help() {
     echo "Subcommands:"
     echo "  <cr#>                      Full review: inline comments + top-level notes"
     echo "                             (use this first; gets everything in one call)"
-    echo "    --reviewer <name>        Filter by reviewer login"
+    echo "    --reviewer <name>        Filter by reviewer login; a bot matches with or without"
+    echo "                             [bot], and 'copilot' covers both of Copilot's logins"
     echo "    --since <time>           Filter by time (last-push, prev-push, Nh, Nm, ISO 8601)"
     echo "                             last-push reads GitHub's push events; when that feed"
     echo "                             lags (it often does for minutes) or its newest push is"
@@ -65,7 +66,8 @@ review_help() {
     echo "    --resolve-all            Resolve all unresolved threads"
     echo ""
     echo "  notes <cr#>                Top-level MR/PR notes only (bot summaries, etc.)"
-    echo "    --reviewer <name>        Filter by reviewer login"
+    echo "    --reviewer <name>        Filter by reviewer login; a bot matches with or without"
+    echo "                             [bot], and 'copilot' covers both of Copilot's logins"
     echo "    --since <time>           Filter by time"
     echo ""
     echo "  reply <cr#> <thread-id> <message> [--resolve]"
@@ -116,6 +118,18 @@ review_jq_string_literal() {
     jq -Rn -r --arg v "$1" '$v | @json'
 }
 
+# A reviewer login, optionally ending in the `[bot]` GitHub appends to app
+# accounts (coderabbitai[bot], copilot-pull-request-reviewer[bot]). The value
+# reaches jq as a string literal either way; this is belt-and-braces, and the
+# one bracketed suffix is all it admits.
+REVIEW_REVIEWER_RE='^[a-zA-Z0-9._-]+(\[bot\])?$'
+
+# One canonical form per reviewer, applied to both the login and the argument:
+# lowercased, `[bot]` stripped, and Copilot's two identities folded into one —
+# it posts its review as copilot-pull-request-reviewer[bot] and its inline
+# comments as Copilot, so either name alone showed half of what it said.
+REVIEW_LOGIN_CANON='ascii_downcase | rtrimstr("[bot]") | if . == "copilot-pull-request-reviewer" then "copilot" else . end'
+
 review_reviewer_filter() {
     local reviewer="$1"
     if [[ -z "$reviewer" ]]; then
@@ -125,7 +139,8 @@ review_reviewer_filter() {
 
     local reviewer_literal
     reviewer_literal="$(review_jq_string_literal "$reviewer")"
-    printf 'select(((.user.login // .author.username // "") | ascii_downcase) == (%s | ascii_downcase))' "$reviewer_literal"
+    printf 'select(((.user.login // .author.username // "") | %s) == (%s | %s))' \
+        "$REVIEW_LOGIN_CANON" "$reviewer_literal" "$REVIEW_LOGIN_CANON"
 }
 
 # Provider titles and bodies are untrusted terminal input. Keep ordinary text,
@@ -230,8 +245,8 @@ review_comments() {
     fi
 
     # Validate reviewer name (prevent jq filter injection)
-    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ ^[a-zA-Z0-9._-]+$ ]]; then
-        echo "ERROR: Invalid reviewer name '$reviewer'. Use alphanumeric, dot, dash, underscore." >&2
+    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ $REVIEW_REVIEWER_RE ]]; then
+        echo "ERROR: Invalid reviewer name '$reviewer'. Use alphanumeric, dot, dash, underscore, optionally ending in [bot]." >&2
         exit 1
     fi
 
@@ -678,7 +693,7 @@ review_notes() {
         exit 1
     fi
 
-    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+    if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ $REVIEW_REVIEWER_RE ]]; then
         echo "ERROR: Invalid reviewer name '$reviewer'." >&2
         exit 1
     fi
