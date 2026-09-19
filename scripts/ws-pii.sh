@@ -40,14 +40,15 @@ _ws_pii_lower() {
 
 # Emails present in the text. Unique, lowercased for comparison.
 #
-# Two normalisations first, both learned from running this on its own commit.
-# `+` and letters are legal in a local part, so a raw scan captured the diff's
-# own `+` marker (`+a@one.co.uk`) and the `n` of a `\n` escape inside a quoted
-# test string (`nknown.contact@…`). Neither is an address, and both defeat an
-# allowlist by never matching the value a human wrote in it.
+# Letters are legal in a local part, so a raw scan captures the `n` of a `\n`
+# escape inside a quoted string (`nknown.contact@…`) — never the value a human
+# wrote in an allowlist. A backslash cannot be part of an address, so blanking
+# the escape loses nothing. The diff's `+` marker is NOT stripped here: in
+# prose a leading `+` can be a real local part, and only
+# ws_pii_staged_added_lines knows its input is a diff.
 _ws_pii_extract() {
     printf '%s\n' "$1" \
-        | sed -e 's/^+//' -e 's/\\[nrt]/ /g' \
+        | sed -e 's/\\[nrt]/ /g' \
         | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' \
         | tr '[:upper:]' '[:lower:]' \
         | sort -u \
@@ -104,12 +105,14 @@ _ws_pii_in_repo() {
     git -C "$repo" grep -qiE -- "(^|[^A-Za-z0-9._%+-])${escaped}([^A-Za-z0-9.-]|\$)" HEAD 2>/dev/null
 }
 
-# ws_pii_guard <label> <text> [repo_dir]
+# ws_pii_guard <label> <text> [repo_dir] [override]
 #
 # Prints any findings and returns non-zero. Callers decide whether that blocks;
-# every current caller does.
+# every current caller does. <override> is the caller's own one-off escape
+# ("re-run with --allow-pii", "set CR_ALLOW_PII=1") — they differ per command,
+# so the message names the one that works where it is printed.
 ws_pii_guard() {
-    local label="$1" text="$2" repo="${3:-$PWD}"
+    local label="$1" text="$2" repo="${3:-$PWD}" override="${4:-}"
     local candidate found=0
 
     [[ -n "$text" ]] || return 0
@@ -135,15 +138,36 @@ ws_pii_guard() {
     echo "  deciding it is safe. Published addresses stay in history and may be indexed." >&2
     echo "" >&2
     echo "  If it belongs here, record the decision by adding it to $WS_PII_ALLOW_FILE" >&2
-    echo "  (one value per line, committed), or re-run with --allow-pii to skip this check once." >&2
+    if [[ -n "$override" ]]; then
+        echo "  (one value per line, committed), or $override to skip this check once." >&2
+    else
+        echo "  (one value per line, committed)." >&2
+    fi
     return 1
 }
 
-# Added lines of the staged diff — the only part of a change that can publish
-# something new. Context and removed lines cannot.
+# ws_pii_guard_publication <label> <title> <bodyfile> <repo_dir> <override>
+#
+# Title and body together: both are published, and the create and edit paths of
+# ws cr / ws issue all come through here so none of the four can drift.
+ws_pii_guard_publication() {
+    local label="$1" title="$2" bodyfile="$3" repo="$4" override="$5"
+    ws_pii_guard "$label" "$title
+$(cat "$bodyfile")" "$repo" "$override"
+}
+
+# Added lines of the staged diff, diff marker removed — the only part of a
+# change that can publish something new. Context and removed lines cannot.
+# [index_file] reads a scratch index instead, which is how a dry run scans what
+# it WOULD stage rather than what happens to be staged already.
 ws_pii_staged_added_lines() {
-    local repo="${1:-$PWD}"
-    git -C "$repo" diff --cached -U0 --no-color 2>/dev/null \
+    local repo="${1:-$PWD}" index_file="${2:-}"
+    if [[ -n "$index_file" ]]; then
+        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color 2>/dev/null
+    else
+        git -C "$repo" diff --cached -U0 --no-color 2>/dev/null
+    fi \
         | grep -E '^\+' \
-        | grep -vE "^\+\+\+" || true
+        | grep -vE "^\+\+\+" \
+        | sed -e 's/^+//' || true
 }

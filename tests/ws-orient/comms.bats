@@ -77,6 +77,19 @@ set_comms() {
     [[ "$output" == *"Local addition: Always mention the module name first."* ]]
 }
 
+@test "ws orient: an explicit empty local snippet clears the one beneath it" {
+    # Empty is a value, not "keep looking": it is the only way a local config
+    # can switch off a snippet it inherits.
+    set_comms oss-wide
+    yq -i '.comms.snippet = "Inherited instruction."' "$ECOSYSTEM"
+    yq -i '.comms.snippet = ""' "$ECOSYSTEM_LOCAL"
+
+    run_ws orient
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Inherited instruction."* ]]
+}
+
 @test "ws orient: no snippet line when none is configured" {
     set_comms oss-wide
 

@@ -456,17 +456,14 @@ gdd_attribution_check_driver "$_RESOLVED_BODY" "$_HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$_RESOLVED_BODY" || exit 1
 BODYFILE="$_RESOLVED_BODY"
 
-# A description can carry an address that appears in no commit, so the diff
-# scan `ws commit` runs does not cover this surface. Scans the resolved body,
-# which is what actually gets published.
+# A title or description can carry an address that appears in no commit, so the
+# diff scan `ws commit` runs does not cover this surface. Scans the resolved
+# body, which is what actually gets published.
 if [[ "${CR_ALLOW_PII:-}" != "1" ]]; then
   # shellcheck source=ws-pii.sh
   source "$SCRIPT_DIR/ws-pii.sh"
   _cr_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
-  if ! ws_pii_guard "this change-request body" "$(cat "$BODYFILE")" "$_cr_repo_root"; then
-    echo "  Set CR_ALLOW_PII=1 to publish anyway." >&2
-    exit 1
-  fi
+  ws_pii_guard_publication "this change request" "$TITLE" "$BODYFILE" "$_cr_repo_root" "set CR_ALLOW_PII=1" || exit 1
 fi
 
 # Same advisory word budget ws commit applies, on the body about to publish.

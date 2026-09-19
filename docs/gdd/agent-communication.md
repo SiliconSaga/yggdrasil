@@ -125,7 +125,7 @@ comms:
 
 Leaving `comms.flavor` unset is not an error. Orient renders it as an open question pointing back at this page — which is the intended behaviour, since GDD's position is that the project decides and the prompt should keep appearing until it has.
 
-`comms.snippet` is the escape hatch. Someone who wants their agent writing review comments in pirate speak may have it: they wrote the snippet, it is attributable to them, and orient restates it at every session start so it is never quietly in force. That is the same shape as GDD's other deliberate-act escapes — `--trust`, `--human`, `ws hook-bypass`.
+`comms.snippet` is the escape hatch. Someone who wants their agent writing review comments in pirate speak may have it: they wrote the snippet, it is attributable to them, and orient restates it at every session start so it is never quietly in force. That is the same shape as GDD's other deliberate-act escapes — `--trust`, `--human`, `ws hook-bypass`. A local `comms.snippet: ""` clears a snippet inherited from the realm.
 
 ## See also
 

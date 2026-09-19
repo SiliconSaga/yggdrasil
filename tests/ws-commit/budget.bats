@@ -103,6 +103,24 @@ $(words 200)
     [[ "$output" != *"against a budget"* ]]
 }
 
+@test "tilde fences count as fences, and only their own kind closes them" {
+    set_style terse
+    echo "changed" >> "$REPO_DIR/test.md"
+    write_bodyfile "$REPO_DIR/body.md" "test: subject" "test.md" \
+        "$(words 10)
+
+~~~
+$(words 100)
+\`\`\`
+$(words 100)
+~~~"
+
+    run_ws_commit yggdrasil "$REPO_DIR/body.md"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"against a budget"* ]]
+}
+
 @test "a subject-only commit is never flagged" {
     set_style terse
     echo "changed" >> "$REPO_DIR/test.md"

@@ -240,6 +240,38 @@ ws commit --co-author-file <parent-session-id>--<label> <comp> <bodyfile>
 
 The flag value is a bare name (no angle brackets), so it passes the hook and needs no special allowlist entry — `ws commit --co-author-file …` matches the existing `ws commit:*` allow.
 
+## Publication guards
+
+`ws commit`, `ws cr` and `ws issue` check text on its way out, create and `edit` paths alike. Two checks block; one advises.
+
+| Check | Surfaces | On failure |
+| --- | --- | --- |
+| Attribution banner present, driver account resolved, no unsubstituted `@HUMAN_ACCOUNT` / `@GDD_HOME` | CR and issue bodies (`ws review comment` / `reply` / `edit` attach the banner themselves) | Refuses |
+| PII guard — an email address the repository has never held | Commit subject, body and staged added lines; CR and issue title and body | Refuses |
+| Word budget (`style.changeNotes`) | Commit, CR and issue bodies | Notes the overrun, publishes anyway |
+
+### PII guard (`scripts/ws-pii.sh`)
+
+An address is flagged only when it is new: absent from the committed tree at `HEAD`, not on an RFC-reserved domain (`example.com`, `*.test`, `*.invalid`, …), not a role local part (`noreply@`, `git@`, …), and not listed in the repository's committed `.gdd-pii-allow`. Matching is whole-address and case-insensitive. The working tree does not count as prior art — an uncommitted sample file is the usual source of a leak.
+
+`ws commit --dry-run` stages into a scratch copy of the index and scans that, so a dry run and the real run reach the same verdict.
+
+To exempt a value permanently, add it to `.gdd-pii-allow` (one per line, `#` comments) and commit the file, so the exemption is reviewable. To skip the check once: `ws commit --allow-pii`, `CR_ALLOW_PII=1 ws cr …`, `ISSUE_ALLOW_PII=1 ws issue …`. The refusal names the form that applies to the command that printed it.
+
+Email addresses only. Tokens and keys are a secret scanner's job (gitleaks-class tools).
+
+### Word budget (`scripts/ws-budget.sh`)
+
+Counted in words, because prose is never hard-wrapped and a line is a paragraph of any length. Fenced blocks (backtick or tilde), blockquotes (the attribution banner) and headings are not counted.
+
+| `style.changeNotes` | Commit body | CR body | Issue body |
+| --- | --- | --- | --- |
+| `terse` | 50 | 120 | 150 |
+| `standard` (default) | 120 | 250 | 300 |
+| `detailed` | no budget | no budget | no budget |
+
+`ws orient` prints the active numbers. Set the style in realm or local ecosystem config.
+
 ## ws component init
 
 Scaffolds a new component into `components/<name>/` from a template shipped at `templates/components/<flavor>/`.

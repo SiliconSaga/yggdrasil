@@ -22,7 +22,7 @@ ws_budget_limit() {
 # banner, headings are structure.
 ws_budget_count_words() {
     printf '%s\n' "$1" | awk '
-        /^[[:space:]]*```/ { fence = !fence; next }
+        match($0, /^[[:space:]]*(```|~~~)/) { c = substr($0, RLENGTH, 1); if (!fence) { fence = c } else if (fence == c) { fence = "" } next }
         fence || /^[[:space:]]*>/ || /^#/ { next }
         { n += NF }
         END { print n + 0 }'

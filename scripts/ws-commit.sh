@@ -277,6 +277,7 @@ if [[ -n "$bodyfile" ]]; then
             # references only unchanged files, which the real commit
             # would then reject with "No staged changes to commit."
             would_stage_any=0
+            _dry_index=""
             if [[ -n "$add_files" ]]; then
                 if $dry_run; then
                     echo "DRY RUN — would stage files from bodyfile frontmatter:"
@@ -317,6 +318,16 @@ if [[ -n "$bodyfile" ]]; then
                         add_output=$(git add --dry-run -A -- "$f")
                         [[ -n "$add_output" ]] && printf '%s\n' "$add_output"
                         [[ -n "$add_output" ]] && would_stage_any=1
+                        # Stage for real into a scratch copy of the index, so
+                        # the PII guard below scans what the real run would.
+                        if [[ -z "$_dry_index" ]]; then
+                            _dry_index="$(mktemp)"
+                            trap 'rm -f "$_dry_index" 2>/dev/null' EXIT
+                            # No index yet (fresh repo): hand git a free path,
+                            # not mktemp's empty file, which is not a valid index.
+                            cp "$(git rev-parse --git-path index)" "$_dry_index" 2>/dev/null || rm -f "$_dry_index"
+                        fi
+                        GIT_INDEX_FILE="$_dry_index" git add -A -- "$f" >/dev/null 2>&1 || true
                     else
                         git add -A -- "$f"
                         would_stage_any=1
@@ -436,12 +447,13 @@ ws_budget_note commit "$body_content" "$_budget_style"
 
 # Blocks, unlike the budget note above. A long commit body is a nuisance someone
 # can fix later; a published address is in history and possibly indexed, and no
-# later commit takes it back. Scans the staged diff and the body together —
-# either can carry a value the other does not.
+# later commit takes it back. Scans the staged diff, the subject and the body
+# together — any of them can carry a value the others do not.
 if [[ "$allow_pii" != true ]]; then
-    _pii_subject="$(ws_pii_staged_added_lines "$COMPONENT_DIR")
+    _pii_subject="$(ws_pii_staged_added_lines "$COMPONENT_DIR" "${_dry_index:-}")
+$message
 $body_content"
-    if ! ws_pii_guard "this change" "$_pii_subject" "$COMPONENT_DIR"; then
+    if ! ws_pii_guard "this change" "$_pii_subject" "$COMPONENT_DIR" "re-run with --allow-pii"; then
         exit 1
     fi
 fi

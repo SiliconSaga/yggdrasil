@@ -73,10 +73,7 @@ if [[ "${ISSUE_ALLOW_PII:-}" != "1" ]]; then
   # nested target a bare rev-parse reads the workspace's history and allowlist
   # while the issue publishes to the nested repo.
   _issue_repo_root="$(git -C "$COMPONENT_DIR" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$COMPONENT_DIR")"
-  if ! ws_pii_guard "this issue body" "$(cat "$RESOLVED_BODY")" "$_issue_repo_root"; then
-    echo "  Set ISSUE_ALLOW_PII=1 to publish anyway." >&2
-    exit 1
-  fi
+  ws_pii_guard_publication "this issue" "$TITLE" "$RESOLVED_BODY" "$_issue_repo_root" "set ISSUE_ALLOW_PII=1" || exit 1
 fi
 
 # Same advisory word budget ws commit applies, on the body about to publish.

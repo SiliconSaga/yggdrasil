@@ -210,6 +210,16 @@ write_issue_body() {
     [ "$status" -eq 0 ]
 }
 
+@test "all four publication paths run the PII guard on title and body" {
+    # Create-only coverage is how the attribution checks were bypassed once
+    # already; an edit publishes the same text a create does.
+    local script
+    for script in git-cr.sh git-cr-edit.sh git-issue.sh git-issue-edit.sh; do
+        run grep -q 'ws_pii_guard_publication ' "$REPO_ROOT/scripts/$script"
+        [ "$status" -eq 0 ]
+    done
+}
+
 @test "git-issue.sh calls the leak guard before publishing" {
     run grep -q 'gdd_attribution_assert_resolved' "$REPO_ROOT/scripts/git-issue.sh"
     [ "$status" -eq 0 ]

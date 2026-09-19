@@ -20,10 +20,15 @@ The discoverability layer — `ws orient` (run at session start), the per-comman
 - `ws status` — Git status across the workspace (yggdrasil + components + realms + hoards).
 - `ws clone <component>` — Clone a component declared in ecosystem config.
 - `ws commit <component> <bodyfile>` — Bodyfile-driven commit (auto-stages, adds Co-Authored-By trailer).
+- `ws checkout <component> <branch> [-b]` — Switch or create a branch. Branches only; it has no path mode, so it cannot discard working-tree changes.
 - `ws push <component> [branch]` — Push to the per-developer fork remote.
-- `ws cr <component> <title> <bodyfile>` — Open a pull/merge request.
+- `ws cr <component> <title> <bodyfile>` — Open a pull/merge request; `ws cr <component> edit <n> <bodyfile>` updates one. `ws issue` has the same pair.
 - `ws review <component> <pr#>` — Fetch CodeRabbit / Copilot review threads.
+- `ws test` / `lint` / `format` / `build` / `run` / `clean <component>` — Run the component's own command for that task (see [Adapters](#adapters-one-verb-per-task-in-any-component)).
+- `ws log <component>` — What is on this branch, incoming from upstream (`--incoming`), or against an explicit base (`--against <ref>`).
 - `ws hoard init [template]`, `ws realm init`, `ws component init <flavor> <name>` — Scaffold new instances.
+
+Every repo-touching verb also takes a nested target, `ws commit terasology/Health <bodyfile>`, for a component whose tree holds independent git repos.
 
 ---
 
@@ -39,11 +44,27 @@ Future direction: multi-realm chains (corp → dept → team) for organizations 
 
 ---
 
+## Adapters — one verb per task, in any component
+
+A realm's `adapters/<component>.yaml` maps six verbs onto whatever the component actually uses: `commands.test`, `lint`, `format`, `build`, `run` and `clean`. `ws test mimir` runs `bash scripts/test.sh`; `ws test terasology` runs `./gradlew unitTest`. The agent does not need to learn each project's toolchain, and `ws orient` prints every wired verb with the command it resolves to.
+
+- **`ws test <comp> <name>`** runs one test. Gradle, Go, pytest and unittest filters are inferred; any other runner declares `commands.testFilter` with `{}` where the selector goes. Without one, a filter is refused, so a green full suite is never mistaken for the one test asked for.
+- **`ws format` rewrites; `ws lint` checks.** A formatter's `--check` form belongs under `commands.lint`.
+- **`ws run` prompts; the rest are pre-allowed.** Run targets are long-lived or interactive.
+- **`nested:`** declares, by glob, independent git repos inside a component (Terasology's `modules/*`). They become addressable as `<component>/<repo>`; nothing recurses, and there is no bulk commit or push. `ws clone-fork <component>/<repo>` wires a fork remote onto the checkout in place, because a module only builds inside its host tree.
+- **`ai_context:`** lists the docs an agent should read first for that component; `ws orient` marks any that no longer resolve.
+
+Adapter commands are realm content, so they pass through realm trust review: a changed command or `nested:` list makes trust stale, and the approval prompt shows what changed. Reference: [adapters.md](adapters.md).
+
+---
+
 ## Hoards — personal containers
 
 A *hoard* is a personal repo for content that doesn't belong in any component or realm. The canonical hoard type is **thalami** — a per-developer container for the [Thalamus](thalamus.md) (the shared thinking space between you and the agent), with per-machine files so multiple workstations can sync their state via git.
 
 Hoards live in `hoards/<type>-<user>/` and are independent git repos. The first session on a new machine resolves a hostname-derived `<machine>-thalamus.md` inside the active thalami hoard; subsequent sessions pick up the conversation history from there.
+
+`ws hoard lint` validates thalamus frontmatter across every host's file: that it parses, that each arc carries the required keys, and that `next` fits the dashboard cell. A file that does not parse otherwise drops out of the cross-host Arc Dashboard without any error.
 
 See [hoards.md](hoards.md) for the deeper dive: setup, the cadence config (`.ws-cadence.yaml`), multi-machine workflows, and where future hoard types might fit (e.g. vault-style knowledgebases).
 
@@ -68,6 +89,8 @@ Every component PR runs through automated review:
 - **CodeRabbit** — semantic review of code, comments, structure. Posts inline comments and a top-level summary. Rate-limited per hour but otherwise reliable.
 - **Copilot** — additional review (semantically distinct findings; often catches things CodeRabbit misses, and vice versa).
 - **`ws review <component> <pr#>`** — fetches both reviews into a single shell view. `ws review <component> threads <pr#> --resolve <id>` for thread management; `ws review <component> reply <pr#> <thread-id> "<msg>" --resolve` for a reply-and-resolve in one go.
+- **`ws review <component> comment`** posts a top-level comment (for findings outside the diff, which have no thread); **`ws review <component> edit`** rewrites a comment already posted. Replies, comments and edits all carry the AI-attribution banner.
+- **`--since last-push`** narrows a review to what arrived after the latest push, so a second round shows only new findings.
 
 The agent + the bots together form the review apparatus. You can work fully via the agent (which reads the bot output and proposes fixes) or step in manually — the `ws review` CLI is shaped for both.
 
@@ -148,7 +171,31 @@ The two-identity model gives reviewable attribution (every commit and PR is auth
 
 Multi-provider workflows (GitHub + GitLab + self-hosted) work without per-command configuration — `ws push` / `ws cr` / `ws review` auto-detect provider from remote URL and pick the right CLI and token.
 
-Conceptual model: [access.md](access.md). Setup mechanics (installing CLIs, generating tokens, `.env` shape): [`docs/git-provider-setup.md`](../git-provider-setup.md). Diagnostic: `ws diagnose <component>` reports per-component remote detection and token coverage.
+[access.md](access.md) also covers **privilege inversion** — agent access should narrow as the driving human's access widens, because a maintainer's agent inherits their blast radius and their social weight — and the shared-versus-individual machine-account models.
+
+Conceptual model: [access.md](access.md). Setup mechanics (installing CLIs, generating tokens, `.env` shape): [`docs/git-provider-setup.md`](../git-provider-setup.md). Diagnostic: `ws diagnose <component>` reports remote detection, token coverage, and whether there is anything to send.
+
+---
+
+## Agent communication — how the agent speaks in public
+
+An agent's comments land in a community's tracker under someone's name. [agent-communication.md](agent-communication.md) names the four decisions a project makes about that — identity, register, disposition authority, privilege inversion — and gives three copyable settings. GDD names the questions; the project answers them.
+
+- **`comms.flavor`** (`oss-wide` | `solo` | `corporate` | `none`) records the answer in ecosystem config. `ws orient` renders it first, above the subcommand survey, because it governs everything the agent writes for the rest of the session. Unset renders as a prompt to decide.
+- **`comms.snippet`** is a local addition, restated every session so it is never quietly in force. An explicit empty value clears one inherited from the realm.
+- **`style.changeNotes`** (`terse` | `standard` | `detailed`) sets how long commit, CR and issue bodies run — see the word budget below.
+
+---
+
+## Publication guards — what is checked before text goes out
+
+A commit, a CR or an issue is permanent once published, so `ws commit`, `ws cr` and `ws issue` check the text first, on create and `edit` alike. Raw `gh pr edit --body` and its equivalents redirect to the wrappers, so the checks cannot be skipped by accident.
+
+- **Attribution.** A CR or issue body must carry the AI-attribution banner naming the driving human, and a body with an unsubstituted `@HUMAN_ACCOUNT` or `@GDD_HOME` is refused.
+- **PII guard.** An email address the repository has never held is refused — in a commit's subject, body or staged lines, or a CR or issue title or body. The filter is *novelty*, not shape: addresses already committed, RFC-reserved domains, role addresses (`noreply@`, `git@`) and entries in a committed `.gdd-pii-allow` all pass, so legitimate addresses do not raise noise. The case it exists for is an address typed into a local sample file and later carried into a published document by an agent doing unrelated work. It blocks; each command names its own one-off override.
+- **Word budget.** Bodies are counted in words against `style.changeNotes` (terse: 50 / 120 / 150 for commit / CR / issue) and the wrapper notes an overrun. Advisory, never blocking; fenced output does not count. `ws orient` prints the active numbers.
+
+Reference: [ws CLI guide § Publication guards](../ws-cli-guide.md#publication-guards).
 
 ---
 

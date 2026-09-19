@@ -611,7 +611,7 @@ _ORIENT_CFG_CHANGE_NOTES=""
 _ORIENT_CFG_COMMS_FLAVOR=""
 _ORIENT_CFG_COMMS_SNIPPET=""
 _ws_orient_read_config() {
-    local f row c_notes c_flavor c_snippet
+    local f row c_notes c_flavor c_snippet snippet_found=0
     while IFS= read -r f; do
         [[ -n "$f" ]] || continue
         # Each field is prefixed with a sentinel and stripped after splitting.
@@ -627,19 +627,23 @@ _ws_orient_read_config() {
         # invalid-value note that should have warned about it. Without the
         # newline collapse, a sequence value spreads the row over several lines
         # and the split below silently truncates at the first.
-        row="$(yq -r '["x" + ((.style.changeNotes // "") | tostring), "x" + ((.comms.flavor // "") | tostring), "x" + ((.comms.snippet // "") | tostring)] | map(sub("\n"; " ")) | @tsv' "$f" 2>/dev/null)" || continue
+        #
+        # The snippet alone distinguishes absent (`-`) from present: an explicit
+        # `comms.snippet: ""` is how a local config clears a realm's snippet, so
+        # it has to stop the search rather than fall through to the next layer.
+        row="$(yq -r '["x" + ((.style.changeNotes // "") | tostring), "x" + ((.comms.flavor // "") | tostring), (.comms.snippet | select(. != null) | "x" + tostring) // "-"] | map(sub("\n"; " ")) | @tsv' "$f" 2>/dev/null)" || continue
         IFS=$'\t' read -r c_notes c_flavor c_snippet <<< "$row"
         c_notes="${c_notes#x}"
         c_flavor="${c_flavor#x}"
-        c_snippet="${c_snippet#x}"
         if [[ -z "$_ORIENT_CFG_CHANGE_NOTES" && -n "${c_notes:-}" && "$c_notes" != "null" ]]; then
             _ORIENT_CFG_CHANGE_NOTES="$c_notes"
         fi
         if [[ -z "$_ORIENT_CFG_COMMS_FLAVOR" && -n "${c_flavor:-}" && "$c_flavor" != "null" ]]; then
             _ORIENT_CFG_COMMS_FLAVOR="$c_flavor"
         fi
-        if [[ -z "$_ORIENT_CFG_COMMS_SNIPPET" && -n "${c_snippet:-}" && "$c_snippet" != "null" ]]; then
-            _ORIENT_CFG_COMMS_SNIPPET="$c_snippet"
+        if [[ "$snippet_found" -eq 0 && "${c_snippet:-}" == x* ]]; then
+            _ORIENT_CFG_COMMS_SNIPPET="${c_snippet#x}"
+            snippet_found=1
         fi
     done < <(_ws_orient_config_layers)
     return 0

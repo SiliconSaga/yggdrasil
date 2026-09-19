@@ -143,14 +143,56 @@ setup() {
 }
 
 @test "a diff marker is not part of the address" {
-    # Found by running this guard on its own first commit. `+` is legal in a
-    # local part, so scanning raw diff lines produced `+a@one.co.uk`, which
-    # matches no allowlist entry anyone would think to write.
-    printf 'a@one.co.uk\n' > "$REPO/.gdd-pii-allow"
+    # `+` is legal in a local part, so scanning raw diff lines would produce
+    # `+a@one.co.uk`, which matches no allowlist entry anyone would write.
+    printf 'a@one.co.uk\n' > "$REPO/probe.txt"
+    git -C "$REPO" add probe.txt
 
-    run ws_pii_guard "probe" "+a@one.co.uk" "$REPO"
+    run ws_pii_staged_added_lines "$REPO"
 
     [ "$status" -eq 0 ]
+    [[ "$output" == *"a@one.co.uk"* ]]
+    [[ "$output" != *"+a@one.co.uk"* ]]
+}
+
+@test "a leading plus in prose stays part of the address" {
+    # Only a diff has markers. Stripping `+` from a CR body would turn
+    # `+alice@…` into `alice@…` and let an allowlisted value vouch for it.
+    printf 'alice@corp.co.uk\n' > "$REPO/.gdd-pii-allow"
+
+    run ws_pii_guard "probe" "+alice@corp.co.uk" "$REPO"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"+alice@corp.co.uk"* ]]
+}
+
+@test "a scratch index shows what a dry run would stage" {
+    printf 'fresh@newdomain.co.uk\n' > "$REPO/unstaged.txt"
+    cp "$REPO/.git/index" "$REPO/scratch.index"
+    GIT_INDEX_FILE="$REPO/scratch.index" git -C "$REPO" add unstaged.txt
+
+    run ws_pii_staged_added_lines "$REPO" "$REPO/scratch.index"
+
+    [[ "$output" == *"fresh@newdomain.co.uk"* ]]
+    run ws_pii_staged_added_lines "$REPO"
+    [[ "$output" != *"fresh@newdomain.co.uk"* ]]
+}
+
+@test "a publication is scanned title and body together" {
+    printf 'Nothing personal here.\n' > "$REPO/body.md"
+
+    run ws_pii_guard_publication "this issue" "ping titled.person@newdomain.co.uk" "$REPO/body.md" "$REPO" "set ISSUE_ALLOW_PII=1"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"titled.person@newdomain.co.uk"* ]]
+}
+
+@test "the refusal names the caller's own override, not another command's" {
+    run ws_pii_guard "probe" "someone.new@newdomain.co.uk" "$REPO" "set CR_ALLOW_PII=1"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"set CR_ALLOW_PII=1 to skip"* ]]
+    [[ "$output" != *"--allow-pii"* ]]
 }
 
 @test "a string escape before an address is not part of it" {
