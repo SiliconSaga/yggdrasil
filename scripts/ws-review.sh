@@ -694,7 +694,7 @@ review_notes() {
     fi
 
     if [[ -n "$reviewer" ]] && [[ ! "$reviewer" =~ $REVIEW_REVIEWER_RE ]]; then
-        echo "ERROR: Invalid reviewer name '$reviewer'." >&2
+        echo "ERROR: Invalid reviewer name '$reviewer'. Use alphanumeric, dot, dash, underscore, optionally ending in [bot]." >&2
         exit 1
     fi
 

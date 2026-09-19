@@ -326,6 +326,8 @@ BASH
     run_ws_review app notes 1 --remote fork --reviewer 'a[bot]b'
     [ "$status" -ne 0 ]
     [[ "$output" == *"Invalid reviewer name"* ]]
+    # Both paths say what IS allowed — the [bot] exception is not guessable.
+    [[ "$output" == *"optionally ending in [bot]"* ]]
 }
 
 @test "review strips terminal control bytes from provider text" {
