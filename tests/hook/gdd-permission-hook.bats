@@ -180,11 +180,42 @@ setup() {
     seed_real_project_config
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site identify assets/img/photo.png'
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
-    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file assets/img/photo.png'
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file -- assets/img/photo.png'
     [[ "$output" == *'"permissionDecision":"allow"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site convert big.png -resize 50% small.png'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
     GDD_SANDBOX=ken-site run_hook 'ws exec ken-site mogrify -resize 50% big.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: file is allowed only after --, because -C writes" {
+    # `file -C -m <magic>` compiles a magic file and writes `<magic>.mgc` into the
+    # working directory — measured, not assumed. A bare `file *` entry therefore
+    # granted a write under a policy that promised reads. After `--` every token
+    # is a filename, so compiler mode cannot be reached through the allowance.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file -C -m mymagic'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file --compile -m mymagic'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # The operand-first spelling is refused too: the entry is the `--` form, and
+    # a glob cannot tell a filename from an option without it.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site file assets/img/photo.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+}
+
+@test "headless: the image entries stay pinned to the sandbox's own component" {
+    # A regression that turned __SANDBOX_TARGET__ into `*` would still pass every
+    # in-scope assertion above while letting the sandbox run these in yggdrasil —
+    # the workspace repo, hook rules included — or in any other component.
+    seed_real_project_config
+    GDD_SANDBOX=ken-site run_hook 'ws exec yggdrasil identify x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec yggdrasil file -- x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec nordri identify x.png'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ken-site run_hook 'ws exec nordri file -- x.png'
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 

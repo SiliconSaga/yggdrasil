@@ -57,7 +57,7 @@ The conversion lives in the hook's `ask()` helper rather than beside the ask-lis
 
 **Committed policy only.** Unlike `[allow-extras]`, entries in this section are ignored when they appear in `hook-rules.local` — that file is gitignored and writable by the agent the section governs, so honoring it would let a sandbox grant itself anything by writing a single `*`. Local config may tighten the safety floor and never loosen it; `[ask-commands]` remains additive from both files.
 
-**The section ships two entries, both read-only.** `identify` and `file` report what an image is without touching it, so an agent handed a multi-megabyte phone photo can measure it rather than committing it blind; `convert` is deliberately absent, because it writes wherever it is pointed. Branch work needs no entry — `ws checkout` is never on the ask-list, so it reaches this tier already allowed.
+**The section ships two entries, for measuring an image.** `identify` and `file` report what an image is, so an agent handed a multi-megabyte phone photo can measure it rather than committing it blind. `file` is allowed only as `file -- <path>`: `file -C` compiles a magic file and writes it, and after `--` every token is a filename, so that mode cannot be reached through the allowance. `convert` is deliberately absent, because it writes wherever it is pointed. Branch work needs no entry — `ws checkout` is never on the ask-list, so it reaches this tier already allowed.
 
 An operator may add more, deliberately, knowing nobody will be asked.
 

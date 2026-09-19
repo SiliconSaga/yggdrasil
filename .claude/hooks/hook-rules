@@ -143,12 +143,23 @@ ws realm use *
 # `ws checkout` is never on the ask-list, so it reaches this tier already
 # allowed. What the shipped entries cover is narrower — reading an image.
 #
-# `identify` and `file` report what an image IS without touching it. A phone
-# photo arrives at several megabytes and print resolution, and an agent that
-# cannot measure that commits it blind. `convert` is deliberately ABSENT even
-# though the image ships it: it writes wherever it is pointed, which is the
-# reasoning that removed the site build above, and it belongs behind a `ws image`
-# verb that can validate a destination.
+# `identify` and `file` report what an image IS. A phone photo arrives at several
+# megabytes and print resolution, and an agent that cannot measure that commits
+# it blind. `convert` is deliberately ABSENT even though the image ships it: it
+# writes wherever it is pointed, which is the reasoning that removed the site
+# build above, and it belongs behind a `ws image` verb that can validate a
+# destination.
+#
+# "Reads only" has to hold for every argument the glob accepts, not just the
+# intended one, and for `file` it did not: `file -C -m <magic>` compiles a magic
+# file and WRITES `<magic>.mgc` into the working directory (measured on the
+# image's own Debian bookworm package). So `file` is allowed only after `--`,
+# which makes every later token a filename — `file -- -C` is a missing file, not
+# compiler mode. `identify` has no write option in its option set, and the
+# coder routes that could turn a read into a write or delete (`ephemeral:`,
+# `msl:`, `@`-includes) were measured inert under Debian's shipped policy.xml;
+# ImageMagick treats `--` as a filename, so the same narrowing is not available
+# to it anyway.
 #
 # An operator may add more, deliberately, knowing nobody will be asked.
 #
@@ -156,7 +167,7 @@ ws realm use *
 # the component. The boundary is the container; this keeps the ordinary working
 # set free of prompts without widening the blast radius by default.
 ws exec __SANDBOX_TARGET__ identify *
-ws exec __SANDBOX_TARGET__ file *
+ws exec __SANDBOX_TARGET__ file -- *
 
 [redirect-commands]
 # Raw commands with a ws equivalent. The hook denies a match in Tier 2
