@@ -95,6 +95,20 @@ trap 'rm -f "$_RESOLVED_BODY" 2>/dev/null' EXIT
 gdd_attribution_check_driver "$_RESOLVED_BODY" "$_HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$_RESOLVED_BODY" || exit 1
 
+# An edit publishes exactly what a create does, so it gets the same guard and
+# the same advisory budget.
+if [[ "${CR_ALLOW_PII:-}" != "1" ]]; then
+  # shellcheck source=ws-pii.sh
+  source "$SCRIPT_DIR/ws-pii.sh"
+  _cr_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
+  ws_pii_guard_publication "this change request" "$TITLE" "$_RESOLVED_BODY" "$_cr_repo_root" "set CR_ALLOW_PII=1" || exit 1
+fi
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
+_cr_style=""
+[[ -n "${_ECO:-}" ]] && { _cr_style="$(yq -r '.style.changeNotes // ""' "$_ECO" 2>/dev/null)" || _cr_style=""; }
+ws_budget_note cr "$(cat "$_RESOLVED_BODY")" "$_cr_style"
+
 gdd_cr_resolve_fork_remote "$CR_REMOTE" "$_ECO" || exit 1
 
 TARGET_URL="$FORK_URL"
