@@ -60,6 +60,10 @@ Tier 2 of the PreToolUse hook denies a curated list of raw commands (`git commit
 
 Codex consumes the same `[redirect-commands]` rows through a focused deny-or-defer bridge. A match returns the same `ws` guidance. A valid session-scoped bypass removes the redirect decision but does not auto-allow the command; Codex still applies its sandbox, network, and approval routing.
 
+### Headless sessions (`GDD_SANDBOX`)
+
+A sandboxed session sets `GDD_SANDBOX` to the one component it is scoped to, and the hook then treats every prompt as unanswerable: a permission card would reach either nobody or a chat user who cannot evaluate a tool call, so each path that would **ask** becomes a **deny** with its reason — never a skipped prompt, which would let destructive commands through. The `[headless-allow]` section of `hook-rules` names the few commands allowed instead, pinned to that component and honored from committed policy only, so a sandbox cannot grant itself more by writing `hook-rules.local`. It ships two entries for measuring an image — `identify` and `file -- <path>` — and branch work needs none, since `ws checkout` is never on the ask-list. Mechanics and the reasoning behind each exclusion: [`.claude/hooks/README.md`](../../.claude/hooks/README.md) § Sections; the component that sets it: [the feature tour](features.md#sandboxed-workspaces-gdd-sandbox-optional-companion-new-in-11).
+
 ### `ws commit` flags auto-approve
 
 `ws commit`, `ws whoami`, `ws test`, `ws lint`, `ws format`, and `ws build` are allowlisted by default in this workspace's `.claude/settings.json`. The `ws commit` allow patterns are:
