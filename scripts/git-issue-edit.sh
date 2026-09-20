@@ -50,6 +50,19 @@ trap 'rm -f "$RESOLVED_BODY" 2>/dev/null' EXIT
 gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
+# An edit publishes exactly what a create does, so it gets the same guard and
+# the same advisory budget. Repo root from COMPONENT_DIR — see git-issue.sh.
+if [[ "${ISSUE_ALLOW_PII:-}" != "1" ]]; then
+  # shellcheck source=ws-pii.sh
+  source "$SCRIPT_DIR/ws-pii.sh"
+  _issue_repo_root="$(git -C "$COMPONENT_DIR" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$COMPONENT_DIR")"
+  ws_pii_guard_publication "this issue" "${TITLE:-}" "$RESOLVED_BODY" "$_issue_repo_root" "set ISSUE_ALLOW_PII=1" || exit 1
+fi
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
+_issue_style="$(yq -r '.style.changeNotes // ""' "$ECO" 2>/dev/null)" || _issue_style=""
+ws_budget_note issue "$(cat "$RESOLVED_BODY")" "$_issue_style"
+
 # Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships bash 3.2.57, where it does not exist. Same sweep as git-cr.sh and git-push.sh; this file arrived with #166 after the sweep was written, so it is caught here on the rebase.
 _REMOTES=()
 _remote_line=""

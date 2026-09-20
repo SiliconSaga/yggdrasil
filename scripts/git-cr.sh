@@ -456,6 +456,23 @@ gdd_attribution_check_driver "$_RESOLVED_BODY" "$_HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$_RESOLVED_BODY" || exit 1
 BODYFILE="$_RESOLVED_BODY"
 
+# A title or description can carry an address that appears in no commit, so the
+# diff scan `ws commit` runs does not cover this surface. Scans the resolved
+# body, which is what actually gets published.
+if [[ "${CR_ALLOW_PII:-}" != "1" ]]; then
+  # shellcheck source=ws-pii.sh
+  source "$SCRIPT_DIR/ws-pii.sh"
+  _cr_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
+  ws_pii_guard_publication "this change request" "$TITLE" "$BODYFILE" "$_cr_repo_root" "set CR_ALLOW_PII=1" || exit 1
+fi
+
+# Same advisory word budget ws commit applies, on the body about to publish.
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
+_cr_style=""
+[[ -n "${_ECO:-}" ]] && { _cr_style="$(yq -r '.style.changeNotes // ""' "$_ECO" 2>/dev/null)" || _cr_style=""; }
+ws_budget_note cr "$(cat "$BODYFILE")" "$_cr_style"
+
 if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
   echo "ERROR: current branch is '$BRANCH' — check out a topic branch first" >&2
   exit 1

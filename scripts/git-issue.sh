@@ -64,6 +64,24 @@ trap 'rm -f "$RESOLVED_BODY" "$_RESOLVED_ECOSYSTEM" 2>/dev/null' EXIT
 gdd_attribution_check_driver "$RESOLVED_BODY" "$HUMAN_ACCOUNT" || exit 1
 gdd_attribution_assert_resolved "$RESOLVED_BODY" || exit 1
 
+# Same surface as the CR body: an issue can name someone who appears in no
+# commit at all.
+if [[ "${ISSUE_ALLOW_PII:-}" != "1" ]]; then
+  # shellcheck source=ws-pii.sh
+  source "$SCRIPT_DIR/ws-pii.sh"
+  # From COMPONENT_DIR, not the caller's cwd: ws issue never cd's, so for a
+  # nested target a bare rev-parse reads the workspace's history and allowlist
+  # while the issue publishes to the nested repo.
+  _issue_repo_root="$(git -C "$COMPONENT_DIR" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$COMPONENT_DIR")"
+  ws_pii_guard_publication "this issue" "$TITLE" "$RESOLVED_BODY" "$_issue_repo_root" "set ISSUE_ALLOW_PII=1" || exit 1
+fi
+
+# Same advisory word budget ws commit applies, on the body about to publish.
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
+_issue_style="$(yq -r '.style.changeNotes // ""' "$ECO" 2>/dev/null)" || _issue_style=""
+ws_budget_note issue "$(cat "$RESOLVED_BODY")" "$_issue_style"
+
 # Resolve remote:
 #   1 remote  → use it (any name)
 #   N remotes + REMOTE hint → case-insensitive match

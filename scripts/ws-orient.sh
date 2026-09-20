@@ -23,6 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=ws-realm.sh
 source "$SCRIPT_DIR/ws-realm.sh"
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
 
 orient_help() {
     cat <<'HELP'
@@ -289,6 +291,12 @@ _resolve_orient_realm() {
     fi
     if [[ -n "$_ORIENT_REALM" ]]; then
         _ORIENT_REALM_STATUS="ok"
+        # Resolve trust here rather than in emit_active_realm. The realm's
+        # config layer is consumed by _ws_orient_read_config, which has to run
+        # before the register is rendered at the top of the output — earlier
+        # than emit_active_realm. Leaving the fingerprint to the renderer meant
+        # a realm-set value was silently dropped for anything printed above it.
+        _ORIENT_REALM_TRUST="$(ws_realm_trust_state "$_ORIENT_REALM")"
     else
         _ORIENT_REALM_STATUS="none"
     fi
@@ -553,11 +561,10 @@ emit_active_realm() {
     if [[ -f "$realm_agents" ]]; then
         echo "  Guide: $realm_agents"
     fi
-    local trust_state
-    trust_state="$(ws_realm_trust_state "$_ORIENT_REALM")"
-    # Cache for emit_change_note_style so it can honor the realm config
-    # layer without recomputing the trust fingerprint.
-    _ORIENT_REALM_TRUST="$trust_state"
+    # Resolved once in _resolve_orient_realm, because the config readers that
+    # run above this renderer need it too. Recomputing here would spawn the
+    # fingerprint a second time for no new information.
+    local trust_state="$_ORIENT_REALM_TRUST"
     if [[ "$trust_state" == "current" ]]; then
         echo "  Trust: approved"
     else
@@ -566,41 +573,159 @@ emit_active_realm() {
     fi
 }
 
-# Change-note style — the prose budget for commit/CR/issue bodies, from
-# style.changeNotes in the ecosystem config (realm carries community
-# norms, ecosystem.local.yaml personal overrides). Surfaced here so the
-# agent honors it without a config read of its own.
+# Config layers for orient's own reads, in precedence order (local > realm >
+# upstream). Emitted one path per line rather than returned in an array: a
+# nameref would need bash 4.3 and the rest of this file runs on 3.2. Callers
+# take the first hit.
 #
-# Reads the three merge layers directly (local > realm > upstream,
-# first hit wins) instead of calling ws_resolve_ecosystem: the full
-# merge recomputes the realm trust fingerprint and spawns several yq
-# processes, enough to push trusted-realm orient runs over the smoke
-# timeout on slow hosts. The realm layer only counts when its trust
-# state was resolved as current (cached by emit_active_realm),
-# matching ws_resolve_ecosystem's gate. Falls back to "standard".
-emit_change_note_style() {
-    local style="" f
-    local -a layers=()
+# Reads the merge layers directly instead of calling ws_resolve_ecosystem: the
+# full merge recomputes the realm trust fingerprint and spawns several yq
+# processes, enough to push trusted-realm orient runs over the smoke timeout on
+# slow hosts. The realm layer only counts when its trust state was resolved as
+# current. That resolution happens in _resolve_orient_realm, which runs before
+# any reader — the register renders above emit_active_realm, so leaving the
+# fingerprint to that renderer would drop the realm layer for everything printed
+# earlier. Same gate as ws_resolve_ecosystem, without depending on render order.
+_ws_orient_config_layers() {
     local local_file="${ECOSYSTEM_LOCAL:-$ROOT_DIR/ecosystem.local.yaml}"
     local base="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
-    [[ -f "$local_file" ]] && layers+=("$local_file")
+    [[ -f "$local_file" ]] && printf '%s\n' "$local_file"
     if [[ "$_ORIENT_REALM_STATUS" == "ok" && "$_ORIENT_REALM_TRUST" == "current" && -f "$REALMS_DIR/$_ORIENT_REALM/ecosystem.yaml" ]]; then
-        layers+=("$REALMS_DIR/$_ORIENT_REALM/ecosystem.yaml")
+        printf '%s\n' "$REALMS_DIR/$_ORIENT_REALM/ecosystem.yaml"
     fi
-    [[ -f "$base" ]] && layers+=("$base")
-    for f in ${layers[@]+"${layers[@]}"}; do
-        style="$(yq -r '.style.changeNotes // ""' "$f" 2>/dev/null)" || style=""
-        [[ "$style" == "null" ]] && style=""
-        [[ -n "$style" ]] && break
-    done
-    style="$(_ws_orient_display_text "$style")"
+    [[ -f "$base" ]] && printf '%s\n' "$base"
+    return 0
+}
+
+# One read of every ecosystem field orient renders — one yq per layer rather
+# than one per field, with first-hit-wins applied per field across layers
+# (local > realm > upstream).
+#
+# The per-field shape this replaces cost a yq spawn per field per layer. On a
+# slow host a spawn is ~0.2s, orient runs under a 10s budget in the smoke
+# suite, and the ai_context tests already sit close to it — a second field
+# would have been enough to tip a passing test over. Fields still resolve
+# independently, because a realm may set the register while a local config
+# adds only the snippet.
+_ORIENT_CFG_CHANGE_NOTES=""
+_ORIENT_CFG_COMMS_FLAVOR=""
+_ORIENT_CFG_COMMS_SNIPPET=""
+_ws_orient_read_config() {
+    local f row c_notes c_flavor c_snippet snippet_found=0
+    while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        # Each field is prefixed with a sentinel and stripped after splitting.
+        # Tab is IFS *whitespace*, so `read` collapses a leading empty field —
+        # a row whose first value is unset would otherwise shift every later
+        # value one position left, silently reading the register as the
+        # change-note style. @tsv escapes embedded tabs and newlines, so the
+        # sentinel is the only thing missing to make the split total.
+        # tostring before the sentinel concat, and newlines collapsed after it.
+        # Without tostring, a non-string value — `changeNotes:` given a map, say
+        # — makes yq error on `str + map`, the `|| continue` below skips the
+        # whole layer, and all three fields vanish silently along with the
+        # invalid-value note that should have warned about it. Without the
+        # newline collapse, a sequence value spreads the row over several lines
+        # and the split below silently truncates at the first.
+        #
+        # The snippet alone distinguishes absent (`-`) from present: an explicit
+        # `comms.snippet: ""` is how a local config clears a realm's snippet, so
+        # it has to stop the search rather than fall through to the next layer.
+        row="$(yq -r '["x" + ((.style.changeNotes // "") | tostring), "x" + ((.comms.flavor // "") | tostring), (.comms.snippet | select(. != null) | "x" + tostring) // "-"] | map(sub("\n"; " ")) | @tsv' "$f" 2>/dev/null)" || continue
+        IFS=$'\t' read -r c_notes c_flavor c_snippet <<< "$row"
+        c_notes="${c_notes#x}"
+        c_flavor="${c_flavor#x}"
+        if [[ -z "$_ORIENT_CFG_CHANGE_NOTES" && -n "${c_notes:-}" && "$c_notes" != "null" ]]; then
+            _ORIENT_CFG_CHANGE_NOTES="$c_notes"
+        fi
+        if [[ -z "$_ORIENT_CFG_COMMS_FLAVOR" && -n "${c_flavor:-}" && "$c_flavor" != "null" ]]; then
+            _ORIENT_CFG_COMMS_FLAVOR="$c_flavor"
+        fi
+        if [[ "$snippet_found" -eq 0 && "${c_snippet:-}" == x* ]]; then
+            _ORIENT_CFG_COMMS_SNIPPET="${c_snippet#x}"
+            snippet_found=1
+        fi
+    done < <(_ws_orient_config_layers)
+    return 0
+}
+
+# Communication register — how agent-authored tracker and review output reads,
+# and any local instruction extending it. See docs/gdd/agent-communication.md.
+#
+# Rendered before the subcommand survey rather than after it: the register
+# governs everything the agent writes for the rest of the session, and the
+# survey runs ~40 lines, so anything below it is missed. emit_change_note_style
+# sits below the survey today and is correspondingly easy to overlook.
+#
+# Unset is not a defect. GDD names the question and leaves the answer to the
+# project, so an unset register renders as the prompt to decide.
+emit_comms_register() {
+    local flavor snippet
+    flavor="$(_ws_orient_display_text "$_ORIENT_CFG_COMMS_FLAVOR")"
+    snippet="$(_ws_orient_display_text "$_ORIENT_CFG_COMMS_SNIPPET")"
+
+    # One line per flavor, each the summary of its block in
+    # docs/gdd/agent-communication.md — the three differ on register and on who
+    # may close or merge, so one shared line would misstate two of them.
+    case "$flavor" in
+        oss-wide)
+            printf '\nCommunication register: oss-wide\n'
+            echo "  Neutral tone, fairly concise, simple language, no judgement. The agent prepares and tests work so others can review and judge it. Never close, merge, resolve, or characterise someone's contribution; name the decision needed."
+            ;;
+        solo)
+            printf '\nCommunication register: solo\n'
+            echo "  Neutral tone, concise, plain language, no judgement. Disclose that a comment is agent-authored. Close or merge nothing without the maintainer saying so for that specific item."
+            ;;
+        corporate)
+            printf '\nCommunication register: corporate\n'
+            echo "  Register unconstrained internally; colleagues share the vocabulary and context. Closing, merging and approving follow the organisation's existing change control."
+            ;;
+        none)
+            printf '\nCommunication register: none (deliberately unconstrained)\n'
+            ;;
+        "")
+            printf '\nCommunication register: not set\n'
+            echo "  How agent-authored comments read — and who may close or merge — is your project's call, not GDD's."
+            echo "  See docs/gdd/agent-communication.md, then set comms.flavor (oss-wide|solo|corporate|none) in ecosystem config."
+            ;;
+        *)
+            printf '\nCommunication register: unrecognized (%s) — treating as not set\n' "$flavor"
+            echo "  Valid values: oss-wide, solo, corporate, none. See docs/gdd/agent-communication.md."
+            ;;
+    esac
+
+    # Explicit return: under `set -euo pipefail` a function whose last evaluated
+    # statement is a false test returns non-zero, aborting orient before the
+    # sections below it render.
+    if [[ -n "$snippet" ]]; then
+        echo "  Local addition: $snippet"
+    fi
+    return 0
+}
+
+# Change-note style — the prose budget for commit/CR/issue bodies, from
+# style.changeNotes in the ecosystem config (realm carries community norms,
+# ecosystem.local.yaml personal overrides). Surfaced here so the agent honors
+# it without a config read of its own. Falls back to "standard".
+emit_change_note_style() {
+    local style
+    style="$(_ws_orient_display_text "$_ORIENT_CFG_CHANGE_NOTES")"
     case "$style" in
         terse|standard|detailed) ;;
         "") style="standard" ;;
         *) style="standard (ignoring invalid style.changeNotes: $style)" ;;
     esac
     printf '\nChange-note style: %s\n' "$style"
-    echo "  Prose budget for commit/CR/issue bodies — budgets in templates/*.md; set style.changeNotes (terse|standard|detailed) in ecosystem config."
+    # The numbers, not a pointer to them: a budget nobody can see is not one.
+    local budget_style="${style%% *}" commit_w cr_w issue_w
+    commit_w="$(ws_budget_limit commit "$budget_style")"
+    cr_w="$(ws_budget_limit cr "$budget_style")"
+    issue_w="$(ws_budget_limit issue "$budget_style")"
+    if [[ -n "$commit_w" ]]; then
+        echo "  Word budget — commit body ${commit_w}, CR body ${cr_w}, issue body ${issue_w}; ws commit/cr/issue note an overrun. Set style.changeNotes (terse|standard|detailed) in ecosystem config."
+    else
+        echo "  No word budget (detailed). Set style.changeNotes (terse|standard|detailed) in ecosystem config."
+    fi
 }
 
 # Header. The backticked literal is asserted by tests/ws-orient/orient.bats
@@ -613,6 +738,8 @@ echo "Workspace toolset (\`ws orient\`)"
 # kill orient mid-render).
 _resolve_orient_realm
 
+_ws_orient_read_config
+emit_comms_register
 emit_subcommand_survey
 emit_active_realm
 emit_change_note_style

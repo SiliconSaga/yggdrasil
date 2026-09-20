@@ -25,6 +25,10 @@ ws_load_env "$ROOT_DIR/.env"
 source "$SCRIPT_DIR/ws-realm.sh"
 # shellcheck source=ws-session.sh
 source "$SCRIPT_DIR/ws-session.sh"
+# shellcheck source=ws-pii.sh
+source "$SCRIPT_DIR/ws-pii.sh"
+# shellcheck source=ws-budget.sh
+source "$SCRIPT_DIR/ws-budget.sh"
 
 commit_help() {
     local stream="${1:-2}"
@@ -112,11 +116,13 @@ fi
 dry_run=false
 human=false
 co_author_name=""
+allow_pii=false
 _positional=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) dry_run=true; shift ;;
         --human)   human=true; shift ;;
+        --allow-pii) allow_pii=true; shift ;;
         --co-author-file)
             if [[ $# -lt 2 ]]; then
                 echo "ERROR: --co-author-file needs a name (a file under .tmp/gdd-agent-sessions/, sans .env)." >&2
@@ -271,6 +277,7 @@ if [[ -n "$bodyfile" ]]; then
             # references only unchanged files, which the real commit
             # would then reject with "No staged changes to commit."
             would_stage_any=0
+            _dry_index=""
             if [[ -n "$add_files" ]]; then
                 if $dry_run; then
                     echo "DRY RUN — would stage files from bodyfile frontmatter:"
@@ -311,6 +318,16 @@ if [[ -n "$bodyfile" ]]; then
                         add_output=$(git add --dry-run -A -- "$f")
                         [[ -n "$add_output" ]] && printf '%s\n' "$add_output"
                         [[ -n "$add_output" ]] && would_stage_any=1
+                        # Stage for real into a scratch copy of the index, so
+                        # the PII guard below scans what the real run would.
+                        if [[ -z "$_dry_index" ]]; then
+                            _dry_index="$(mktemp)"
+                            trap 'rm -f "$_dry_index" 2>/dev/null' EXIT
+                            # No index yet (fresh repo): hand git a free path,
+                            # not mktemp's empty file, which is not a valid index.
+                            cp "$(git rev-parse --git-path index)" "$_dry_index" 2>/dev/null || rm -f "$_dry_index"
+                        fi
+                        GIT_INDEX_FILE="$_dry_index" git add -A -- "$f" >/dev/null 2>&1 || true
                     else
                         git add -A -- "$f"
                         would_stage_any=1
@@ -421,6 +438,26 @@ if [[ -n "$body_content" ]]; then
         n > 0 { buf[++n] = $0 }
         END   { for (i = 1; i <= last; i++) print buf[i] }
     ')"
+fi
+
+# Advisory word budget, where the writing happens. Runs for --dry-run too: a dry
+# run is where you would still act on it.
+_budget_style="$(yq -r '.style.changeNotes // ""' "$(ws_resolve_ecosystem)" 2>/dev/null)" || _budget_style=""
+ws_budget_note commit "$body_content" "$_budget_style"
+
+# Blocks, unlike the budget note above. A long commit body is a nuisance someone
+# can fix later; a published address is in history and possibly indexed, and no
+# later commit takes it back. Scans the staged diff, the subject and the body
+# together — any of them can carry a value the others do not.
+if [[ "$allow_pii" != true ]]; then
+    _pii_subject="$(ws_pii_staged_added_lines "$COMPONENT_DIR" "${_dry_index:-}")
+$message
+$body_content"
+    # The allowlist is read from the same index, so a dry run that stages a new
+    # exemption sees it the way the real run will.
+    if ! WS_PII_INDEX_FILE="${_dry_index:-}" ws_pii_guard "this change" "$_pii_subject" "$COMPONENT_DIR" "re-run with --allow-pii"; then
+        exit 1
+    fi
 fi
 
 # Build the final commit message — used for the real commit OR for

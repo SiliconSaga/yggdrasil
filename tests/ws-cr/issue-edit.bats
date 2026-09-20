@@ -70,6 +70,25 @@ write_body() {
     [[ "$output" != *"@GDD_HOME"* ]]
 }
 
+@test "issue edit refuses a novel address in the body, and the override publishes it" {
+    printf '> **AI-assisted issue.** Filed by agent driven by @HUMAN_ACCOUNT via [GDD](@GDD_HOME).\n\nPing someone.new@newdomain.co.uk\n' > "$WORK/.issues/edit.md"
+    run bash "$WS_BIN" issue yggdrasil edit 7 .issues/edit.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"someone.new@newdomain.co.uk"* ]]
+    [[ "$output" == *"ISSUE_ALLOW_PII=1"* ]]
+    [ ! -f "$GH_LOG" ]
+
+    ISSUE_ALLOW_PII=1 run bash "$WS_BIN" issue yggdrasil edit 7 .issues/edit.md
+    [ "$status" -eq 0 ]
+    [ -f "$GH_LOG" ]
+}
+
+@test "issue edit refuses a novel address in the title" {
+    run bash "$WS_BIN" issue yggdrasil edit 7 --title "ask someone.new@newdomain.co.uk" .issues/edit.md
+    [ "$status" -ne 0 ]
+    [ ! -f "$GH_LOG" ]
+}
+
 @test "issue edit targets the issues endpoint" {
     run bash "$WS_BIN" issue yggdrasil edit 7 .issues/edit.md
     [ "$status" -eq 0 ]
