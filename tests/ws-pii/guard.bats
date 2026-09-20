@@ -211,6 +211,46 @@ stage_allowlist() {
     [[ "$output" != *"k@k.do"* ]]
 }
 
+@test "a text file larger than the sample is still scanned" {
+    # Sampling closes the pipe early; under pipefail that read as a failure and
+    # the file dropped out of the scan.
+    {
+        printf 'x%.0s\n' $(seq 1 40000)
+        printf 'contact: fresh@newdomain.co.uk\n'
+    } > "$REPO/big.txt"
+    git -C "$REPO" add big.txt
+
+    run ws_pii_staged_added_lines "$REPO"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"fresh@newdomain.co.uk"* ]]
+}
+
+@test "a path git would quote is still scanned" {
+    # Non-ASCII is the quoted case every platform can create; git renders it
+    # as "caf\303\251.txt" without -z, which names nothing in the index.
+    printf 'contact: fresh@newdomain.co.uk\n' > "$REPO/café.txt"
+    git -C "$REPO" add "café.txt"
+
+    run ws_pii_staged_added_lines "$REPO"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"fresh@newdomain.co.uk"* ]]
+}
+
+@test "the publication paths ignore an inherited scratch index" {
+    # A dry run's scratch index is ws commit's alone; inherited by ws cr it
+    # would let any index carrying an allowlist entry vouch for an address.
+    cp "$REPO/.git/index" "$REPO/scratch.index"
+    printf 'someone.new@newdomain.co.uk\n' > "$REPO/.gdd-pii-allow"
+    GIT_INDEX_FILE="$REPO/scratch.index" git -C "$REPO" add .gdd-pii-allow
+    printf 'Ping someone.new@newdomain.co.uk\n' > "$REPO/body.md"
+
+    WS_PII_INDEX_FILE="$REPO/scratch.index" run ws_pii_guard_publication "this issue" "t" "$REPO/body.md" "$REPO" "set ISSUE_ALLOW_PII=1"
+
+    [ "$status" -eq 1 ]
+}
+
 @test "a content line starting with ++ is not a diff header" {
     # In the diff it renders as `+++…`, the same shape as the file header.
     printf '++fresh@newdomain.co.uk\n' > "$REPO/plus.txt"

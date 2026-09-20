@@ -31,8 +31,9 @@ _WS_PII_RESERVED_SUFFIXES=".example .invalid .test .localhost example.com exampl
 
 # Per-repository allowlist. One value per line; `#` comments and blanks ignored.
 # Committed on purpose: an exemption is a decision, and it should be reviewable
-# rather than living in someone's shell history.
-WS_PII_ALLOW_FILE="${WS_PII_ALLOW_FILE:-.gdd-pii-allow}"
+# rather than living in someone's shell history. Fixed, not configurable: an
+# environment override would let any staged file stand in for it.
+WS_PII_ALLOW_FILE=".gdd-pii-allow"
 
 _ws_pii_lower() {
     printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
@@ -158,7 +159,9 @@ ws_pii_guard() {
 # ws cr / ws issue all come through here so none of the four can drift.
 ws_pii_guard_publication() {
     local label="$1" title="$2" bodyfile="$3" repo="$4" override="$5"
-    ws_pii_guard "$label" "$title
+    # The scratch-index setting belongs to ws commit's dry run alone; inherited
+    # here it would let any index stand in for the real one.
+    WS_PII_INDEX_FILE="" ws_pii_guard "$label" "$title
 $(cat "$bodyfile")" "$repo" "$override"
 }
 
@@ -173,10 +176,13 @@ $(cat "$bodyfile")" "$repo" "$override"
 # and bytes above 0x7F are not counted, so non-ASCII prose stays text.
 _ws_pii_blob_is_text() {
     local repo="$1" path="$2" index_file="${3:-}" sample total control
+    # The rest of the blob is drained rather than left for SIGPIPE: under the
+    # callers' pipefail a closed pipe would fail the assignment, and a failure
+    # here drops the file from the scan.
     if [[ -n "$index_file" ]]; then
-        sample="$(GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" 2>/dev/null | head -c 65536 | od -An -v -tu1)" || return 1
+        sample="$(GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" 2>/dev/null | { head -c 65536; cat >/dev/null; } | od -An -v -tu1)" || return 1
     else
-        sample="$(git -C "$repo" show ":$path" 2>/dev/null | head -c 65536 | od -An -v -tu1)" || return 1
+        sample="$(git -C "$repo" show ":$path" 2>/dev/null | { head -c 65536; cat >/dev/null; } | od -An -v -tu1)" || return 1
     fi
     read -r total control < <(printf '%s\n' "$sample" | awk '
         { for (i = 1; i <= NF; i++) { n++; b = $i + 0; if ((b < 32 && b != 0 && b != 9 && b != 10 && b != 13) || b == 127) c++ } }
@@ -197,14 +203,16 @@ _ws_pii_blob_is_text() {
 ws_pii_staged_added_lines() {
     local repo="${1:-$PWD}" index_file="${2:-}" path
     local -a text_paths=()
-    while IFS= read -r path; do
+    # NUL-delimited: without -z git quotes any unusual path (non-ASCII included)
+    # and the quoted form names nothing in the index, so the file goes unscanned.
+    while IFS= read -r -d '' path; do
         [[ -n "$path" ]] || continue
         _ws_pii_blob_is_text "$repo" "$path" "$index_file" && text_paths+=("$path")
     done < <(
         if [[ -n "$index_file" ]]; then
-            GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only --diff-filter=AMCR 2>/dev/null
+            GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR 2>/dev/null
         else
-            git -C "$repo" diff --cached --name-only --diff-filter=AMCR 2>/dev/null
+            git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR 2>/dev/null
         fi
     )
     [[ ${#text_paths[@]} -gt 0 ]] || return 0

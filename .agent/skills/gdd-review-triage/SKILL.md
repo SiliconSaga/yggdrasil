@@ -101,7 +101,7 @@ appear as top-level notes, not inline comments. The default `ws review <comp>
 | Reviewer | Resolution approach |
 |---|---|
 | **CodeRabbit** | Push the fix and wait — CodeRabbit may validate and self-resolve. Check status after each push and only manually resolve if it hasn't, or if disagreeing with the finding (reply with justification first). |
-| **Copilot** | Manually resolve with `--resolve-all` after each re-review — Copilot re-files stale findings and does not self-resolve. |
+| **Copilot** | Re-request after each push; its re-review may self-resolve findings it recognises as fixed and lists them under "resolved since last review", but it misses some and re-files stale ones. Whatever remains after its re-review, resolve with `--resolve-all`. |
 | **Human reviewer** | Never resolve via automation. Only the author or the reviewer should resolve human threads. |
 
 **When to reply per-thread vs resolve silently.** Per-thread replies
