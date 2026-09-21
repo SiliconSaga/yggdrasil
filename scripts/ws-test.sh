@@ -91,6 +91,11 @@ test_help() {
         echo "  ws test mimir -run TestFoo -v"
         echo "  ws test terasology --tests '*.SomeTest'"
         echo ""
+        echo "For Gradle, a class name is resolved to its owning subproject and"
+        echo "keeps the adapter's task when the adapter targets that subproject."
+        echo "--task names a different one, for tests the adapter's task excludes:"
+        echo "  ws test terasology ExampleTest --task integrationTest"
+        echo ""
         echo "For pytest adapters, selectors that name existing paths or"
         echo "nodeids run those targets; anything else becomes a -k filter:"
         echo "  ws test knarr tests/test_foo.py            # runs that file"
@@ -225,7 +230,27 @@ runner_args=()
 expect_value=false
 bats_user_set_jobs=false
 bats_user_set_backend=false
+# --task is ws's own flag, never the runner's: it names the Gradle test task
+# to use in place of the adapter's.
+task_override=""
+task_given=false
+expect_task=false
 for arg in "$@"; do
+    if [[ "$expect_task" == true ]]; then
+        task_override="$arg"
+        expect_task=false
+        continue
+    fi
+    case "$arg" in
+        --task)
+            task_given=true
+            expect_task=true
+            continue ;;
+        --task=*)
+            task_given=true
+            task_override="${arg#*=}"
+            continue ;;
+    esac
     if [[ "$expect_value" == true ]]; then
         runner_args+=("$arg")
         expect_value=false
@@ -266,6 +291,10 @@ for arg in "$@"; do
             # treats it as boolean (--recursive). Same swallow risk.
             -r)
                 [[ "$runner" == "python" ]] && expect_value=true ;;
+            # -f/--filter take a regex under bats; unlisted, the regex was read
+            # as a second positional selector and refused.
+            -f|--filter)
+                [[ "$runner" == "bats" ]] && expect_value=true ;;
             -j|--jobs)
                 if [[ "$runner" == "bats" ]]; then
                     expect_value=true
@@ -282,6 +311,13 @@ for arg in "$@"; do
     fi
 done
 test_filter="${test_selectors[0]:-}"
+
+# A flag-like value means the name was left out ('--task --stacktrace'); taken
+# literally it would dispatch a task called '--stacktrace'.
+if [[ "$task_given" == true && ( -z "$task_override" || "$task_override" == -* ) ]]; then
+    echo "ERROR: --task needs a task name, e.g. --task integrationTest." >&2
+    exit 1
+fi
 
 all_selectors_resolve_to_paths() {
     [[ $# -gt 0 ]] || return 1
@@ -429,6 +465,13 @@ if [[ -n "$adapter_cmd" ]]; then
     read -r -a adapter_argv <<< "$adapter_cmd"
 fi
 
+if [[ "$task_given" == true ]]; then
+    if [[ "$runner" != "gradle" && "${adapter_argv[0]:-}" != *gradlew* ]]; then
+        echo "ERROR: --task is only supported for Gradle; '$comp' runs a different test runner." >&2
+        exit 1
+    fi
+fi
+
 # --- Dispatch to the selected runner ---
 
 case "$runner" in
@@ -503,6 +546,23 @@ case "$runner" in
         else
             gradle_argv=(./gradlew test)
         fi
+        # The task is the last token that is not a flag, so flags written after
+        # it ('./gradlew :sub:unitTest --no-daemon') are kept, not mistaken for it.
+        task_idx=-1
+        for (( i = ${#gradle_argv[@]} - 1; i >= 1; i-- )); do
+            if [[ "${gradle_argv[i]}" != -* ]]; then
+                task_idx=$i
+                break
+            fi
+        done
+        if [[ -n "$task_override" && $task_idx -ge 1 ]]; then
+            # Swap the task name, keeping the adapter's subproject qualification.
+            if [[ "${gradle_argv[task_idx]}" == *:* ]]; then
+                gradle_argv[task_idx]="${gradle_argv[task_idx]%:*}:$task_override"
+            else
+                gradle_argv[task_idx]="$task_override"
+            fi
+        fi
         if [[ ${#test_selectors[@]} -gt 1 ]]; then
             reject_multiple_keyword_selectors "Gradle"
         fi
@@ -518,15 +578,32 @@ case "$runner" in
             clean_task=""
             gradle_task=$(_ws_gradle_find_test "$test_filter")
             if [[ -n "$gradle_task" ]]; then
-                clean_task="${gradle_task%:test}:cleanTest"
-                # Reuse adapter's base args (everything except the trailing task)
-                # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
-                if [[ ${#gradle_argv[@]} -lt 2 ]]; then
+                # An adapter that already targets this subproject chose its task
+                # on purpose (e.g. :engine-tests:unitTest, with its own timeout
+                # and tag set), so a filtered run keeps it. Other subprojects may
+                # not define that task; they get the conventional :test.
+                if [[ $task_idx -lt 1 ]]; then
                     echo "ERROR: Adapter command '${gradle_argv[*]}' is missing a task argument." >&2
                     echo "  Expected format: './gradlew [flags...] <task>' (e.g. './gradlew test')." >&2
                     exit 1
                 fi
-                gradle_base=("${gradle_argv[@]:0:${#gradle_argv[@]}-1}")
+                # An unqualified task ('unitTest') is a root-project path here,
+                # the same form the resolver prints for a root class (':test').
+                adapter_task="${gradle_argv[task_idx]}"
+                [[ "$adapter_task" == *:* ]] || adapter_task=":$adapter_task"
+                if [[ -n "$task_override" ]]; then
+                    gradle_task="${gradle_task%:test}:$task_override"
+                elif [[ "${adapter_task%:*}" == "${gradle_task%:test}" ]]; then
+                    gradle_task="$adapter_task"
+                fi
+                # Gradle names each test task's clean task clean<TaskName>.
+                # Uppercased via tr: ${name^} is Bash 4, and macOS ships 3.2.
+                task_name="${gradle_task##*:}"
+                task_initial=$(printf '%s' "${task_name:0:1}" | tr '[:lower:]' '[:upper:]')
+                clean_task="${gradle_task%:*}:clean${task_initial}${task_name:1}"
+                # Reuse the adapter's other args (everything except the task)
+                # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
+                gradle_base=("${gradle_argv[@]:0:task_idx}" "${gradle_argv[@]:task_idx+1}")
                 "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "$gradle_pattern" "${runner_args[@]}"
             else
                 "${gradle_argv[@]}" --tests "$gradle_pattern" "${runner_args[@]}"
