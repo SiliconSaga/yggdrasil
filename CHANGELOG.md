@@ -44,6 +44,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Fixed
 
+- **A filtered `ws test` on a Gradle adapter keeps the adapter's task** when the class lives in the subproject the adapter targets, and cleans that task's own cache. It always ran `:sub:test`, so with Terasology's `:engine-tests:unitTest` adapter a bare run and a filtered run used different timeouts and tag sets. `--task <name>` names a sibling task for classes the adapter's task excludes: `ws test terasology ExampleTest --task integrationTest` (#171).
 - **`ws gh` and `ws glab` no longer let an option value stand in for the command path.** Both found the command by skipping every word starting with `-` and taking the next two, so a value-taking option separated from its value donated that value as the command group: `glab -R group/project mr checkout` scanned as group `group/project` and ran. These are the subcommands that rewrite whatever working tree they stand in, which with no target is the workspace root. The `pr co` and `mr co` aliases were unrecognised too (#155).
 - **`ws status` answers `--help`** instead of rejecting it as an unknown option, and its error now prints the usage — the bare rejection sent readers looking for a per-component form that does not exist, which `ws diagnose` had been advertising (#155).
 
