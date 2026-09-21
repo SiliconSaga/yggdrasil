@@ -83,6 +83,46 @@ EOF
     [[ "$output" != *"ARGS:"* ]]
 }
 
+@test "--task followed by another flag is refused, not taken as the task name" {
+    write_adapter_test "./gradlew :engine-tests:unitTest"
+    run_ws_test yggdrasil FooTest --task --stacktrace
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--task needs a task name"* ]]
+    [[ "$output" != *"ARGS:"* ]]
+}
+
+@test "--task= with a flag-like value is refused" {
+    write_adapter_test "./gradlew :engine-tests:unitTest"
+    run_ws_test yggdrasil FooTest --task=--stacktrace
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--task needs a task name"* ]]
+    [[ "$output" != *"ARGS:"* ]]
+}
+
+@test "gradle adapter: flags after the task survive a filtered run" {
+    write_adapter_test "./gradlew :engine-tests:unitTest --no-daemon"
+    run_ws_test yggdrasil FooTest
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS:--no-daemon :engine-tests:cleanUnitTest :engine-tests:unitTest --tests *.FooTest"* ]]
+}
+
+@test "gradle adapter: --task replaces the task, not a flag after it" {
+    write_adapter_test "./gradlew :engine-tests:unitTest --no-daemon"
+    run_ws_test yggdrasil --task integrationTest
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS::engine-tests:integrationTest --no-daemon"* ]]
+    [[ "$output" != *"unitTest"* ]]
+}
+
+@test "gradle adapter: a root-project class keeps an unqualified adapter task" {
+    mkdir -p "$ROOT_DIR/src/test/java/org/example"
+    touch "$ROOT_DIR/src/test/java/org/example/RootTest.java"
+    write_adapter_test "./gradlew unitTest"
+    run_ws_test yggdrasil RootTest
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ARGS::cleanUnitTest :unitTest --tests *.RootTest"* ]]
+}
+
 @test "--task is refused for a non-Gradle adapter" {
     write_adapter_test "./pytest"
     run_ws_test yggdrasil --task integrationTest

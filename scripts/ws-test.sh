@@ -308,7 +308,9 @@ for arg in "$@"; do
 done
 test_filter="${test_selectors[0]:-}"
 
-if [[ "$task_given" == true && -z "$task_override" ]]; then
+# A flag-like value means the name was left out ('--task --stacktrace'); taken
+# literally it would dispatch a task called '--stacktrace'.
+if [[ "$task_given" == true && ( -z "$task_override" || "$task_override" == -* ) ]]; then
     echo "ERROR: --task needs a task name, e.g. --task integrationTest." >&2
     exit 1
 fi
@@ -540,13 +542,21 @@ case "$runner" in
         else
             gradle_argv=(./gradlew test)
         fi
-        if [[ -n "$task_override" && ${#gradle_argv[@]} -ge 2 ]]; then
+        # The task is the last token that is not a flag, so flags written after
+        # it ('./gradlew :sub:unitTest --no-daemon') are kept, not mistaken for it.
+        task_idx=-1
+        for (( i = ${#gradle_argv[@]} - 1; i >= 1; i-- )); do
+            if [[ "${gradle_argv[i]}" != -* ]]; then
+                task_idx=$i
+                break
+            fi
+        done
+        if [[ -n "$task_override" && $task_idx -ge 1 ]]; then
             # Swap the task name, keeping the adapter's subproject qualification.
-            last=$(( ${#gradle_argv[@]} - 1 ))
-            if [[ "${gradle_argv[last]}" == *:* ]]; then
-                gradle_argv[last]="${gradle_argv[last]%:*}:$task_override"
+            if [[ "${gradle_argv[task_idx]}" == *:* ]]; then
+                gradle_argv[task_idx]="${gradle_argv[task_idx]%:*}:$task_override"
             else
-                gradle_argv[last]="$task_override"
+                gradle_argv[task_idx]="$task_override"
             fi
         fi
         if [[ ${#test_selectors[@]} -gt 1 ]]; then
@@ -568,23 +578,28 @@ case "$runner" in
                 # on purpose (e.g. :engine-tests:unitTest, with its own timeout
                 # and tag set), so a filtered run keeps it. Other subprojects may
                 # not define that task; they get the conventional :test.
-                adapter_task="${gradle_argv[${#gradle_argv[@]}-1]}"
+                if [[ $task_idx -lt 1 ]]; then
+                    echo "ERROR: Adapter command '${gradle_argv[*]}' is missing a task argument." >&2
+                    echo "  Expected format: './gradlew [flags...] <task>' (e.g. './gradlew test')." >&2
+                    exit 1
+                fi
+                # An unqualified task ('unitTest') is a root-project path here,
+                # the same form the resolver prints for a root class (':test').
+                adapter_task="${gradle_argv[task_idx]}"
+                [[ "$adapter_task" == *:* ]] || adapter_task=":$adapter_task"
                 if [[ -n "$task_override" ]]; then
                     gradle_task="${gradle_task%:test}:$task_override"
                 elif [[ "${adapter_task%:*}" == "${gradle_task%:test}" ]]; then
                     gradle_task="$adapter_task"
                 fi
                 # Gradle names each test task's clean task clean<TaskName>.
+                # Uppercased via tr: ${name^} is Bash 4, and macOS ships 3.2.
                 task_name="${gradle_task##*:}"
-                clean_task="${gradle_task%:*}:clean${task_name^}"
-                # Reuse adapter's base args (everything except the trailing task)
+                task_initial=$(printf '%s' "${task_name:0:1}" | tr '[:lower:]' '[:upper:]')
+                clean_task="${gradle_task%:*}:clean${task_initial}${task_name:1}"
+                # Reuse the adapter's other args (everything except the task)
                 # e.g. "./gradlew --no-daemon :facades:PC:test" → base = "./gradlew --no-daemon"
-                if [[ ${#gradle_argv[@]} -lt 2 ]]; then
-                    echo "ERROR: Adapter command '${gradle_argv[*]}' is missing a task argument." >&2
-                    echo "  Expected format: './gradlew [flags...] <task>' (e.g. './gradlew test')." >&2
-                    exit 1
-                fi
-                gradle_base=("${gradle_argv[@]:0:${#gradle_argv[@]}-1}")
+                gradle_base=("${gradle_argv[@]:0:task_idx}" "${gradle_argv[@]:task_idx+1}")
                 "${gradle_base[@]}" "$clean_task" "$gradle_task" --tests "$gradle_pattern" "${runner_args[@]}"
             else
                 "${gradle_argv[@]}" --tests "$gradle_pattern" "${runner_args[@]}"
