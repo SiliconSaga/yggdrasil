@@ -291,6 +291,10 @@ for arg in "$@"; do
             # treats it as boolean (--recursive). Same swallow risk.
             -r)
                 [[ "$runner" == "python" ]] && expect_value=true ;;
+            # -f/--filter take a regex under bats; unlisted, the regex was read
+            # as a second positional selector and refused.
+            -f|--filter)
+                [[ "$runner" == "bats" ]] && expect_value=true ;;
             -j|--jobs)
                 if [[ "$runner" == "bats" ]]; then
                     expect_value=true
