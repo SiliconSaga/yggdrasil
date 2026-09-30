@@ -206,21 +206,23 @@ BASH
     grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes' "$WORK/fetch-env.txt"
 }
 
-@test "review drift check over an SSH remote keeps the configured ssh command and adds BatchMode" {
+@test "review drift check over an SSH remote keeps the configured ssh command and forces BatchMode ahead of it" {
     install_git_fetch_shim
     # Leave a single SSH remote so the drift check fetches over ssh, with a
-    # configured identity that a BatchMode wrapper must extend, not replace.
+    # configured identity that a BatchMode wrapper must extend, not replace —
+    # and a BatchMode=no that it must beat. OpenSSH honours the first value it
+    # sees for an option, so the forced yes has to come first, not last.
     git -C "$WORK/components/app" remote remove fork
     git -C "$WORK/components/app" remote remove origin
     git -C "$WORK/components/app" remote add origin git@gitlab.com:upstream-group/project.git
-    git -C "$WORK/components/app" config core.sshCommand "ssh -i /keys/review"
+    git -C "$WORK/components/app" config core.sshCommand "ssh -o BatchMode=no -i /keys/review"
 
     run_ws_review app 1 --compact
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Title: Upstream MR"* ]]
     [ -f "$WORK/fetch-env.txt" ]
-    grep -qx 'GIT_SSH_COMMAND=ssh -i /keys/review -o BatchMode=yes' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes -o BatchMode=no -i /keys/review' "$WORK/fetch-env.txt"
 }
 
 @test "reply preserves a message that begins with --remote" {

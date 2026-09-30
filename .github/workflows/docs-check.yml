@@ -1,0 +1,37 @@
+name: Docs build check
+
+# The deploy workflow (docs.yml) runs only on pushes to main, so without this a
+# lockfile or docs change is first exercised by CI after it has merged. Same
+# install, same strict build, no Pages permissions and no deploy.
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+      - 'requirements-docs.in'
+      - '.github/workflows/docs.yml'
+      - '.github/workflows/docs-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Hash-locked install + strict build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --require-hashes --requirement requirements-docs.txt
+      - run: mkdocs build --strict

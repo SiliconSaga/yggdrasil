@@ -178,13 +178,24 @@ git_auth_env_for_url() {
 # a resolved token still applies; the additions ride along in GIT_AUTH_ENV.
 #
 # repo_dir is where the ssh command in force is read from: GIT_SSH_COMMAND
-# overrides core.sshCommand, so BatchMode is appended to whichever applies
+# overrides core.sshCommand, so BatchMode is added to whichever applies
 # rather than replacing it, which would silently drop a configured identity.
+#
+# OpenSSH keeps the FIRST value it sees for an option, so BatchMode=yes goes
+# right after the program word, ahead of any configured `-o BatchMode=no`;
+# appended at the end it would lose. A quoted program path stays one word.
 git_auth_env_noninteractive() {
-  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}"
+  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}" ssh_bin ssh_rest
   GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GCM_INTERACTIVE=never")
   [[ -n "$ssh_cmd" ]] || ssh_cmd=$(git -C "$repo_dir" config --get core.sshCommand 2>/dev/null) || ssh_cmd=""
-  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=${ssh_cmd:-ssh} -o BatchMode=yes")
+  ssh_cmd="${ssh_cmd:-ssh}"
+  case "$ssh_cmd" in
+    \"*) ssh_bin="${ssh_cmd:1}"; ssh_bin="\"${ssh_bin%%\"*}\"" ;;
+    \'*) ssh_bin="${ssh_cmd:1}"; ssh_bin="'${ssh_bin%%\'*}'" ;;
+    *)   ssh_bin="${ssh_cmd%%[[:space:]]*}" ;;
+  esac
+  ssh_rest="${ssh_cmd#"$ssh_bin"}"
+  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=$ssh_bin -o BatchMode=yes$ssh_rest")
 }
 
 # Run a command with GIT_AUTH_ENV exported by the shell itself. The subshell
