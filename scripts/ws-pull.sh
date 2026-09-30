@@ -61,8 +61,9 @@ fi
 report_ahead_siblings() {
     local name="$1"
     local target="$2"
-    local branch="$3"
-    local tracking_remote="$4"
+    local branch="$3"          # the local branch, for the message
+    local tracked="$4"         # the branch it tracks, which the pull followed
+    local tracking_remote="$5"
     local remote url ahead
 
     while IFS= read -r remote; do
@@ -85,18 +86,19 @@ report_ahead_siblings() {
         git_auth_env_noninteractive "$target"
         # Fetch the vetted URL, not the remote name: `remote.<name>.vcs` would
         # otherwise route even a clean URL through a helper program. Explicit
-        # refspec: only this one branch, into the named remote-tracking ref so
-        # the comparison below isn't stale.
+        # refspec: only the TRACKED branch (local `release` tracking `fork/main`
+        # pulled `main`, so `main` is what a sibling is compared on), into the
+        # named remote-tracking ref so the comparison below isn't stale.
         git_auth_run git -C "$target" fetch --quiet "$url" \
-            "+refs/heads/$branch:refs/remotes/$remote/$branch" 2>/dev/null || continue
+            "+refs/heads/$tracked:refs/remotes/$remote/$tracked" 2>/dev/null || continue
 
-        ahead=$(git -C "$target" rev-list --count "HEAD..refs/remotes/$remote/$branch" 2>/dev/null || echo "")
+        ahead=$(git -C "$target" rev-list --count "HEAD..refs/remotes/$remote/$tracked" 2>/dev/null || echo "")
         [[ "$ahead" =~ ^[0-9]+$ ]] || continue
         [[ "$ahead" -gt 0 ]] || continue
 
-        echo "  AHEAD: $remote/$branch is $ahead commit(s) ahead of the '$branch' this pull followed."
-        echo "         '$name' tracks '$tracking_remote'. If '$remote' is canonical, reconcile before"
-        echo "         trusting this checkout — for a fork-based component: ws clone-fork $name"
+        echo "  AHEAD: $remote/$tracked is $ahead commit(s) ahead of $tracking_remote/$tracked, which '$branch' tracks."
+        echo "         If '$remote' is canonical, reconcile before trusting this checkout —"
+        echo "         for a fork-based component: ws clone-fork $name"
     done < <(git -C "$target" remote 2>/dev/null)
 }
 
@@ -147,9 +149,14 @@ pull_repo() {
         echo "  CONFLICT: aborting rebase — resolve manually in $target"
         git -C "$target" rebase --abort 2>/dev/null
         HAD_FAILURES=1
+        # No sibling advisory on top of a pull that did not happen: an AHEAD
+        # line here would read as if the checkout were otherwise current.
+        return 0
     fi
 
-    report_ahead_siblings "$name" "$target" "$branch" "$remote_name"
+    # The tracked branch, not the local name — `@{upstream}` is `<remote>/<branch>`.
+    local tracked_branch="${upstream_ref#"$remote_name"/}"
+    report_ahead_siblings "$name" "$target" "$branch" "$tracked_branch" "$remote_name"
 }
 
 HAD_FAILURES=0

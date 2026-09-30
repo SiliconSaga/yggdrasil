@@ -15,7 +15,7 @@ FORCED='-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o Serve
 setup() {
     REPO="$BATS_TEST_TMPDIR/repo"
     git init -q "$REPO"
-    unset GIT_SSH_COMMAND
+    unset GIT_SSH_COMMAND GIT_SSH GIT_SSH_VARIANT
     source "$REPO_ROOT/scripts/git-auth.sh"
 }
 
@@ -122,12 +122,77 @@ env_value() {
     [ "$(env_value GIT_SSH_COMMAND)" = "/usr/bin/ssh $FORCED -i /keys/id" ]
 }
 
-@test "an unrecognised program is treated as the ssh word" {
+@test "an unrecognised client is left exactly as configured" {
+    # OpenSSH options would be rejected by a client that is not OpenSSH, and
+    # the fetch would then fail for the wrong reason. Not guessing is the
+    # point: nothing is added, so git runs the configured command unchanged.
+    export GIT_SSH_COMMAND="ssh-wrapper -i /keys/id"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ -z "$(env_value GIT_SSH_COMMAND)" ]
+    # The client-independent refusals still apply.
+    [ "$(env_value GIT_TERMINAL_PROMPT)" = "0" ]
+}
+
+@test "GIT_SSH is honoured when neither GIT_SSH_COMMAND nor core.sshCommand is set" {
+    export GIT_SSH="/opt/openssh/bin/ssh"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "/opt/openssh/bin/ssh $FORCED" ]
+}
+
+@test "a GIT_SSH path with spaces is quoted when it becomes GIT_SSH_COMMAND" {
+    export GIT_SSH="/opt/open ssh/ssh"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "\"/opt/open ssh/ssh\" $FORCED" ]
+}
+
+@test "core.sshCommand outranks GIT_SSH, as it does for git" {
+    git -C "$REPO" config core.sshCommand "ssh -i /keys/from-config"
+    export GIT_SSH="/opt/openssh/bin/ssh"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "ssh $FORCED -i /keys/from-config" ]
+}
+
+@test "PuTTY's plink gets -batch, not OpenSSH options" {
+    export GIT_SSH_COMMAND="plink -i C:/keys/id.ppk"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "plink -batch -i C:/keys/id.ppk" ]
+}
+
+@test "a Windows-spelled TortoisePlink.exe classifies as plink" {
+    # GIT_SSH is a raw path, quoted only on its way into GIT_SSH_COMMAND.
+    export GIT_SSH="C:/Program Files/TortoiseGit/bin/TortoisePlink.exe"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = '"C:/Program Files/TortoiseGit/bin/TortoisePlink.exe" -batch' ]
+}
+
+@test "ssh.variant overrides basename detection" {
+    git -C "$REPO" config ssh.variant ssh
     export GIT_SSH_COMMAND="ssh-wrapper -i /keys/id"
     GIT_AUTH_ENV=()
     git_auth_env_noninteractive "$REPO"
 
     [ "$(env_value GIT_SSH_COMMAND)" = "ssh-wrapper $FORCED -i /keys/id" ]
+}
+
+@test "ssh.variant=simple leaves even a real ssh alone" {
+    git -C "$REPO" config ssh.variant simple
+    export GIT_SSH_COMMAND="ssh -i /keys/id"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ -z "$(env_value GIT_SSH_COMMAND)" ]
 }
 
 @test "a quoted program path with spaces stays one word" {

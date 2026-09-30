@@ -194,3 +194,39 @@ BASH
     grep -qx 'GIT_CONFIG_KEY_0=credential.helper' "$WORK/fetch-env.txt"
     grep -qx 'GIT_CONFIG_VALUE_0=' "$WORK/fetch-env.txt"
 }
+
+@test "a pull that failed gets no sibling advisory" {
+    # Fork and local both change the same line, so the rebase conflicts and
+    # is aborted. Canonical is ahead too, but an AHEAD line under a CONFLICT
+    # would read as if the checkout were otherwise current.
+    printf 'forkside\n' > "$SEED/app.txt"
+    git -C "$SEED" add app.txt
+    git -C "$SEED" commit -q -m "forkside"
+    git -C "$SEED" push -q "$FORK" HEAD:main
+    advance_upstream "v3"
+    printf 'local\n' > "$COMPONENTS_DIR/app/app.txt"
+    git -C "$COMPONENTS_DIR/app" add app.txt
+    git -C "$COMPONENTS_DIR/app" commit -q -m "local work"
+
+    run bash "$PULL_BIN" app
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CONFLICT:"* ]]
+    [[ "$output" != *"AHEAD:"* ]]
+}
+
+@test "the tracked branch is compared, not the local branch name" {
+    # Local `release` tracks fork/main: the pull followed main, so main is
+    # what a sibling must be compared on — not a `release` that may not exist
+    # there, or worse, an unrelated one that does.
+    git -C "$COMPONENTS_DIR/app" checkout -q -b release
+    git -C "$COMPONENTS_DIR/app" branch --set-upstream-to=fork/main release
+    advance_upstream "v2"
+
+    run bash "$PULL_BIN" app
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PULL: app (release)"* ]]
+    [[ "$output" == *"AHEAD: canonical/main is 1 commit(s) ahead of fork/main, which 'release' tracks."* ]]
+    [[ "$output" != *"canonical/release"* ]]
+}
