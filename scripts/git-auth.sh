@@ -170,6 +170,174 @@ git_auth_env_for_url() {
   GIT_AUTH_PROVIDER="$provider"
 }
 
+# Classify one command word by its basename, the way git's ssh.variant=auto
+# does: "ssh" for OpenSSH, "plink" for PuTTY's clients, empty for anything
+# else. Case-insensitive and .exe-blind so Windows spellings classify too.
+git_auth_ssh_client_kind() {
+  local word="$1" base
+  base="${word##*/}"
+  base="${base##*\\}"
+  base="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
+  base="${base%.exe}"
+  case "$base" in
+    ssh) printf 'ssh' ;;
+    plink|tortoiseplink|putty) printf 'plink' ;;
+    *) printf '' ;;
+  esac
+}
+
+# Scan a shell-parsed ssh command for the first word naming a recognised
+# client and print "<offset>\t<kind>": the offset just past that word, which
+# is where the client's options belong (OpenSSH keeps the FIRST value it sees
+# for an option, so a forced BatchMode=yes has to land ahead of anything
+# already configured), and "ssh" or "plink". With no recognised word the
+# offset is the end of the first word and the kind is empty, for a caller
+# that has been told the client kind some other way.
+#
+# Quotes and backslash escapes are honoured the way the shell will honour
+# them: `env SSH_AUTH_SOCK="/tmp/ssh agent.sock" ssh` scans as three words,
+# a quoted program path stays one, and the original text is never rewritten.
+git_auth_ssh_client_word() {
+  local ssh_cmd="$1"
+  local len="${#ssh_cmd}" i=0 end c quote unquoted first_end="" insert_end="" kind=""
+
+  while (( i < len )); do
+    while (( i < len )); do
+      c="${ssh_cmd:i:1}"
+      [[ "$c" == [[:space:]] ]] || break
+      i=$((i + 1))
+    done
+    (( i < len )) || break
+
+    unquoted=""
+    quote=""
+    while (( i < len )); do
+      c="${ssh_cmd:i:1}"
+      if [[ -z "$quote" && "$c" == [[:space:]] ]]; then
+        break
+      fi
+      if [[ -z "$quote" ]]; then
+        case "$c" in
+          "'") quote="'"; i=$((i + 1)); continue ;;
+          '"') quote='"'; i=$((i + 1)); continue ;;
+          "\\")
+            if (( i + 1 < len )); then
+              unquoted+="${ssh_cmd:i+1:1}"
+              i=$((i + 2))
+            else
+              unquoted+="\\"
+              i=$((i + 1))
+            fi
+            continue
+            ;;
+        esac
+      elif [[ "$quote" == "'" ]]; then
+        if [[ "$c" == "'" ]]; then
+          quote=""
+          i=$((i + 1))
+          continue
+        fi
+      else
+        if [[ "$c" == '"' ]]; then
+          quote=""
+          i=$((i + 1))
+          continue
+        fi
+        if [[ "$c" == "\\" && $((i + 1)) -lt "$len" ]]; then
+          unquoted+="${ssh_cmd:i+1:1}"
+          i=$((i + 2))
+          continue
+        fi
+      fi
+      unquoted+="$c"
+      i=$((i + 1))
+    done
+
+    end="$i"
+    [[ -n "$first_end" ]] || first_end="$end"
+    kind="$(git_auth_ssh_client_kind "$unquoted")"
+    if [[ -n "$kind" ]]; then
+      insert_end="$end"
+      break
+    fi
+  done
+
+  [[ -n "$insert_end" ]] || insert_end="${first_end:-$len}"
+  printf '%s\t%s' "$insert_end" "$kind"
+}
+
+# Make the next git_auth_run fail instead of wait. For a best-effort call (a
+# drift check, an advisory fetch) neither a prompt nor a stall is ever the
+# right outcome: git's terminal prompt, Git Credential Manager's dialog, a
+# custom credential helper's own window, ssh's passphrase / host-key questions
+# and a peer that accepts the connection and then goes quiet would all hold a
+# command that already succeeded, and an agent session has nobody to answer or
+# interrupt. Call after git_auth_env_for_url so a resolved token still applies;
+# the additions ride along in GIT_AUTH_ENV.
+#
+# credential.helper is blanked here because the token path already does it and
+# the tokenless path did not, and a helper can open a dialog none of the other
+# refusals reach. It is queued AFTER whatever GIT_CONFIG_* entries are already
+# there, so a token extraheader is kept; the later GIT_CONFIG_COUNT wins at
+# export time. http.lowSpeed* is the HTTPS stall bound (under a byte a second
+# for 30 s aborts); the ssh options are the SSH one.
+#
+# The ssh client is resolved the way git resolves it — GIT_SSH_COMMAND, then
+# core.sshCommand in repo_dir, then GIT_SSH (a bare program), then ssh — and
+# the options are added to whichever applies rather than replacing it, which
+# would silently drop a configured identity or client.
+#
+# Options are client-specific, so they are only added to a client that is
+# recognised: OpenSSH takes the -o set, PuTTY's plink family takes -batch, and
+# anything else (ssh.variant=simple, an unknown wrapper) is left exactly as
+# configured. git would probe an unknown client with -G to find out; here the
+# price of guessing wrong is a stalled agent session, so no guess is made and
+# the other refusals above still apply. GIT_SSH_VARIANT / ssh.variant override
+# the basename detection, as they do for git.
+git_auth_env_noninteractive() {
+  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}" entry count=""
+  GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GCM_INTERACTIVE=never")
+
+  for entry in ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"}; do
+    [[ "$entry" == GIT_CONFIG_COUNT=* ]] && count="${entry#GIT_CONFIG_COUNT=}"
+  done
+  [[ -n "$count" ]] || count="${GIT_CONFIG_COUNT:-0}"
+  GIT_AUTH_ENV+=(
+    "GIT_CONFIG_COUNT=$((count + 3))"
+    "GIT_CONFIG_KEY_${count}=credential.helper"
+    "GIT_CONFIG_VALUE_${count}="
+    "GIT_CONFIG_KEY_$((count + 1))=http.lowSpeedLimit"
+    "GIT_CONFIG_VALUE_$((count + 1))=1"
+    "GIT_CONFIG_KEY_$((count + 2))=http.lowSpeedTime"
+    "GIT_CONFIG_VALUE_$((count + 2))=30"
+  )
+
+  [[ -n "$ssh_cmd" ]] || ssh_cmd=$(git -C "$repo_dir" config --get core.sshCommand 2>/dev/null) || ssh_cmd=""
+  if [[ -z "$ssh_cmd" && -n "${GIT_SSH:-}" ]]; then
+    # GIT_SSH is exec'd as a path; GIT_SSH_COMMAND is shell-parsed, so a path
+    # with whitespace has to be quoted to survive the move between the two.
+    ssh_cmd="$GIT_SSH"
+    [[ "$ssh_cmd" == *[[:space:]]* ]] && ssh_cmd="\"$ssh_cmd\""
+  fi
+  ssh_cmd="${ssh_cmd:-ssh}"
+
+  local insert_end client_kind
+  IFS=$'\t' read -r insert_end client_kind <<< "$(git_auth_ssh_client_word "$ssh_cmd")"
+
+  local variant="${GIT_SSH_VARIANT:-}"
+  [[ -n "$variant" ]] || variant=$(git -C "$repo_dir" config --get ssh.variant 2>/dev/null) || variant=""
+  if [[ -z "$variant" || "$variant" == "auto" ]]; then
+    variant="$client_kind"
+  fi
+  local forced=""
+  case "$variant" in
+    ssh)   forced="-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2" ;;
+    plink|putty|tortoiseplink) forced="-batch" ;;
+  esac
+  [[ -n "$forced" ]] || return 0
+  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=${ssh_cmd:0:insert_end} $forced${ssh_cmd:insert_end}")
+}
+
 # Run a command with GIT_AUTH_ENV exported by the shell itself. The subshell
 # keeps the injected values scoped to this invocation, while avoiding an
 # external `env NAME=secret ...` process whose argument list exposes them.

@@ -59,3 +59,5 @@ This repo ships a Claude Code PreToolUse hook (`.claude/hooks/gdd-permission-hoo
 ## License
 
 Yggdrasil — the workspace, the `ws` CLI, the skills, and the documentation — is licensed under the [Apache License, Version 2.0](LICENSE). Components, realms, and hoards are independent repositories that carry their own licenses, but the general spirit is Apache 2 everywhere unless explicitly stated otherwise for whichever reason.
+
+Third-party code redistributed in this repository (currently only the MIT-licensed bats-core test runner under `tests/vendor/`) is inventoried in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

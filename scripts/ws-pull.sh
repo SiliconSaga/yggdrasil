@@ -46,6 +46,62 @@ if ! type -P yq &>/dev/null; then
     exit 1
 fi
 
+# Highlight a same-named branch on a NON-tracking remote that is ahead of what
+# we just pulled.
+#
+# Why this exists: a fork-cloned component tracks its fork, so `ws pull` follows
+# the fork and can legitimately report "Already up to date" while the canonical
+# upstream has moved on. The silence is the failure — the checkout looks current
+# and isn't, which is exactly the state that makes someone cut a release from
+# stale source. Only `ws clone-fork` syncs a fork from its upstream.
+#
+# Best-effort throughout: an unreachable remote, a missing branch, or a failed
+# fetch is not an error, because this is advisory on top of a pull that already
+# succeeded.
+report_ahead_siblings() {
+    local name="$1"
+    local target="$2"
+    local branch="$3"          # the local branch, for the message
+    local tracked="$4"         # the branch it tracks, which the pull followed
+    local tracking_remote="$5"
+    local remote url ahead
+
+    while IFS= read -r remote; do
+        [[ -z "$remote" || "$remote" == "$tracking_remote" ]] && continue
+
+        url=$(git -C "$target" remote get-url "$remote" 2>/dev/null || echo "")
+        [[ -n "$url" ]] || continue
+        # Same gate every other URL sink applies before handing a value to git:
+        # a `helper::` remote would launch a local program. The tracking remote
+        # was already vetted when ws wired it; these were not necessarily. Local
+        # mode keeps filesystem remotes, which is what the tests use. Quiet,
+        # because an advisory check skipping a remote is not an error to report.
+        git_remote_validate "$url" local 2>/dev/null || continue
+
+        local -a GIT_AUTH_ENV=()
+        local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
+        git_auth_env_for_url "$url"
+        # Never wait on a credential: this runs after a pull that already
+        # succeeded, so a private or SSH sibling that would prompt is skipped.
+        git_auth_env_noninteractive "$target"
+        # Fetch the vetted URL, not the remote name: `remote.<name>.vcs` would
+        # otherwise route even a clean URL through a helper program. Explicit
+        # refspec: only the TRACKED branch (local `release` tracking `fork/main`
+        # pulled `main`, so `main` is what a sibling is compared on), into the
+        # named remote-tracking ref so the comparison below isn't stale.
+        git_auth_run git -C "$target" fetch --quiet "$url" \
+            "+refs/heads/$tracked:refs/remotes/$remote/$tracked" 2>/dev/null || continue
+
+        ahead=$(git -C "$target" rev-list --count "HEAD..refs/remotes/$remote/$tracked" 2>/dev/null || echo "")
+        [[ "$ahead" =~ ^[0-9]+$ ]] || continue
+        [[ "$ahead" -gt 0 ]] || continue
+
+        echo "  AHEAD: $remote/$tracked is $ahead commit(s) ahead of $tracking_remote/$tracked, which '$branch' tracks."
+        echo "         If '$remote' is canonical, reconcile before trusting this checkout —"
+        echo "         for a fork-based component: ws clone-fork $name"
+    done < <(git -C "$target" remote 2>/dev/null)
+}
+
 pull_repo() {
     local name="$1"
     local target="$2"
@@ -93,7 +149,14 @@ pull_repo() {
         echo "  CONFLICT: aborting rebase — resolve manually in $target"
         git -C "$target" rebase --abort 2>/dev/null
         HAD_FAILURES=1
+        # No sibling advisory on top of a pull that did not happen: an AHEAD
+        # line here would read as if the checkout were otherwise current.
+        return 0
     fi
+
+    # The tracked branch, not the local name — `@{upstream}` is `<remote>/<branch>`.
+    local tracked_branch="${upstream_ref#"$remote_name"/}"
+    report_ahead_siblings "$name" "$target" "$branch" "$tracked_branch" "$remote_name"
 }
 
 HAD_FAILURES=0

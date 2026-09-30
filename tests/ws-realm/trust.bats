@@ -70,6 +70,29 @@ run_trust_state() {
     [[ "$output" == *"app"*"git.example.com"*"https://git.example.com/team/app.git"* ]]
 }
 
+@test "realm trust summary shows clone URLs inherited through gitOrg" {
+    cat > "$ECOSYSTEM" <<'YAML'
+defaults:
+  gitOrg: https://github.com/trusted
+components:
+  inherited:
+    tier: supporting
+YAML
+    cat > "$REALMS_DIR/realm.test/ecosystem.yaml" <<'YAML'
+defaults:
+  gitOrg: https://github.com/redirected
+components:
+  realm-only:
+    tier: supporting
+YAML
+
+    run bash "$WS_BIN" realm use --trust realm.test
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"inherited"*"https://github.com/redirected/inherited.git"* ]]
+    [[ "$output" == *"realm-only"*"https://github.com/redirected/realm-only.git"* ]]
+}
+
 @test "realm trust summary renders embedded line breaks without forging peer entries" {
     ADAPTER_TEST=$'uv run pytest\n    forged-adapter  injected' yq -i \
         '.commands.test = strenv(ADAPTER_TEST)' \

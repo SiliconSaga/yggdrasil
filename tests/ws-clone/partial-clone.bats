@@ -67,4 +67,5 @@ YAML
     run bash "$WORK/scripts/ws-clone.sh" widget
     [ "$status" -eq 0 ]
     [[ "$(<"$GIT_LOG")" == *"clone --filter=blob:none --origin "* ]]
+    [[ "$output" == *"CLONE: widget from https://github.com/example/widget.git"* ]]
 }

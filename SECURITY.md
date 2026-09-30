@@ -28,7 +28,7 @@ The main trust boundaries are local-machine boundaries, not network perimeter bo
 
 Sensitive inputs include provider tokens in `.env`, Git remote URLs and namespace mappings, CR/MR body files, issue body files, Thalamus and hoard notes, agent skills, realm adapter commands, generated MCP configuration, and local hook permission settings. The root `.env` is loaded as literal assignment data by `scripts/ws`, so child subcommands inherit token-bearing environment variables unless a called tool narrows or scrubs its own environment.
 
-The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. Direct docs build dependencies are pinned in `requirements-docs.txt`; transitive dependency pinning or hash locking would be a future hardening step if the documentation pipeline becomes security-sensitive.
+The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. Direct docs build dependencies are declared in `requirements-docs.in`; `requirements-docs.txt` is the compiled lockfile, pinning every direct and transitive package with hashes, and the workflow installs it with `--require-hashes`.
 
 ## Threat Model
 
@@ -46,7 +46,7 @@ The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. D
 
 7. **Intentional hook bypass for local operators:** `WS_HOOK_DISABLE=1` disables the committed PreToolUse hook checks for a session. This is an explicit local-operator escape hatch for recovery, debugging, or temporarily working outside GDD's guardrails; using it gives up the hook's deny, redirect, and force-ask behavior until the variable is cleared.
 
-8. **Supply-chain exposure in auxiliary tooling:** Docs builds, vendored test tools, hoard templates, Obsidian vault plugins, and future hoard upgrades may fetch or execute external code. Obsidian plugin release assets are pinned by tag and committed SHA-256, downloaded into temporary staging, and installed only after the complete set verifies; lock refresh remains an explicit maintainer action whose diff is reviewed. Conservative template workflows, human review, direct dependency pins for the docs workflow, and explicit trust assumptions cover the remaining auxiliary surfaces. Full transitive locking for the informational docs pipeline remains a future hardening option rather than the current baseline.
+8. **Supply-chain exposure in auxiliary tooling:** Docs builds, the vendored bats-core test runner (inventoried in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), pinned to a release and verified unmodified), hoard templates, Obsidian vault plugins, and future hoard upgrades may fetch or execute external code. Obsidian plugin release assets are pinned by tag and committed SHA-256, downloaded into temporary staging, and installed only after the complete set verifies; lock refresh remains an explicit maintainer action whose diff is reviewed. Conservative template workflows, human review, the hash-locked docs lockfile, and explicit trust assumptions cover the remaining auxiliary surfaces. The docs pipeline installs only packages whose hashes match the committed lockfile, so a refreshed lock is a reviewed diff like any other.
 
 ## Critical Security Assumptions
 
@@ -74,6 +74,6 @@ Out of scope as vulnerabilities by themselves: the existence of local command ex
 
 ## Dependency Security
 
-The docs workflow installs direct Python dependencies from `requirements-docs.txt` with exact version pins. Update those pins deliberately, verify `mkdocs build --strict`, and review release notes for `mkdocs-material` and `pymdown-extensions` when refreshing them.
+The docs workflow installs Python dependencies from `requirements-docs.txt` with `--require-hashes`, so every direct and transitive package must match a recorded hash. Direct pins live in `requirements-docs.in`; the regeneration command is in its header comment. Update those pins deliberately, recompile the lockfile, verify `mkdocs build --strict`, and review release notes for `mkdocs-material` and `pymdown-extensions` when refreshing them.
 
-This repository does not currently maintain a full transitive Python lockfile or hash-checked install for the docs workflow. That is an accepted tradeoff while the docs pipeline remains non-secret-bearing and low privilege; it should be revisited if docs publishing becomes a privileged release path.
+The deploy workflow only runs on pushes to `main`; a separate pull-request check performs the same hash-locked install and `mkdocs build --strict` whenever docs, the lockfile, or the workflows change, so a broken lockfile fails before merge rather than after.
