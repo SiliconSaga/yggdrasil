@@ -240,7 +240,7 @@ clone_component() {
 
     git_remote_validate "$repo_url" remote
 
-    echo "CLONE: $name -> $target (remote: $remote)"
+    echo "CLONE: $name from $(redact_url "$repo_url") -> $target (remote: $remote)"
     local -a GIT_AUTH_ENV=()
     local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
     git_auth_env_for_url "$repo_url"

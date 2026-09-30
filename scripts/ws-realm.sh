@@ -1058,8 +1058,18 @@ ws_realm_trust_summary() {
     ws_validate_component_keys "$realm_file" || return 1
     echo "Realm trust summary: $name"
     echo "  Component repository routes:"
-    local found=0 component repo host route adapter_file adapter_basename adapter_name commands routes command_record command_key command_value
-    if ! routes="$(yq -o=json -I=0 '.components // {} | to_entries | .[] | {"component": .key, "repo": (.value.repo // "")}' "$realm_file" 2>/dev/null)"; then
+    echo "    (workspace + realm, before local overrides)"
+    local found=0 component repo host route adapter_file adapter_basename adapter_name commands routes command_record command_key command_value git_org
+    local base_file="${ECOSYSTEM:-$ROOT_DIR/ecosystem.yaml}"
+    if ! git_org="$(yq eval-all -r 'select(fileIndex == 0) *d select(fileIndex == 1) | .defaults.gitOrg // ""' "$base_file" "$realm_file" 2>/dev/null)"; then
+        echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
+        return 1
+    fi
+    if ! routes="$(yq eval-all -o=json -I=0 '
+        select(fileIndex == 0) *d select(fileIndex == 1) |
+        .components // {} | to_entries | .[] |
+        {"component": .key, "repo": (.value.repo // "")}
+    ' "$base_file" "$realm_file" 2>/dev/null)"; then
         echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
         return 1
     fi
@@ -1069,6 +1079,9 @@ ws_realm_trust_summary() {
            ! repo="$(ROUTE_JSON="$route" yq -n -r 'strenv(ROUTE_JSON) | from_json | .repo' 2>/dev/null)"; then
             echo "ERROR: cannot safely render repository routing from $realm_file; refusing realm adoption." >&2
             return 1
+        fi
+        if [[ -z "$repo" && -n "$git_org" ]]; then
+            repo="${git_org%/}/$component.git"
         fi
         [[ -n "$repo" ]] || continue
         host="$(git_remote_host "$repo" 2>/dev/null || echo "invalid/local")"

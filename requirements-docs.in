@@ -1,0 +1,4 @@
+# Regenerate: uv pip compile requirements-docs.in -o requirements-docs.txt --python-version 3.12 --python-platform x86_64-unknown-linux-gnu --generate-hashes --no-header
+mkdocs==1.6.1
+mkdocs-material==9.7.6
+pymdown-extensions==11.0

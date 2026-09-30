@@ -6,6 +6,10 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ## [Unreleased]
 
+### Security
+
+- Realm approval now shows every effective component clone URL, including URLs inherited through `defaults.gitOrg`; `ws clone` displays the final URL before use. Docs CI installs a hash-locked dependency set.
+
 ### Added
 
 - **Nested repo targets — `ws <verb> <component>/<repo>`** — a component whose working tree contains independent git repos (Terasology's `modules/`, each with its own upstream) can now have them addressed directly: `ws commit terasology/Health`, `ws push`, `ws cr`, `ws exec`, `ws log`, `ws diagnose` and `ws checkout` all take the form, because resolution is taught once in `ws_resolve_target` and every repo-touching verb inherits it. Declared by *shape* rather than by name — a `nested:` list of globs in the realm adapter — so the config does not go stale as modules churn, and the declaration passes through realm trust review like any command string. `ws status` counts them for free and sweeps them only under `--nested`; `ws pull` reports what it deliberately did not refresh. Nothing recurses and there is no bulk commit or push: these are independent upstreams with their own review norms. See [adapters.md](docs/gdd/adapters.md#nested-repos--components-that-contain-other-repos) (#155).
