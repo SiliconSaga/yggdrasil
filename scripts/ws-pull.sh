@@ -70,10 +70,19 @@ report_ahead_siblings() {
 
         url=$(git -C "$target" remote get-url "$remote" 2>/dev/null || echo "")
         [[ -n "$url" ]] || continue
+        # Same gate every other URL sink applies before handing a value to git:
+        # a `helper::` remote would launch a local program. The tracking remote
+        # was already vetted when ws wired it; these were not necessarily. Local
+        # mode keeps filesystem remotes, which is what the tests use. Quiet,
+        # because an advisory check skipping a remote is not an error to report.
+        git_remote_validate "$url" local 2>/dev/null || continue
 
         local -a GIT_AUTH_ENV=()
         local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
         git_auth_env_for_url "$url"
+        # Never wait on a credential: this runs after a pull that already
+        # succeeded, so a private or SSH sibling that would prompt is skipped.
+        git_auth_env_noninteractive "$target"
         # Explicit refspec: fetch only this one branch, and guarantee the
         # remote-tracking ref updates so the comparison below isn't stale.
         git_auth_run git -C "$target" fetch --quiet "$remote" \

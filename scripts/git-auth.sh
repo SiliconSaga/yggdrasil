@@ -170,6 +170,23 @@ git_auth_env_for_url() {
   GIT_AUTH_PROVIDER="$provider"
 }
 
+# Make the next git_auth_run fail instead of wait. For a best-effort call (a
+# drift check, an advisory fetch) a prompt is never the right outcome: git's
+# terminal prompt, Git Credential Manager's dialog and ssh's own passphrase /
+# host-key questions would all stall a command that already succeeded, and an
+# agent session has nobody to answer them. Call after git_auth_env_for_url so
+# a resolved token still applies; the additions ride along in GIT_AUTH_ENV.
+#
+# repo_dir is where the ssh command in force is read from: GIT_SSH_COMMAND
+# overrides core.sshCommand, so BatchMode is appended to whichever applies
+# rather than replacing it, which would silently drop a configured identity.
+git_auth_env_noninteractive() {
+  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}"
+  GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GCM_INTERACTIVE=never")
+  [[ -n "$ssh_cmd" ]] || ssh_cmd=$(git -C "$repo_dir" config --get core.sshCommand 2>/dev/null) || ssh_cmd=""
+  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=${ssh_cmd:-ssh} -o BatchMode=yes")
+}
+
 # Run a command with GIT_AUTH_ENV exported by the shell itself. The subshell
 # keeps the injected values scoped to this invocation, while avoiding an
 # external `env NAME=secret ...` process whose argument list exposes them.

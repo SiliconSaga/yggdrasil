@@ -22,7 +22,7 @@ After cloning, run `bash scripts/ws preflight` from the workspace root — it ch
 
 **Recommended companion (agent-side):**
 
-- **[Obra Superpowers](https://github.com/obra/superpowers)** — a plugin that ships skills GDD plans reference (`superpowers:executing-plans`, `superpowers:brainstorming`, `superpowers:test-driven-development`, etc.). GDD works without it, but plan-driven and review-heavy sessions assume it's available; the `gdd-orientation` skill nudges you if it's absent. The install command is agent-specific — Claude Code: see [`CLAUDE.md`](../CLAUDE.md); other agents install the same plugin their own way (Codex use `/plugins` then search for "superpowers")
+- **[Obra Superpowers](https://github.com/obra/superpowers)** — a plugin that ships skills GDD plans reference (`superpowers:executing-plans`, `superpowers:brainstorming`, `superpowers:test-driven-development`, etc.). GDD works without it, but plan-driven and review-heavy sessions assume it's available; the `gdd-orientation` skill nudges you if it's absent. The install command is agent-specific — Claude Code: see [`CLAUDE.md`](../CLAUDE.md); other agents install the same plugin their own way. In Codex CLI, run `/plugins` and search for "superpowers"; in the Codex App, use the Plugins sidebar.
 
 **Optional** (only needed for specific component types):
 

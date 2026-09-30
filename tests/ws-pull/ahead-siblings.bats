@@ -28,8 +28,10 @@ setup() {
     printf 'components:\n  app:\n    repo: %s\n' "$UPSTREAM" > "$ECOSYSTEM"
     printf 'notes: keep\n' > "$ECOSYSTEM_LOCAL"
 
-    # Seed a canonical repo, then a fork of it at the same commit.
-    git init -q "$SEED"
+    # Seed a canonical repo, then a fork of it at the same commit. -b main: the
+    # tracking setup below names the branch, so it must not depend on the
+    # host's init.defaultBranch (unset on CI runners, arbitrary elsewhere).
+    git init -q -b main "$SEED"
     git -C "$SEED" config user.name "Test Author"
     git -C "$SEED" config user.email "author@example.test"
     printf 'v1\n' > "$SEED/app.txt"
@@ -46,8 +48,7 @@ setup() {
     git -C "$COMPONENTS_DIR/app" remote add canonical "$UPSTREAM"
     git -C "$COMPONENTS_DIR/app" config user.name "Test User"
     git -C "$COMPONENTS_DIR/app" config user.email "user@example.test"
-    git -C "$COMPONENTS_DIR/app" branch --set-upstream-to=fork/main main 2>/dev/null \
-        || git -C "$COMPONENTS_DIR/app" branch --set-upstream-to=fork/master master
+    git -C "$COMPONENTS_DIR/app" branch --set-upstream-to=fork/main main
 }
 
 advance_upstream() {
@@ -110,4 +111,61 @@ advance_upstream() {
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"AHEAD: canonical/"* ]]
+}
+
+@test "a sibling remote using helper syntax is skipped without running the helper" {
+    # `<name>::<address>` makes git exec git-remote-<name> from PATH. Every
+    # other ws URL sink refuses that shape before git sees it; the advisory
+    # fetch must too, since it reaches remotes ws never vetted.
+    mkdir -p "$WORK/bin"
+    printf '#!/usr/bin/env bash\ntouch "%s/helper-ran"\nexit 1\n' "$BATS_TEST_TMPDIR" > "$WORK/bin/git-remote-marker"
+    chmod +x "$WORK/bin/git-remote-marker"
+    git -C "$COMPONENTS_DIR/app" remote add helper "marker::anything"
+    advance_upstream "v2"
+
+    export PATH="$WORK/bin:$PATH"
+    run bash "$PULL_BIN" app
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/helper-ran" ]
+    # Skipping one remote does not silence the check for the rest.
+    [[ "$output" == *"AHEAD: canonical/"* ]]
+}
+
+@test "the sibling fetch has every credential prompt path closed" {
+    # A private or SSH sibling must be skipped, never waited on: the pull it
+    # follows already succeeded. This shim replaces git on PATH, records the
+    # prompt-controlling environment the sibling fetch is handed, and fails the
+    # way an unauthenticated fetch does. Only direct `git fetch` calls hit it;
+    # the pull's own internal fetch runs from git's exec path.
+    mkdir -p "$WORK/bin"
+    local real_git
+    real_git="$(command -v git)"
+    cat > "$WORK/bin/git" <<BASH
+#!/usr/bin/env bash
+for arg in "\$@"; do
+    if [[ "\$arg" == "fetch" ]]; then
+        {
+            echo "GIT_TERMINAL_PROMPT=\${GIT_TERMINAL_PROMPT-unset}"
+            echo "GIT_ASKPASS=\${GIT_ASKPASS-unset}"
+            echo "GCM_INTERACTIVE=\${GCM_INTERACTIVE-unset}"
+            echo "GIT_SSH_COMMAND=\${GIT_SSH_COMMAND-unset}"
+        } > "$WORK/fetch-env.txt"
+        exit 1
+    fi
+done
+exec "$real_git" "\$@"
+BASH
+    chmod +x "$WORK/bin/git"
+
+    export PATH="$WORK/bin:$PATH"
+    export GIT_ASKPASS="$WORK/bin/gui-askpass"
+    run bash "$PULL_BIN" app
+
+    [ "$status" -eq 0 ]
+    [ -f "$WORK/fetch-env.txt" ]
+    grep -qx 'GIT_TERMINAL_PROMPT=0' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_ASKPASS=' "$WORK/fetch-env.txt"
+    grep -qx 'GCM_INTERACTIVE=never' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes' "$WORK/fetch-env.txt"
 }

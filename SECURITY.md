@@ -28,7 +28,7 @@ The main trust boundaries are local-machine boundaries, not network perimeter bo
 
 Sensitive inputs include provider tokens in `.env`, Git remote URLs and namespace mappings, CR/MR body files, issue body files, Thalamus and hoard notes, agent skills, realm adapter commands, generated MCP configuration, and local hook permission settings. The root `.env` is loaded as literal assignment data by `scripts/ws`, so child subcommands inherit token-bearing environment variables unless a called tool narrows or scrubs its own environment.
 
-The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. Direct docs build dependencies are pinned in `requirements-docs.txt`; transitive dependency pinning or hash locking would be a future hardening step if the documentation pipeline becomes security-sensitive.
+The docs site is built by GitHub Actions using MkDocs and Material for MkDocs. Direct docs build dependencies are declared in `requirements-docs.in`; `requirements-docs.txt` is the compiled lockfile, pinning every direct and transitive package with hashes, and the workflow installs it with `--require-hashes`.
 
 ## Threat Model
 
@@ -74,6 +74,6 @@ Out of scope as vulnerabilities by themselves: the existence of local command ex
 
 ## Dependency Security
 
-The docs workflow installs direct Python dependencies from `requirements-docs.txt` with exact version pins. Update those pins deliberately, verify `mkdocs build --strict`, and review release notes for `mkdocs-material` and `pymdown-extensions` when refreshing them.
+The docs workflow installs Python dependencies from `requirements-docs.txt` with `--require-hashes`, so every direct and transitive package must match a recorded hash. Direct pins live in `requirements-docs.in`; the regeneration command is in its header comment. Update those pins deliberately, recompile the lockfile, verify `mkdocs build --strict`, and review release notes for `mkdocs-material` and `pymdown-extensions` when refreshing them.
 
-This repository does not currently maintain a full transitive Python lockfile or hash-checked install for the docs workflow. That is an accepted tradeoff while the docs pipeline remains non-secret-bearing and low privilege; it should be revisited if docs publishing becomes a privileged release path.
+The docs workflow only runs on pushes to `main`, so a lockfile change is first exercised by CI after merge. Run the hash-locked install locally before proposing one.
