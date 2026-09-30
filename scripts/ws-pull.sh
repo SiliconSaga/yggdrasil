@@ -83,9 +83,11 @@ report_ahead_siblings() {
         # Never wait on a credential: this runs after a pull that already
         # succeeded, so a private or SSH sibling that would prompt is skipped.
         git_auth_env_noninteractive "$target"
-        # Explicit refspec: fetch only this one branch, and guarantee the
-        # remote-tracking ref updates so the comparison below isn't stale.
-        git_auth_run git -C "$target" fetch --quiet "$remote" \
+        # Fetch the vetted URL, not the remote name: `remote.<name>.vcs` would
+        # otherwise route even a clean URL through a helper program. Explicit
+        # refspec: only this one branch, into the named remote-tracking ref so
+        # the comparison below isn't stale.
+        git_auth_run git -C "$target" fetch --quiet "$url" \
             "+refs/heads/$branch:refs/remotes/$remote/$branch" 2>/dev/null || continue
 
         ahead=$(git -C "$target" rev-list --count "HEAD..refs/remotes/$remote/$branch" 2>/dev/null || echo "")

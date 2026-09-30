@@ -132,6 +132,25 @@ advance_upstream() {
     [[ "$output" == *"AHEAD: canonical/"* ]]
 }
 
+@test "a sibling remote whose vcs setting names a helper is fetched by URL, not through the helper" {
+    # remote.<name>.vcs routes every fetch of that remote NAME through
+    # git-remote-<vcs>, whatever the URL says. Fetching the validated URL
+    # directly sidesteps the setting; the refspec still updates the named
+    # remote-tracking ref, so the comparison and the message are unchanged.
+    mkdir -p "$WORK/bin"
+    printf '#!/usr/bin/env bash\ntouch "%s/helper-ran"\nexit 1\n' "$BATS_TEST_TMPDIR" > "$WORK/bin/git-remote-marker"
+    chmod +x "$WORK/bin/git-remote-marker"
+    git -C "$COMPONENTS_DIR/app" config remote.canonical.vcs marker
+    advance_upstream "v2"
+
+    export PATH="$WORK/bin:$PATH"
+    run bash "$PULL_BIN" app
+
+    [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/helper-ran" ]
+    [[ "$output" == *"AHEAD: canonical/"* ]]
+}
+
 @test "the sibling fetch has every credential prompt path closed" {
     # A private or SSH sibling must be skipped, never waited on: the pull it
     # follows already succeeded. This shim replaces git on PATH, records the
@@ -150,6 +169,8 @@ for arg in "\$@"; do
             echo "GIT_ASKPASS=\${GIT_ASKPASS-unset}"
             echo "GCM_INTERACTIVE=\${GCM_INTERACTIVE-unset}"
             echo "GIT_SSH_COMMAND=\${GIT_SSH_COMMAND-unset}"
+            echo "GIT_CONFIG_KEY_0=\${GIT_CONFIG_KEY_0-unset}"
+            echo "GIT_CONFIG_VALUE_0=\${GIT_CONFIG_VALUE_0-unset}"
         } > "$WORK/fetch-env.txt"
         exit 1
     fi
@@ -167,5 +188,9 @@ BASH
     grep -qx 'GIT_TERMINAL_PROMPT=0' "$WORK/fetch-env.txt"
     grep -qx 'GIT_ASKPASS=' "$WORK/fetch-env.txt"
     grep -qx 'GCM_INTERACTIVE=never' "$WORK/fetch-env.txt"
-    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2' "$WORK/fetch-env.txt"
+    # No token resolves for a filesystem remote, so this is the tokenless path:
+    # the credential helper must still be blanked, or a custom one can prompt.
+    grep -qx 'GIT_CONFIG_KEY_0=credential.helper' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_CONFIG_VALUE_0=' "$WORK/fetch-env.txt"
 }

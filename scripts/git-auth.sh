@@ -171,31 +171,75 @@ git_auth_env_for_url() {
 }
 
 # Make the next git_auth_run fail instead of wait. For a best-effort call (a
-# drift check, an advisory fetch) a prompt is never the right outcome: git's
-# terminal prompt, Git Credential Manager's dialog and ssh's own passphrase /
-# host-key questions would all stall a command that already succeeded, and an
-# agent session has nobody to answer them. Call after git_auth_env_for_url so
-# a resolved token still applies; the additions ride along in GIT_AUTH_ENV.
+# drift check, an advisory fetch) neither a prompt nor a stall is ever the
+# right outcome: git's terminal prompt, Git Credential Manager's dialog, a
+# custom credential helper's own window, ssh's passphrase / host-key questions
+# and a peer that accepts the connection and then goes quiet would all hold a
+# command that already succeeded, and an agent session has nobody to answer or
+# interrupt. Call after git_auth_env_for_url so a resolved token still applies;
+# the additions ride along in GIT_AUTH_ENV.
+#
+# credential.helper is blanked here because the token path already does it and
+# the tokenless path did not, and a helper can open a dialog none of the other
+# refusals reach. It is queued AFTER whatever GIT_CONFIG_* entries are already
+# there, so a token extraheader is kept; the later GIT_CONFIG_COUNT wins at
+# export time. http.lowSpeed* is the HTTPS stall bound (under a byte a second
+# for 30 s aborts); the ssh options are the SSH one.
 #
 # repo_dir is where the ssh command in force is read from: GIT_SSH_COMMAND
-# overrides core.sshCommand, so BatchMode is added to whichever applies
+# overrides core.sshCommand, so the options are added to whichever applies
 # rather than replacing it, which would silently drop a configured identity.
 #
 # OpenSSH keeps the FIRST value it sees for an option, so BatchMode=yes goes
-# right after the program word, ahead of any configured `-o BatchMode=no`;
-# appended at the end it would lose. A quoted program path stays one word.
+# right after the ssh word, ahead of any configured `-o BatchMode=no`; appended
+# at the end it would lose. The ssh word is the first one whose basename is
+# ssh, so a wrapper such as `env FOO=bar ssh -i key` keeps its prefix; with no
+# such word the program is assumed to be the first one. A quoted program path
+# stays one word.
 git_auth_env_noninteractive() {
-  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}" ssh_bin ssh_rest
+  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}" entry count="" ssh_bin ssh_rest
   GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GCM_INTERACTIVE=never")
+
+  for entry in ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"}; do
+    [[ "$entry" == GIT_CONFIG_COUNT=* ]] && count="${entry#GIT_CONFIG_COUNT=}"
+  done
+  [[ -n "$count" ]] || count="${GIT_CONFIG_COUNT:-0}"
+  GIT_AUTH_ENV+=(
+    "GIT_CONFIG_COUNT=$((count + 3))"
+    "GIT_CONFIG_KEY_${count}=credential.helper"
+    "GIT_CONFIG_VALUE_${count}="
+    "GIT_CONFIG_KEY_$((count + 1))=http.lowSpeedLimit"
+    "GIT_CONFIG_VALUE_$((count + 1))=1"
+    "GIT_CONFIG_KEY_$((count + 2))=http.lowSpeedTime"
+    "GIT_CONFIG_VALUE_$((count + 2))=30"
+  )
+
   [[ -n "$ssh_cmd" ]] || ssh_cmd=$(git -C "$repo_dir" config --get core.sshCommand 2>/dev/null) || ssh_cmd=""
   ssh_cmd="${ssh_cmd:-ssh}"
+  local forced="-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2"
   case "$ssh_cmd" in
-    \"*) ssh_bin="${ssh_cmd:1}"; ssh_bin="\"${ssh_bin%%\"*}\"" ;;
-    \'*) ssh_bin="${ssh_cmd:1}"; ssh_bin="'${ssh_bin%%\'*}'" ;;
-    *)   ssh_bin="${ssh_cmd%%[[:space:]]*}" ;;
+    \"*) ssh_bin="${ssh_cmd:1}"; ssh_bin="\"${ssh_bin%%\"*}\""; ssh_rest="${ssh_cmd#"$ssh_bin"}" ;;
+    \'*) ssh_bin="${ssh_cmd:1}"; ssh_bin="'${ssh_bin%%\'*}'"; ssh_rest="${ssh_cmd#"$ssh_bin"}" ;;
+    *)
+      local -a words=()
+      local i idx=0 base
+      read -r -a words <<< "$ssh_cmd"
+      for i in "${!words[@]}"; do
+        base="${words[$i]##*/}"
+        base="${base%.exe}"
+        if [[ "$base" == "ssh" ]]; then
+          idx="$i"
+          break
+        fi
+      done
+      ssh_bin="${words[*]:0:idx+1}"
+      ssh_rest=""
+      if [[ "${#words[@]}" -gt $((idx + 1)) ]]; then
+        ssh_rest=" ${words[*]:idx+1}"
+      fi
+      ;;
   esac
-  ssh_rest="${ssh_cmd#"$ssh_bin"}"
-  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=$ssh_bin -o BatchMode=yes$ssh_rest")
+  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=$ssh_bin $forced$ssh_rest")
 }
 
 # Run a command with GIT_AUTH_ENV exported by the shell itself. The subshell

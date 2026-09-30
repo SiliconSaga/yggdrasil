@@ -1,11 +1,16 @@
 #!/usr/bin/env bats
 
-# git_auth_env_noninteractive shapes the ssh command a best-effort fetch runs
-# under. The trap it guards: OpenSSH keeps the FIRST value it sees for an
+# git_auth_env_noninteractive shapes the environment a best-effort fetch runs
+# under. The traps it guards: OpenSSH keeps the FIRST value it sees for an
 # option, so a BatchMode=yes appended after a configured BatchMode=no does
-# nothing, and the "advisory" fetch waits on a passphrase after all.
+# nothing; a wrapper ahead of ssh must not receive ssh's options; and on the
+# tokenless path nothing else blanks the credential helper, so a custom one can
+# still raise a dialog.
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+
+# The options forced onto every ssh invocation, in the order they are added.
+FORCED='-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2'
 
 setup() {
     REPO="$BATS_TEST_TMPDIR/repo"
@@ -14,27 +19,58 @@ setup() {
     source "$REPO_ROOT/scripts/git-auth.sh"
 }
 
-ssh_entry() {
+env_value() {
     local entry
     for entry in "${GIT_AUTH_ENV[@]}"; do
-        [[ "$entry" == GIT_SSH_COMMAND=* ]] && printf '%s\n' "${entry#GIT_SSH_COMMAND=}"
+        [[ "$entry" == "$1="* ]] && printf '%s\n' "${entry#"$1"=}"
     done
 }
 
-@test "with nothing configured, plain ssh gets BatchMode" {
+@test "with nothing configured, plain ssh gets the forced options" {
     GIT_AUTH_ENV=()
     git_auth_env_noninteractive "$REPO"
 
-    [ "$(ssh_entry)" = "ssh -o BatchMode=yes" ]
+    [ "$(env_value GIT_SSH_COMMAND)" = "ssh $FORCED" ]
 }
 
-@test "the prompt refusals are added alongside any token entries already present" {
-    GIT_AUTH_ENV=("GIT_CONFIG_COUNT=1")
+@test "the prompt refusals and stall bounds are all present" {
+    GIT_AUTH_ENV=()
     git_auth_env_noninteractive "$REPO"
 
-    [ "${GIT_AUTH_ENV[0]}" = "GIT_CONFIG_COUNT=1" ]
-    [[ " ${GIT_AUTH_ENV[*]} " == *" GIT_TERMINAL_PROMPT=0 "* ]]
-    [[ " ${GIT_AUTH_ENV[*]} " == *" GCM_INTERACTIVE=never "* ]]
+    [ "$(env_value GIT_TERMINAL_PROMPT)" = "0" ]
+    [ "$(env_value GCM_INTERACTIVE)" = "never" ]
+    [ "$(env_value GIT_CONFIG_KEY_1)" = "http.lowSpeedLimit" ]
+    [ "$(env_value GIT_CONFIG_VALUE_1)" = "1" ]
+    [ "$(env_value GIT_CONFIG_KEY_2)" = "http.lowSpeedTime" ]
+    [ "$(env_value GIT_CONFIG_VALUE_2)" = "30" ]
+}
+
+@test "the tokenless path blanks the credential helper" {
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_CONFIG_COUNT)" = "3" ]
+    [ "$(env_value GIT_CONFIG_KEY_0)" = "credential.helper" ]
+    [ "$(env_value GIT_CONFIG_VALUE_0)" = "" ]
+}
+
+@test "config entries queue after a token's, keeping its extraheader" {
+    # What git_auth_env_for_url leaves behind when a token resolves.
+    GIT_AUTH_ENV=(
+        "GIT_TERMINAL_PROMPT=0"
+        "GIT_CONFIG_COUNT=2"
+        "GIT_CONFIG_KEY_0=credential.helper"
+        "GIT_CONFIG_VALUE_0="
+        "GIT_CONFIG_KEY_1=http.https://github.com/.extraheader"
+        "GIT_CONFIG_VALUE_1=Authorization: Basic secret"
+    )
+    git_auth_env_noninteractive "$REPO"
+
+    # The later COUNT wins at export time and covers every index below it.
+    [ "$(env_value GIT_CONFIG_COUNT | tail -1)" = "5" ]
+    [ "$(env_value GIT_CONFIG_KEY_1)" = "http.https://github.com/.extraheader" ]
+    [ "$(env_value GIT_CONFIG_KEY_2)" = "credential.helper" ]
+    [ "$(env_value GIT_CONFIG_KEY_4)" = "http.lowSpeedTime" ]
 }
 
 @test "BatchMode=yes lands ahead of a configured BatchMode=no, keeping the identity" {
@@ -42,7 +78,7 @@ ssh_entry() {
     GIT_AUTH_ENV=()
     git_auth_env_noninteractive "$REPO"
 
-    [ "$(ssh_entry)" = "ssh -o BatchMode=yes -o BatchMode=no -i /keys/id" ]
+    [ "$(env_value GIT_SSH_COMMAND)" = "ssh $FORCED -o BatchMode=no -i /keys/id" ]
 }
 
 @test "GIT_SSH_COMMAND wins over core.sshCommand, as it does for git" {
@@ -51,7 +87,31 @@ ssh_entry() {
     GIT_AUTH_ENV=()
     git_auth_env_noninteractive "$REPO"
 
-    [ "$(ssh_entry)" = "ssh -o BatchMode=yes -i /keys/from-env" ]
+    [ "$(env_value GIT_SSH_COMMAND)" = "ssh $FORCED -i /keys/from-env" ]
+}
+
+@test "a wrapper ahead of ssh keeps its prefix and the options land on ssh" {
+    export GIT_SSH_COMMAND="env FOO=bar ssh -i /keys/id"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "env FOO=bar ssh $FORCED -i /keys/id" ]
+}
+
+@test "an absolute ssh path is recognised as the ssh word" {
+    export GIT_SSH_COMMAND="/usr/bin/ssh -i /keys/id"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "/usr/bin/ssh $FORCED -i /keys/id" ]
+}
+
+@test "an unrecognised program is treated as the ssh word" {
+    export GIT_SSH_COMMAND="ssh-wrapper -i /keys/id"
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "ssh-wrapper $FORCED -i /keys/id" ]
 }
 
 @test "a quoted program path with spaces stays one word" {
@@ -59,5 +119,5 @@ ssh_entry() {
     GIT_AUTH_ENV=()
     git_auth_env_noninteractive "$REPO"
 
-    [ "$(ssh_entry)" = '"C:/Program Files/OpenSSH/ssh.exe" -o BatchMode=yes -i C:/keys/id' ]
+    [ "$(env_value GIT_SSH_COMMAND)" = "\"C:/Program Files/OpenSSH/ssh.exe\" $FORCED -i C:/keys/id" ]
 }

@@ -203,7 +203,7 @@ BASH
     grep -qx 'GIT_TERMINAL_PROMPT=0' "$WORK/fetch-env.txt"
     grep -qx 'GIT_ASKPASS=' "$WORK/fetch-env.txt"
     grep -qx 'GCM_INTERACTIVE=never' "$WORK/fetch-env.txt"
-    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2' "$WORK/fetch-env.txt"
 }
 
 @test "review drift check over an SSH remote keeps the configured ssh command and forces BatchMode ahead of it" {
@@ -222,7 +222,7 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"Title: Upstream MR"* ]]
     [ -f "$WORK/fetch-env.txt" ]
-    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes -o BatchMode=no -i /keys/review' "$WORK/fetch-env.txt"
+    grep -qx 'GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o BatchMode=no -i /keys/review' "$WORK/fetch-env.txt"
 }
 
 @test "reply preserves a message that begins with --remote" {
