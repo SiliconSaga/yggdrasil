@@ -98,6 +98,22 @@ env_value() {
     [ "$(env_value GIT_SSH_COMMAND)" = "env FOO=bar ssh $FORCED -i /keys/id" ]
 }
 
+@test "a quoted ssh path behind a wrapper receives the forced options" {
+    export GIT_SSH_COMMAND='env FOO=bar "/usr/bin/ssh" -i /keys/id'
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "env FOO=bar \"/usr/bin/ssh\" $FORCED -i /keys/id" ]
+}
+
+@test "a quoted wrapper assignment before ssh keeps its value intact" {
+    export GIT_SSH_COMMAND='env SSH_AUTH_SOCK="/tmp/ssh agent.sock" ssh -i /keys/id'
+    GIT_AUTH_ENV=()
+    git_auth_env_noninteractive "$REPO"
+
+    [ "$(env_value GIT_SSH_COMMAND)" = "env SSH_AUTH_SOCK=\"/tmp/ssh agent.sock\" ssh $FORCED -i /keys/id" ]
+}
+
 @test "an absolute ssh path is recognised as the ssh word" {
     export GIT_SSH_COMMAND="/usr/bin/ssh -i /keys/id"
     GIT_AUTH_ENV=()

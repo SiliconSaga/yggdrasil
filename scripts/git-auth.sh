@@ -192,12 +192,81 @@ git_auth_env_for_url() {
 #
 # OpenSSH keeps the FIRST value it sees for an option, so BatchMode=yes goes
 # right after the ssh word, ahead of any configured `-o BatchMode=no`; appended
-# at the end it would lose. The ssh word is the first one whose basename is
-# ssh, so a wrapper such as `env FOO=bar ssh -i key` keeps its prefix; with no
-# such word the program is assumed to be the first one. A quoted program path
-# stays one word.
+# at the end it would lose. The ssh word is the first shell word whose basename
+# is ssh, so a wrapper such as `env FOO=bar ssh -i key` keeps its prefix. When
+# no ssh word is present, the program is assumed to be the first word.
+git_auth_force_ssh_options() {
+  local ssh_cmd="$1" forced="$2"
+  local len="${#ssh_cmd}" i=0 end c quote unquoted first_end="" insert_end="" base
+
+  while (( i < len )); do
+    while (( i < len )); do
+      c="${ssh_cmd:i:1}"
+      [[ "$c" == [[:space:]] ]] || break
+      i=$((i + 1))
+    done
+    (( i < len )) || break
+
+    unquoted=""
+    quote=""
+    while (( i < len )); do
+      c="${ssh_cmd:i:1}"
+      if [[ -z "$quote" && "$c" == [[:space:]] ]]; then
+        break
+      fi
+      if [[ -z "$quote" ]]; then
+        case "$c" in
+          "'") quote="'"; i=$((i + 1)); continue ;;
+          '"') quote='"'; i=$((i + 1)); continue ;;
+          "\\")
+            if (( i + 1 < len )); then
+              unquoted+="${ssh_cmd:i+1:1}"
+              i=$((i + 2))
+            else
+              unquoted+="\\"
+              i=$((i + 1))
+            fi
+            continue
+            ;;
+        esac
+      elif [[ "$quote" == "'" ]]; then
+        if [[ "$c" == "'" ]]; then
+          quote=""
+          i=$((i + 1))
+          continue
+        fi
+      else
+        if [[ "$c" == '"' ]]; then
+          quote=""
+          i=$((i + 1))
+          continue
+        fi
+        if [[ "$c" == "\\" && $((i + 1)) -lt "$len" ]]; then
+          unquoted+="${ssh_cmd:i+1:1}"
+          i=$((i + 2))
+          continue
+        fi
+      fi
+      unquoted+="$c"
+      i=$((i + 1))
+    done
+
+    end="$i"
+    [[ -n "$first_end" ]] || first_end="$end"
+    base="${unquoted##*/}"
+    base="${base%.exe}"
+    if [[ "$base" == "ssh" ]]; then
+      insert_end="$end"
+      break
+    fi
+  done
+
+  [[ -n "$insert_end" ]] || insert_end="${first_end:-$len}"
+  printf '%s %s%s' "${ssh_cmd:0:insert_end}" "$forced" "${ssh_cmd:insert_end}"
+}
+
 git_auth_env_noninteractive() {
-  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}" entry count="" ssh_bin ssh_rest
+  local repo_dir="$1" ssh_cmd="${GIT_SSH_COMMAND:-}" entry count=""
   GIT_AUTH_ENV+=("GIT_TERMINAL_PROMPT=0" "GCM_INTERACTIVE=never")
 
   for entry in ${GIT_AUTH_ENV[@]+"${GIT_AUTH_ENV[@]}"}; do
@@ -217,29 +286,7 @@ git_auth_env_noninteractive() {
   [[ -n "$ssh_cmd" ]] || ssh_cmd=$(git -C "$repo_dir" config --get core.sshCommand 2>/dev/null) || ssh_cmd=""
   ssh_cmd="${ssh_cmd:-ssh}"
   local forced="-o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=2"
-  case "$ssh_cmd" in
-    \"*) ssh_bin="${ssh_cmd:1}"; ssh_bin="\"${ssh_bin%%\"*}\""; ssh_rest="${ssh_cmd#"$ssh_bin"}" ;;
-    \'*) ssh_bin="${ssh_cmd:1}"; ssh_bin="'${ssh_bin%%\'*}'"; ssh_rest="${ssh_cmd#"$ssh_bin"}" ;;
-    *)
-      local -a words=()
-      local i idx=0 base
-      read -r -a words <<< "$ssh_cmd"
-      for i in "${!words[@]}"; do
-        base="${words[$i]##*/}"
-        base="${base%.exe}"
-        if [[ "$base" == "ssh" ]]; then
-          idx="$i"
-          break
-        fi
-      done
-      ssh_bin="${words[*]:0:idx+1}"
-      ssh_rest=""
-      if [[ "${#words[@]}" -gt $((idx + 1)) ]]; then
-        ssh_rest=" ${words[*]:idx+1}"
-      fi
-      ;;
-  esac
-  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=$ssh_bin $forced$ssh_rest")
+  GIT_AUTH_ENV+=("GIT_SSH_COMMAND=$(git_auth_force_ssh_options "$ssh_cmd" "$forced")")
 }
 
 # Run a command with GIT_AUTH_ENV exported by the shell itself. The subshell
