@@ -63,6 +63,10 @@ ws_load_env() {
 
     local __WS_ENV_LINE __WS_ENV_LINE_NUMBER=0 __WS_ENV_KEY __WS_ENV_RAW_VALUE __WS_ENV_VALUE
     local __WS_ENV_ASSIGNMENT_RE='^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$'
+    # Names this load has already assigned, so a later line for the same key
+    # still wins the way dotenv readers expect, while a value that was in the
+    # environment BEFORE the load is left alone.
+    local __WS_ENV_ASSIGNED="|"
     while IFS= read -r __WS_ENV_LINE || [[ -n "$__WS_ENV_LINE" ]]; do
         __WS_ENV_LINE_NUMBER=$((__WS_ENV_LINE_NUMBER + 1))
         __WS_ENV_LINE="${__WS_ENV_LINE%$'\r'}"
@@ -93,12 +97,14 @@ ws_load_env() {
         # dotenv loader does: a per-invocation `FOO=bar ws exec …` is a
         # deliberate override, and .env silently replacing it made the command
         # do something other than what was typed. Non-empty only — an empty
-        # variable is not an override, it is a gap for the file to fill.
-        # Checked after the reserved-name gate so a dangerous key is still
-        # refused even when the caller happens to have it set.
-        if [[ -n "${!__WS_ENV_KEY:-}" ]]; then
+        # variable is not an override, it is a gap for the file to fill — and
+        # only when this load did not set it itself, so a repeated key in the
+        # file still resolves to its last line. Checked after the reserved-name
+        # gate so a dangerous key is refused even when the caller has it set.
+        if [[ -n "${!__WS_ENV_KEY:-}" && "$__WS_ENV_ASSIGNED" != *"|$__WS_ENV_KEY|"* ]]; then
             continue
         fi
+        __WS_ENV_ASSIGNED+="$__WS_ENV_KEY|"
 
         printf -v "$__WS_ENV_KEY" '%s' "$__WS_ENV_VALUE"
         # Exporting the variable NAMED by the key is the intent.

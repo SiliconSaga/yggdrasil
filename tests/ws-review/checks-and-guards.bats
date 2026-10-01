@@ -83,7 +83,29 @@ SHA="dddddddddddddddddddddddddddddddddddddddd"
 payload=""
 case "$endpoint" in
     repos/owner/repo/pulls/1)
-        payload="{\"title\":\"Checks PR\",\"state\":\"open\",\"user\":{\"login\":\"author\"},\"head\":{\"ref\":\"feature\",\"sha\":\"$SHA\"},\"base\":{\"ref\":\"main\"},\"html_url\":\"https://github.com/owner/repo/pull/1\"}"
+        # FORK_HEAD=1 makes this a fork PR: the head branch lives in
+        # fork/repo, and that is where its push events must be looked up.
+        head_repo="owner/repo"
+        [[ "${FORK_HEAD:-}" == "1" ]] && head_repo="fork/repo"
+        payload="{\"title\":\"Checks PR\",\"state\":\"open\",\"user\":{\"login\":\"author\"},\"head\":{\"ref\":\"feature\",\"sha\":\"$SHA\",\"repo\":{\"full_name\":\"$head_repo\"}},\"base\":{\"ref\":\"main\"},\"html_url\":\"https://github.com/owner/repo/pull/1\"}"
+        ;;
+    repos/owner/repo/events)
+        # The base repository carries no push for this branch; a fork PR's
+        # cutoff must come from the fork's feed, not from here.
+        if [[ "${FORK_HEAD:-}" == "1" ]]; then
+            payload='[]'
+        else
+            payload="[{\"type\":\"PushEvent\",\"created_at\":\"2026-09-30T12:00:00Z\",\"payload\":{\"ref\":\"refs/heads/feature\",\"before\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"head\":\"$SHA\"}}]"
+        fi
+        if [[ "${NO_PUSH_INFO:-}" == "1" ]]; then
+            payload='[]'
+        fi
+        ;;
+    repos/fork/repo/events)
+        payload="[{\"type\":\"PushEvent\",\"created_at\":\"2026-09-30T12:00:00Z\",\"payload\":{\"ref\":\"refs/heads/feature\",\"before\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"head\":\"$SHA\"}}]"
+        ;;
+    repos/fork/repo/branches/feature)
+        payload="{\"commit\":{\"sha\":\"$SHA\"}}"
         ;;
     repos/owner/repo/commits/$SHA/check-runs)
         if [[ "${CHECKS_API_DOWN:-}" == "1" ]]; then
@@ -101,13 +123,6 @@ case "$endpoint" in
         ;;
     repos/owner/repo/pulls/1/reviews|repos/owner/repo/pulls/1/comments|repos/owner/repo/issues/1/comments)
         payload='[]'
-        ;;
-    repos/owner/repo/events)
-        if [[ "${NO_PUSH_INFO:-}" == "1" ]]; then
-            payload='[]'
-        else
-            payload="[{\"type\":\"PushEvent\",\"created_at\":\"2026-09-30T12:00:00Z\",\"payload\":{\"ref\":\"refs/heads/feature\",\"before\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"head\":\"$SHA\"}}]"
-        fi
         ;;
     repos/owner/repo/branches/feature)
         payload="{\"commit\":{\"sha\":\"$SHA\"}}"
@@ -203,6 +218,18 @@ run_ws_review() {
     [ "$output" = "1" ]
     run grep -c 'id=PRRT_new' "$API_LOG"
     [ "$output" = "0" ]
+}
+
+@test "resolve-all takes a fork PR's cutoff from the fork, where the push happened" {
+    # The base repository's feed has nothing for this branch; only the fork's
+    # does. Looking in the wrong repository would sweep the new thread too.
+    WS_REVIEW_EXTRA_ENV=("FORK_HEAD=1")
+    run_ws_review app threads 1 --resolve-all
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Left 1 thread(s) opened after the last push"* ]]
+    run grep -c 'repos/fork/repo/events' "$API_LOG"
+    [ "$output" = "1" ]
 }
 
 @test "resolve-all sweeps everything, with a note, when no push time can be found" {

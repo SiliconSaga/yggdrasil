@@ -252,6 +252,14 @@ gp_review_head_branch() {
     glab api "projects/$encoded/merge_requests/$mr_num" 2>/dev/null | jq -r '.source_branch' 2>/dev/null
 }
 
+# The repository the MR's source branch lives in. GitLab exposes only a
+# project id here and the push-timestamp lookup below never consults it, so
+# empty — the caller falls back to the MR's own project.
+# Usage: gp_review_head_repo SLUG MR_NUM
+gp_review_head_repo() {
+    printf ''
+}
+
 # Get push event timestamp for a branch.
 # Usage: gp_review_push_timestamp SLUG BRANCH INDEX
 # GitLab has no equivalent of GitHub's per-branch push events here, so rather
@@ -394,18 +402,31 @@ gp_review_thread_id_looks_valid() {
 gp_review_checks() {
     local slug="$1" mr_num="$2"
     local encoded; encoded=$(_gl_encode "$slug")
-    local pipeline_id
-    pipeline_id=$(glab api "projects/$encoded/merge_requests/$mr_num/pipelines" 2>/dev/null \
-        | jq -r '.[0].id // empty' 2>/dev/null) || return 1
-    [[ -n "$pipeline_id" ]] || return 0
+    local latest pipeline_id
+    latest=$(glab api "projects/$encoded/merge_requests/$mr_num/pipelines" 2>/dev/null \
+        | jq -c '.[0] // empty' 2>/dev/null) || return 1
+    [[ -n "$latest" ]] || return 0
+    pipeline_id=$(printf '%s' "$latest" | jq -r '.id')
+    # The pipeline's own verdict comes first: a failed bridge (downstream
+    # pipeline) or a canceled run is visible there and nowhere in /jobs, so a
+    # job-only listing could read all green under a red pipeline.
+    printf '%s' "$latest" | jq -r '
+        (if .status == "success" then "pass"
+         elif .status == "failed" or .status == "canceled" then "fail"
+         elif .status == "skipped" then "skipped"
+         else "pending" end) as $state
+        | [$state, "pipeline #\(.id) (\(.status))", (.web_url // "")] | @tsv'
     # --paginate: a pipeline can carry more jobs than one page, and a failure
     # on page two must not read as an all-green pipeline. jq consumes the
-    # page-per-value stream glab emits.
+    # page-per-value stream glab emits. A manual job that may not fail is an
+    # optional action (skipped); one that may not is a blocking approval
+    # (pending), and the pipeline waits on it.
     glab api --paginate "projects/$encoded/pipelines/$pipeline_id/jobs?per_page=100" 2>/dev/null | jq -r '
         .[]
         | (if .status == "success" then "pass"
            elif .status == "failed" or .status == "canceled" then "fail"
-           elif .status == "skipped" or .status == "manual" then "skipped"
+           elif .status == "skipped" then "skipped"
+           elif .status == "manual" then (if .allow_failure == true then "skipped" else "pending" end)
            else "pending" end) as $state
         | [$state, .name, (.web_url // "")] | @tsv' 2>/dev/null
 }

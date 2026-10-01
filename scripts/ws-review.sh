@@ -271,7 +271,13 @@ review_comments() {
             fi
             local push_index=0
             [[ "$since" == "prev-push" ]] && push_index=1
-            since_ts=$(gp_review_push_timestamp "$REPO_SLUG" "$branch" "$push_index")
+            # A fork PR's head branch lives in the fork; its pushes are
+            # recorded there, and the base repository may carry an unrelated
+            # branch of the same name.
+            local head_slug=""
+            head_slug=$(gp_review_head_repo "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_slug=""
+            [[ -n "$head_slug" && "$head_slug" != "null" ]] || head_slug="$REPO_SLUG"
+            since_ts=$(gp_review_push_timestamp "$head_slug" "$branch" "$push_index")
             if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
                 echo "ERROR: Cannot determine push time for '$branch'." >&2
                 echo "  The provider did not return enough push history for '$since'." >&2
@@ -827,10 +833,15 @@ review_threads() {
             # is the push time `--since last-push` already knows how to find.
             # Best-effort: when no push time can be read, nothing is skipped
             # and the output says so, rather than refusing the sweep.
-            local since_ts="" head_branch=""
+            local since_ts="" head_branch="" head_slug=""
             head_branch=$(gp_review_head_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_branch=""
+            # The head branch of a fork PR lives in the fork, so that is where
+            # its push is recorded; the base repository could even carry an
+            # unrelated branch of the same name.
+            head_slug=$(gp_review_head_repo "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_slug=""
+            [[ -n "$head_slug" && "$head_slug" != "null" ]] || head_slug="$REPO_SLUG"
             if [[ -n "$head_branch" && "$head_branch" != "null" ]]; then
-                since_ts=$(gp_review_push_timestamp "$REPO_SLUG" "$head_branch" 0 2>/dev/null) || since_ts=""
+                since_ts=$(gp_review_push_timestamp "$head_slug" "$head_branch" 0 2>/dev/null) || since_ts=""
                 # The provider's "all history" answer is the epoch; as a cutoff
                 # that would call every thread new and resolve nothing.
                 [[ "$since_ts" != "null" && "$since_ts" != 1970-* ]] || since_ts=""

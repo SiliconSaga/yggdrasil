@@ -51,6 +51,18 @@ EOF
     [ "$NEW_ONLY" = "from-file" ]
 }
 
+@test "ws_load_env lets a later line in the file override an earlier one" {
+    # Environment-wins must not turn into first-line-wins: a key repeated in
+    # the file resolves to its last assignment, as every dotenv reader does.
+    local env_file="$BATS_TEST_TMPDIR/.env"
+    printf 'GH_TOKEN=first\nGH_TOKEN=second\n' > "$env_file"
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    [ "$GH_TOKEN" = "second" ]
+}
+
 @test "ws_load_env refuses a reserved name even when the environment already has it" {
     local env_file="$BATS_TEST_TMPDIR/.env"
     printf 'GIT_ASKPASS=/tmp/anything\n' > "$env_file"

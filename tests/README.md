@@ -2,7 +2,7 @@
 
 `ws test yggdrasil` runs every `*.bats` file under this directory using the vendored bats-core at `tests/vendor/bats-core/`. No system bats install needed.
 
-## Prerequisite: GNU `timeout`
+## Timeouts: GNU `timeout` when present, a bash watchdog otherwise
 
 The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regression that hangs the upward-walk loop (or any other infinite loop) fails loudly instead of stalling the suite. GNU coreutils `timeout` (or Homebrew's `gtimeout`) is used when present; otherwise a bash watchdog in the helper stands in, so a stock Mac can run the suite without installing coreutils.
 

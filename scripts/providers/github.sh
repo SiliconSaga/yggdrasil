@@ -214,6 +214,15 @@ gp_review_head_branch() {
     gh api "repos/$slug/pulls/$pr_num" --jq '.head.ref' 2>/dev/null
 }
 
+# The repository the PR's head branch lives in — the fork, for a fork PR.
+# Push events and branch heads are looked up there, not in the base
+# repository, where a same-named branch would be an unrelated one.
+# Usage: gp_review_head_repo SLUG PR_NUM
+gp_review_head_repo() {
+    local slug="$1" pr_num="$2"
+    gh api "repos/$slug/pulls/$pr_num" --jq '.head.repo.full_name // empty' 2>/dev/null
+}
+
 # Get push event timestamp for a branch.
 # Usage: gp_review_push_timestamp SLUG BRANCH INDEX
 gp_review_push_timestamp() {
