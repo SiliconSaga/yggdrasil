@@ -175,4 +175,4 @@ it isn't. Key principles:
      then resolve: `ws review <comp> reply <cr#> <id> "Won't fix: ..." --resolve`
    - Human reviewer threads → do not resolve via automation; address the
      concern and let the reviewer resolve
-5. Before merging an approved CR, read the review *bodies* once more (`ws review <comp> notes <cr#>`): CodeRabbit's "Outside the diff" findings live inside the review text, never become threads, and do not block an approval — an all-green thread count can still be hiding one.
+5. Before merging an approved CR, read the review *bodies* once more (the full `ws review <comp> <cr#>`; `notes` fetches only top-level comments, not review text): CodeRabbit's "Outside the diff" findings live inside the review text, never become threads, and do not block an approval — an all-green thread count can still be hiding one.

@@ -944,7 +944,12 @@ review_reply() {
     elif [[ -n "$thread_at" ]]; then
         thread_repo="${thread_at%%$'\t'*}"
         thread_pr="${thread_at##*$'\t'}"
-        if [[ "$thread_repo" != "$REPO_SLUG" || "$thread_pr" != "$cr_num" ]]; then
+        # GitHub slugs are case-insensitive, and the remote URL may spell the
+        # owner differently from the API's nameWithOwner.
+        local thread_repo_lc repo_slug_lc
+        thread_repo_lc=$(printf '%s' "$thread_repo" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+        repo_slug_lc=$(printf '%s' "$REPO_SLUG" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+        if [[ "$thread_repo_lc" != "$repo_slug_lc" || "$thread_pr" != "$cr_num" ]]; then
             echo "ERROR: Thread $thread_id belongs to $thread_repo#$thread_pr, not $REPO_SLUG#$cr_num. Nothing was posted." >&2
             echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids." >&2
             exit 1

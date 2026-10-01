@@ -36,3 +36,27 @@ setup() {
     run "$TIMEOUT_BIN" 5 bash -c 'exit 7'
     [ "$status" -eq 7 ]
 }
+
+@test "a command that finishes early returns at once, with no sleeper left behind" {
+    # bats waits for every process holding its output descriptor, so a
+    # watchdog sleep that outlived the command would stall `run` for the
+    # whole budget. Wall-clock bounds it: 5s budget, must return in under 3.
+    local started=$SECONDS
+    run "$TIMEOUT_BIN" 5 true
+    [ "$status" -eq 0 ]
+    [ $((SECONDS - started)) -lt 3 ]
+}
+
+@test "expiry terminates the wrapped command's children too" {
+    # The hang the wrapper exists to catch is a `bash ws …` whose child
+    # (a git fetch, say) never returns; killing only the shell would leave
+    # that child running and the runner waiting on it.
+    [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && skip "process groups are not reliably signalled under MSYS"
+    local pidfile="$BATS_TEST_TMPDIR/grandchild.pid"
+    run "$TIMEOUT_BIN" 1 bash -c "sleep 30 & echo \$! > '$pidfile'; wait"
+    [ "$status" -eq 124 ]
+    local grandchild
+    grandchild=$(cat "$pidfile")
+    sleep 1
+    ! kill -0 "$grandchild" 2>/dev/null
+}

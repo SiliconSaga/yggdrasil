@@ -29,13 +29,29 @@ if [[ -z "${TIMEOUT_BIN:-}" ]]; then
 # bash stand-in for coreutils `timeout N cmd…` — see tests/timeout_helper.bash.
 secs="$1"
 shift
+# Job control gives the wrapped command its own process group, so expiry can
+# terminate the whole tree (a wrapped `bash ws …` and whatever it spawned)
+# the way coreutils does, without signalling the test runner's group.
+set -m
 # Hand the command our stdin explicitly: a job started with & in a
 # non-interactive shell otherwise reads from /dev/null.
 exec 9<&0
 "$@" <&9 &
 pid=$!
 exec 9<&-
-( sleep "$secs"; kill "$pid" 2>/dev/null ) &
+# The watchdog: sleep, then kill the command's group. It holds none of the
+# caller's descriptors — bats' `run` reads its capture pipe until every
+# holder has closed it, so a sleeper inheriting stdout would stall each
+# test for the whole budget even after the command returned. Its sleep is a
+# child it reaps on TERM, so cancelling the watchdog leaves nothing behind.
+(
+    trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM
+    sleep "$secs" &
+    sleeper=$!
+    wait "$sleeper"
+    kill -- -"$pid" 2>/dev/null
+    kill "$pid" 2>/dev/null
+) >/dev/null 2>&1 3>&- &
 watchdog=$!
 rc=0
 wait "$pid" || rc=$?
