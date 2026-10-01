@@ -236,10 +236,12 @@ setup() {
     [[ "$output" == *"Usage: ws issue"* ]]
 }
 
-@test "ws cr --help: exits 0 and prints usage" {
+@test "ws cr --help: exits 0 and distinguishes fork-local from upstream CRs" {
     run_ws cr --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: ws cr"* ]]
+    [[ "$output" == *"Without --upstream, the CR targets the fork project itself."* ]]
+    [[ "$output" == *"Use --upstream for a fork-to-source contribution."* ]]
 }
 
 @test "ws exec --help: exits 0 and prints usage" {

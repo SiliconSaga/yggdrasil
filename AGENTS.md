@@ -35,7 +35,7 @@ A fresh agent's instinct is to reach for raw `git`, `gh`, `glab`, or test runner
 |---|---|
 | `git add` + `git commit -m "…"` | `ws commit <comp> <bodyfile>` |
 | `git push` | `ws push <comp> [branch]` |
-| `gh pr create` / `glab mr create` | `ws cr <comp> <title> <bodyfile>` |
+| `gh pr create` / `glab mr create` | `ws cr <comp> [--upstream] <title> <bodyfile>` — `--upstream` for a fork-to-source contribution; without it the CR is fork-local |
 | `gh pr view --comments` / `glab mr note` (reading or replying to review) | `ws review <comp> [cr#]` |
 | `gh issue create` / `glab issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` |
 | `git clone <fork>` + manual remote-wiring | `ws clone <comp>` (or `ws clone-fork <comp>` for fork-as-origin) |
