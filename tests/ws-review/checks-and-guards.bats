@@ -85,9 +85,11 @@ case "$endpoint" in
     repos/owner/repo/pulls/1)
         # FORK_HEAD=1 makes this a fork PR: the head branch lives in
         # fork/repo, and that is where its push events must be looked up.
-        head_repo="owner/repo"
-        [[ "${FORK_HEAD:-}" == "1" ]] && head_repo="fork/repo"
-        payload="{\"title\":\"Checks PR\",\"state\":\"open\",\"user\":{\"login\":\"author\"},\"head\":{\"ref\":\"feature\",\"sha\":\"$SHA\",\"repo\":{\"full_name\":\"$head_repo\"}},\"base\":{\"ref\":\"main\"},\"html_url\":\"https://github.com/owner/repo/pull/1\"}"
+        head_repo="{\"full_name\":\"owner/repo\"}"
+        [[ "${FORK_HEAD:-}" == "1" ]] && head_repo="{\"full_name\":\"fork/repo\"}"
+        # HEAD_REPO_GONE=1: GitHub reports a deleted fork as a null head repo.
+        [[ "${HEAD_REPO_GONE:-}" == "1" ]] && head_repo="null"
+        payload="{\"title\":\"Checks PR\",\"state\":\"open\",\"user\":{\"login\":\"author\"},\"head\":{\"ref\":\"feature\",\"sha\":\"$SHA\",\"repo\":$head_repo},\"base\":{\"ref\":\"main\"},\"html_url\":\"https://github.com/owner/repo/pull/1\"}"
         ;;
     repos/owner/repo/events)
         # The base repository carries no push for this branch; a fork PR's
@@ -230,6 +232,29 @@ run_ws_review() {
     [[ "$output" == *"Left 1 thread(s) opened after the last push"* ]]
     run grep -c 'repos/fork/repo/events' "$API_LOG"
     [ "$output" = "1" ]
+}
+
+@test "resolve-all never looks in the base repository when the head repository is unknown" {
+    # The base feed has a push for a same-named branch; using it would hide
+    # the newer thread. An unknown head repository means no cutoff at all.
+    WS_REVIEW_EXTRA_ENV=("HEAD_REPO_GONE=1")
+    run_ws_review app threads 1 --resolve-all
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"NOTE: cannot determine which repository holds 'feature'"* ]]
+    [[ "$output" == *"Resolved 2 threads"* ]]
+    run grep -c 'repos/owner/repo/events' "$API_LOG"
+    [ "$output" = "0" ]
+}
+
+@test "--since last-push refuses to guess when the head repository is unknown" {
+    WS_REVIEW_EXTRA_ENV=("HEAD_REPO_GONE=1")
+    run_ws_review app 1 --since last-push --compact
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Cannot determine which repository holds the head branch of #1"* ]]
+    run grep -c 'repos/owner/repo/events' "$API_LOG"
+    [ "$output" = "0" ]
 }
 
 @test "resolve-all sweeps everything, with a note, when no push time can be found" {

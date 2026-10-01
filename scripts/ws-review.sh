@@ -273,10 +273,16 @@ review_comments() {
             [[ "$since" == "prev-push" ]] && push_index=1
             # A fork PR's head branch lives in the fork; its pushes are
             # recorded there, and the base repository may carry an unrelated
-            # branch of the same name.
+            # branch of the same name. So an unknown head repository is an
+            # error, not a reason to look in the base one: a later push to a
+            # same-named base branch would hide valid feedback.
             local head_slug=""
             head_slug=$(gp_review_head_repo "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_slug=""
-            [[ -n "$head_slug" && "$head_slug" != "null" ]] || head_slug="$REPO_SLUG"
+            if [[ -z "$head_slug" || "$head_slug" == "null" ]]; then
+                echo "ERROR: Cannot determine which repository holds the head branch of #$pr_num (a deleted fork?)." >&2
+                echo "  Use an explicit timestamp instead of '$since'." >&2
+                exit 1
+            fi
             since_ts=$(gp_review_push_timestamp "$head_slug" "$branch" "$push_index")
             if [[ -z "$since_ts" || "$since_ts" == "null" ]]; then
                 echo "ERROR: Cannot determine push time for '$branch'." >&2
@@ -839,15 +845,22 @@ review_threads() {
             # its push is recorded; the base repository could even carry an
             # unrelated branch of the same name.
             head_slug=$(gp_review_head_repo "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_slug=""
-            [[ -n "$head_slug" && "$head_slug" != "null" ]] || head_slug="$REPO_SLUG"
-            if [[ -n "$head_branch" && "$head_branch" != "null" ]]; then
+            [[ "$head_slug" != "null" ]] || head_slug=""
+            # An unknown head repository is treated as "no push time", never
+            # as the base repository: a same-named base branch pushed later
+            # would make the cutoff hide threads that are genuinely new.
+            if [[ -n "$head_slug" && -n "$head_branch" && "$head_branch" != "null" ]]; then
                 since_ts=$(gp_review_push_timestamp "$head_slug" "$head_branch" 0 2>/dev/null) || since_ts=""
                 # The provider's "all history" answer is the epoch; as a cutoff
                 # that would call every thread new and resolve nothing.
                 [[ "$since_ts" != "null" && "$since_ts" != 1970-* ]] || since_ts=""
             fi
             if [[ -z "$since_ts" ]]; then
-                echo "NOTE: no push time available for '$head_branch'; resolving every unresolved thread, including any opened after your last push."
+                if [[ -z "$head_slug" ]]; then
+                    echo "NOTE: cannot determine which repository holds '$head_branch' (a deleted fork?); resolving every unresolved thread, including any opened after your last push."
+                else
+                    echo "NOTE: no push time available for '$head_branch'; resolving every unresolved thread, including any opened after your last push."
+                fi
             fi
             gp_review_threads_resolve_all "$REPO_SLUG" "$pr_num" "$since_ts"
             ;;

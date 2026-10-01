@@ -253,11 +253,12 @@ gp_review_head_branch() {
 }
 
 # The repository the MR's source branch lives in. GitLab exposes only a
-# project id here and the push-timestamp lookup below never consults it, so
-# empty — the caller falls back to the MR's own project.
+# project id here and the push-timestamp lookup below never consults the
+# slug, so the MR's own project is the honest answer; empty is reserved for
+# "could not determine", which the caller treats as unknown.
 # Usage: gp_review_head_repo SLUG MR_NUM
 gp_review_head_repo() {
-    printf ''
+    printf '%s' "$1"
 }
 
 # Get push event timestamp for a branch.
@@ -418,17 +419,20 @@ gp_review_checks() {
         | [$state, "pipeline #\(.id) (\(.status))", (.web_url // "")] | @tsv'
     # --paginate: a pipeline can carry more jobs than one page, and a failure
     # on page two must not read as an all-green pipeline. jq consumes the
-    # page-per-value stream glab emits. A manual job that may not fail is an
-    # optional action (skipped); one that may not is a blocking approval
-    # (pending), and the pipeline waits on it.
+    # page-per-value stream glab emits. allow_failure decides what a state
+    # means: a failed job the pipeline tolerates is non-blocking (skipped,
+    # labelled so the reader still sees it), a manual job it tolerates is an
+    # optional action, and a manual job it does not is a blocking approval
+    # the pipeline waits on (pending).
     glab api --paginate "projects/$encoded/pipelines/$pipeline_id/jobs?per_page=100" 2>/dev/null | jq -r '
         .[]
         | (if .status == "success" then "pass"
-           elif .status == "failed" or .status == "canceled" then "fail"
+           elif .status == "failed" or .status == "canceled" then (if .allow_failure == true then "skipped" else "fail" end)
            elif .status == "skipped" then "skipped"
            elif .status == "manual" then (if .allow_failure == true then "skipped" else "pending" end)
            else "pending" end) as $state
-        | [$state, .name, (.web_url // "")] | @tsv' 2>/dev/null
+        | (if (.status == "failed" or .status == "canceled") and .allow_failure == true then "\(.name) (allowed failure)" else .name end) as $label
+        | [$state, $label, (.web_url // "")] | @tsv' 2>/dev/null
 }
 
 # Resolve all unresolved threads. Prints progress. SINCE_TS is accepted for

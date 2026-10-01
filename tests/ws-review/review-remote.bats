@@ -81,8 +81,12 @@ case "$path" in
         echo '{"approved_by":[]}'
         ;;
     */merge_requests/1/pipelines)
-        # The header's checks summary asks; this MR has no pipeline.
-        echo '[]'
+        echo '[{"id":9,"status":"success","web_url":"https://gitlab.com/upstream-group/project/-/pipelines/9"}]'
+        ;;
+    */pipelines/9/jobs*)
+        # One tolerated failure and one blocking manual job: the pipeline is
+        # green despite the first, and waits on the second.
+        echo '[{"name":"unit","status":"success","allow_failure":false,"web_url":"https://ci/unit"},{"name":"lint","status":"failed","allow_failure":true,"web_url":"https://ci/lint"},{"name":"deploy-approval","status":"manual","allow_failure":false,"web_url":"https://ci/deploy"}]'
         ;;
     */merge_requests/1/discussions)
         jq -cn \
@@ -140,6 +144,20 @@ probe_csi() { printf '\302\233'; }
     [[ "$output" == *"origin=upstream-group/project"* ]]
     [[ "$output" == *"fork=example-group/forked-project"* ]]
     [[ "$output" == *"--remote <name>"* ]]
+}
+
+@test "checks leads with the pipeline verdict and reads allow_failure the way GitLab does" {
+    run_ws_review app checks 1 --remote fork
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"✓ pass     pipeline #9 (success)"* ]]
+    [[ "$output" == *"✓ pass     unit"* ]]
+    # A tolerated failure does not fail the pipeline, so it must not fail the
+    # summary; it is still listed, labelled, so nobody misses it.
+    [[ "$output" == *"- skipped  lint (allowed failure)"* ]]
+    # A manual job the pipeline waits on is pending, not an optional action.
+    [[ "$output" == *"… pending  deploy-approval"* ]]
+    [[ "$output" == *"Checks: 2 pass, 0 fail, 1 pending, 1 skipped"* ]]
 }
 
 @test "review deduplicates one host and project across remote transports" {
