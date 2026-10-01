@@ -375,8 +375,9 @@ gp_review_thread_resolve() {
 
 # A GitLab discussion id is addressed through the MR it belongs to, so a
 # thread cannot be posted into the wrong MR by id alone; nothing to verify.
-# Usage: gp_review_thread_pr_number SLUG MR_NUM DISCUSSION_ID
-gp_review_thread_pr_number() {
+# Empty means "not applicable" to the caller, as distinct from `unknown`.
+# Usage: gp_review_thread_location SLUG MR_NUM DISCUSSION_ID
+gp_review_thread_location() {
     printf ''
 }
 
@@ -397,7 +398,10 @@ gp_review_checks() {
     pipeline_id=$(glab api "projects/$encoded/merge_requests/$mr_num/pipelines" 2>/dev/null \
         | jq -r '.[0].id // empty' 2>/dev/null) || return 1
     [[ -n "$pipeline_id" ]] || return 0
-    glab api "projects/$encoded/pipelines/$pipeline_id/jobs?per_page=100" 2>/dev/null | jq -r '
+    # --paginate: a pipeline can carry more jobs than one page, and a failure
+    # on page two must not read as an all-green pipeline. jq consumes the
+    # page-per-value stream glab emits.
+    glab api --paginate "projects/$encoded/pipelines/$pipeline_id/jobs?per_page=100" 2>/dev/null | jq -r '
         .[]
         | (if .status == "success" then "pass"
            elif .status == "failed" or .status == "canceled" then "fail"

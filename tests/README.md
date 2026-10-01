@@ -15,7 +15,7 @@ The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regre
 
   After install, `gtimeout` is on PATH wherever your Homebrew prefix puts shims (`/opt/homebrew/bin` on Apple Silicon, `/usr/local/bin` on Intel; `brew --prefix` confirms). The test helpers detect either `timeout` or `gtimeout`; you do not need to add the `gnubin` directory to PATH.
 
-If neither binary is present, every test fails immediately with a clear "install coreutils" message — no silent hangs.
+If neither binary is present, the helpers write a small bash watchdog to a temp file and use that instead (`tests/timeout_helper.bash`), so installing coreutils is optional; a hang is still caught and still reports as a timeout.
 
 ## Running
 

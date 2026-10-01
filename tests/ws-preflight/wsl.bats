@@ -18,6 +18,11 @@ PREFLIGHT="$REPO_ROOT/scripts/ws-preflight.sh"
 }
 
 @test "preflight says nothing about WSL when it is not WSL" {
+    # The kernel string is the other signal, and it cannot be unset from a
+    # test; on a real WSL host this case has nothing to assert.
+    if [[ -r /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+        skip "running on WSL — the kernel string itself identifies it"
+    fi
     run env -u WSL_DISTRO_NAME bash "$PREFLIGHT" --soft
 
     [[ "$output" != *"This is WSL"* ]]

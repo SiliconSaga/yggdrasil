@@ -344,19 +344,23 @@ gp_review_checks() {
     local slug="$1" pr_num="$2" sha
     sha=$(gh api "repos/$slug/pulls/$pr_num" --jq '.head.sha' 2>/dev/null) || return 1
     [[ -n "$sha" && "$sha" != "null" ]] || return 1
+    # Either endpoint failing is a failure: a partial answer would let
+    # `ws review checks` call CI green while the Actions half was unreadable.
+    local rc=0
     gh api --paginate "repos/$slug/commits/$sha/check-runs?per_page=100" --jq '
         .check_runs[]
         | (if .status != "completed" then "pending"
            elif .conclusion == "success" or .conclusion == "neutral" then "pass"
            elif .conclusion == "skipped" then "skipped"
            else "fail" end) as $state
-        | [$state, .name, (.html_url // "")] | @tsv' 2>/dev/null || true
+        | [$state, .name, (.html_url // "")] | @tsv' 2>/dev/null || rc=1
     gh api "repos/$slug/commits/$sha/status" --jq '
         .statuses[]?
         | (if .state == "success" then "pass"
            elif .state == "pending" then "pending"
            else "fail" end) as $state
-        | [$state, .context, (.target_url // "")] | @tsv' 2>/dev/null || true
+        | [$state, .context, (.target_url // "")] | @tsv' 2>/dev/null || rc=1
+    return "$rc"
 }
 
 # Print thread status counts.
@@ -432,18 +436,22 @@ gp_review_thread_resolve() {
         }' -f id="$thread_id" >/dev/null 2>&1
 }
 
-# Which pull request a review thread belongs to, by its node id. Empty when the
-# id is not a review thread (or cannot be read), so a caller can refuse to post
-# into a thread that is not on the CR it was told about.
-# Usage: gp_review_thread_pr_number SLUG PR_NUM THREAD_ID
-gp_review_thread_pr_number() {
-    local slug="$1" pr_num="$2" thread_id="$3"
-    gh api graphql -f query='
+# Where a review thread lives, by its node id: `owner/repo<TAB>number`. Thread
+# ids are global across GitHub, so the repository matters as much as the
+# number — a stale id from another repository's #1 must not pass for this
+# repository's #1. Prints `unknown` when the id is not a review thread or the
+# lookup failed, so the caller can refuse rather than post blind.
+# Usage: gp_review_thread_location SLUG PR_NUM THREAD_ID
+gp_review_thread_location() {
+    local slug="$1" pr_num="$2" thread_id="$3" out=""
+    out=$(gh api graphql -f query='
         query($id: ID!) {
           node(id: $id) {
-            ... on PullRequestReviewThread { pullRequest { number } }
+            ... on PullRequestReviewThread { pullRequest { number repository { nameWithOwner } } }
           }
-        }' -f id="$thread_id" --jq '.data.node.pullRequest.number // empty' 2>/dev/null
+        }' -f id="$thread_id" --jq '.data.node.pullRequest | select(. != null) | "\(.repository.nameWithOwner)\t\(.number)"' 2>/dev/null) || out=""
+    [[ -n "$out" ]] || out="unknown"
+    printf '%s' "$out"
 }
 
 # Whether a thread id has the shape this provider issues. GitHub review-thread

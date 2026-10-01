@@ -51,7 +51,9 @@ git_push_run() {
     echo "HINT: ws push always speaks as the workspace identity. If this branch belongs to a" >&2
   fi
   echo "      repository that identity cannot write — a contributor's PR branch, for example —" >&2
-  echo "      push it with your own credentials outside ws, or ask them to allow maintainer edits." >&2
+  echo "      the fix is a different identity, not a different token: ask them to allow maintainer" >&2
+  echo "      edits, or push as yourself from your own terminal (in an agent session the hook" >&2
+  echo "      denies raw git push; 'ws hook-bypass git-push' is the audited exception)." >&2
   echo "      'ws diagnose <comp>' shows which remote and token were used." >&2
   return "$rc"
 }

@@ -86,6 +86,10 @@ case "$endpoint" in
         payload="{\"title\":\"Checks PR\",\"state\":\"open\",\"user\":{\"login\":\"author\"},\"head\":{\"ref\":\"feature\",\"sha\":\"$SHA\"},\"base\":{\"ref\":\"main\"},\"html_url\":\"https://github.com/owner/repo/pull/1\"}"
         ;;
     repos/owner/repo/commits/$SHA/check-runs)
+        if [[ "${CHECKS_API_DOWN:-}" == "1" ]]; then
+            echo "HTTP 502" >&2
+            exit 1
+        fi
         if [[ "${CHECKS_ALL_GREEN:-}" == "1" ]]; then
             payload='{"check_runs":[{"name":"Full suite","status":"completed","conclusion":"success","html_url":"https://ci/1"}]}'
         else
@@ -118,8 +122,10 @@ case "$endpoint" in
                 ;;
             *"node(id"*)
                 case "$node_id" in
-                    PRRT_old|PRRT_new) payload='{"data":{"node":{"pullRequest":{"number":1}}}}' ;;
-                    PRRT_other)        payload='{"data":{"node":{"pullRequest":{"number":2}}}}' ;;
+                    PRRT_old|PRRT_new) payload='{"data":{"node":{"pullRequest":{"number":1,"repository":{"nameWithOwner":"owner/repo"}}}}}' ;;
+                    PRRT_other)        payload='{"data":{"node":{"pullRequest":{"number":2,"repository":{"nameWithOwner":"owner/repo"}}}}}' ;;
+                    PRRT_elsewhere)    payload='{"data":{"node":{"pullRequest":{"number":1,"repository":{"nameWithOwner":"someone/else"}}}}}' ;;
+                    PRRT_offline)      echo "HTTP 502" >&2; exit 1 ;;
                     *)                 payload='{"data":{"node":null}}' ;;
                 esac
                 ;;
@@ -222,9 +228,45 @@ run_ws_review() {
     run_ws_review app reply 1 PRRT_other "looks fine"
 
     [ "$status" -ne 0 ]
-    [[ "$output" == *"belongs to CR #2, not CR #1. Nothing was posted."* ]]
+    [[ "$output" == *"belongs to owner/repo#2, not owner/repo#1. Nothing was posted."* ]]
     run grep -c 'addPullRequestReviewThreadReply' "$API_LOG"
     [ "$output" = "0" ]
+}
+
+@test "reply refuses a same-numbered thread from another repository" {
+    # Thread ids are global, so another repository's #1 is not this #1.
+    run_ws_review app reply 1 PRRT_elsewhere "looks fine"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"belongs to someone/else#1, not owner/repo#1"* ]]
+    run grep -c 'addPullRequestReviewThreadReply' "$API_LOG"
+    [ "$output" = "0" ]
+}
+
+@test "reply fails closed when the thread's location cannot be confirmed" {
+    run_ws_review app reply 1 PRRT_offline "looks fine"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Could not confirm that thread PRRT_offline is on CR #1"* ]]
+    run grep -c 'addPullRequestReviewThreadReply' "$API_LOG"
+    [ "$output" = "0" ]
+}
+
+@test "checks fails rather than reporting a partial answer when an endpoint is down" {
+    WS_REVIEW_EXTRA_ENV=("CHECKS_API_DOWN=1")
+    run_ws_review app checks 1
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Could not fetch checks"* ]]
+    [[ "$output" != *"Checks: 0 pass"* ]]
+}
+
+@test "the review header says checks are unavailable when an endpoint is down" {
+    WS_REVIEW_EXTRA_ENV=("CHECKS_API_DOWN=1")
+    run_ws_review app 1 --compact
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Checks: unavailable"* ]]
 }
 
 @test "reply posts to a thread that is on this CR" {

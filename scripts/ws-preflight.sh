@@ -68,11 +68,12 @@ esac
 # WSL reports itself as Linux, and from PowerShell `bash` resolves to it, so a
 # Windows user who typed `bash scripts/ws preflight` lands here and is told to
 # apt-install everything into a distro the workspace does not run from. GDD on
-# Windows means Git Bash; name that instead of handing out Linux hints.
+# Windows means Git Bash; name that instead of handing out Linux hints. The
+# signals are WSL's own — its distro variable and its kernel string — not the
+# workspace path: an ordinary Linux host can mount a repo under /mnt/<x>/ too.
 _WS_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -n "${WSL_DISTRO_NAME:-}" ]] \
-   || { [[ -r /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; } \
-   || [[ "$_WS_SCRIPTS_DIR" =~ ^/mnt/[a-zA-Z]/ ]]; then
+   || { [[ -r /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; }; then
     OS="wsl"
 fi
 

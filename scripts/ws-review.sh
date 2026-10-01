@@ -502,8 +502,11 @@ review_comments() {
     # line here, best-effort: a provider that cannot report checks prints the
     # summary's own "none reported" rather than an error.
     local check_lines=""
-    check_lines=$(gp_review_checks "$REPO_SLUG" "$pr_num" 2>/dev/null) || check_lines=""
-    echo "$(review_checks_summary "$check_lines")"
+    if check_lines=$(gp_review_checks "$REPO_SLUG" "$pr_num" 2>/dev/null); then
+        echo "$(review_checks_summary "$check_lines")"
+    else
+        echo "Checks: unavailable (the provider did not answer; 'ws review $COMP checks $pr_num' to retry)"
+    fi
     echo ""
 
     # Branch-identity check: warn if the locally checked-out branch isn't actually this CR's head branch. A local branch can share history with the real CR branch (e.g. checked out from the same commit under a different name) without being it — committing/pushing there creates an unrelated branch instead of updating this CR (the exact mistake that motivated this check: a branch named "soloturn" was pushed as a new branch instead of updating the PR's actual "soloturn-performance" head). Checked before the drift check below, since drift against the wrong branch isn't meaningful. Best-effort: an unresolvable head branch degrades to silence, never a hard error.
@@ -926,15 +929,26 @@ review_reply() {
         echo "  The id:inline-<n> / id:issue-<n> values beside comments are for 'ws review $COMP edit'." >&2
         exit 1
     fi
-    # A thread id is global on GitHub, so a stale one from another PR would post
-    # the reply there — a merged, unrelated PR has received one this way. Fail
-    # closed when the provider can tell us the thread's PR and it is not this one.
-    local thread_pr=""
-    thread_pr=$(gp_review_thread_pr_number "$REPO_SLUG" "$cr_num" "$thread_id" 2>/dev/null) || thread_pr=""
-    if [[ -n "$thread_pr" && "$thread_pr" != "$cr_num" ]]; then
-        echo "ERROR: Thread $thread_id belongs to CR #$thread_pr, not CR #$cr_num. Nothing was posted." >&2
-        echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids." >&2
+    # A thread id is global on GitHub, so a stale one from another PR — or
+    # another repository's PR with the same number — would post the reply
+    # there; a merged, unrelated PR has received one this way. Fail closed
+    # unless the provider confirms the thread is on this repository and this
+    # CR. Empty means the provider addresses threads through the CR already
+    # (GitLab) and there is nothing to confirm.
+    local thread_at="" thread_repo="" thread_pr=""
+    thread_at=$(gp_review_thread_location "$REPO_SLUG" "$cr_num" "$thread_id" 2>/dev/null) || thread_at="unknown"
+    if [[ "$thread_at" == "unknown" ]]; then
+        echo "ERROR: Could not confirm that thread $thread_id is on CR #$cr_num ($REPO_SLUG). Nothing was posted." >&2
+        echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids, then retry." >&2
         exit 1
+    elif [[ -n "$thread_at" ]]; then
+        thread_repo="${thread_at%%$'\t'*}"
+        thread_pr="${thread_at##*$'\t'}"
+        if [[ "$thread_repo" != "$REPO_SLUG" || "$thread_pr" != "$cr_num" ]]; then
+            echo "ERROR: Thread $thread_id belongs to $thread_repo#$thread_pr, not $REPO_SLUG#$cr_num. Nothing was posted." >&2
+            echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids." >&2
+            exit 1
+        fi
     fi
 
     local banner
