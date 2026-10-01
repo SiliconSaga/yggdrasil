@@ -104,6 +104,25 @@ EOF
     [[ "$output" != *"unselected failure"* ]]
 }
 
+@test "bats runner: --filter keeps its value instead of reading it as a second selector" {
+    ln -s "$REPO_ROOT/tests/vendor" "$ROOT_DIR/tests/vendor"
+    cat > "$ROOT_DIR/tests/one.bats" <<'EOF'
+#!/usr/bin/env bats
+@test "wanted case" {
+  true
+}
+@test "other case" {
+  false
+}
+EOF
+
+    run_ws_test yggdrasil tests/one.bats --filter "wanted"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"wanted case"* ]]
+    [[ "$output" != *"other case"* ]]
+}
+
 @test "bats runner: more than six path filters are accepted" {
     ln -s "$REPO_ROOT/tests/vendor" "$ROOT_DIR/tests/vendor"
     selected=()

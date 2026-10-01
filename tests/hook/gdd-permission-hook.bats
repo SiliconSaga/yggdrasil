@@ -494,7 +494,10 @@ echo tightened*"
     # `^[^#]*` keeps this to executable lines: the fixes' own comments name the
     # constructs they removed, and a test that forbids documenting a trap is a
     # test that guarantees the trap gets rediscovered the hard way.
-    run grep -nE '^[^#]*(mapfile|readarray|local -n|declare -n|declare -A|local -A|coproc|\$\{[^}]*(,,|\^\^)[^}]*\})' "${files[@]}"
+    # The last alternative is the single-character case forms (${name^},
+    # ${name,}, and the same on positional and special parameters: ${1^},
+    # ${@,}), which the doubled-form pattern before it does not match.
+    run grep -nE '^[^#]*(mapfile|readarray|local -n|declare -n|declare -A|local -A|coproc|\$\{[^}]*(,,|\^\^)[^}]*\}|\$\{([A-Za-z_][A-Za-z0-9_]*|[0-9]+|[@*])(\[[^]]*\])?[,^])' "${files[@]}"
     [ "$status" -ne 0 ]
 }
 
