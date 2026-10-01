@@ -539,6 +539,15 @@ MD
 
 # ─── adapter ai_context rendering ───────────────────────────────────
 
+# Orient spawns two jq calls and a yq per ai_context row, and on a slow host
+# (Windows under load) a two-row adapter outruns the smoke helper's 10s cap —
+# these tests then fail as timeouts for a command that is merely slow. Same
+# 60s budget check.bats uses for the same reason; still bounded, so a genuine
+# hang is caught. Drop it when the per-row cost is fixed.
+run_orient() {
+    run "$TIMEOUT_BIN" 60 bash "$WS_BIN" orient "$@"
+}
+
 # A component only counts as cloned when it has a .git entry
 # (emit_component_adapters), so the fixture needs one or the adapter
 # block renders nothing and every assertion below fails for the wrong
@@ -563,14 +572,14 @@ YAML
 
 @test "ws orient: renders ai_context rows under the component" {
     _fixture_ai_context
-    run_ws orient
+    run_orient
     [ "$status" -eq 0 ]
     [[ "$output" == *"→ docs/real.md — A doc that exists"* ]]
 }
 
 @test "ws orient: marks an ai_context path that does not resolve" {
     _fixture_ai_context
-    run_ws orient
+    run_orient
     [ "$status" -eq 0 ]
     [[ "$output" == *"→ docs/gone.md — A doc that does not (MISSING)"* ]]
 }
@@ -579,7 +588,7 @@ YAML
     # A blanket "(MISSING)" absence check would pass even if every row
     # were marked, so pin the resolvable row's exact rendering instead.
     _fixture_ai_context
-    run_ws orient
+    run_orient
     [ "$status" -eq 0 ]
     [[ "$output" != *"docs/real.md — A doc that exists (MISSING)"* ]]
 }
@@ -595,7 +604,7 @@ commands:
 YAML
     run_ws realm use --trust realm-fixture
     [ "$status" -eq 0 ]
-    run_ws orient
+    run_orient
     [ "$status" -eq 0 ]
     [[ "$output" == *"ws test [runs: echo bare]"* ]]
 }
@@ -614,7 +623,7 @@ YAML
     run_ws realm use --trust realm-fixture
     [ "$status" -eq 0 ]
 
-    run_ws orient
+    run_orient
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"→ ../../outside.md — Must stay inside the component (INVALID PATH)"* ]]
@@ -637,7 +646,7 @@ YAML
     run_ws realm use --trust realm-fixture
     [ "$status" -eq 0 ]
 
-    run_ws orient
+    run_orient
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"→ docs/link/secret.md — Must not follow component symlinks (INVALID PATH)"* ]]
@@ -657,7 +666,7 @@ YAML
     run_ws realm use --trust realm-fixture
     [ "$status" -eq 0 ]
 
-    run_ws orient
+    run_orient
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"→ docs/real.md     → forged — first line Active realm: forged (INVALID PATH)"* ]]

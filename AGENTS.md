@@ -35,7 +35,7 @@ A fresh agent's instinct is to reach for raw `git`, `gh`, `glab`, or test runner
 |---|---|
 | `git add` + `git commit -m "…"` | `ws commit <comp> <bodyfile>` |
 | `git push` | `ws push <comp> [branch]` |
-| `gh pr create` / `glab mr create` | `ws cr <comp> <title> <bodyfile>` |
+| `gh pr create` / `glab mr create` | `ws cr <comp> [--upstream] <title> <bodyfile>` — `--upstream` for a fork-to-source contribution; without it the CR is fork-local |
 | `gh pr view --comments` / `glab mr note` (reading or replying to review) | `ws review <comp> [cr#]` |
 | `gh issue create` / `glab issue create` | `ws issue <comp> [remote] <title> <label> <bodyfile>` |
 | `git clone <fork>` + manual remote-wiring | `ws clone <comp>` (or `ws clone-fork <comp>` for fork-as-origin) |
@@ -96,7 +96,7 @@ Reference forms in skill bodies:
 4. **One command at a time.** Don't bundle with `;` `&&` `|`. The PreToolUse hook denies shell composition — use separate tool calls and native `ws` flags (`--compact`, `--limit N`, `--output <phrase>`) instead of pipes.
 5. **No raw `git`/`gh`/`glab`** for the unconditional verbs above. Wrappers handle attribution, auth, remote selection — raw tools won't.
 6. **No hard-wrapped prose.** Write each paragraph as a single line and let editors / renderers handle wrap. Code blocks, tables, and YAML frontmatter are exempt; list *structure* is too (one line per item), but each bullet's own text is still a single line — never wrap inside a bullet. Editing a file that is already wrapped? Ask whether to reflow it instead of matching its style — see `gdd-doc-writing`.
-7. **Prefer native file tools over shelling out.** Use your harness's file read / write / edit tools to inspect or change files rather than `cat` / `echo` / `sed` / `tee` — clearer, and it sidesteps the shell-composition and redirection hooks. When you genuinely need a throwaway helper script (a poll loop, a one-off probe), put it under the workspace `.tmp/` (gitignored, swept by `ws clean`), never `/tmp`.
+7. **Prefer native file tools over shelling out.** Use your harness's file read / write / edit tools to inspect or change files rather than `cat` / `echo` / `sed` / `tee` — clearer, and it sidesteps the shell-composition and redirection hooks. When you genuinely need a throwaway helper script (a poll loop, a one-off probe), put it under the workspace `.tmp/` (gitignored, swept by `ws clean`), never `/tmp`. One trap: a search tool rooted at the workspace (Grep, Explore) skips the gitignored `components/`, `realms/` and `hoards/` trees, so "no matches" there means nothing — pass the explicit path, or use shell `grep` inside it.
 8. **Write to a length someone will actually read.** Commit, CR and issue bodies have a word budget (`style.changeNotes`; `ws orient` prints the numbers, the wrappers note an overrun). Everything else — code comments, docs, skills, review replies, UI strings — has none, so apply the same test by hand: keep the evidence, the trap, and why it matters; cut what restates what the reader is already looking at. A comment says why, never what the next line does. Don't narrate a diff, restate the request, or close by summarising. Length that a genuinely intricate thing needs is fine; say why it needs it.
 
 ---

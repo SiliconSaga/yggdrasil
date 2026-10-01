@@ -423,6 +423,17 @@ Open a fresh terminal session. The installer updates PATH, but existing sessions
 - Ensure the `api` scope is selected.
 - For self-hosted: set `GITLAB_HOST` in `.env`.
 
+### Authentication succeeds but the push, fork, or CR fails
+
+`ws diagnose` validates token routing and asks the provider who the token is. It does not prove that identity may push, fork, or open a CR on a particular repository; only the operation itself establishes that.
+
+| Symptom | Meaning | Next check |
+|---|---|---|
+| 401 or a rejected token | Authentication failed: the token is expired, revoked, or malformed. | Replace the mapped `.env` token and rerun `ws diagnose`. |
+| 403 on a direct push | Authentication succeeded, but this identity cannot write that project, or the wrong remote was selected. | For upstream work, confirm the fork remote marker in `ws diagnose` and push to the fork rather than the source. |
+| 403 or 404 while creating a cross-group fork | The fork identity usually cannot read the private source project. | Share the fork-home group into the source project or group as Reporter (see above), then rerun `ws clone-fork`. |
+| `valid (authenticated as …)` in `ws diagnose` | Token routing and provider authentication succeeded. | Do not infer push, fork, or CR rights from it; inspect the remote topology and the identity's project or group role. A row that says `not verified` or `could not verify` is also marked ✓ but establishes only that the variable is set. |
+
 ### Push fails with "remote: Permission denied" or "Write access not granted"
 
 - Credential helper may not have your token stored. Run `gh auth status` (GitHub) or `glab auth status` (GitLab) to check.

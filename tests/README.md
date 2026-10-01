@@ -2,9 +2,9 @@
 
 `ws test yggdrasil` runs every `*.bats` file under this directory using the vendored bats-core at `tests/vendor/bats-core/`. No system bats install needed.
 
-## Prerequisite: GNU `timeout`
+## Timeouts: GNU `timeout` when present, a bash watchdog otherwise
 
-The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regression that hangs the upward-walk loop (or any other infinite loop) fails loudly instead of stalling the suite. That command is GNU coreutils.
+The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regression that hangs the upward-walk loop (or any other infinite loop) fails loudly instead of stalling the suite. GNU coreutils `timeout` (or Homebrew's `gtimeout`) is used when present; otherwise a bash watchdog in the helper stands in, so a stock Mac can run the suite without installing coreutils.
 
 - **Linux / Git Bash on Windows:** ships with coreutils already — no action.
 - **macOS:** install via Homebrew. The helpers pick up the `g`-prefixed binary automatically:
@@ -15,7 +15,7 @@ The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regre
 
   After install, `gtimeout` is on PATH wherever your Homebrew prefix puts shims (`/opt/homebrew/bin` on Apple Silicon, `/usr/local/bin` on Intel; `brew --prefix` confirms). The test helpers detect either `timeout` or `gtimeout`; you do not need to add the `gnubin` directory to PATH.
 
-If neither binary is present, every test fails immediately with a clear "install coreutils" message — no silent hangs.
+If neither binary is present, the helpers write a small bash watchdog to a temp file and use that instead (`tests/timeout_helper.bash`), so installing coreutils is optional; a hang is still caught and still reports as a timeout.
 
 ## Running
 

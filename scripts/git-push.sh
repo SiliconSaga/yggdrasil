@@ -34,6 +34,30 @@ git_push_auth_env_for_remote() {
   GIT_PUSH_AUTH_PROVIDER="$GIT_AUTH_PROVIDER"
 }
 
+# Run the push; on failure, name the case the wrapper cannot handle. ws push
+# always speaks as the workspace identity (the .env token, or the configured
+# remote's credentials), so a branch that lives where that identity cannot
+# write — a contributor's PR branch being touched up by a maintainer — fails
+# here every time, and git's own message never says that the fix is a
+# different identity rather than a different token.
+git_push_run() {
+  local rc=0
+  git_auth_run git push "$@" || rc=$?
+  [[ "$rc" -ne 0 ]] || return 0
+  echo "" >&2
+  if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
+    echo "HINT: ws push always sends the workspace token ($GIT_PUSH_AUTH_LABEL). If this branch belongs to a" >&2
+  else
+    echo "HINT: ws push always speaks as the workspace identity. If this branch belongs to a" >&2
+  fi
+  echo "      repository that identity cannot write — a contributor's PR branch, for example —" >&2
+  echo "      the fix is a different identity, not a different token: ask them to allow maintainer" >&2
+  echo "      edits, or push as yourself from your own terminal (in an agent session the hook" >&2
+  echo "      denies raw git push; 'ws hook-bypass git-push' is the audited exception)." >&2
+  echo "      'ws diagnose <comp>' shows which remote and token were used." >&2
+  return "$rc"
+}
+
 # Parse --force flag
 FORCE=""
 if [[ "${1:-}" == "--force" ]]; then
@@ -156,7 +180,7 @@ if [[ "$TARGET_KIND" == "tag" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  git_auth_run git push "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
+  git_push_run "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
   exit 0
 fi
 
@@ -194,11 +218,11 @@ if [[ -n "$FORCE" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  git_auth_run git push --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
+  git_push_run --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
 else
   echo "Pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  git_auth_run git push ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
+  git_push_run ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
 fi

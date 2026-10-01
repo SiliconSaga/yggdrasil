@@ -2268,9 +2268,15 @@ if [[ -n "${GDD_SANDBOX:-}" ]]; then
     # inlined because the hook does not source the CLI. `yggdrasil` is excluded by
     # name: it is the workspace repository rather than an ecosystem component, and
     # scoping a sandbox to it would point every allowance below at this file.
+    #
+    # Shape alone is not enough: `ws exec` also resolves realms and hoards, so a
+    # well-formed value naming a realm would hand that realm the component
+    # allowances. The value must be a directory under components/ — the only
+    # place a component lives — at the trusted root, never at the command cwd.
     _hl_target=""
     if [[ "${GDD_SANDBOX}" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?(\.[a-z]([a-z0-9-]*[a-z0-9])?)*$ ]] \
-       && [[ "${GDD_SANDBOX}" != "yggdrasil" ]]; then
+       && [[ "${GDD_SANDBOX}" != "yggdrasil" ]] \
+       && [[ -d "$_trusted_root/components/${GDD_SANDBOX}" ]]; then
         _hl_target="$GDD_SANDBOX"
     fi
     # `ws checkout` supersedes the parsed `git checkout -b` allowance this block

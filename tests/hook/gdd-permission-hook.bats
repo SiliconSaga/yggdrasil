@@ -289,6 +289,21 @@ setup() {
     [[ "$output" == *'"permissionDecision":"deny"'* ]]
 }
 
+@test "headless: a well-formed name that is not a component grants nothing" {
+    # `ws exec` resolves realms and hoards too, so a realm's name passes the
+    # shape check. Only a directory under components/ counts as a component.
+    seed_real_project_config
+    mkdir -p "$WORK/realms/realm-ghost"
+    GDD_SANDBOX=realm-ghost run_hook 'ws exec realm-ghost git status --short'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    GDD_SANDBOX=ghost run_hook 'ws exec ghost git status --short'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    # And a real component still receives its allowances, so the check is on
+    # existence rather than something that denies everything.
+    GDD_SANDBOX=ken-site run_hook 'ws exec ken-site identify x.png'
+    [[ "$output" == *'"permissionDecision":"allow"'* ]]
+}
+
 @test "headless: an ask nobody can answer becomes a deny, not a hang" {
     # The other half, and the reason this is not simply "skip the ask-list":
     # destructive commands must not become allowed just because nobody is

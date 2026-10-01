@@ -13,18 +13,10 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_BIN="$REPO_ROOT/scripts/ws"
 
-# Resolve `timeout` (Linux/Git Bash) or `gtimeout` (macOS Homebrew
-# coreutils). See tests/README.md for the install hint.
-if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT_BIN="$(command -v timeout)"
-elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT_BIN="$(command -v gtimeout)"
-else
-    echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
-    echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2
-    echo "  See tests/README.md." >&2
-    exit 1
-fi
+# Resolve `timeout` (Linux/Git Bash), `gtimeout` (macOS Homebrew coreutils), or
+# the bash watchdog fallback for a stock Mac. See tests/timeout_helper.bash.
+# shellcheck source=../timeout_helper.bash
+source "$REPO_ROOT/tests/timeout_helper.bash"
 
 init_workspace() {
     WORK="$BATS_TEST_TMPDIR/work"

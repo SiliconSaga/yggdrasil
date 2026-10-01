@@ -17,6 +17,19 @@ setup() {
     [ "$(git -C "$REPO_DIR" rev-parse refs/tags/v0.1.0)" = "$(remote_ref_sha refs/tags/v0.1.0)" ]
 }
 
+@test "a failed push names the identity the wrapper spoke as" {
+    # The wrapper always pushes as the workspace identity, so a branch in a
+    # repository that identity cannot write fails every time; git's own
+    # message never says the fix is a different identity, so the hint must.
+    git -C "$REPO_DIR" remote set-url fork "$BATS_TEST_TMPDIR/does-not-exist.git"
+
+    run_git_push
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"HINT: ws push always speaks as the workspace identity"* ]]
+    [[ "$output" == *"contributor's PR branch"* ]]
+}
+
 @test "pushing a tag does not create an upstream branch" {
     git -C "$REPO_DIR" tag v0.2.0
 
