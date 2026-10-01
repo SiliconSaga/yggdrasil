@@ -76,7 +76,8 @@ bash scripts/ws review <comp> <cr#> --since prev-push   # since last push
 bash scripts/ws review <comp> notes <cr#>               # bot summaries only
 bash scripts/ws review <comp> threads <cr#> --status    # resolved/unresolved counts
 bash scripts/ws review <comp> threads <cr#>             # unresolved thread list
-bash scripts/ws review <comp> threads <cr#> --resolve-all
+bash scripts/ws review <comp> checks <cr#>              # is CI green — one call, exit 1 on a failure
+bash scripts/ws review <comp> threads <cr#> --resolve-all   # run right after your push; threads opened since are left alone
 bash scripts/ws review <comp> threads <cr#> --resolve <id>
 bash scripts/ws review <comp> reply <cr#> <id> "message" --resolve
 bash scripts/ws review <comp> comment <cr#> <bodyfile>   # top-level comment, not tied to a thread
@@ -174,3 +175,7 @@ it isn't. Key principles:
      then resolve: `ws review <comp> reply <cr#> <id> "Won't fix: ..." --resolve`
    - Human reviewer threads → do not resolve via automation; address the
      concern and let the reviewer resolve
+5. Before merging an approved CR, read the review *bodies* once more
+   (`ws review <comp> notes <cr#>`): CodeRabbit's "Outside the diff" findings
+   live inside the review text, never become threads, and do not block an
+   approval — an all-green thread count can still be hiding one.

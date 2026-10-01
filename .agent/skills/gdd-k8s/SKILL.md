@@ -52,6 +52,11 @@ Read verbs accepted by the guard: `get`, `describe`, `logs`, `top`, `explain`, `
 
 The hooks normalize common transparent launch forms before classification: leading environment assignments, `env`, `command`, absolute paths ending in `kubectl`, shell options before a script path, and literal kubectl inside `bash -c`/`sh -c`. They do not claim to observe arbitrary nested execution through task runners, client libraries, Helm, or a script that constructs the kubectl executable name without the literal token; server-side RBAC remains the boundary for those cases.
 
+Two things worth knowing before they cost a session:
+
+- **helm is a blind spot.** An armed scope does not intercept `helm` at all, and `helm install` creates namespaces, CRDs and ClusterRoles the guard would have refused from kubectl. Treat every helm write as the unscoped case: say what it will create, get explicit confirmation, and prefer rendering (`helm template`) into a file that `ws k8s apply -f` can check.
+- **Some kubectl argument shapes are refused for their shell shape, not their meaning.** A jsonpath `?()` filter, `&` or bare parentheses in a `--raw` URL, and `|` inside a go-template all look like composition to the hook. Rewrite rather than bypass: `-o custom-columns=…` or `{range}` instead of a filter, percent-encode `&` and parens in URLs, and put a multi-step template in a file passed with `-o go-template-file=`.
+
 ### Staying Guarded, Clearing, and Bypassing
 
 | Intent | Recommendation | Effect |

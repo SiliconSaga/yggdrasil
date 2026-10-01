@@ -32,6 +32,7 @@ Pre-1.0 the project deliberately favored clean breaks over compat shims; from 1.
 ### Release ceremony
 
 1. Confirm the suite is green (`ws test yggdrasil`) on main.
+   - If `.claude/hooks/hook-rules` or the permission hook changed since the last release, rebuild the [gdd-sandbox](https://github.com/SiliconSaga/gdd-sandbox) image against main and probe it: its briefing and allow-list are downstream of the hook rules, and nothing else tells them a verb was added, renamed or redirected.
 2. Curate `[Unreleased]` → rename to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty `[Unreleased]` above it, update the link references at the bottom.
 3. Tag (`git tag -a vX.Y.Z`) and push the tag.
 4. Create the GitHub Release from the tag, pasting the changelog section as the body (optionally augmented by GitHub's auto-generated notes — see below).
