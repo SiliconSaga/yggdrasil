@@ -4,7 +4,7 @@
 
 ## Prerequisite: GNU `timeout`
 
-The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regression that hangs the upward-walk loop (or any other infinite loop) fails loudly instead of stalling the suite. That command is GNU coreutils.
+The bats helpers wrap each hook / `ws` invocation in `timeout 10 …` so a regression that hangs the upward-walk loop (or any other infinite loop) fails loudly instead of stalling the suite. GNU coreutils `timeout` (or Homebrew's `gtimeout`) is used when present; otherwise a bash watchdog in the helper stands in, so a stock Mac can run the suite without installing coreutils.
 
 - **Linux / Git Bash on Windows:** ships with coreutils already — no action.
 - **macOS:** install via Homebrew. The helpers pick up the `g`-prefixed binary automatically:

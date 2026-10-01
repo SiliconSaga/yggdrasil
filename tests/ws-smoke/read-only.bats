@@ -72,6 +72,23 @@ setup() {
     done
 }
 
+@test "ws help: fits on one screen and points at --all for the reference" {
+    run_ws help
+    [ "$status" -eq 0 ]
+    local lines
+    lines=$(printf '%s\n' "$output" | wc -l | tr -d '[:space:]')
+    [ "$lines" -le 24 ] || { echo "ws help is $lines lines; the point is that it fits a default terminal"; return 1; }
+    [[ "$output" == *"ws help --all"* ]]
+    [[ "$output" == *"ws help <command>"* ]]
+}
+
+@test "ws help --all: prints the full reference block" {
+    run_ws help --all
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Commands:"* ]]
+    [[ "$output" == *"First-time setup:"* ]]
+}
+
 @test "ws --help: exits 0 and prints usage" {
     run_ws --help
     [ "$status" -eq 0 ]
@@ -262,6 +279,27 @@ setup() {
     run_ws whoami --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: ws whoami"* ]]
+}
+
+@test "ws exec: a failure naming a workspace-root file gets the unquoted-glob hint" {
+    # The shell expands an unquoted glob in ITS cwd before ws runs, so the
+    # wrapped command receives workspace-root file names and fails on them
+    # inside the component. Nothing in the command says why; the hint does.
+    printf 'components:\n  app:\n    repo: https://example.com/app.git\n' > "$ECOSYSTEM"
+    mkdir -p "$WORK/components/app"
+    printf 'x\n' > "$WORK/rootfile.txt"
+    run_ws exec app ls rootfile.txt
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"HINT: 'rootfile.txt' is a workspace-root file"* ]]
+    [[ "$output" == *"ws exec app <cmd> '*'"* ]]
+}
+
+@test "ws exec: an ordinary failure gets no glob hint" {
+    printf 'components:\n  app:\n    repo: https://example.com/app.git\n' > "$ECOSYSTEM"
+    mkdir -p "$WORK/components/app"
+    run_ws exec app ls definitely-not-here.txt
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"HINT:"* ]]
 }
 
 @test "ws exec: --help inside the wrapped command is NOT intercepted" {

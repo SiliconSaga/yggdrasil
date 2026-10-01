@@ -89,6 +89,17 @@ ws_load_env() {
             return 1
         fi
 
+        # A value already in the environment wins over the file, as every
+        # dotenv loader does: a per-invocation `FOO=bar ws exec …` is a
+        # deliberate override, and .env silently replacing it made the command
+        # do something other than what was typed. Non-empty only — an empty
+        # variable is not an override, it is a gap for the file to fill.
+        # Checked after the reserved-name gate so a dangerous key is still
+        # refused even when the caller happens to have it set.
+        if [[ -n "${!__WS_ENV_KEY:-}" ]]; then
+            continue
+        fi
+
         printf -v "$__WS_ENV_KEY" '%s' "$__WS_ENV_VALUE"
         # Exporting the variable NAMED by the key is the intent.
         export "${__WS_ENV_KEY?}"

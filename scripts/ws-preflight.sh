@@ -65,6 +65,16 @@ case "${OSTYPE:-}" in
     msys*|cygwin*|mingw*) OS="windows" ;;
     *)                  OS="unknown" ;;
 esac
+# WSL reports itself as Linux, and from PowerShell `bash` resolves to it, so a
+# Windows user who typed `bash scripts/ws preflight` lands here and is told to
+# apt-install everything into a distro the workspace does not run from. GDD on
+# Windows means Git Bash; name that instead of handing out Linux hints.
+_WS_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${WSL_DISTRO_NAME:-}" ]] \
+   || { [[ -r /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; } \
+   || [[ "$_WS_SCRIPTS_DIR" =~ ^/mnt/[a-zA-Z]/ ]]; then
+    OS="wsl"
+fi
 
 # Per-OS install hints. Each hint is a short imperative the user can
 # copy-paste. Windows defaults to winget (built-in on Win 10/11);
@@ -103,6 +113,7 @@ hint_for() {
         windows:realpath) echo "Comes with Git Bash; if missing, reinstall Git for Windows." ;;
         windows:shellcheck) echo "'winget install koalaman.shellcheck'. Fallback: 'choco install shellcheck' from elevated PowerShell." ;;
 
+        wsl:*)            echo "Do not apt-install this into WSL. Install it on the Windows side and run ws from Git Bash — see the WSL note above." ;;
         *) echo "See https://github.com/mikefarah/yq, https://cli.github.com, etc., for install instructions on your platform." ;;
     esac
 }
@@ -148,6 +159,14 @@ check_tool() {
 
 echo "Workspace prerequisites check (OS: $OS)"
 echo ""
+if [[ "$OS" == "wsl" ]]; then
+    echo "⚠ This is WSL. GDD on Windows runs from Git Bash, not from a WSL distro:"
+    echo "    the workspace, its hooks and the permission allowlists assume Git Bash paths,"
+    echo "    and the tools below should be installed on the Windows side (winget), never"
+    echo "    apt-installed into WSL. Open Git Bash ('winget install Git.Git' provides it)"
+    echo "    and run 'ws preflight' there. The checks below describe this WSL shell only."
+    echo ""
+fi
 
 echo "Required:"
 # bash must be ≥ 4.0, and this is the prerequisite most likely to be silently
@@ -197,7 +216,6 @@ check_tool shellcheck optional
 # longer `bash scripts/ws …` form. Advisory only — not a tool requirement,
 # so it never flips the exit code.
 echo "Workspace PATH:"
-_WS_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if command -v ws >/dev/null 2>&1 && [[ "$(command -v ws)" -ef "$_WS_SCRIPTS_DIR/ws" ]]; then
     echo "  ✓ ws on PATH (scripts/ is exported)"
 else

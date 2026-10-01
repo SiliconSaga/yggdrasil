@@ -3,11 +3,15 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     ENV_LIB="$REPO_ROOT/scripts/ws-env.sh"
+    # The loader leaves a non-empty variable alone, and `ws test` has already
+    # exported the real .env into this shell; the fixtures below set these.
+    unset GH_TOKEN GITHUB_TOKEN GITLAB_TOKEN GITLAB_HOST
 }
 
 @test "ws_load_env loads supported assignments as literal data" {
     local env_file="$BATS_TEST_TMPDIR/.env"
     local marker="$BATS_TEST_TMPDIR/command-ran"
+    unset DOUBLE_QUOTED SINGLE_QUOTED WITH_EQUALS EMPTY INERT_COMMAND
     cat > "$env_file" <<EOF
 # comments and blank lines are ignored
 
@@ -31,6 +35,32 @@ EOF
     [ "$EMPTY" = "" ]
     [ "$INERT_COMMAND" = "\$(touch $marker)" ]
     [ ! -e "$marker" ]
+}
+
+@test "ws_load_env leaves a variable the environment already set alone" {
+    local env_file="$BATS_TEST_TMPDIR/.env"
+    printf 'GH_TOKEN=from-file\nNEW_ONLY=from-file\n' > "$env_file"
+    export GH_TOKEN=from-shell
+    unset NEW_ONLY
+
+    source "$ENV_LIB"
+    ws_load_env "$env_file"
+
+    # `FOO=bar ws exec …` must mean what it says; the file fills only the gaps.
+    [ "$GH_TOKEN" = "from-shell" ]
+    [ "$NEW_ONLY" = "from-file" ]
+}
+
+@test "ws_load_env refuses a reserved name even when the environment already has it" {
+    local env_file="$BATS_TEST_TMPDIR/.env"
+    printf 'GIT_ASKPASS=/tmp/anything\n' > "$env_file"
+    export GIT_ASKPASS=/usr/bin/true
+
+    source "$ENV_LIB"
+    run ws_load_env "$env_file"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"reserved variable 'GIT_ASKPASS'"* ]]
 }
 
 @test "ws_load_env keeps ordinary local-name assignments literal across lines" {

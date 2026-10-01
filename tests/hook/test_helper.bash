@@ -18,15 +18,28 @@ HOOK_BIN="$REPO_ROOT/.claude/hooks/gdd-permission-hook.sh"
 # Linux and Git Bash, but macOS only has it under the `g`-prefixed
 # Homebrew coreutils install (`gtimeout`). Tests need one or the other
 # — see tests/README.md for the install hint.
+# Without either, a bash watchdog stands in (see tests/ws-smoke/test_helper.bash
+# for the rationale): same `timeout N cmd…` shape, same 124 on expiry.
+_ws_test_timeout_fallback() {
+    local secs="$1"
+    shift
+    "$@" &
+    local pid=$!
+    ( sleep "$secs"; kill "$pid" 2>/dev/null ) &
+    local watchdog=$!
+    local rc=0
+    wait "$pid" || rc=$?
+    kill "$watchdog" 2>/dev/null
+    wait "$watchdog" 2>/dev/null || true
+    [[ "$rc" -eq 143 ]] && rc=124
+    return "$rc"
+}
 if command -v timeout >/dev/null 2>&1; then
     TIMEOUT_BIN="$(command -v timeout)"
 elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_BIN="$(command -v gtimeout)"
 else
-    echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
-    echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2
-    echo "  See tests/README.md." >&2
-    exit 1
+    TIMEOUT_BIN=_ws_test_timeout_fallback
 fi
 
 # Build an isolated workspace shape:
@@ -107,6 +120,9 @@ write_local_hook_rules() {
 seed_real_project_config() {
     cp "$REPO_ROOT/.claude/settings.json" "$WORK/.claude/settings.json"
     cp "$REPO_ROOT/.claude/hooks/hook-rules" "$WORK/.claude/hooks/hook-rules"
+    # The headless tests scope their sandbox to `ken-site`; the hook now checks
+    # that such a component exists under components/, so give it one.
+    mkdir -p "$WORK/components/ken-site"
 }
 
 # Write a bypass marker file under $WORK/.tmp/hook-bypass/<slug>.bypass

@@ -13,17 +13,32 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_BIN="$REPO_ROOT/scripts/ws"
 
-# Resolve `timeout` (Linux/Git Bash) or `gtimeout` (macOS Homebrew
-# coreutils). See tests/README.md for the install hint.
+# Resolve `timeout` (Linux/Git Bash) or `gtimeout` (macOS Homebrew coreutils).
+# A stock Mac has neither, and refusing to run the suite over a watchdog made
+# `ws test yggdrasil` a hard failure there. The fallback below is that
+# watchdog in bash: run the command, kill it after N seconds, and report 124
+# the way coreutils does so the "did it time out" assertions keep working.
+# Only the `timeout N cmd…` form the helpers use is covered.
+_ws_test_timeout_fallback() {
+    local secs="$1"
+    shift
+    "$@" &
+    local pid=$!
+    ( sleep "$secs"; kill "$pid" 2>/dev/null ) &
+    local watchdog=$!
+    local rc=0
+    wait "$pid" || rc=$?
+    kill "$watchdog" 2>/dev/null
+    wait "$watchdog" 2>/dev/null || true
+    [[ "$rc" -eq 143 ]] && rc=124
+    return "$rc"
+}
 if command -v timeout >/dev/null 2>&1; then
     TIMEOUT_BIN="$(command -v timeout)"
 elif command -v gtimeout >/dev/null 2>&1; then
     TIMEOUT_BIN="$(command -v gtimeout)"
 else
-    echo "ERROR: neither 'timeout' nor 'gtimeout' found on PATH." >&2
-    echo "  Install GNU coreutils — on macOS: 'brew install coreutils'." >&2
-    echo "  See tests/README.md." >&2
-    exit 1
+    TIMEOUT_BIN=_ws_test_timeout_fallback
 fi
 
 init_workspace() {
