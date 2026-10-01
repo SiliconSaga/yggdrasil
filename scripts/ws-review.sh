@@ -21,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 review_help() {
     echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]"
     echo "       ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]"
+    echo "       ws review <comp> checks <cr#> [--remote <name>]"
     echo "       ws review <comp> notes <cr#> [--remote <name>] [--reviewer <name>] [--since <time>]"
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]"
     echo "       ws review <comp> comment <cr#> <bodyfile> [--remote <name>]"
@@ -63,7 +64,13 @@ review_help() {
     echo "  threads <cr#>              Unresolved diff threads (targeted follow-up)"
     echo "    --status                 Show resolved/unresolved counts"
     echo "    --resolve <thread-id>    Resolve a single thread"
-    echo "    --resolve-all            Resolve all unresolved threads"
+    echo "    --resolve-all            Resolve the unresolved threads opened before your"
+    echo "                             last push; anything newer is left for you to read"
+    echo "                             (a NOTE says when no push time could be found)"
+    echo ""
+    echo "  checks <cr#>               CI state for the CR's head: one line per check,"
+    echo "                             a 'Checks: N pass, M fail, K pending' summary, exit 1"
+    echo "                             on any failure. The summary also heads the full review."
     echo ""
     echo "  notes <cr#>                Top-level MR/PR notes only (bot summaries, etc.)"
     echo "    --reviewer <name>        Filter by reviewer login; a bot matches with or without"
@@ -72,7 +79,9 @@ review_help() {
     echo ""
     echo "  reply <cr#> <thread-id> <message> [--resolve]"
     echo "                             Reply to a review thread. The GDD AI-attribution"
-    echo "                             banner is prepended automatically."
+    echo "                             banner is prepended automatically. The thread-id is"
+    echo "                             the parenthesised value from 'threads' (GitHub: PRRT_…),"
+    echo "                             and must belong to this CR, or nothing is posted."
     echo "    --resolve                Also resolve the thread after replying"
     echo ""
     echo "  comment <cr#> <bodyfile>   Post a top-level PR/MR comment (not attached to"
@@ -489,6 +498,12 @@ review_comments() {
         exit 1
     }
     printf '%s\n' "$summary" | review_sanitize_provider_text
+    # "Is CI green" took four calls to answer, three of them dead ends. One
+    # line here, best-effort: a provider that cannot report checks prints the
+    # summary's own "none reported" rather than an error.
+    local check_lines=""
+    check_lines=$(gp_review_checks "$REPO_SLUG" "$pr_num" 2>/dev/null) || check_lines=""
+    echo "$(review_checks_summary "$check_lines")"
     echo ""
 
     # Branch-identity check: warn if the locally checked-out branch isn't actually this CR's head branch. A local branch can share history with the real CR branch (e.g. checked out from the same commit under a different name) without being it — committing/pushing there creates an unrelated branch instead of updating this CR (the exact mistake that motivated this check: a branch named "soloturn" was pushed as a new branch instead of updating the PR's actual "soloturn-performance" head). Checked before the drift check below, since drift against the wrong branch isn't meaningful. Best-effort: an unresolvable head branch degrades to silence, never a hard error.
@@ -803,9 +818,80 @@ review_threads() {
             echo "Resolved thread $resolve_id on CR #$pr_num."
             ;;
         resolve-all)
-            gp_review_threads_resolve_all "$REPO_SLUG" "$pr_num"
+            # Everything older than the last push is what this sweep is for:
+            # Copilot re-files stale findings, and the sweep clears them. A bot
+            # round that landed AFTER that push is new feedback, so the cutoff
+            # is the push time `--since last-push` already knows how to find.
+            # Best-effort: when no push time can be read, nothing is skipped
+            # and the output says so, rather than refusing the sweep.
+            local since_ts="" head_branch=""
+            head_branch=$(gp_review_head_branch "$REPO_SLUG" "$pr_num" 2>/dev/null) || head_branch=""
+            if [[ -n "$head_branch" && "$head_branch" != "null" ]]; then
+                since_ts=$(gp_review_push_timestamp "$REPO_SLUG" "$head_branch" 0 2>/dev/null) || since_ts=""
+                # The provider's "all history" answer is the epoch; as a cutoff
+                # that would call every thread new and resolve nothing.
+                [[ "$since_ts" != "null" && "$since_ts" != 1970-* ]] || since_ts=""
+            fi
+            if [[ -z "$since_ts" ]]; then
+                echo "NOTE: no push time available for '$head_branch'; resolving every unresolved thread, including any opened after your last push."
+            fi
+            gp_review_threads_resolve_all "$REPO_SLUG" "$pr_num" "$since_ts"
             ;;
     esac
+}
+
+# Render the provider's normalised check lines. `summary` is the one-liner the
+# review header carries; `list` is the `checks` subcommand. Exit 1 when any
+# check failed so "is CI green" is answerable by exit code alone.
+review_checks() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ws review <comp> checks <cr#> [--remote <name>]" >&2
+        exit 1
+    fi
+    local pr_num="$1"
+    if [[ ! "$pr_num" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: CR number must be numeric, got '$pr_num'" >&2
+        exit 1
+    fi
+    local lines
+    lines=$(gp_review_checks "$REPO_SLUG" "$pr_num") || {
+        echo "ERROR: Could not fetch checks for CR #$pr_num from $REPO_SLUG." >&2
+        exit 1
+    }
+    lines=$(printf '%s' "$lines" | review_sanitize_provider_text)
+    echo "=== Checks: CR #$pr_num ($REPO_SLUG) ==="
+    if [[ -z "$lines" ]]; then
+        echo "(no checks reported)"
+        return 0
+    fi
+    local state name url mark failed=0
+    while IFS=$'\t' read -r state name url; do
+        [[ -n "$state" ]] || continue
+        case "$state" in
+            pass)    mark="✓" ;;
+            fail)    mark="✗"; failed=1 ;;
+            pending) mark="…" ;;
+            *)       mark="-" ;;
+        esac
+        printf '  %s %-8s %s%s\n' "$mark" "$state" "$name" "${url:+  $url}"
+    done <<< "$lines"
+    echo ""
+    echo "$(review_checks_summary "$lines")"
+    [[ "$failed" -eq 0 ]]
+}
+
+# "Checks: N pass, M fail, K pending" from normalised check lines on stdin arg.
+review_checks_summary() {
+    local lines="$1"
+    [[ -n "$lines" ]] || { echo "Checks: none reported"; return 0; }
+    local pass fail pending skipped
+    pass=$(printf '%s\n' "$lines" | grep -c $'^pass\t' || true)
+    fail=$(printf '%s\n' "$lines" | grep -c $'^fail\t' || true)
+    pending=$(printf '%s\n' "$lines" | grep -c $'^pending\t' || true)
+    skipped=$(printf '%s\n' "$lines" | grep -c $'^skipped\t' || true)
+    local out="Checks: $pass pass, $fail fail, $pending pending"
+    [[ "$skipped" -gt 0 ]] && out+=", $skipped skipped"
+    echo "$out"
 }
 
 review_reply() {
@@ -830,6 +916,26 @@ review_reply() {
         echo "ERROR: Thread ID is required." >&2
         exit 1
     fi
+    # The ids printed beside comments (`id:inline-<n>`, `id:issue-<n>`) are for
+    # `edit`; a thread id is the value in parentheses in `ws review threads`.
+    # Handing the wrong kind to the provider used to fail as a bare "Failed to
+    # reply", which read like an outage.
+    if ! gp_review_thread_id_looks_valid "$thread_id"; then
+        echo "ERROR: '$thread_id' is not a thread id for this provider." >&2
+        echo "  Thread ids are printed in parentheses by: ws review $COMP threads $cr_num" >&2
+        echo "  The id:inline-<n> / id:issue-<n> values beside comments are for 'ws review $COMP edit'." >&2
+        exit 1
+    fi
+    # A thread id is global on GitHub, so a stale one from another PR would post
+    # the reply there — a merged, unrelated PR has received one this way. Fail
+    # closed when the provider can tell us the thread's PR and it is not this one.
+    local thread_pr=""
+    thread_pr=$(gp_review_thread_pr_number "$REPO_SLUG" "$cr_num" "$thread_id" 2>/dev/null) || thread_pr=""
+    if [[ -n "$thread_pr" && "$thread_pr" != "$cr_num" ]]; then
+        echo "ERROR: Thread $thread_id belongs to CR #$thread_pr, not CR #$cr_num. Nothing was posted." >&2
+        echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids." >&2
+        exit 1
+    fi
 
     local banner
     banner=$(ws_gdd_attribution_line "reply") || exit 1
@@ -838,6 +944,7 @@ review_reply() {
 
     gp_review_thread_reply "$REPO_SLUG" "$cr_num" "$thread_id" "$message" || {
         echo "ERROR: Failed to reply to thread $thread_id on CR #$cr_num." >&2
+        echo "  Thread ids come from: ws review $COMP threads $cr_num   (the value in parentheses)." >&2
         exit 1
     }
     echo "Replied to thread on CR #$cr_num ($REPO_SLUG)."
@@ -1069,6 +1176,8 @@ if [[ "${1:-}" == "threads" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
 elif [[ "${1:-}" == "notes" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
+elif [[ "${1:-}" == "checks" && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _PEEK_CR="$2"
 elif [[ "${1:-}" == "reply" && "${2:-}" =~ ^[0-9]+$ ]]; then
     _PEEK_CR="$2"
 elif [[ "${1:-}" == "comment" && "${2:-}" =~ ^[0-9]+$ ]]; then
@@ -1206,6 +1315,9 @@ elif [[ "${1:-}" == "threads" ]]; then
 elif [[ "${1:-}" == "notes" ]]; then
     shift
     review_notes "$@"
+elif [[ "${1:-}" == "checks" ]]; then
+    shift
+    review_checks "$@"
 elif [[ "${1:-}" == "reply" ]]; then
     shift
     review_reply "$@"

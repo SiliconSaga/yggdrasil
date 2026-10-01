@@ -80,6 +80,10 @@ case "$path" in
     */merge_requests/1/approvals)
         echo '{"approved_by":[]}'
         ;;
+    */merge_requests/1/pipelines)
+        # The header's checks summary asks; this MR has no pipeline.
+        echo '[]'
+        ;;
     */merge_requests/1/discussions)
         jq -cn \
             --arg b1 "$(printf 'literal\033\007\302\233 reviewer note')" \

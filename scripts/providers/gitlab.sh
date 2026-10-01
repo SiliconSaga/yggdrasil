@@ -373,25 +373,69 @@ gp_review_thread_resolve() {
         -f resolved=true >/dev/null 2>&1
 }
 
-# Resolve all unresolved threads. Prints progress.
-# Usage: gp_review_threads_resolve_all SLUG MR_NUM
-gp_review_threads_resolve_all() {
+# A GitLab discussion id is addressed through the MR it belongs to, so a
+# thread cannot be posted into the wrong MR by id alone; nothing to verify.
+# Usage: gp_review_thread_pr_number SLUG MR_NUM DISCUSSION_ID
+gp_review_thread_pr_number() {
+    printf ''
+}
+
+# Shape is checked by _gl_validate_discussion_id at the call sites.
+# Usage: gp_review_thread_id_looks_valid DISCUSSION_ID
+gp_review_thread_id_looks_valid() {
+    return 0
+}
+
+# CI state for the MR's latest pipeline, one line per job as
+# `state<TAB>name<TAB>url`, state normalised to pass | fail | pending | skipped.
+# No pipeline prints nothing.
+# Usage: gp_review_checks SLUG MR_NUM
+gp_review_checks() {
     local slug="$1" mr_num="$2"
+    local encoded; encoded=$(_gl_encode "$slug")
+    local pipeline_id
+    pipeline_id=$(glab api "projects/$encoded/merge_requests/$mr_num/pipelines" 2>/dev/null \
+        | jq -r '.[0].id // empty' 2>/dev/null) || return 1
+    [[ -n "$pipeline_id" ]] || return 0
+    glab api "projects/$encoded/pipelines/$pipeline_id/jobs?per_page=100" 2>/dev/null | jq -r '
+        .[]
+        | (if .status == "success" then "pass"
+           elif .status == "failed" or .status == "canceled" then "fail"
+           elif .status == "skipped" or .status == "manual" then "skipped"
+           else "pending" end) as $state
+        | [$state, .name, (.web_url // "")] | @tsv' 2>/dev/null
+}
+
+# Resolve all unresolved threads. Prints progress. SINCE_TS is accepted for
+# parity with GitHub and applied the same way: a discussion whose first note is
+# newer than it is left alone as feedback that arrived after the push.
+# Usage: gp_review_threads_resolve_all SLUG MR_NUM [SINCE_TS]
+gp_review_threads_resolve_all() {
+    local slug="$1" mr_num="$2" since_ts="${3:-}"
     local encoded; encoded=$(_gl_encode "$slug")
 
     local discussions
     discussions=$(glab api "projects/$encoded/merge_requests/$mr_num/discussions" 2>/dev/null) || return 1
 
-    local ids
-    ids=$(echo "$discussions" | jq -r '
+    local ids skipped=0
+    ids=$(echo "$discussions" | jq -r --arg since "$since_ts" '
         .[]
         | select(.notes[0].resolvable == true)
         | select(.notes[0].resolved == false)
+        | select($since == "" or ((.notes[0].created_at // "") <= $since))
         | .id
     ')
+    if [[ -n "$since_ts" ]]; then
+        skipped=$(echo "$discussions" | jq -r --arg since "$since_ts" '
+            [.[] | select(.notes[0].resolvable == true) | select(.notes[0].resolved == false)
+             | select((.notes[0].created_at // "") > $since)] | length')
+        if [[ "$skipped" -gt 0 ]]; then
+            echo "Left $skipped thread(s) opened after the last push ($since_ts) unresolved — review them first."
+        fi
+    fi
 
     if [[ -z "$ids" ]]; then
-        echo "No unresolved threads on MR #$mr_num ($slug)."
+        [[ "$skipped" -gt 0 ]] || echo "No unresolved threads on MR #$mr_num ($slug)."
         return 0
     fi
 

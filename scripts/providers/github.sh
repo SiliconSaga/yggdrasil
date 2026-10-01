@@ -334,6 +334,31 @@ gp_review_threads_list() {
     '
 }
 
+# CI state for the PR's head commit, one line per check as `state<TAB>name<TAB>url`
+# with state normalised to pass | fail | pending | skipped so the caller renders
+# both providers alike. Check runs (Actions, apps) and legacy commit statuses
+# (CodeRabbit and other status-API integrations) are both read; a PR with
+# neither prints nothing.
+# Usage: gp_review_checks SLUG PR_NUM
+gp_review_checks() {
+    local slug="$1" pr_num="$2" sha
+    sha=$(gh api "repos/$slug/pulls/$pr_num" --jq '.head.sha' 2>/dev/null) || return 1
+    [[ -n "$sha" && "$sha" != "null" ]] || return 1
+    gh api --paginate "repos/$slug/commits/$sha/check-runs?per_page=100" --jq '
+        .check_runs[]
+        | (if .status != "completed" then "pending"
+           elif .conclusion == "success" or .conclusion == "neutral" then "pass"
+           elif .conclusion == "skipped" then "skipped"
+           else "fail" end) as $state
+        | [$state, .name, (.html_url // "")] | @tsv' 2>/dev/null || true
+    gh api "repos/$slug/commits/$sha/status" --jq '
+        .statuses[]?
+        | (if .state == "success" then "pass"
+           elif .state == "pending" then "pending"
+           else "fail" end) as $state
+        | [$state, .context, (.target_url // "")] | @tsv' 2>/dev/null || true
+}
+
 # Print thread status counts.
 # Usage: gp_review_threads_status SLUG PR_NUM
 gp_review_threads_status() {
@@ -407,10 +432,35 @@ gp_review_thread_resolve() {
         }' -f id="$thread_id" >/dev/null 2>&1
 }
 
-# Resolve all unresolved threads. Prints progress.
-# Usage: gp_review_threads_resolve_all SLUG PR_NUM
+# Which pull request a review thread belongs to, by its node id. Empty when the
+# id is not a review thread (or cannot be read), so a caller can refuse to post
+# into a thread that is not on the CR it was told about.
+# Usage: gp_review_thread_pr_number SLUG PR_NUM THREAD_ID
+gp_review_thread_pr_number() {
+    local slug="$1" pr_num="$2" thread_id="$3"
+    gh api graphql -f query='
+        query($id: ID!) {
+          node(id: $id) {
+            ... on PullRequestReviewThread { pullRequest { number } }
+          }
+        }' -f id="$thread_id" --jq '.data.node.pullRequest.number // empty' 2>/dev/null
+}
+
+# Whether a thread id has the shape this provider issues. GitHub review-thread
+# node ids start with PRRT_; the `id:inline-<n>` printed beside a comment is a
+# REST comment id for `edit`, and handing it to a thread mutation fails with a
+# message that does not say so.
+# Usage: gp_review_thread_id_looks_valid THREAD_ID
+gp_review_thread_id_looks_valid() {
+    [[ "$1" == PRRT_* ]]
+}
+
+# Resolve all unresolved threads. Prints progress. With SINCE_TS, a thread
+# whose first comment is newer than that instant is left alone: a bot round
+# that landed after the push being cleaned up is new feedback, not stale.
+# Usage: gp_review_threads_resolve_all SLUG PR_NUM [SINCE_TS]
 gp_review_threads_resolve_all() {
-    local slug="$1" pr_num="$2"
+    local slug="$1" pr_num="$2" since_ts="${3:-}"
     local owner="${slug%%/*}" repo="${slug##*/}"
 
     local response
@@ -419,7 +469,7 @@ gp_review_threads_resolve_all() {
           repository(owner: $owner, name: $repo) {
             pullRequest(number: $pr) {
               reviewThreads(first: 100) {
-                nodes { id isResolved }
+                nodes { id isResolved comments(first: 1) { nodes { createdAt } } }
               }
             }
           }
@@ -431,11 +481,24 @@ gp_review_threads_resolve_all() {
         echo "WARNING: PR #$pr_num has $thread_count+ threads (max 100 per page). Resolution may be incomplete." >&2
     fi
 
-    local ids
-    ids=$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id')
+    local ids skipped=0
+    ids=$(echo "$response" | jq -r --arg since "$since_ts" '
+        .data.repository.pullRequest.reviewThreads.nodes[]
+        | select(.isResolved == false)
+        | select($since == "" or ((.comments.nodes[0].createdAt // "") <= $since))
+        | .id')
+    if [[ -n "$since_ts" ]]; then
+        skipped=$(echo "$response" | jq -r --arg since "$since_ts" '
+            [.data.repository.pullRequest.reviewThreads.nodes[]
+             | select(.isResolved == false)
+             | select((.comments.nodes[0].createdAt // "") > $since)] | length')
+        if [[ "$skipped" -gt 0 ]]; then
+            echo "Left $skipped thread(s) opened after the last push ($since_ts) unresolved — review them first."
+        fi
+    fi
 
     if [[ -z "$ids" ]]; then
-        echo "No unresolved threads on PR #$pr_num ($slug)."
+        [[ "$skipped" -gt 0 ]] || echo "No unresolved threads on PR #$pr_num ($slug)."
         return 0
     fi
 
