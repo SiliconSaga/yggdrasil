@@ -354,7 +354,9 @@ gp_review_checks() {
            elif .conclusion == "skipped" then "skipped"
            else "fail" end) as $state
         | [$state, .name, (.html_url // "")] | @tsv' 2>/dev/null || rc=1
-    gh api "repos/$slug/commits/$sha/status" --jq '
+    # Paginated too: the combined-status object pages its contexts at 30, and
+    # a failing one on page two must not read as green.
+    gh api --paginate "repos/$slug/commits/$sha/status?per_page=100" --jq '
         .statuses[]?
         | (if .state == "success" then "pass"
            elif .state == "pending" then "pending"

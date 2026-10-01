@@ -37,6 +37,13 @@ setup() {
     [ "$status" -eq 7 ]
 }
 
+@test "expiry reports 124 even when the command traps TERM and exits otherwise" {
+    # git-cr.sh and ws-test.sh install TERM traps; inferring expiry from a
+    # 143 exit would report their timeouts as ordinary failures.
+    run "$TIMEOUT_BIN" 1 bash -c 'trap "exit 7" TERM; sleep 10 & wait'
+    [ "$status" -eq 124 ]
+}
+
 @test "a command that finishes early returns at once, with no sleeper left behind" {
     # bats waits for every process holding its output descriptor, so a
     # watchdog sleep that outlived the command would stall `run` for the

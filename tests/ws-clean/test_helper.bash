@@ -10,18 +10,14 @@
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
 WS_BIN="$REPO_ROOT/scripts/ws"
 
-# Resolve `timeout` (Linux/Git Bash) or `gtimeout` (macOS Homebrew
-# coreutils). Called from setup() — NOT at source time — so a missing
-# binary skips the affected tests with a helpful message instead of
-# aborting the whole file's load (which buries the reason in a load error).
+# Resolve `timeout` (Linux/Git Bash), `gtimeout` (macOS Homebrew coreutils),
+# or the shared bash watchdog fallback — see tests/timeout_helper.bash. Kept
+# as a function called from setup() so the shape of this helper matches the
+# others; the fallback means a stock Mac runs these cases rather than
+# skipping them.
 detect_timeout_bin() {
-    if command -v timeout >/dev/null 2>&1; then
-        TIMEOUT_BIN="$(command -v timeout)"
-    elif command -v gtimeout >/dev/null 2>&1; then
-        TIMEOUT_BIN="$(command -v gtimeout)"
-    else
-        skip "neither 'timeout' nor 'gtimeout' found; install GNU coreutils (macOS: brew install coreutils) — see tests/README.md"
-    fi
+    # shellcheck source=../timeout_helper.bash
+    source "$REPO_ROOT/tests/timeout_helper.bash"
 }
 
 init_clean_workspace() {

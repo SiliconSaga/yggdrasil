@@ -44,11 +44,17 @@ exec 9<&-
 # holder has closed it, so a sleeper inheriting stdout would stall each
 # test for the whole budget even after the command returned. Its sleep is a
 # child it reaps on TERM, so cancelling the watchdog leaves nothing behind.
+# Expiry is recorded in a marker file rather than inferred from the child's
+# exit status: a command that traps TERM (git-cr.sh and ws-test.sh both do)
+# exits with whatever its handler chose, and that must still read as 124.
+fired="${TMPDIR:-/tmp}/ws-timeout-fired.$$"
+rm -f "$fired"
 (
     trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM
     sleep "$secs" &
     sleeper=$!
     wait "$sleeper"
+    : > "$fired"
     kill -- -"$pid" 2>/dev/null
     kill "$pid" 2>/dev/null
 ) >/dev/null 2>&1 3>&- &
@@ -57,7 +63,10 @@ rc=0
 wait "$pid" || rc=$?
 kill "$watchdog" 2>/dev/null
 wait "$watchdog" 2>/dev/null
-[[ "$rc" -eq 143 ]] && rc=124
+if [[ -e "$fired" ]]; then
+    rm -f "$fired"
+    rc=124
+fi
 exit "$rc"
 SH
         chmod +x "$TIMEOUT_BIN"
