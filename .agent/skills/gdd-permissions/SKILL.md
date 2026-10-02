@@ -117,6 +117,14 @@ When you modify `.claude/settings.json`'s `permissions.allow` (or
 The doc and the config are paired artifacts. Drift gives false
 confidence — humans and agents both trust the doc.
 
+## Two gates that look like one: the harness classifier
+
+In Claude Code's auto mode (and any harness with its own command classifier), a Bash call passes through **two independent gates**: the workspace's PreToolUse hook (this skill's subject — `hook-rules`, `settings.json`, `ws hook-bypass`) and the harness's own classifier, which knows nothing about any of them. Each is reasonable alone; neither has a model of the other. Three consequences worth knowing before they cost a session:
+
+- **A `ws hook-bypass` buys you the workspace hook only.** The marker satisfies this hook; the classifier can still deny the same command, with a message that never mentions the bypass. Measured on a `kubectl apply` of a cluster-scoped manifest and a restore script naming a live namespace, both with the bypass active. Anything the classifier reads as destructive or production-shaped still needs a human to run it (`! <cmd>` in the prompt).
+- **The classifier can answer an `ask` nobody meant it to.** This hook's ask tier assumes a person is on the other end; an auto-mode session can approve `ws push`, `ws cr`, even `ws realm use --trust` without a prompt reaching anyone. Treat the ask tier as advisory under auto mode, and keep outward-facing verbs behind an explicit instruction in the session rather than behind the prompt.
+- **Auto mode asks for shell shapes the hook denies** — `cat`, `grep`, `sed`, heredocs, pipes, `>` — which is why a day can log two dozen denials that are all reformulations. The workarounds that work are the dedicated file tools, `awk` for slicing, and `ws` native flags (`--output`, `--limit`) in place of pipes.
+
 ## Pointers
 
 - `fewer-permission-prompts` — Claude Code-native skill for the

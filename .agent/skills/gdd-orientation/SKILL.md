@@ -100,7 +100,7 @@ Run `ws hoard thalamus-path`. Single auto-approved command. Three cases:
 | Output | Treatment |
 |---|---|
 | Empty | No thalami hoard active. Use root `Thalamus.md` if present. |
-| Path printed, file exists | Primary thalamus. Also check root `Thalamus.md` — if present, treat as scratch (writes default to primary). |
+| Path printed, file exists | Primary thalamus. Also check root `Thalamus.md` — if present, treat as scratch (writes default to primary). If that scratch file has real sections in it (observations, arcs, preferences — not just the template), offer once to fold them into the hoard file and delete it: a root Thalamus that predates the hoard is usually a migration nobody got round to, and two files means the older one quietly stops being read. |
 | Path printed, file missing | First session on this machine. Offer to copy `templates/thalamus.md` into place before reading. |
 
 If no hoard AND no root `Thalamus.md`: offer to create one from `templates/thalamus.md`. Before writing, verify `.gitignore` covers `Thalamus.md`. If the user declines, proceed without — never block the session on a missing Thalamus.

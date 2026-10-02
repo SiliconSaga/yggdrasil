@@ -633,16 +633,31 @@ case "$runner" in
         fi
         ;;
     python)
+        # A project with a plain venv and no uv lockfile is not a uv project:
+        # `uv run` there would build a second environment or fail outright,
+        # while the pytest it already has sits in .venv/. Prefer uv whenever
+        # it owns the project (uv.lock), else a venv's own pytest, else uv.
+        py_runner=(uv run pytest)
+        if [[ ! -f uv.lock ]]; then
+            for venv_dir in .venv venv; do
+                for venv_pytest in "$venv_dir/bin/pytest" "$venv_dir/Scripts/pytest.exe" "$venv_dir/Scripts/pytest"; do
+                    if [[ -x "$venv_pytest" ]]; then
+                        py_runner=("$venv_pytest")
+                        break 2
+                    fi
+                done
+            done
+        fi
         if [[ ${#test_selectors[@]} -gt 0 ]] && all_selectors_resolve_to_paths "${test_selectors[@]}"; then
-            uv run pytest "${test_selectors[@]}" "${runner_args[@]}"
+            "${py_runner[@]}" "${test_selectors[@]}" "${runner_args[@]}"
         elif [[ ${#test_selectors[@]} -gt 1 ]]; then
             reject_multiple_keyword_selectors "pytest"
         elif [[ -n "$test_filter" ]]; then
-            uv run pytest -k "$test_filter" "${runner_args[@]}"
+            "${py_runner[@]}" -k "$test_filter" "${runner_args[@]}"
         elif [[ ${#runner_args[@]} -gt 0 ]]; then
-            uv run pytest "${runner_args[@]}"
+            "${py_runner[@]}" "${runner_args[@]}"
         else
-            uv run pytest
+            "${py_runner[@]}"
         fi
         ;;
     bats)

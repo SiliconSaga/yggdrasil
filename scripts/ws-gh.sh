@@ -14,19 +14,107 @@ set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
     cat <<'HELP'
-Usage: ws gh <gh args...>
+Usage: ws gh [<component>] <gh args...>
 
 Runs the GitHub CLI (gh) with the workspace .env token (GH_TOKEN or
 GITHUB_TOKEN) injected if set, otherwise gh's own already-valid stored login
 for the target host (GH_HOST, default github.com) — so agent/non-interactive
 sessions don't fall through to `gh auth login`. Pass any gh args through, e.g.:
   ws gh pr list --limit 5
-  ws gh pr checks 123
   ws gh api /repos/{owner}/{repo}/pulls
+
+With a component first, the component's repository becomes gh's default
+repository (GH_REPO), so the form matches every other verb and nobody has to
+know the slug — for pr/issue/run/release and friends, and for the
+{owner}/{repo} placeholders in `gh api` paths:
+  ws gh nordri pr list --limit 5
+  ws gh nordri run view 123 --log-failed
+  ws gh nordri api repos/{owner}/{repo}/actions/runs
+An explicit --repo/-R still wins. A component with both a fork remote and a
+source remote targets the source (defaults.upstreamRemote, or the one that is
+not identity.forkRemote).
+Still runs at the workspace ROOT: gh subcommands that rewrite the working
+tree they stand in (pr checkout, repo sync, repo clone) are refused either way.
 
 `ws gh --help` and `ws gh <cmd> --help` pass through to gh's own help.
 HELP
     exit 0
+fi
+
+# Component-first form: `ws gh <comp> <gh args…>`. The first word is a
+# workspace target when it resolves as one and is not a gh command group; the
+# slug is read from the component's remotes and passed as --repo. Every other
+# ws verb takes the component first, and `ws gh refrhus pr checks 3` failing
+# with "unknown command refrhus" was how the gap was found.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_WS_GH_COMP=""
+case "${1:-}" in
+    -*|pr|issue|repo|api|run|release|workflow|gist|auth|browse|codespace|label|project|search|secret|variable|cache|ruleset|org|ssh-key|gpg-key|config|extension|alias|status|completion|attestation|co|help) ;;
+    *)
+        # shellcheck source=ws-realm.sh
+        source "$SCRIPT_DIR/ws-realm.sh"
+        # Probed in a subshell first: resolution exits on an unknown name
+        # rather than returning, and an unknown first word here is simply a
+        # gh command group this list does not know, to be passed through.
+        if (ws_resolve_target "$1" >/dev/null 2>&1); then
+            ws_resolve_target "$1" >/dev/null 2>&1
+            _WS_GH_COMP="$1"
+            shift
+        fi
+        ;;
+esac
+if [[ -n "$_WS_GH_COMP" ]]; then
+    _ws_gh_has_repo=""
+    for _a in "$@"; do
+        case "$_a" in --repo|--repo=*|-R) _ws_gh_has_repo=1 ;; esac
+    done
+    if [[ -z "$_ws_gh_has_repo" ]]; then
+        # shellcheck source=git-provider.sh
+        source "$SCRIPT_DIR/git-provider.sh"
+        _ws_gh_eco="$(ws_resolve_ecosystem 2>/dev/null)" || _ws_gh_eco=""
+        _ws_gh_fork="$(yq -r '.identity.forkRemote // ""' "$_ws_gh_eco" 2>/dev/null)"; [[ "$_ws_gh_fork" != "null" ]] || _ws_gh_fork=""
+        _ws_gh_upstream="$(yq -r '.defaults.upstreamRemote // ""' "$_ws_gh_eco" 2>/dev/null)"; [[ "$_ws_gh_upstream" != "null" ]] || _ws_gh_upstream=""
+        _ws_gh_pick=""
+        _ws_gh_remotes=()
+        while IFS= read -r _r; do
+            [[ -n "$_r" ]] || continue
+            _url="$(git -C "$COMPONENT_DIR" remote get-url "$_r" 2>/dev/null)" || continue
+            _prov="$(gp_detect "$_url" "$_ws_gh_eco" 2>/dev/null)" || continue
+            [[ "$_prov" == "github" ]] || continue
+            _ws_gh_remotes+=("$_r")
+        done < <(git -C "$COMPONENT_DIR" remote 2>/dev/null)
+        if [[ ${#_ws_gh_remotes[@]} -eq 1 ]]; then
+            _ws_gh_pick="${_ws_gh_remotes[0]}"
+        elif [[ ${#_ws_gh_remotes[@]} -gt 1 ]]; then
+            for _r in "${_ws_gh_remotes[@]}"; do
+                [[ -n "$_ws_gh_upstream" && "$_r" == "$_ws_gh_upstream" ]] && { _ws_gh_pick="$_r"; break; }
+            done
+            if [[ -z "$_ws_gh_pick" ]]; then
+                _ws_gh_nonfork=()
+                for _r in "${_ws_gh_remotes[@]}"; do
+                    [[ -n "$_ws_gh_fork" && "$_r" == "$_ws_gh_fork" ]] || _ws_gh_nonfork+=("$_r")
+                done
+                [[ ${#_ws_gh_nonfork[@]} -eq 1 ]] && _ws_gh_pick="${_ws_gh_nonfork[0]}"
+            fi
+        fi
+        if [[ -z "$_ws_gh_pick" ]]; then
+            echo "ERROR: cannot pick a GitHub remote for '$_WS_GH_COMP' (found: ${_ws_gh_remotes[*]:-none})." >&2
+            echo "  Set defaults.upstreamRemote, or pass --repo <owner/name> explicitly." >&2
+            exit 1
+        fi
+        gp_load github 2>/dev/null || true
+        _ws_gh_slug="$(gp_extract_slug "$(git -C "$COMPONENT_DIR" remote get-url "$_ws_gh_pick")")"
+        if [[ -z "$_ws_gh_slug" || "$_ws_gh_slug" != */* ]]; then
+            echo "ERROR: could not read an owner/name slug from remote '$_ws_gh_pick' of '$_WS_GH_COMP'." >&2
+            exit 1
+        fi
+        # GH_REPO rather than an appended --repo: gh reads it for every command
+        # that otherwise operates on a local repository, and for the
+        # {owner}/{repo} placeholders in `gh api` paths, while `gh api`, `gh
+        # repo` and the auth/config groups do not accept --repo at all and
+        # would fail on the unknown flag.
+        export GH_REPO="$_ws_gh_slug"
+    fi
 fi
 
 # Help is informational and needs no auth — let `--help`/`-h` (at any position,

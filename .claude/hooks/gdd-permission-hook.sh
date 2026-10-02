@@ -323,10 +323,40 @@ mkdir -p "$(dirname "$audit_log")"
 # strings. In practice `read -r` already strips embedded newlines
 # from those sources, but the defense-in-depth costs nothing and
 # the comment now matches the actual call surface.
+#
+# Credentials are redacted before the line is written. A denied command is
+# logged verbatim, and a denied command is exactly where a pasted token
+# turns up — `gh auth login --with-token <<< ghp_…`, a curl with a bearer
+# header, a `TOKEN=… ws exec …` prefix. The log is long-lived and readable
+# by every later session, and a headless sandbox leaves it unwatched for
+# days; a secret that reached it stayed there. Provider token shapes, HTTP
+# auth headers and `name=value` pairs whose name says secret are replaced
+# with <redacted>; the command's shape, and the audit's value, survive.
+#
+# Portable sed -E only: no \b (not a POSIX ERE boundary; BSD sed on a stock
+# Mac reads it literally) and no I flag (GNU-only), so boundaries are spelled
+# as a captured non-word prefix and case variants are listed. A value is read
+# the way the shell would hand it over — a double-quoted span, a single-quoted
+# span, or an unquoted run where a backslash escapes the next character — so
+# `PASSWORD="two words"` and `--password 'p w'` are redacted whole rather
+# than at the first space or quote. curl's `-u user:pass` is covered too; the
+# cost is that any other command's `-u VALUE` loses its value in the log,
+# which is the right side to err on for a sink nobody is watching.
 audit_safe() {
     local s="$1"
     s="${s//$'\n'/\\n}"
     s="${s//$'\r'/\\r}"
+    # Double-quoted span honours backslash escapes, so "part\"rest" is one
+    # value; an option's value may follow `=` or any run of blanks/tabs.
+    local v='("([^"\\]|\\.)*"|'"'"'[^'"'"']*'"'"'|([^[:space:]"'"'"'\\]|\\.)+)'
+    local sep='(=|[[:space:]]+)'
+    s="$(printf '%s' "$s" | LC_ALL=C sed -E \
+        -e 's/(^|[^[:alnum:]_])(gh[pousr]_|github_pat_)[A-Za-z0-9_]{16,}/\1<redacted>/g' \
+        -e 's/(^|[^[:alnum:]_])gl(pat|ptt|rt|oas)-[A-Za-z0-9_-]{16,}/\1<redacted>/g' \
+        -e 's/(Authorization:[[:space:]]*(Basic|basic|Bearer|bearer|Token|token)[[:space:]]+)'"$v"'/\1<redacted>/g' \
+        -e 's/((^|[^[:alnum:]_])[A-Za-z_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|token|secret|password|passwd|api_key|apikey)[A-Za-z_]*=)'"$v"'/\1<redacted>/g' \
+        -e 's/(--(token|password|secret|api-key|with-token)'"$sep"')'"$v"'/\1<redacted>/g' \
+        -e 's/((^|[[:space:]])(-u|--user)'"$sep"')'"$v"'/\1<redacted>/g')"
     printf '%s' "$s"
 }
 

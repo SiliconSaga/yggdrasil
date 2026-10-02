@@ -33,6 +33,9 @@ Provider: at least one of gh (GitHub) or glab (GitLab).
 Recommended (optional): uv (for MCP servers and Python components),
 realpath (path canonicalization on macOS — usually present),
 shellcheck (optional shell linting for the ws CLI and tooling scripts).
+Cluster tooling (optional): docker, kubectl, helm — only Kubernetes and
+container components need them; reported so a fresh machine learns the
+gap here rather than from the first failed command.
 HELP
     exit 0
 fi
@@ -114,6 +117,15 @@ hint_for() {
         windows:realpath) echo "Comes with Git Bash; if missing, reinstall Git for Windows." ;;
         windows:shellcheck) echo "'winget install koalaman.shellcheck'. Fallback: 'choco install shellcheck' from elevated PowerShell." ;;
 
+        mac:docker)       echo "Docker Desktop, OrbStack or Rancher Desktop — any of them puts 'docker' on PATH." ;;
+        mac:kubectl)      echo "'brew install kubectl'; Docker Desktop and Rancher Desktop bundle one too." ;;
+        mac:helm)         echo "'brew install helm'." ;;
+        linux:docker)     echo "https://docs.docker.com/engine/install/ — the distro's 'docker.io' package is usually fine for a workstation." ;;
+        linux:kubectl)    echo "https://kubernetes.io/docs/tasks/tools/ — a single binary; 'sudo snap install kubectl --classic' on Ubuntu." ;;
+        linux:helm)       echo "https://helm.sh/docs/intro/install/ — the install script, or 'sudo snap install helm --classic'." ;;
+        windows:docker)   echo "Docker Desktop ('winget install Docker.DockerDesktop') or Rancher Desktop; 'ws docker' handles the MSYS path conversion." ;;
+        windows:kubectl)  echo "'winget install Kubernetes.kubectl'; Docker Desktop and Rancher Desktop bundle one too." ;;
+        windows:helm)     echo "'winget install Helm.Helm'." ;;
         wsl:*)            echo "Do not apt-install this into WSL. Install it on the Windows side and run ws from Git Bash — see the WSL note above." ;;
         *) echo "See https://github.com/mikefarah/yq, https://cli.github.com, etc., for install instructions on your platform." ;;
     esac
@@ -211,6 +223,15 @@ echo "Optional (only needed for specific component types):"
 check_tool uv         optional
 check_tool realpath   optional
 check_tool shellcheck optional
+
+# Named here because a fresh laptop found their absence one failed command
+# at a time: nothing in the workspace said what a Kubernetes component
+# expects until `ws k8s` or an adapter's build hit the missing binary.
+echo ""
+echo "Cluster tooling (only for Kubernetes and container components):"
+check_tool docker  optional
+check_tool kubectl optional
+check_tool helm    optional
 
 # scripts/ on PATH? The `ws <cmd>` shorthand and the Bash(ws …) permission
 # allowlist entries depend on it; without it everything must go through the

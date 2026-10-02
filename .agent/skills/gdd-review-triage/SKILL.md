@@ -47,6 +47,7 @@ Understanding each reviewer's quirks is essential for effective triage.
   reviewing — avoid this
 - Does NOT track resolved threads across re-reviews — re-files the same
   findings even after they've been addressed (see resolution table below)
+- Its review overview is cumulative: every run restates the whole findings table under "Open", "Resolved since last review", "Previously missed" (new findings in unchanged code) and a "New" marker for findings on the latest commit. "Open" means Copilot has not validated a fix, which includes fixes it failed to recognise — over five rounds on one PR, two findings fixed in round one stayed "Open" to the end, each round re-filed against code that no longer existed. So triage every "Open" item against the current code rather than trusting either the count or the label: a genuinely unaddressed one gets fixed, a stale one gets resolved after the re-review (see the resolution table below).
 
 ## Fetching Comments and Threads
 

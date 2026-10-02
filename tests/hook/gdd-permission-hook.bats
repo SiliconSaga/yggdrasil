@@ -2103,14 +2103,23 @@ JSON
     [[ "$output" != *"ws review"* ]]
 }
 
-@test "redirect: what ws review cannot do stays reachable" {
-    # Denying with no alternative is worse than the reflex it prevents. Checks,
-    # diffs and unrelated API endpoints have no ws review equivalent today, so
-    # they must not be caught by the review redirects.
+@test "redirect: what ws review cannot do stays reachable, and checks now has a home" {
+    # Denying with no alternative is worse than the reflex it prevents. Diffs
+    # and unrelated API endpoints have no ws review equivalent, so they must
+    # not be caught by the review redirects. Checks did not either, until
+    # `ws review checks` — so that spelling redirects to it now.
     seed_real_project_config
 
     run_hook 'ws gh pr checks 3'
-    [[ "$output" != *"ws review"* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
+    run_hook 'gh pr checks 3 --repo o/r'
+    [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
+    # The component-first spelling is a different string to a glob and
+    # canonicalisation keeps the component word, so it needs its own row.
+    run_hook 'ws gh app pr checks 3'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
     run_hook 'ws gh pr diff 3'
     [[ "$output" != *"ws review"* ]]
     run_hook 'ws gh api repos/SiliconSaga/ken-site/actions/runs'
@@ -3146,6 +3155,57 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"Use ws commit"* ]]
     [[ "$output" != *"list both paths"* ]]
+}
+
+@test "redirect: git -C <dir> mv reaches the git-mv redirect like a bare git mv" {
+    # A global option before the verb is the escape the canonicaliser exists
+    # to close; recorded on a Thalamus as unverified, so pinned here.
+    seed_real_project_config
+    run_hook 'git -C hoards/thalami-x mv old.md new.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws hook-bypass git-mv"* ]]
+}
+
+@test "audit log: credentials in a denied command are redacted" {
+    # The audit log is the one place a pasted secret outlives the session,
+    # and a denied command is exactly where one turns up. The shape of the
+    # command must survive; the values must not.
+    seed_real_project_config
+    run_hook 'gh auth login --with-token ghp_abcdefghijklmnopqrstuvwxyz0123456789 && git push'
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    run_hook 'curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.secret.sig" https://api.example/x | jq .'
+    run_hook 'GITLAB_TOKEN=glpat-AbCdEfGhIjKlMnOpQrSt ws exec app ./deploy.sh && echo done'
+    # Quoted and escaped values, which a whitespace-bounded match would cut
+    # at the first space or quote and leave half the secret in the log.
+    run_hook 'DB_PASSWORD="private value here" ws exec app ./migrate.sh | tee out'
+    run_hook "deploy --password 'p w d' --target prod; echo ok"
+    run_hook 'API_KEY=two\ words\ long ws exec app ./call.sh > out'
+    # An escaped quote inside a double-quoted value, a tab or a run of spaces
+    # between an option and its value, and curl's short-form credentials.
+    run_hook 'DB_PASSWORD="part\"hidden remainder" ws exec app ./m.sh | cat'
+    run_hook $'deploy --password\tTabbedSecret --target prod; echo ok'
+    run_hook 'deploy --token   SpacedSecret --target prod; echo ok'
+    run_hook 'curl -u alice:CurlSecret https://api.example/x | jq .'
+    run_hook 'curl --user=bob:CurlSecret2 https://api.example/x | jq .'
+    log="$HOME/.claude/hook-audit.log"
+    [ -f "$log" ]
+    ! grep -q 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' "$log"
+    ! grep -q 'eyJhbGciOiJIUzI1NiJ9' "$log"
+    ! grep -q 'glpat-AbCdEfGhIjKlMnOpQrSt' "$log"
+    ! grep -q 'private value' "$log"
+    ! grep -q 'p w d' "$log"
+    ! grep -q 'words' "$log"
+    ! grep -q 'hidden remainder' "$log"
+    ! grep -q 'TabbedSecret' "$log"
+    ! grep -q 'SpacedSecret' "$log"
+    ! grep -q 'CurlSecret' "$log"
+    grep -q -- '--with-token <redacted> && git push' "$log"
+    grep -q 'Authorization: Bearer <redacted>' "$log"
+    grep -q 'GITLAB_TOKEN=<redacted> ws exec app' "$log"
+    grep -q 'DB_PASSWORD=<redacted> ws exec app' "$log"
+    grep -q -- "--password <redacted> --target prod" "$log"
+    grep -q 'API_KEY=<redacted> ws exec app' "$log"
 }
 
 # ─── Tier 3 — adapter-aware test/lint redirects ─────────────────────

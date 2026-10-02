@@ -62,8 +62,9 @@
 # Auth commands (run these before ws cr / raw provider debugging):
 #   gitlab-auth [--status]  Configure glab + optional git credentials from .env tokens.
 #                           --status: show which token env vars are set/unset (no changes made).
-#   gh <args...>            Run the GitHub CLI (gh) with the .env token injected
+#   gh [<comp>] <args...>   Run the GitHub CLI (gh) with the .env token injected
 #                           (no interactive gh auth login; one auditable entry point).
+#                           With a component first, --repo is filled in from its remote.
 #   glab <args...>          Run the GitLab CLI (glab) with the .env token injected.
 #   diagnose <comp>         Show ecosystem entry, clone status, remotes, provider detection,
 #                           and which gitToken env var covers each remote (set or missing).
