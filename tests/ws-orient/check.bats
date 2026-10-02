@@ -95,7 +95,7 @@ YAML
     run_orient --check
     [ "$status" -eq 0 ]
     [[ "$output" == *"docs/design.md — A design doc promised, not yet written (MISSING, optional)"* ]]
-    [[ "$output" == *"every ai_context pointer resolves"* ]]
+    [[ "$output" == *"every required ai_context pointer resolves"* ]]
 }
 
 @test "ws orient --check: fails when an ai_context pointer no longer resolves" {

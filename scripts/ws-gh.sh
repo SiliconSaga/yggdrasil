@@ -23,12 +23,16 @@ sessions don't fall through to `gh auth login`. Pass any gh args through, e.g.:
   ws gh pr list --limit 5
   ws gh api /repos/{owner}/{repo}/pulls
 
-With a component first, --repo is filled in from that component's remote,
-so the form matches every other verb and nobody has to know the slug:
+With a component first, the component's repository becomes gh's default
+repository (GH_REPO), so the form matches every other verb and nobody has to
+know the slug — for pr/issue/run/release and friends, and for the
+{owner}/{repo} placeholders in `gh api` paths:
   ws gh nordri pr list --limit 5
   ws gh nordri run view 123 --log-failed
-A component with both a fork remote and a source remote targets the source
-(defaults.upstreamRemote, or the one that is not identity.forkRemote).
+  ws gh nordri api repos/{owner}/{repo}/actions/runs
+An explicit --repo/-R still wins. A component with both a fork remote and a
+source remote targets the source (defaults.upstreamRemote, or the one that is
+not identity.forkRemote).
 Still runs at the workspace ROOT: gh subcommands that rewrite the working
 tree they stand in (pr checkout, repo sync, repo clone) are refused either way.
 
@@ -104,7 +108,12 @@ if [[ -n "$_WS_GH_COMP" ]]; then
             echo "ERROR: could not read an owner/name slug from remote '$_ws_gh_pick' of '$_WS_GH_COMP'." >&2
             exit 1
         fi
-        set -- "$@" --repo "$_ws_gh_slug"
+        # GH_REPO rather than an appended --repo: gh reads it for every command
+        # that otherwise operates on a local repository, and for the
+        # {owner}/{repo} placeholders in `gh api` paths, while `gh api`, `gh
+        # repo` and the auth/config groups do not accept --repo at all and
+        # would fail on the unknown flag.
+        export GH_REPO="$_ws_gh_slug"
     fi
 fi
 

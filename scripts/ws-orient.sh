@@ -765,5 +765,5 @@ if [[ "$ORIENT_CHECK" -eq 1 ]]; then
         echo "  Repoint or drop the rotted rows in the realm adapter, and fix any unparseable adapter file."
         exit 1
     fi
-    printf '\nws orient --check: every adapter parses and every ai_context pointer resolves.\n'
+    printf '\nws orient --check: every adapter parses and every required ai_context pointer resolves.\n'
 fi

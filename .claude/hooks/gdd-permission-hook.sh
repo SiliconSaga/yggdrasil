@@ -332,17 +332,25 @@ mkdir -p "$(dirname "$audit_log")"
 # days; a secret that reached it stayed there. Provider token shapes, HTTP
 # auth headers and `name=value` pairs whose name says secret are replaced
 # with <redacted>; the command's shape, and the audit's value, survive.
+#
+# Portable sed -E only: no \b (not a POSIX ERE boundary; BSD sed on a stock
+# Mac reads it literally) and no I flag (GNU-only), so boundaries are spelled
+# as a captured non-word prefix and case variants are listed. A value is read
+# the way the shell would hand it over — a double-quoted span, a single-quoted
+# span, or an unquoted run where a backslash escapes the next character — so
+# `PASSWORD="two words"` and `--password 'p w'` are redacted whole rather
+# than at the first space or quote.
 audit_safe() {
     local s="$1"
     s="${s//$'\n'/\\n}"
     s="${s//$'\r'/\\r}"
+    local v='("[^"]*"|'"'"'[^'"'"']*'"'"'|([^[:space:]"'"'"'\\]|\\.)+)'
     s="$(printf '%s' "$s" | LC_ALL=C sed -E \
-        -e 's/\b(gh[pousr]_|github_pat_)[A-Za-z0-9_]{16,}/<redacted>/g' \
-        -e 's/\bglpat-[A-Za-z0-9_-]{16,}/<redacted>/g' \
-        -e 's/\b(gl(ptt|rt|oas)-)[A-Za-z0-9_-]{16,}/<redacted>/g' \
-        -e 's/(Authorization:[[:space:]]*(Basic|Bearer|token)[[:space:]]+)[^[:space:]"'"'"']+/\1<redacted>/gI' \
-        -e 's/\b([A-Za-z_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY)[A-Za-z_]*=)[^[:space:]"'"'"']+/\1<redacted>/gI' \
-        -e 's/(--(token|password|secret|api-key)[= ])[^[:space:]"'"'"']+/\1<redacted>/gI')"
+        -e 's/(^|[^[:alnum:]_])(gh[pousr]_|github_pat_)[A-Za-z0-9_]{16,}/\1<redacted>/g' \
+        -e 's/(^|[^[:alnum:]_])gl(pat|ptt|rt|oas)-[A-Za-z0-9_-]{16,}/\1<redacted>/g' \
+        -e 's/(Authorization:[[:space:]]*(Basic|basic|Bearer|bearer|Token|token)[[:space:]]+)'"$v"'/\1<redacted>/g' \
+        -e 's/((^|[^[:alnum:]_])[A-Za-z_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|token|secret|password|passwd|api_key|apikey)[A-Za-z_]*=)'"$v"'/\1<redacted>/g' \
+        -e 's/(--(token|password|secret|api-key|with-token)[= ])'"$v"'/\1<redacted>/g')"
     printf '%s' "$s"
 }
 

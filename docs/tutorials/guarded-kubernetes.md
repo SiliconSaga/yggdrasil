@@ -269,7 +269,7 @@ Ended-session files can continue contributing to this ambient aggregation becaus
 
 A dormant workload and a spent one look identical at runtime and mean opposite things: `replicas: 0` is how someone parks a server on purpose. One was deleted as "spent" with its three volumes and restored from Velero the same day — the only reason this is a checklist and not a loss.
 
-1. **Compare declared intent to live state.** `kubectl.kubernetes.io/last-applied-configuration` saying `replicas: 1` while live is `0` means a manual scale-down: parked, not abandoned. One command to check.
+1. **Compare declared intent to live state.** `kubectl.kubernetes.io/last-applied-configuration` saying `replicas: 1` while live is `0` is drift, and drift is a question, not an answer: someone scaled it by hand, or an operator or GitOps controller did, or the annotation is stale. Find the current source of truth (the Argo Application, the Helm release, the person) before reading it as parked or as abandoned. One command to surface the question.
 2. **Inspect the data, not just the workload.** A quiet volume needs the look *more*, not less — nothing pushes back when you delete something nobody is using today.
 3. **Distrust inherited names.** "The two legacy servers" was true when said and stale when acted on; one had been refreshed into a live instance under its old namespace and labels. Re-verify against the cluster, not against an earlier sentence in the conversation.
 4. **Name the backup first.** Confirm a completed backup actually contains the volume, before deleting rather than after; a snapshot that outlives the disk is what makes the delete reversible for its TTL.

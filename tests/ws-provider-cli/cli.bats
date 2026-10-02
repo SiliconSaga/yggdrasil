@@ -18,6 +18,7 @@ setup() {
 #!/usr/bin/env bash
 [[ "$1" == "auth" && "$2" == "status" ]] && exit 1
 echo "GH_ARGS: $*"
+echo "GH_REPO: ${GH_REPO:-}"
 # Mirror the wrapper contract: GH_TOKEN or GITHUB_TOKEN counts as authenticated.
 [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]] && echo "GH_TOKEN_PRESENT" || echo "GH_TOKEN_ABSENT"
 EOF
@@ -46,7 +47,7 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [[ "$output" == *"GH_TOKEN_PRESENT"* ]]
     [[ "$output" != *"secret-gh-tok"* ]]
 }
-@test "ws gh <comp> fills in --repo from the component's GitHub remote" {
+@test "ws gh <comp> makes the component's repository gh's default repository" {
     printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
     printf 'components:\n  app:\n    repo: https://github.com/owner/repo.git\n' > "$WORK/ecosystem.yaml"
     mkdir -p "$WORK/components/app"
@@ -54,7 +55,24 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     git -C "$WORK/components/app" remote add origin https://github.com/owner/repo.git
     run_ws gh app pr list --limit 1
     [ "$status" -eq 0 ]
-    [[ "$output" == *"GH_ARGS: pr list --limit 1 --repo owner/repo"* ]]
+    # The arguments are untouched; the repository travels as GH_REPO, which
+    # `gh api` placeholders and `gh repo` honour where an appended --repo
+    # would be an unknown flag.
+    [[ "$output" == *"GH_ARGS: pr list --limit 1"* ]]
+    [[ "$output" == *"GH_REPO: owner/repo"* ]]
+}
+
+@test "ws gh <comp> api keeps its path and gains the repository through GH_REPO" {
+    printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
+    printf 'components:\n  app:\n    repo: https://github.com/owner/repo.git\n' > "$WORK/ecosystem.yaml"
+    mkdir -p "$WORK/components/app"
+    git -C "$WORK/components/app" init -q
+    git -C "$WORK/components/app" remote add origin https://github.com/owner/repo.git
+    run_ws gh app api 'repos/{owner}/{repo}/actions/runs'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: api repos/{owner}/{repo}/actions/runs"* ]]
+    [[ "$output" != *"--repo"* ]]
+    [[ "$output" == *"GH_REPO: owner/repo"* ]]
 }
 
 @test "ws gh <comp> targets the source remote, not the fork, when both exist" {
@@ -66,7 +84,7 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     git -C "$WORK/components/app" remote add myfork https://github.com/me/repo.git
     run_ws gh app run list
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--repo owner/repo"* ]]
+    [[ "$output" == *"GH_REPO: owner/repo"* ]]
     [[ "$output" != *"me/repo"* ]]
 }
 
@@ -79,6 +97,7 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     run_ws gh app pr list --repo other/place
     [ "$status" -eq 0 ]
     [[ "$output" == *"GH_ARGS: pr list --repo other/place"* ]]
+    [[ "$output" == *"GH_REPO: "$'\n'* ]]
 }
 
 @test "ws gh with a gh command group first still passes straight through" {

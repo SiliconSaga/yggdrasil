@@ -2115,6 +2115,11 @@ JSON
     [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
     run_hook 'gh pr checks 3 --repo o/r'
     [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
+    # The component-first spelling is a different string to a glob and
+    # canonicalisation keeps the component word, so it needs its own row.
+    run_hook 'ws gh app pr checks 3'
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
     run_hook 'ws gh pr diff 3'
     [[ "$output" != *"ws review"* ]]
     run_hook 'ws gh api repos/SiliconSaga/ken-site/actions/runs'
@@ -3171,14 +3176,25 @@ EOF
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     run_hook 'curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.secret.sig" https://api.example/x | jq .'
     run_hook 'GITLAB_TOKEN=glpat-AbCdEfGhIjKlMnOpQrSt ws exec app ./deploy.sh && echo done'
+    # Quoted and escaped values, which a whitespace-bounded match would cut
+    # at the first space or quote and leave half the secret in the log.
+    run_hook 'DB_PASSWORD="private value here" ws exec app ./migrate.sh | tee out'
+    run_hook "deploy --password 'p w d' --target prod; echo ok"
+    run_hook 'API_KEY=two\ words\ long ws exec app ./call.sh > out'
     log="$HOME/.claude/hook-audit.log"
     [ -f "$log" ]
     ! grep -q 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' "$log"
     ! grep -q 'eyJhbGciOiJIUzI1NiJ9' "$log"
     ! grep -q 'glpat-AbCdEfGhIjKlMnOpQrSt' "$log"
+    ! grep -q 'private value' "$log"
+    ! grep -q 'p w d' "$log"
+    ! grep -q 'words' "$log"
     grep -q -- '--with-token <redacted> && git push' "$log"
     grep -q 'Authorization: Bearer <redacted>' "$log"
     grep -q 'GITLAB_TOKEN=<redacted> ws exec app' "$log"
+    grep -q 'DB_PASSWORD=<redacted> ws exec app' "$log"
+    grep -q -- "--password <redacted> --target prod" "$log"
+    grep -q 'API_KEY=<redacted> ws exec app' "$log"
 }
 
 # ─── Tier 3 — adapter-aware test/lint redirects ─────────────────────
