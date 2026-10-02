@@ -716,15 +716,15 @@ ws_clean_target() {
     shift
     ws_resolve_target "$comp"
     cd "$COMPONENT_DIR"
-    local active_realm adapter_file clean_cmd=""
+    local active_realm adapter_file adapter_content clean_cmd=""
     active_realm="$(ws_detect_realm)" || true
     if [[ -n "$active_realm" ]]; then
         adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
         if [[ -f "$adapter_file" ]]; then
-            ws_require_active_realm_trust "$active_realm" || exit 1
+            adapter_content="$(ws_read_trusted_adapter "$active_realm" "$adapter_file")" || exit 1
             # Guard the substitution: a non-zero yq exit (malformed adapter
             # YAML) must not abort before the guidance below runs.
-            clean_cmd=$(yq -r '.commands.clean // ""' "$adapter_file" 2>/dev/null) || clean_cmd=""
+            clean_cmd=$(yq -r '.commands.clean // ""' <<< "$adapter_content" 2>/dev/null) || clean_cmd=""
         fi
     fi
     if [[ -z "$clean_cmd" ]]; then

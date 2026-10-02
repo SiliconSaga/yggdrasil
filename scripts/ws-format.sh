@@ -76,12 +76,12 @@ active_realm="$(ws_detect_realm)" || true
 if [[ -n "$active_realm" ]]; then
     adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     if [[ -f "$adapter_file" ]]; then
-        ws_require_active_realm_trust "$active_realm" || exit 1
+        adapter_content="$(ws_read_trusted_adapter "$active_realm" "$adapter_file")" || exit 1
         # Guard the substitution: under `set -euo pipefail` a non-zero yq
         # exit (malformed adapter YAML) would abort the script before the
         # "No format command configured" guidance runs. `// ""` already maps
         # a missing key to empty, so no separate "null" check is needed.
-        format_cmd=$(yq -r '.commands.format // ""' "$adapter_file" 2>/dev/null) || format_cmd=""
+        format_cmd=$(yq -r '.commands.format // ""' <<< "$adapter_content" 2>/dev/null) || format_cmd=""
         if [[ -n "$format_cmd" ]]; then
             runner="adapter"
         fi
