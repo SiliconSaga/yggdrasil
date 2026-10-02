@@ -3181,6 +3181,13 @@ EOF
     run_hook 'DB_PASSWORD="private value here" ws exec app ./migrate.sh | tee out'
     run_hook "deploy --password 'p w d' --target prod; echo ok"
     run_hook 'API_KEY=two\ words\ long ws exec app ./call.sh > out'
+    # An escaped quote inside a double-quoted value, a tab or a run of spaces
+    # between an option and its value, and curl's short-form credentials.
+    run_hook 'DB_PASSWORD="part\"hidden remainder" ws exec app ./m.sh | cat'
+    run_hook $'deploy --password\tTabbedSecret --target prod; echo ok'
+    run_hook 'deploy --token   SpacedSecret --target prod; echo ok'
+    run_hook 'curl -u alice:CurlSecret https://api.example/x | jq .'
+    run_hook 'curl --user=bob:CurlSecret2 https://api.example/x | jq .'
     log="$HOME/.claude/hook-audit.log"
     [ -f "$log" ]
     ! grep -q 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' "$log"
@@ -3189,6 +3196,10 @@ EOF
     ! grep -q 'private value' "$log"
     ! grep -q 'p w d' "$log"
     ! grep -q 'words' "$log"
+    ! grep -q 'hidden remainder' "$log"
+    ! grep -q 'TabbedSecret' "$log"
+    ! grep -q 'SpacedSecret' "$log"
+    ! grep -q 'CurlSecret' "$log"
     grep -q -- '--with-token <redacted> && git push' "$log"
     grep -q 'Authorization: Bearer <redacted>' "$log"
     grep -q 'GITLAB_TOKEN=<redacted> ws exec app' "$log"

@@ -37,7 +37,7 @@ EOF
 # real workspace's local config, whose identity.forkRemote would otherwise
 # merge over the fixture's and decide which remote the component-first form
 # picks.
-run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
+run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST -u GH_REPO WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
 
 @test "ws gh execs gh with args and the .env token present, without leaking it" {
     printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
