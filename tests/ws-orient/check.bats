@@ -68,6 +68,36 @@ YAML
     [ "$status" -eq 0 ] || return 1
 }
 
+fixture_optional_missing() {
+    mkdir -p "$WORK/components/demo/.git" "$WORK/components/demo/docs"
+    printf '# real\n' > "$WORK/components/demo/docs/real.md"
+    mkdir -p "$WORK/realms/realm-fixture/adapters"
+    printf 'components: {}\n' > "$WORK/realms/realm-fixture/ecosystem.yaml"
+    cat > "$WORK/realms/realm-fixture/adapters/demo.yaml" <<'YAML'
+commands:
+  test: "echo test"
+ai_context:
+  - path: "docs/real.md"
+    description: "A doc that exists"
+  - path: "docs/design.md"
+    description: "A design doc promised, not yet written"
+    optional: true
+YAML
+    run_ws realm use --trust realm-fixture
+    [ "$status" -eq 0 ] || return 1
+}
+
+@test "ws orient --check: a pointer declared optional may be missing without counting as rot" {
+    # A realm can promise a doc ahead of writing it; until now that promise
+    # made --check useless as a gate for every other pointer in the realm.
+    fixture_optional_missing
+
+    run_orient --check
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"docs/design.md — A design doc promised, not yet written (MISSING, optional)"* ]]
+    [[ "$output" == *"every ai_context pointer resolves"* ]]
+}
+
 @test "ws orient --check: fails when an ai_context pointer no longer resolves" {
     fixture_mixed
 

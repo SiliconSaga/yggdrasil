@@ -50,6 +50,32 @@ setup() {
     [[ "$output" == *"ARGS:-k some_keyword"* ]]
 }
 
+@test "detected python runner: a project venv's own pytest is used when uv does not own the project" {
+    # No adapter, a pyproject.toml, no uv.lock, and a .venv with pytest in it:
+    # `uv run` there is the wrong tool, and the one on disk is right.
+    printf '[project]\nname = "demo"\n' > "$ROOT_DIR/pyproject.toml"
+    mkdir -p "$ROOT_DIR/.venv/bin"
+    printf '#!/usr/bin/env bash\necho "VENV_PYTEST:$*"\n' > "$ROOT_DIR/.venv/bin/pytest"
+    chmod +x "$ROOT_DIR/.venv/bin/pytest"
+    run_ws_test yggdrasil some_keyword
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"VENV_PYTEST:-k some_keyword"* ]]
+}
+
+@test "detected python runner: uv.lock means uv owns the project, venv or not" {
+    printf '[project]\nname = "demo"\n' > "$ROOT_DIR/pyproject.toml"
+    : > "$ROOT_DIR/uv.lock"
+    mkdir -p "$ROOT_DIR/.venv/bin" "$ROOT_DIR/bin"
+    printf '#!/usr/bin/env bash\necho "VENV_PYTEST:$*"\n' > "$ROOT_DIR/.venv/bin/pytest"
+    chmod +x "$ROOT_DIR/.venv/bin/pytest"
+    printf '#!/usr/bin/env bash\necho "UV:$*"\n' > "$ROOT_DIR/bin/uv"
+    chmod +x "$ROOT_DIR/bin/uv"
+    run env "PATH=$ROOT_DIR/bin:$PATH" bash "$WS_TEST_BIN" yggdrasil
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"UV:run pytest"* ]]
+    [[ "$output" != *"VENV_PYTEST"* ]]
+}
+
 @test "pytest adapter: no filter runs the base command" {
     write_adapter_test "./pytest"
     run_ws_test yggdrasil

@@ -204,6 +204,26 @@ else
     trailer="Co-Authored-By: $co_authored_by"
 fi
 
+# Which machine did the work is easy to lose across a fleet of workspaces.
+# Opt-in only, by a config entry the operator writes, because a host name is
+# the kind of thing that leaks: `identity.commitHost: true` stamps the
+# machine's hostname; a string instead of `true` stamps that label.
+# Separate trailer, never spliced into Co-Authored-By, which providers parse.
+_commit_host="$(yq -r '.identity.commitHost // ""' "$(ws_resolve_ecosystem)" 2>/dev/null)" || _commit_host=""
+case "$_commit_host" in
+    ""|null|false) ;;
+    true)
+        _host_label="$(hostname 2>/dev/null || echo "")"
+        [[ -n "$_host_label" ]] && trailer="${trailer:+$trailer
+}GDD-Host: $_host_label"
+        ;;
+    *)
+        _host_label="${_commit_host%%$'\n'*}"
+        trailer="${trailer:+$trailer
+}GDD-Host: $_host_label"
+        ;;
+esac
+
 # Ensure .commits/ exists for the normal-commit path (first use on a
 # fresh clone may not have it yet). Skip in dry-run mode — dry-run
 # promises not to touch the working tree, and creating an untracked
@@ -215,6 +235,23 @@ fi
 
 ws_resolve_target "$comp"
 cd "$COMPONENT_DIR"
+
+# A nested repo (Terasology's modules/) has its own upstream and its own
+# review norms, and nothing else in the flow creates a branch there — so a
+# commit on its default branch is usually a commit that meant to be on a
+# topic branch. Advisory: the component's own tooling may want main.
+if [[ "$comp" == */* ]]; then
+    _nested_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    _nested_default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    _nested_default="${_nested_default#origin/}"
+    if [[ -z "$_nested_default" ]]; then
+        case "$_nested_branch" in main|master|develop) _nested_default="$_nested_branch" ;; esac
+    fi
+    if [[ -n "$_nested_branch" && "$_nested_branch" == "$_nested_default" ]]; then
+        echo "NOTE: '$comp' is on its default branch '$_nested_branch'. A nested repo pushes to its own upstream;"
+        echo "      if this is meant for review there, branch first: ws checkout $comp <type>/<name> -b"
+    fi
+fi
 
 # --- Parse bodyfile frontmatter for files to stage ---
 

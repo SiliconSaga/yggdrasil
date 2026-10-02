@@ -32,7 +32,11 @@ EOF
 # Clear any provider tokens inherited from the runner's environment (the full
 # `ws test` run sources the real workspace .env, which exports GH_TOKEN) so each
 # test controls the token state entirely via the $WORK/.env it writes.
-run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
+# ECOSYSTEM_LOCAL is pinned into $WORK too: the outer `ws test` exports the
+# real workspace's local config, whose identity.forkRemote would otherwise
+# merge over the fixture's and decide which remote the component-first form
+# picks.
+run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
 
 @test "ws gh execs gh with args and the .env token present, without leaking it" {
     printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
@@ -42,6 +46,48 @@ run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST WS
     [[ "$output" == *"GH_TOKEN_PRESENT"* ]]
     [[ "$output" != *"secret-gh-tok"* ]]
 }
+@test "ws gh <comp> fills in --repo from the component's GitHub remote" {
+    printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
+    printf 'components:\n  app:\n    repo: https://github.com/owner/repo.git\n' > "$WORK/ecosystem.yaml"
+    mkdir -p "$WORK/components/app"
+    git -C "$WORK/components/app" init -q
+    git -C "$WORK/components/app" remote add origin https://github.com/owner/repo.git
+    run_ws gh app pr list --limit 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: pr list --limit 1 --repo owner/repo"* ]]
+}
+
+@test "ws gh <comp> targets the source remote, not the fork, when both exist" {
+    printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
+    printf 'identity:\n  forkRemote: myfork\ncomponents:\n  app:\n    repo: https://github.com/owner/repo.git\n' > "$WORK/ecosystem.yaml"
+    mkdir -p "$WORK/components/app"
+    git -C "$WORK/components/app" init -q
+    git -C "$WORK/components/app" remote add owner https://github.com/owner/repo.git
+    git -C "$WORK/components/app" remote add myfork https://github.com/me/repo.git
+    run_ws gh app run list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--repo owner/repo"* ]]
+    [[ "$output" != *"me/repo"* ]]
+}
+
+@test "ws gh <comp> leaves an explicit --repo alone" {
+    printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
+    printf 'components:\n  app:\n    repo: https://github.com/owner/repo.git\n' > "$WORK/ecosystem.yaml"
+    mkdir -p "$WORK/components/app"
+    git -C "$WORK/components/app" init -q
+    git -C "$WORK/components/app" remote add origin https://github.com/owner/repo.git
+    run_ws gh app pr list --repo other/place
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: pr list --repo other/place"* ]]
+}
+
+@test "ws gh with a gh command group first still passes straight through" {
+    printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"
+    run_ws gh api /user
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: api /user"* ]]
+}
+
 @test "ws gh without a token or a stored login errors and does NOT exec gh" {
     printf '\n' > "$WORK/.env"
     run_ws gh pr list

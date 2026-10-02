@@ -433,10 +433,15 @@ _emit_one_adapter() {
     #
     # Compact JSON keeps embedded tabs/newlines inside one record so they can
     # be neutralized before rendering instead of forging peer rows.
-    local ctx_record ctx_path_raw ctx_desc_raw ctx_path ctx_desc ctx_status
+    local ctx_record ctx_path_raw ctx_desc_raw ctx_path ctx_desc ctx_status ctx_optional
     while IFS= read -r ctx_record; do
         ctx_path_raw="$(jq -r '(.path // "" | tostring) + "\u001f"' <<< "$ctx_record" 2>/dev/null)" || continue
         ctx_desc_raw="$(jq -r '(.description // "" | tostring) + "\u001f"' <<< "$ctx_record" 2>/dev/null)" || continue
+        # `optional: true` is the realm saying "this doc may not exist yet"
+        # — a design doc promised but unwritten. Rendered as missing so a
+        # reader knows, but not counted as rot, so a pointer declared ahead
+        # of its file does not stop --check from working as a gate.
+        ctx_optional="$(jq -r 'if .optional == true then "1" else "" end' <<< "$ctx_record" 2>/dev/null)" || ctx_optional=""
         ctx_path_raw="${ctx_path_raw%$'\037'}"
         ctx_desc_raw="${ctx_desc_raw%$'\037'}"
         # Undo the LF→CRLF translation jq's raw output performs on Windows, so a multiline value renders as the realm wrote it rather than carrying a carriage return the realm never declared. Same correction, and the same faithful-inverse reasoning, as _ws_realm_jq_string: jq passes a lone CR through untouched and a genuine CRLF arrives as \r\r\n, so an embedded carriage return still reaches the neutralizer below and is still shown.
@@ -452,8 +457,12 @@ _emit_one_adapter() {
         case "$ctx_status" in
             present) printf '    → %s — %s\n' "$ctx_path" "$ctx_desc" ;;
             missing)
-                printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc"
-                ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
+                if [[ -n "$ctx_optional" ]]; then
+                    printf '    → %s — %s (MISSING, optional)\n' "$ctx_path" "$ctx_desc"
+                else
+                    printf '    → %s — %s (MISSING)\n' "$ctx_path" "$ctx_desc"
+                    ORIENT_CONTEXT_ROT=$((ORIENT_CONTEXT_ROT + 1))
+                fi
                 ;;
             *)
                 printf '    → %s — %s (INVALID PATH)\n' "$ctx_path" "$ctx_desc"
