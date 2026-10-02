@@ -348,7 +348,9 @@ audit_safe() {
     s="${s//$'\r'/\\r}"
     # Double-quoted span honours backslash escapes, so "part\"rest" is one
     # value; an option's value may follow `=` or any run of blanks/tabs.
-    local v='("([^"\\]|\\.)*"|'"'"'[^'"'"']*'"'"'|([^[:space:]"'"'"'\\]|\\.)+)'
+    # Adjacent quote styles are one shell word, including the $ prefix of
+    # ANSI-C quotes; redact every segment rather than leaking the suffix.
+    local v='("([^"\\]|\\.)*"|'"'"'[^'"'"']*'"'"'|([^[:space:]"'"'"'\\]|\\.)+)+'
     local sep='(=|[[:space:]]+)'
     s="$(printf '%s' "$s" | LC_ALL=C sed -E \
         -e 's/(^|[^[:alnum:]_])(gh[pousr]_|github_pat_)[A-Za-z0-9_]{16,}/\1<redacted>/g' \

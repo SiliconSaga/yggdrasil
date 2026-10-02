@@ -3188,18 +3188,12 @@ EOF
     run_hook 'deploy --token   SpacedSecret --target prod; echo ok'
     run_hook 'curl -u alice:CurlSecret https://api.example/x | jq .'
     run_hook 'curl --user=bob:CurlSecret2 https://api.example/x | jq .'
+    run_hook 'DB_PASSWORD="first"ConcatenatedTail ws exec app ./m.sh | cat'
+    run_hook "deploy --password \$'AnsiSecret words' --target prod; echo ok"
     log="$HOME/.claude/hook-audit.log"
     [ -f "$log" ]
-    ! grep -q 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' "$log"
-    ! grep -q 'eyJhbGciOiJIUzI1NiJ9' "$log"
-    ! grep -q 'glpat-AbCdEfGhIjKlMnOpQrSt' "$log"
-    ! grep -q 'private value' "$log"
-    ! grep -q 'p w d' "$log"
-    ! grep -q 'words' "$log"
-    ! grep -q 'hidden remainder' "$log"
-    ! grep -q 'TabbedSecret' "$log"
-    ! grep -q 'SpacedSecret' "$log"
-    ! grep -q 'CurlSecret' "$log"
+    run grep -E 'ghp_abcdefghijklmnopqrstuvwxyz0123456789|eyJhbGciOiJIUzI1NiJ9|glpat-AbCdEfGhIjKlMnOpQrSt|private value|p w d|words|hidden remainder|TabbedSecret|SpacedSecret|CurlSecret|ConcatenatedTail|AnsiSecret' "$log"
+    [ "$status" -eq 1 ]
     grep -q -- '--with-token <redacted> && git push' "$log"
     grep -q 'Authorization: Bearer <redacted>' "$log"
     grep -q 'GITLAB_TOKEN=<redacted> ws exec app' "$log"
