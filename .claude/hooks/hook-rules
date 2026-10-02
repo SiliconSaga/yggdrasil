@@ -242,10 +242,12 @@ gh-repo-sync-raw | gh repo sync*      | `gh repo sync` mutates the repo it stand
 # resolved/unresolved state and `--since <ref>` filtering, and then a reply has
 # nothing to resolve against. Scoped to the comment-fetching forms only: a plain
 # `pr view` status check is deliberately left alone (see the non-mutating-ws-gh
-# test), and anything ws review genuinely cannot do — checks, diffs, arbitrary
-# API — must stay reachable, because denying with no alternative is worse than
-# the reflex. When one of these bypasses gets requested, treat it as a feature
-# request for `ws review` rather than a nuisance: that is the gap showing itself.
+# test), and anything ws review genuinely cannot do — diffs, arbitrary API —
+# must stay reachable, because denying with no alternative is worse than the
+# reflex. Checks were on that list until `ws review checks` existed; now they
+# redirect (rows below). When one of these bypasses gets requested, treat it as
+# a feature request for `ws review` rather than a nuisance: that is the gap
+# showing itself.
 # Two are already known, and are why these patterns stay narrow — widening them
 # before the gaps close would only manufacture bypass requests:
 #   - No machine-readable output. `gh pr view --json reviewDecision,reviews --jq …`

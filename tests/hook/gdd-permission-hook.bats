@@ -2103,14 +2103,18 @@ JSON
     [[ "$output" != *"ws review"* ]]
 }
 
-@test "redirect: what ws review cannot do stays reachable" {
-    # Denying with no alternative is worse than the reflex it prevents. Checks,
-    # diffs and unrelated API endpoints have no ws review equivalent today, so
-    # they must not be caught by the review redirects.
+@test "redirect: what ws review cannot do stays reachable, and checks now has a home" {
+    # Denying with no alternative is worse than the reflex it prevents. Diffs
+    # and unrelated API endpoints have no ws review equivalent, so they must
+    # not be caught by the review redirects. Checks did not either, until
+    # `ws review checks` — so that spelling redirects to it now.
     seed_real_project_config
 
     run_hook 'ws gh pr checks 3'
-    [[ "$output" != *"ws review"* ]]
+    [[ "$output" == *'"permissionDecision":"deny"'* ]]
+    [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
+    run_hook 'gh pr checks 3 --repo o/r'
+    [[ "$output" == *"ws review <comp> checks <cr#>"* ]]
     run_hook 'ws gh pr diff 3'
     [[ "$output" != *"ws review"* ]]
     run_hook 'ws gh api repos/SiliconSaga/ken-site/actions/runs'
