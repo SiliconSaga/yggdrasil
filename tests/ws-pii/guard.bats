@@ -1,5 +1,22 @@
 #!/usr/bin/env bats
 
+@test "ESC-heavy text is scanned rather than silently excluded" {
+    printf '\033\033\033\033\033contact: fresh@newdomain.co.uk\n' > "$REPO/terminal.txt"
+    git -C "$REPO" add terminal.txt
+    run ws_pii_staged_added_lines "$REPO"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *fresh@newdomain.co.uk* ]]
+}
+
+@test "an unreadable staged blob aborts the scan" {
+    printf 'fresh@newdomain.co.uk\n' > "$REPO/probe.txt"
+    git -C "$REPO" add probe.txt
+    git() { [[ "$*" != *' show :'* ]] || return 1; command git "$@"; }
+    run ws_pii_staged_added_lines "$REPO"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'cannot read staged content'* ]]
+}
+
 # The incident: an address filled into a local sample manifest, read later by an
 # agent doing unrelated work, and carried into a documentation pass. No secret
 # scanner would notice — the value is an ordinary email, harmless where it sat
@@ -209,6 +226,7 @@ stage_allowlist() {
     [ "$status" -eq 0 ]
     [[ "$output" != *"newdomain.co.uk"* ]]
     [[ "$output" != *"k@k.do"* ]]
+    [[ "$output" == *'binary staged file excluded'* ]]
 }
 
 @test "a text file larger than the sample is still scanned" {

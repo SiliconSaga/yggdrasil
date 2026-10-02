@@ -170,22 +170,23 @@ $(cat "$bodyfile")" "$repo" "$override"
 # streams start later reads as text and its bytes reach the scanner (one
 # produced `k@k.do`, another crashed the caller), while a script with one NUL
 # in a comment reads as binary and every address after it is hidden. Control
-# bytes — anything below 0x20 except NUL, tab, LF, CR, plus DEL — settle it:
+# bytes — anything below 0x20 except NUL, tab, LF, CR, ESC, plus DEL — settle it:
 # text has almost none, compressed or encoded data runs around 12%. NUL is left
 # out because it is the one byte the scan tolerates (stripped before matching),
 # and bytes above 0x7F are not counted, so non-ASCII prose stays text.
 _ws_pii_blob_is_text() {
-    local repo="$1" path="$2" index_file="${3:-}" sample total control
-    # The rest of the blob is drained rather than left for SIGPIPE: under the
-    # callers' pipefail a closed pipe would fail the assignment, and a failure
-    # here drops the file from the scan.
+    local repo="$1" path="$2" index_file="${3:-}" sample total control blob_file
+    # Separate the read from sampling so a failed git show cannot look binary.
+    blob_file="$(mktemp)" || return 2
     if [[ -n "$index_file" ]]; then
-        sample="$(GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" 2>/dev/null | { head -c 65536; cat >/dev/null; } | od -An -v -tu1)" || return 1
+        GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" > "$blob_file" 2>/dev/null || { rm -f "$blob_file"; return 2; }
     else
-        sample="$(git -C "$repo" show ":$path" 2>/dev/null | { head -c 65536; cat >/dev/null; } | od -An -v -tu1)" || return 1
+        git -C "$repo" show ":$path" > "$blob_file" 2>/dev/null || { rm -f "$blob_file"; return 2; }
     fi
+    sample="$(head -c 65536 "$blob_file" | od -An -v -tu1)" || { rm -f "$blob_file"; return 2; }
+    rm -f "$blob_file"
     read -r total control < <(printf '%s\n' "$sample" | awk '
-        { for (i = 1; i <= NF; i++) { n++; b = $i + 0; if ((b < 32 && b != 0 && b != 9 && b != 10 && b != 13) || b == 127) c++ } }
+        { for (i = 1; i <= NF; i++) { n++; b = $i + 0; if ((b < 32 && b != 0 && b != 9 && b != 10 && b != 13 && b != 27) || b == 127) c++ } }
         END { print n + 0, c + 0 }')
     [[ "$total" -gt 0 ]] || return 0
     [[ $((control * 100)) -lt $((total * 2)) ]]
@@ -200,30 +201,42 @@ _ws_pii_blob_is_text() {
 # `--text` so git's own guess cannot drop one. Header lines (`+++ b/path`) are
 # skipped by position, between `diff --git` and the first hunk, not by shape: a
 # content line starting `++` looks the same.
-ws_pii_staged_added_lines() {
-    local repo="${1:-$PWD}" index_file="${2:-}" path
+ws_pii_staged_added_lines() (
+    set -o pipefail
+    local repo="${1:-$PWD}" index_file="${2:-}" path paths_file scan_status diff_text
     local -a text_paths=()
     # NUL-delimited: without -z git quotes any unusual path (non-ASCII included)
     # and the quoted form names nothing in the index, so the file goes unscanned.
+    paths_file="$(mktemp)" || return 1
+    if [[ -n "$index_file" ]]; then
+        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR > "$paths_file" 2>/dev/null || { rm -f "$paths_file"; echo 'ERROR: cannot enumerate staged files for PII scanning.' >&2; return 1; }
+    else
+        git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR > "$paths_file" 2>/dev/null || { rm -f "$paths_file"; echo 'ERROR: cannot enumerate staged files for PII scanning.' >&2; return 1; }
+    fi
     while IFS= read -r -d '' path; do
         [[ -n "$path" ]] || continue
-        _ws_pii_blob_is_text "$repo" "$path" "$index_file" && text_paths+=("$path")
-    done < <(
-        if [[ -n "$index_file" ]]; then
-            GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR 2>/dev/null
+        if _ws_pii_blob_is_text "$repo" "$path" "$index_file"; then
+            text_paths+=("$path")
         else
-            git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR 2>/dev/null
+            scan_status=$?
+            if [[ "$scan_status" -ne 1 ]]; then
+                rm -f "$paths_file"
+                echo 'ERROR: cannot read staged content for PII scanning.' >&2
+                return 1
+            fi
+            printf 'NOTE: binary staged file excluded from PII scanning: %q\n' "$path" >&2
         fi
-    )
+    done < "$paths_file"
+    rm -f "$paths_file"
     [[ ${#text_paths[@]} -gt 0 ]] || return 0
     if [[ -n "$index_file" ]]; then
-        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null
+        diff_text="$(GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null | tr -d '\000')" || { echo 'ERROR: cannot diff staged content for PII scanning.' >&2; return 1; }
     else
-        git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null
-    fi \
-        | tr -d '\000' \
+        diff_text="$(git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null | tr -d '\000')" || { echo 'ERROR: cannot diff staged content for PII scanning.' >&2; return 1; }
+    fi
+    printf '%s\n' "$diff_text" | tr -d '\000' \
         | awk '/^diff --git / { header = 1; next }
                /^@@/ { header = 0; next }
                header { next }
-               /^\+/ { print substr($0, 2) }' || true
-}
+               /^\+/ { print substr($0, 2) }'
+)
