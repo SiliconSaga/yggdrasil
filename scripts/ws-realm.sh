@@ -929,6 +929,16 @@ ws_resolve_token_var() {
 # ws_gdd_attribution_line now lives in scripts/gdd-attribution.sh, alongside the banner check and the placeholder substitution it belongs with. This file resolves realms, ecosystems and tokens; attribution is not that.
 
 # ---------------------------------------------------------------------------
+# Render untrusted display fields on one physical line; shared by nested-repo
+# status/pull output and the realm trust summary.
+_ws_realm_summary_inline_text() {
+    local value="$1"
+    value="${value//$'\r'/\\r}"
+    value="${value//$'\n'/\\n}"
+    value="${value//$'\t'/\\t}"
+    printf '%s' "$value" | jq -jRs 'gsub("[\\x{0000}-\\x{001f}\\x{007f}-\\x{009f}]"; "")'
+}
+
 # Subcommands — only run when called directly (not when sourced)
 # ---------------------------------------------------------------------------
 
@@ -1027,16 +1037,6 @@ _ws_realm_jq_string() {
     local filter="$1" record="$2" out=""
     out="$(jq -er "$filter" <<< "$record" 2>/dev/null)" || return 1
     printf '%s' "${out//$'\r\n'/$'\n'}"
-}
-
-# Render each realm-controlled field on one physical trust-summary line. The
-# record renderers add structural separators only after fields are escaped.
-_ws_realm_summary_inline_text() {
-    local value="$1"
-    value="${value//$'\r'/\\r}"
-    value="${value//$'\n'/\\n}"
-    value="${value//$'\t'/\\t}"
-    printf '%s' "$value" | jq -jRs 'gsub("[\\x{0000}-\\x{001f}\\x{007f}-\\x{009f}]"; "")'
 }
 
 _ws_realm_render_key_value_records() {

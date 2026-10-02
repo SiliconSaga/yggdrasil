@@ -84,6 +84,14 @@ nested_head() {
     git -C "$COMPONENTS_DIR/terasology/modules/Health" rev-parse HEAD
 }
 
+@test "nested pull suggestions cannot emit terminal controls" {
+    mv "$COMPONENTS_DIR/terasology/modules/Health" "$COMPONENTS_DIR/terasology/modules/"$'Hidden\033[2J'
+    run bash "$PULL_BIN"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *$'\033'* ]]
+    [[ "$output" == *Hidden* ]]
+}
+
 host_head() {
     git -C "$COMPONENTS_DIR/terasology" rev-parse HEAD
 }

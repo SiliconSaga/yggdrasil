@@ -42,6 +42,16 @@ dirty_nested() {
     printf 'scratch\n' > "$COMPONENTS_DIR/terasology/modules/$1/untracked.txt"
 }
 
+@test "nested display names cannot emit terminal controls" {
+    local odd=$'Hidden\033[2J'
+    git init -q "$COMPONENTS_DIR/terasology/modules/$odd"
+    dirty_nested "$odd"
+    run bash "$WS_BIN" status --nested
+    [ "$status" -eq 0 ]
+    [[ "$output" != *$'\033'* ]]
+    [[ "$output" == *Hidden* ]]
+}
+
 # Records every git invocation, so a test can assert which ones did not happen.
 # Installed after fixture creation so the setup's own git calls stay out of it.
 instrument_git() {

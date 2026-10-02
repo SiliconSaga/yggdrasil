@@ -146,7 +146,7 @@ print_nested_status() {
         local count branch
         count=$(printf '%s\n' "$status_lines" | wc -l | tr -d '[:space:]')
         branch=$(git -C "$candidate" branch --show-current 2>/dev/null || echo "detached")
-        dirty_lines+=("    $relative  [$branch]  $count file(s)")
+        dirty_lines+=("    $(_ws_realm_summary_inline_text "$relative")  [$(_ws_realm_summary_inline_text "$branch")]  $count file(s)")
     done
 
     echo "  nested: $total repo(s), $dirty dirty"
