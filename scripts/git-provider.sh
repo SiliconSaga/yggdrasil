@@ -221,6 +221,11 @@ gp_token_is_placeholder() {
     esac
 }
 
+# Preserve readable provider output while disabling terminal control bytes.
+gp_sanitize_provider_text() {
+    jq -jRs 'gsub("[\\x{0000}-\\x{0008}\\x{000b}-\\x{001f}\\x{007f}-\\x{009f}]"; "")'
+}
+
 # Render provider diagnostics as a bounded, terminal-safe single line. The optional secret is removed with literal bash substring operations so it is never passed through another process's argv or interpreted as a pattern.
 gp_api_error_one_line() {
     local msg="$1" secret="${2:-}" prefix suffix

@@ -154,7 +154,7 @@ gp_create_issue \
   --title "$TITLE" \
   --label "$LABEL" \
   --body-file "$RESOLVED_BODY" >"$_ISSUE_OUTPUT" 2>&1 || _ISSUE_STATUS=$?
-cat "$_ISSUE_OUTPUT"
+gp_sanitize_provider_text < "$_ISSUE_OUTPUT"
 
 if [[ "$_ISSUE_STATUS" -ne 0 ]]; then
   # A fork starts with issues DISABLED on GitHub, and nobody chooses that — it is inherited silently by anything ws clone-fork produced. The bare provider error names the state and not the way out, and the improvised way out is to post the finding as a PR comment instead, which is how an unattributed comment reached a public repo. Naming the three real options here is the cheaper half of preventing that.

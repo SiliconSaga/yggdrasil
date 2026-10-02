@@ -117,10 +117,15 @@ fi
 echo "  Body : $BODYFILE ($(wc -l < "$BODYFILE") lines)"
 echo ""
 
-if [[ -n "$TITLE" ]]; then
-  gp_update_issue --repo "$TARGET_SLUG" --number "$ISSUE_NUMBER" --body-file "$RESOLVED_BODY" --title "$TITLE"
-else
-  gp_update_issue --repo "$TARGET_SLUG" --number "$ISSUE_NUMBER" --body-file "$RESOLVED_BODY"
-fi
+_issue_edit_status=0
+_issue_edit_output=$(
+  if [[ -n "$TITLE" ]]; then
+    gp_update_issue --repo "$TARGET_SLUG" --number "$ISSUE_NUMBER" --body-file "$RESOLVED_BODY" --title "$TITLE"
+  else
+    gp_update_issue --repo "$TARGET_SLUG" --number "$ISSUE_NUMBER" --body-file "$RESOLVED_BODY"
+  fi 2>&1
+) || _issue_edit_status=$?
+printf '%s\n' "$_issue_edit_output" | gp_sanitize_provider_text
+[[ "$_issue_edit_status" -eq 0 ]] || exit "$_issue_edit_status"
 
 echo "✓ Issue updated: #$ISSUE_NUMBER on $TARGET_SLUG"

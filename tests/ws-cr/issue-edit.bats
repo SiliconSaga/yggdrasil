@@ -237,6 +237,24 @@ SH
     [[ "$output" == *"https://github.com/example/fork/issues/1"* ]]
 }
 
+@test "issue create and edit sanitize provider output while preserving failure status" {
+    cat > "$GH_STUB_DIR/gh" <<'SH'
+#!/usr/bin/env bash
+[[ "$1 $2" != 'auth status' ]] || exit 0
+printf '\033[2Jprovider résumé\302\233hidden\233raw-control\n' >&2
+exit 7
+SH
+    chmod +x "$GH_STUB_DIR/gh"
+    run bash "$WS_BIN" issue yggdrasil "test: terminal output" bug .issues/edit.md
+    [ "$status" -eq 7 ]
+    [[ "$output" == *'provider résumé'* ]]
+    [[ "$output" != *$'\033'* && "$output" != *$'\233'* ]]
+    run bash "$WS_BIN" issue yggdrasil edit 7 .issues/edit.md
+    [ "$status" -eq 7 ]
+    [[ "$output" == *'provider résumé'* ]]
+    [[ "$output" != *$'\033'* && "$output" != *$'\233'* ]]
+}
+
 @test "issue create still requires title, label and bodyfile" {
     run bash "$WS_BIN" issue yggdrasil "a title"
     [ "$status" -ne 0 ]
