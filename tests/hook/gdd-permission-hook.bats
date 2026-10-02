@@ -3148,6 +3148,35 @@ EOF
     [[ "$output" != *"list both paths"* ]]
 }
 
+@test "redirect: git -C <dir> mv reaches the git-mv redirect like a bare git mv" {
+    # A global option before the verb is the escape the canonicaliser exists
+    # to close; recorded on a Thalamus as unverified, so pinned here.
+    seed_real_project_config
+    run_hook 'git -C hoards/thalami-x mv old.md new.md'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"ws hook-bypass git-mv"* ]]
+}
+
+@test "audit log: credentials in a denied command are redacted" {
+    # The audit log is the one place a pasted secret outlives the session,
+    # and a denied command is exactly where one turns up. The shape of the
+    # command must survive; the values must not.
+    seed_real_project_config
+    run_hook 'gh auth login --with-token ghp_abcdefghijklmnopqrstuvwxyz0123456789 && git push'
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    run_hook 'curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.secret.sig" https://api.example/x | jq .'
+    run_hook 'GITLAB_TOKEN=glpat-AbCdEfGhIjKlMnOpQrSt ws exec app ./deploy.sh && echo done'
+    log="$HOME/.claude/hook-audit.log"
+    [ -f "$log" ]
+    ! grep -q 'ghp_abcdefghijklmnopqrstuvwxyz0123456789' "$log"
+    ! grep -q 'eyJhbGciOiJIUzI1NiJ9' "$log"
+    ! grep -q 'glpat-AbCdEfGhIjKlMnOpQrSt' "$log"
+    grep -q -- '--with-token <redacted> && git push' "$log"
+    grep -q 'Authorization: Bearer <redacted>' "$log"
+    grep -q 'GITLAB_TOKEN=<redacted> ws exec app' "$log"
+}
+
 # ─── Tier 3 — adapter-aware test/lint redirects ─────────────────────
 
 # When `[adapter-redirect-commands]` matches (pytest, ruff, etc.) and

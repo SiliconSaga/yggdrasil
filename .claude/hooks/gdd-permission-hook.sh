@@ -323,10 +323,26 @@ mkdir -p "$(dirname "$audit_log")"
 # strings. In practice `read -r` already strips embedded newlines
 # from those sources, but the defense-in-depth costs nothing and
 # the comment now matches the actual call surface.
+#
+# Credentials are redacted before the line is written. A denied command is
+# logged verbatim, and a denied command is exactly where a pasted token
+# turns up — `gh auth login --with-token <<< ghp_…`, a curl with a bearer
+# header, a `TOKEN=… ws exec …` prefix. The log is long-lived and readable
+# by every later session, and a headless sandbox leaves it unwatched for
+# days; a secret that reached it stayed there. Provider token shapes, HTTP
+# auth headers and `name=value` pairs whose name says secret are replaced
+# with <redacted>; the command's shape, and the audit's value, survive.
 audit_safe() {
     local s="$1"
     s="${s//$'\n'/\\n}"
     s="${s//$'\r'/\\r}"
+    s="$(printf '%s' "$s" | LC_ALL=C sed -E \
+        -e 's/\b(gh[pousr]_|github_pat_)[A-Za-z0-9_]{16,}/<redacted>/g' \
+        -e 's/\bglpat-[A-Za-z0-9_-]{16,}/<redacted>/g' \
+        -e 's/\b(gl(ptt|rt|oas)-)[A-Za-z0-9_-]{16,}/<redacted>/g' \
+        -e 's/(Authorization:[[:space:]]*(Basic|Bearer|token)[[:space:]]+)[^[:space:]"'"'"']+/\1<redacted>/gI' \
+        -e 's/\b([A-Za-z_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY)[A-Za-z_]*=)[^[:space:]"'"'"']+/\1<redacted>/gI' \
+        -e 's/(--(token|password|secret|api-key)[= ])[^[:space:]"'"'"']+/\1<redacted>/gI')"
     printf '%s' "$s"
 }
 
