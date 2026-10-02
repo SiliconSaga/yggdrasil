@@ -4030,6 +4030,78 @@ BASH
     [ "$status" -eq 0 ]
     [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
 }
+@test "k8s safety floor: bash -c running a kubectl script force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    run_hook_with_session "bash -c './deploy.sh'" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"contains kubectl"* ]]
+}
+@test "scoped-redirect: bash -c running a kubectl script is denied like the script itself" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    run_hook_with_session "bash -c './deploy.sh'" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: a compound inline shell payload is denied as uninspectable" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session "bash -c 'cd tools; ./deploy.sh'" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"cannot be inspected"* ]]
+}
+@test "scoped-redirect: a simple kubectl-free inline shell is left to the opaque-payload ask" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session "bash -c 'echo hello'" "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" == *"Opaque command-string"* ]]
+}
+@test "unscoped: a compound inline shell payload keeps the ordinary opaque-payload ask" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    run_hook_with_session "bash -c 'cd tools; ./deploy.sh'" "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+    [[ "$output" != *"cannot be inspected"* ]]
+}
+@test "composition denials for Kubernetes commands name ws k8s and kubectl's own output shaping" {
+    local command
+    for command in "kubectl get pods && kubectl get svc" "kubectl get pods | grep web" "ws k8s get pods > pods.txt" "kubectl get pods & sleep 1"; do
+        run_hook "$command"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+        [[ "$output" == *"ws k8s"* ]]
+        [[ "$output" == *"custom-columns"* ]]
+    done
+}
+@test "composition denials for other commands do not mention Kubernetes" {
+    run_hook "git status && git log"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" != *"ws k8s"* ]]
+}
+@test "the k8s constructed-form deny names ws k8s" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session "ws k8s exec pod/x -n alice-sandbox -- sh -c 'for i in 1 2; do ps; done'" "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"custom-columns"* ]]
+}
+@test "scoped-redirect: raw kubectl pointed at another current context is denied" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf '#!/usr/bin/env bash\ncase "$*" in *current-context*) echo homelab ;; esac\n' > "$WORK/_home/kubectl-homelab"
+    chmod +x "$WORK/_home/kubectl-homelab"
+    export KUBECTL="$WORK/_home/kubectl-homelab"
+    run_hook_with_session 'kubectl get pods' "sk8s"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"current context homelab"* ]]
+}
 @test "k8s safety floor: matching bypass permits an unscoped write" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     write_bypass_marker "k8s" "no-scope-sess" "disposable cluster automation"

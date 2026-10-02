@@ -37,6 +37,12 @@ init_hook_env() {
     mkdir -p "$WORK/_home/.claude/hooks"
     export HOME="$WORK/_home"
     export CLAUDE_PROJECT_DIR="$WORK"
+    # The k8s guard asks kubectl for its current context and default
+    # namespace. A silent stub keeps the developer's real kubeconfig out of
+    # the verdicts — the same empty answers CI gets with no kubectl at all.
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/_home/kubectl-silent"
+    chmod +x "$WORK/_home/kubectl-silent"
+    export KUBECTL="$WORK/_home/kubectl-silent"
 }
 
 # Build a hook payload without letting MSYS rewrite the command string.

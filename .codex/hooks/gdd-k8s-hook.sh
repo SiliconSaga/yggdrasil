@@ -99,6 +99,13 @@ if k8s_guard_script_content_exempt "$GDD_PROJECT_ROOT" "$script_path"; then
 fi
 inline_shell=0
 k8s_guard_inline_shell_contains_kubectl "$match_cmd" && inline_shell=1
+# `bash -c <payload>` is classified like its payload: a script it runs gets
+# the content scan (0 = kubectl, 2 = unreadable), and a compound payload is
+# 3, uninspectable, denied below while a scope is armed.
+inline_status=1
+if k8s_guard_inline_shell_status "$cwd" "$cmd"; then inline_status=0; else inline_status=$?; fi
+[[ "$inline_status" -eq 0 || "$inline_status" -eq 2 ]] && inline_shell=1
+uninspectable_reason="Inline shell payload cannot be inspected within a guarded scope — it is compound, expands variables, or nests another shell, so the guard cannot tell whether it reaches kubectl. Run each step as its own command, put the steps in a script file (scripts are content-scanned), or obtain explicit user confirmation before using 'ws hook-bypass k8s'."
 
 if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
     masked_match_cmd="$(normalize_for_match "$(k8s_guard_mask_inert_quotes "$cmd")")"
@@ -118,8 +125,9 @@ if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
         || [[ "$masked_match_cmd" == *"ws k8s"* || "$masked_match_cmd" == *"scripts/ws k8s"* ]] \
         || k8s_guard_xargs_child_contains_kubectl "$cmd" \
         || [[ "$unsafe_inline_shell" == "1" ]]; then
-        deny "Kubernetes commands must be issued as one composition-free command. This compound or multiline form cannot be evaluated safely."
+        deny "Kubernetes commands must be issued as one composition-free command. This compound or multiline form cannot be evaluated safely. $K8S_GUARD_COMPOSITION_HINT"
     fi
+    [[ -n "$ctx" && "$inline_status" -eq 3 ]] && deny "$uninspectable_reason"
     exit 0
 fi
 
@@ -144,6 +152,7 @@ case "$k8s_match_cmd" in
 esac
 [[ "$script_has_kubectl" == "1" ]] && k8s_candidate=1
 [[ "$inline_shell" == "1" ]] && k8s_candidate=1
+[[ -n "$ctx" && "$inline_status" -eq 3 ]] && k8s_candidate=1
 [[ "$k8s_candidate" == "1" ]] || exit 0
 
 marker="$GDD_PROJECT_ROOT/.tmp/hook-bypass/k8s.bypass"
@@ -201,5 +210,6 @@ if [[ "$inline_shell" == "1" ]]; then
     fi
     deny "Inline shell command calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
 fi
+[[ -n "$ctx" && "$inline_status" -eq 3 ]] && deny "$uninspectable_reason"
 
 exit 0

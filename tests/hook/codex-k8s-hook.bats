@@ -10,6 +10,10 @@ setup() {
     cp "$REPO_ROOT/scripts/ws-session.sh" "$WORK/scripts/ws-session.sh"
     cp "$REPO_ROOT/scripts/ws-k8s-guard.sh" "$WORK/scripts/ws-k8s-guard.sh"
     export HOME="$WORK/_home"
+    # Keep the developer's real kubeconfig out of the guard's verdicts.
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/_home/kubectl-silent"
+    chmod +x "$WORK/_home/kubectl-silent"
+    export KUBECTL="$WORK/_home/kubectl-silent"
 }
 
 seed_scope() {
@@ -362,6 +366,49 @@ assert_denied() {
 @test "bash -c containing kubectl is denied when no scope is active" {
     run_codex_hook "bash -c 'kubectl run script-test --image=pause -n gdd-practice'" no-scope
     assert_denied
+}
+
+@test "bash -c running a kubectl script is denied like the script itself" {
+    printf '#!/usr/bin/env bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    run_codex_hook "bash -c './deploy.sh'" no-scope
+    assert_denied
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash -c './deploy.sh'"
+    assert_denied
+}
+
+@test "a compound inline shell payload is denied as uninspectable under a scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash -c 'cd tools; ./deploy.sh'"
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"cannot be inspected"* ]]
+}
+
+@test "inline shells without a scope or without kubectl in reach defer to Codex" {
+    run_codex_hook "bash -c 'cd tools; ./deploy.sh'" no-scope
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash -c 'echo hello'"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "the compound-form deny names ws k8s and kubectl's own output shaping" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'kubectl get pods | grep web'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"custom-columns"* ]]
+}
+
+@test "raw kubectl pointed at another current context is denied under a scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\ncase "$*" in *current-context*) echo homelab ;; esac\n' > "$WORK/_home/kubectl-homelab"
+    chmod +x "$WORK/_home/kubectl-homelab"
+    export KUBECTL="$WORK/_home/kubectl-homelab"
+    run_codex_hook 'kubectl get pods'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"current context homelab"* ]]
 }
 
 @test "matching k8s bypass marker permits an unscoped write and audits it" {

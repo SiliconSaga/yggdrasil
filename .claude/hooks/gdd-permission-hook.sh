@@ -1103,6 +1103,13 @@ _has_bare_windows_path() {
 # fires when the ONLY Tier 1 violation is `|` (regex alternation or
 # a grep-pipeline), which is where the corrective message about the
 # Grep tool / pipe-free grep is the right substitute.
+# A composition denial is where the alternative gets learned, so a
+# Kubernetes command hears about `ws k8s` and kubectl's own output shaping
+# rather than only the ws exec / ws commit advice below.
+_k8s_t1_hint=""
+if [[ "$tier1_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) || "$tier1_cmd" == *"ws k8s"* ]]; then
+    _k8s_t1_hint=" ${K8S_GUARD_COMPOSITION_HINT:-}"
+fi
 case "$tier1_cmd" in
     *$'\n'*|*$'\r'*)
         # Embedded newline / CR — bash treats either as a command
@@ -1121,7 +1128,7 @@ case "$tier1_cmd" in
         # `cd components/<c>; git ...`, was refused, retried the same shape, and
         # gave up — the corrective text told it the rule without naming a way to
         # obey it. The moment of refusal is where the alternative gets learned.
-        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. Reach for the dedicated verb first — ws commit, ws push, ws cr, ws review, ws test, ws lint — and use 'ws exec <component> <command>' only where no wrapper exists: one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next."
+        deny "Shell composition (&&, ||, ;) is disallowed by this hook. Run each command as a separate tool call so the harness can validate each segment independently. Reach for the dedicated verb first — ws commit, ws push, ws cr, ws review, ws test, ws lint — and use 'ws exec <component> <command>' only where no wrapper exists: one call, no cd and no separator. If you need conditional behavior, check the result of one call before issuing the next.$_k8s_t1_hint"
         ;;
     *'`'*|*'$('*)
         deny "Command substitution (\`...\` or \$(...)) is disallowed — the inner command's output is opaque to static analysis, so the substituted form can't be evaluated for safety. Run the inner command separately, read its output, then pass the literal value to the outer command."
@@ -1148,7 +1155,7 @@ case "$tier1_cmd" in
         deny "File-descriptor merges like \`2>&1\` and \`1>&2\` aren't needed — the Bash tool already captures both stdout and stderr natively. Remove the merge; both streams will still be visible in the tool output."
         ;;
     *">"*|*"<"*)
-        deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file."
+        deny "Output / input redirection is disallowed — the destination is opaque to static analysis. Use a tool's native --output flag (e.g. \`ws review --output <phrase>\`) for saved output, or use the Write tool when you need to author a file.$_k8s_t1_hint"
         ;;
     *"\\"*)
         # Redirect operators are checked first so an otherwise ambiguous bare
@@ -1171,7 +1178,7 @@ case "$tier1_cmd" in
         # the dangerous bare form: `cmd1 & cmd2` runs cmd1 in
         # background and cmd2 right after, both invisible to per-call
         # audit. Deny.
-        deny "Background separator (\`&\`) is disallowed — the trailing command runs immediately after the backgrounded one, both invisible to per-call audit. Issue one command per tool call; if you need true background work, surface the request first."
+        deny "Background separator (\`&\`) is disallowed — the trailing command runs immediately after the backgrounded one, both invisible to per-call audit. Issue one command per tool call; if you need true background work, surface the request first.$_k8s_t1_hint"
         ;;
     "grep "*|"grep")
         # Specific redirect: grep with `|` (regex alternation OR a
@@ -1190,7 +1197,7 @@ case "$tier1_cmd" in
         esac
         ;;
     *"|"*)
-        deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining."
+        deny "Pipes (|) are disallowed by this hook. Most ws subcommands have native flags for output management — e.g. \`ws review --limit N --compact\` instead of '| head', or \`--output <phrase>\` instead of '> file'. If a real pipeline is genuinely necessary, surface the request first rather than chaining.$_k8s_t1_hint"
         ;;
 esac
 
@@ -1986,7 +1993,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
         if [[ "$_k8s_masked_match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
             || [[ "$_k8s_masked_match_cmd" == *"ws k8s"* || "$_k8s_masked_match_cmd" == *"scripts/ws k8s"* ]] \
             || { declare -F k8s_guard_xargs_child_contains_kubectl >/dev/null 2>&1 && k8s_guard_xargs_child_contains_kubectl "$cmd"; }; then
-            deny "Kubernetes commands must be issued as one composition-free command. This wrapped or constructed form cannot be evaluated safely."
+            deny "Kubernetes commands must be issued as one composition-free command. This wrapped or constructed form cannot be evaluated safely. ${K8S_GUARD_COMPOSITION_HINT:-}"
         fi
     fi
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
@@ -1997,6 +2004,15 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
         _k8s_script_file=""
     fi
     k8s_guard_inline_shell_contains_kubectl "$match_cmd" && _k8s_inline_shell=1
+    # The payload of `bash -c` is classified like the command it is: a script
+    # it runs gets the same content scan (0 = kubectl, 2 = unreadable), and a
+    # compound payload is 3, uninspectable, which Tier 2b denies under scope.
+    # Fed $cmd, not $match_cmd: the payload's own quoting is the evidence.
+    _k8s_inline_status=1
+    if declare -F k8s_guard_inline_shell_status >/dev/null 2>&1; then
+        if k8s_guard_inline_shell_status "$cwd" "$cmd"; then _k8s_inline_status=0; else _k8s_inline_status=$?; fi
+    fi
+    [[ "$_k8s_inline_status" -eq 0 || "$_k8s_inline_status" -eq 2 ]] && _k8s_inline_shell=1
     _k8s_floor_ctx="$(_sr_get GDD_K8S_CONTEXT)"
     if [[ -z "$_k8s_floor_ctx" ]]; then
         case "$_k8s_match_cmd" in
@@ -2130,6 +2146,9 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     fi
     if [[ "$_k8s_inline_shell" == "1" ]]; then
         deny "Inline shell command calls raw kubectl within a guarded scope — use 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+    fi
+    if [[ "${_k8s_inline_status:-1}" == "3" ]]; then
+        deny "Inline shell payload cannot be inspected within a guarded scope — it is compound, expands variables, or nests another shell, so the guard cannot tell whether it reaches kubectl. Run each step as its own command, put the steps in a script file (scripts are content-scanned), or 'ws hook-bypass $_sr_slug'."
     fi
 done
 
