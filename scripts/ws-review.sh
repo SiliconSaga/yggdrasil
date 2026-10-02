@@ -18,6 +18,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Function definitions (must precede routing block at bottom) ---
 
+review_guard_publication() {
+    [[ "${REVIEW_ALLOW_PII:-}" != 1 ]] || return 0
+    source "$SCRIPT_DIR/ws-pii.sh"
+    WS_PII_INDEX_FILE="" ws_pii_guard "this review message" "$1" "$COMPONENT_DIR" "set REVIEW_ALLOW_PII=1"
+}
+
 review_help() {
     echo "Usage: ws review <comp> <cr#> [--remote <name>] [--reviewer <name>] [--since <time>] [--compact] [--limit N] [--output <phrase>]"
     echo "       ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]"
@@ -26,6 +32,7 @@ review_help() {
     echo "       ws review <comp> reply <cr#> <thread-id> <message> [--remote <name>] [--resolve]"
     echo "       ws review <comp> comment <cr#> <bodyfile> [--remote <name>]"
     echo "       ws review <comp> edit <cr#> <comment-id> <bodyfile> [--remote <name>]"
+    echo "Review publication checks new email addresses; REVIEW_ALLOW_PII=1 explicitly overrides that check."
     echo ""
     echo "CR review comments and thread management."
     echo ""
@@ -985,6 +992,7 @@ review_reply() {
     message="${banner}"$'\n\n'"${message}"
     message=$(gdd_attribution_resolve_message "$message") || exit 1
 
+    review_guard_publication "$message" || exit 1
     gp_review_thread_reply "$REPO_SLUG" "$cr_num" "$thread_id" "$message" || {
         echo "ERROR: Failed to reply to thread $thread_id on CR #$cr_num." >&2
         echo "  Thread ids come from: ws review $COMP threads $cr_num   (the value in parentheses)." >&2
@@ -1028,6 +1036,7 @@ review_comment() {
     message="${banner}"$'\n\n'"$(cat "$bodyfile")"
     message=$(gdd_attribution_resolve_message "$message") || exit 1
 
+    review_guard_publication "$message" || exit 1
     gp_review_post_comment "$REPO_SLUG" "$cr_num" "$message" || {
         echo "ERROR: Failed to post comment on CR #$cr_num." >&2
         exit 1
@@ -1070,6 +1079,7 @@ review_edit() {
     message="${banner}"$'\n\n'"$(cat "$bodyfile")"
     message=$(gdd_attribution_resolve_message "$message") || exit 1
 
+    review_guard_publication "$message" || exit 1
     gp_update_comment "$REPO_SLUG" "$cr_num" "$comment_id" "$message" || {
         echo "ERROR: Failed to update comment $comment_id on CR #$cr_num." >&2
         exit 1

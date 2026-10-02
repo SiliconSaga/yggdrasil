@@ -329,3 +329,20 @@ run_ws_review() {
     run grep -c 'addPullRequestReviewThreadReply' "$API_LOG"
     [ "$output" = "1" ]
 }
+
+@test "reply refuses novel PII before posting or resolving" {
+    run_ws_review app reply 1 PRRT_old "Ping someone.new@newdomain.co.uk" --resolve
+    [ "$status" -ne 0 ]
+    [[ "$output" == *REVIEW_ALLOW_PII=1* ]]
+    run grep -E 'addPullRequestReviewThreadReply|resolveReviewThread' "$API_LOG"
+    [ "$status" -eq 1 ]
+}
+
+@test "top-level comment refuses novel PII before publication" {
+    printf 'Ping someone.new@newdomain.co.uk\n' > "$WORK/pii-note.md"
+    run_ws_review app comment 1 "$WORK/pii-note.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *REVIEW_ALLOW_PII=1* ]]
+    run grep 'issueComment' "$API_LOG"
+    [ "$status" -eq 1 ]
+}
