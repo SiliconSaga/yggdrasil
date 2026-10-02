@@ -209,9 +209,9 @@ ws_pii_staged_added_lines() (
     # and the quoted form names nothing in the index, so the file goes unscanned.
     paths_file="$(mktemp)" || return 1
     if [[ -n "$index_file" ]]; then
-        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR > "$paths_file" 2>/dev/null || { rm -f "$paths_file"; echo 'ERROR: cannot enumerate staged files for PII scanning.' >&2; return 1; }
+        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached --name-only -z --diff-filter=AMCRT > "$paths_file" 2>/dev/null || { rm -f "$paths_file"; echo 'ERROR: cannot enumerate staged files for PII scanning.' >&2; return 1; }
     else
-        git -C "$repo" diff --cached --name-only -z --diff-filter=AMCR > "$paths_file" 2>/dev/null || { rm -f "$paths_file"; echo 'ERROR: cannot enumerate staged files for PII scanning.' >&2; return 1; }
+        git -C "$repo" diff --cached --name-only -z --diff-filter=AMCRT > "$paths_file" 2>/dev/null || { rm -f "$paths_file"; echo 'ERROR: cannot enumerate staged files for PII scanning.' >&2; return 1; }
     fi
     while IFS= read -r -d '' path; do
         [[ -n "$path" ]] || continue

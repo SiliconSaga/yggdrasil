@@ -8,6 +8,9 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Security
 
+- Provider wrappers verify help requests before delegating and bind component GitHub calls to their configured host and credential. SSH token lookup uses the remote authority, including when a path contains `@`; issue creation honors local credential mappings.
+- Scoped Kubernetes writes require verified namespace scope for custom resources and reject the full-API `kubectl proxy` relay.
+- Review replies, comments, and edits check novel email addresses before publication. Commit scanning includes staged type changes and ESC-heavy text, reports binary exclusions, and stops on unreadable staged content. Issue output and nested repository names cannot emit terminal controls, and hook logs redact complete credential words.
 - Realm approval now shows every effective component clone URL, including URLs inherited through `defaults.gitOrg`; `ws clone` displays the final URL before use. Docs CI installs a hash-locked dependency set.
 
 ### Added

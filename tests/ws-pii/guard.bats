@@ -1,5 +1,24 @@
 #!/usr/bin/env bats
 
+@test "symlink-to-file type changes are scanned in real and scratch indexes" {
+    ln -s known.yaml "$REPO/replaced.txt"
+    git -C "$REPO" add replaced.txt
+    git -C "$REPO" commit -q -m 'seed symlink'
+    cp "$REPO/.git/index" "$REPO/scratch.index"
+    rm "$REPO/replaced.txt"
+    printf 'fresh@newdomain.co.uk\n' > "$REPO/replaced.txt"
+    GIT_INDEX_FILE="$REPO/scratch.index" git -C "$REPO" add replaced.txt
+    run ws_pii_staged_added_lines "$REPO" "$REPO/scratch.index"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *fresh@newdomain.co.uk* ]]
+    git -C "$REPO" add replaced.txt
+    run git -C "$REPO" diff --cached --name-status
+    [[ "$output" == T$'\t'replaced.txt ]]
+    run ws_pii_staged_added_lines "$REPO"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *fresh@newdomain.co.uk* ]]
+}
+
 @test "ESC-heavy text is scanned rather than silently excluded" {
     printf '\033\033\033\033\033contact: fresh@newdomain.co.uk\n' > "$REPO/terminal.txt"
     git -C "$REPO" add terminal.txt
