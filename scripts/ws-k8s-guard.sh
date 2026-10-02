@@ -8,6 +8,11 @@
 K8S_GUARD_UNSAFE_COMMAND_SENTINEL="__GDD_K8S_UNSAFE_COMMAND__"
 K8S_GUARD_NO_XARGS_SENTINEL="__GDD_K8S_NO_XARGS__"
 
+# Appended to every composition denial of a Kubernetes command, in both hooks.
+# The generic text names ws exec and ws commit, which are the wrong way out
+# here; the right one is a single ws k8s call with kubectl's own shaping.
+K8S_GUARD_COMPOSITION_HINT="For Kubernetes, issue one \`ws k8s <args>\` per call (it injects the armed --context). In place of a pipe or filter use kubectl's own output shaping — \`-o custom-columns=NAME:.metadata.name,...\`, \`-o jsonpath='{range .items[*]}...{end}'\`, \`-l\` / \`--field-selector\` — and \`kubectl wait --for=...\` in place of a poll loop. A loop inside \`exec -- sh -c\` counts too: run each sample as its own \`ws k8s exec <pod> -- <cmd>\` call."
+
 # Normalize a filesystem path for the -f on-disk check. Claude Code passes
 # native Windows paths (C:\Users\…\m.yaml) on Windows; Git Bash's `[[ -f ]]`
 # and yq choke on the backslash/drive form, so the guard would fail closed with
@@ -734,6 +739,127 @@ k8s_guard_inline_shell_contains_kubectl() {
     return 1
 }
 
+# True for a word that is half of a value the shell would have kept whole:
+# an odd count of either quote character, or an odd run of trailing
+# backslashes (an escaped space). Real argv from the wrapper never splits, so
+# this only fires on the hooks' whitespace-split view of shell text.
+_k8s_is_split_fragment() {
+    local word="$1" sq="'" dq='"' singles doubles slashes=0
+    singles="${word//[^$sq]/}"
+    doubles="${word//[^$dq]/}"
+    (( ${#singles} % 2 == 1 || ${#doubles} % 2 == 1 )) && return 0
+    while [[ "$word" == *'\' ]]; do word="${word%?}"; slashes=$((slashes + 1)); done
+    (( slashes % 2 == 1 ))
+}
+
+# Print the kubectl verb of an argv, past global options. Only meaningful
+# after k8s_guard_evaluate accepted the same argv: anything it lets through
+# before the verb is one of the value options named here or valueless.
+k8s_guard_verb() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --) shift; break ;;
+            --context|-n|--namespace|-f|--filename|-k|--kustomize|-o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout|-c|--container|--field-manager|--raw)
+                shift 2 || return 0 ;;
+            -*) shift ;;
+            *) break ;;
+        esac
+    done
+    [[ $# -gt 0 ]] && printf '%s' "$1"
+}
+
+# Classify an inline shell (`bash -c <payload>`) by its payload, the way the
+# payload would be classified if run directly. Status:
+#   0  the payload invokes kubectl, literally or through a script it runs
+#   1  not an inline shell, or a simple payload with no kubectl in reach
+#   2  the payload runs a script that could not be read
+#   3  UNINSPECTABLE — compound, expanding or nested; callers deny under scope
+# Inspecting only the command line used to wave `bash -c ./deploy.sh` through
+# unscanned while the same `./deploy.sh` run directly was content-checked.
+k8s_guard_inline_shell_status() {
+    local cwd="$1" command="$2" masked normalized payload=""
+    # The payload's own quoting would trip the compound-form sentinel, so
+    # decide "is this an inline shell" from the quote-masked command.
+    masked="$(k8s_guard_mask_inert_quotes "$command")"
+    normalized="$(k8s_guard_normalize_command "$masked")"
+    if [[ "$normalized" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
+        # A compound or expanding command that still launches an inline
+        # shell somewhere cannot be followed into its payload.
+        local inline_re='(^|[[:space:];&|(])([^[:space:]]*/)?(bash|sh)[[:space:]]([^[:space:]]+[[:space:]])*-[A-Za-z]*c([[:space:]]|$)'
+        [[ "$masked" =~ $inline_re ]] && return 3
+        return 1
+    fi
+    _k8s_is_inline_shell "$normalized" || return 1
+    grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$command" && return 0
+
+    payload="$(_k8s_inline_payload "$command")" || return 3
+    [[ -n "$payload" ]] || return 1
+    k8s_guard_has_live_shell_expansion "$payload" && return 3
+    normalized="$(k8s_guard_normalize_command "$payload")"
+    [[ "$normalized" != "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]] || return 3
+    [[ -n "$normalized" ]] || return 1
+    _k8s_is_inline_shell "$normalized" && return 3
+    [[ "${normalized%% *}" == "eval" ]] && return 3
+    local script
+    script="$(k8s_guard_script_path "$cwd" "$payload" 2>/dev/null)" || return 1
+    k8s_guard_script_mentions_kubectl "$script"
+}
+
+# True when a normalized command is `bash`/`sh` with a -c option.
+_k8s_is_inline_shell() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    [[ ${#words[@]} -gt 1 ]] || return 1
+    case "${words[0]##*/}" in bash|sh) ;; *) return 1 ;; esac
+    local i
+    for ((i = 1; i < ${#words[@]}; i++)); do
+        [[ "${words[i]}" == "-c" || ( "${words[i]}" == -[^-]* && "${words[i]}" == *c* ) ]] && return 0
+    done
+    return 1
+}
+
+# The command string an inline shell will run: the first non-option word
+# after the shell, unquoted. Fails (so the caller says "uninspectable") on
+# quoting it cannot follow.
+_k8s_inline_payload() {
+    local input="$1" char quote="" word="" in_word=0 past_shell=0 saw_c=0
+    local i=0 length=${#1}
+    local -a out=()
+    while [[ $i -le $length ]]; do
+        char="${input:i:1}"
+        if [[ -n "$quote" ]]; then
+            if [[ "$char" == "$quote" ]]; then quote=""
+            elif [[ -z "$char" ]]; then return 1
+            elif [[ "$quote" == '"' && "$char" == '\' ]]; then i=$((i + 1)); word+="${input:i:1}"
+            else word+="$char"; fi
+        else
+            case "$char" in
+                "'"|'"') quote="$char"; in_word=1 ;;
+                '\') i=$((i + 1)); word+="${input:i:1}"; in_word=1 ;;
+                ' '|$'\t'|'')
+                    if [[ $in_word -eq 1 ]]; then out+=("$word"); word=""; in_word=0; fi ;;
+                *) word+="$char"; in_word=1 ;;
+            esac
+        fi
+        i=$((i + 1))
+    done
+    for ((i = 0; i < ${#out[@]}; i++)); do
+        word="${out[i]}"
+        if [[ $past_shell -eq 0 ]]; then
+            case "${word##*/}" in bash|sh) past_shell=1 ;; esac
+            continue
+        fi
+        case "$word" in
+            -o|+o|--rcfile|--init-file) i=$((i + 1)); continue ;;
+            -c|-[!-]*c*) saw_c=1; continue ;;
+            -*|+*) continue ;;
+        esac
+        [[ $saw_c -eq 1 ]] && { printf '%s' "$word"; return 0; }
+        return 1
+    done
+    return 1
+}
+
 # Plain read verbs. `auth` and `config` are deliberately NOT here: they are
 # mixed read/write families (`config use-context`, `auth reconcile`, … mutate
 # state) and are classified by sub-command in k8s_guard_evaluate, fail-closed.
@@ -868,20 +994,44 @@ _k8s_ns_in_csv() {
 # silent so both -f and -k paths share exactly the same scope checks.
 _k8s_validate_rendered_docs() {
     local flag="$1" label="$2" ns_arg="$3" scope_ns_csv="$4" input_path="${5:-}" context="$6"
-    local parsed="" doc_kind doc_version doc_ns doc_scope docs_seen=0 action empty_reason
+    local parsed="" doc_kind doc_version doc_ns doc_name doc_scope docs_seen=0 action empty_reason
     case "$flag" in
         -f) action="contains"; empty_reason="parsed no documents (yq failed or empty)" ;;
         -k) action="renders"; empty_reason="rendered no documents" ;;
         *) printf 'BLOCK:precondition:%s %s uses an unsupported validation source' "$flag" "$label"; return 1 ;;
     esac
+    # `select(. != null)` drops empty documents — a leading `---` or a
+    # comment-only tail — which kubectl skips too; counting them demanded a
+    # namespace for a document that does not exist.
+    # `|` separates the fields because tab is whitespace to `read`: an empty
+    # namespace column collapsed and the name slid into its place. No Kind,
+    # namespace or object name can contain `|`.
+    local query='select(. != null) | ( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "") + "|" + (.metadata.name // "")'
     if [[ -n "$input_path" ]]; then
-        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "")' "$input_path" 2>/dev/null || true)"
+        parsed="$(yq -r "$query" "$input_path" 2>/dev/null || true)"
     else
-        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "")' 2>/dev/null || true)"
+        parsed="$(yq -r "$query" 2>/dev/null || true)"
     fi
     [[ -n "$parsed" ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
-    while IFS='|' read -r doc_kind doc_version doc_ns; do
+    while IFS='|' read -r doc_kind doc_version doc_ns doc_name; do
+        doc_name="${doc_name%$'\r'}"
+        # yq prints `---` between the rows of a multi-document file. Read as a
+        # row it was a document with no namespace — or, once scope discovery
+        # arrived, one whose scope "cannot be verified" — so every
+        # multi-document manifest failed whatever its documents said.
+        [[ "${doc_kind%$'\r'}" == "---" && -z "$doc_version" ]] && continue
         docs_seen=$((docs_seen + 1))
+        # A Namespace manifest naming an in-scope namespace is the same act
+        # as `create namespace <in-scope>`, which the CLI path already allows.
+        if [[ -n "$doc_kind" ]] && _k8s_is_namespace_type "$doc_kind"; then
+            if [[ -z "$doc_name" || "$doc_name" == "null" ]]; then
+                printf 'BLOCK:precondition:%s %s %s a Namespace with no name' "$flag" "$label" "$action"; return 1
+            fi
+            _k8s_ns_in_csv "$doc_name" "$scope_ns_csv" || {
+                printf 'BLOCK:scope:%s %s %s namespace %s, outside the guard scope (%s)' "$flag" "$label" "$action" "$doc_name" "$scope_ns_csv"; return 1;
+            }
+            continue
+        fi
         if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
             printf 'BLOCK:unbounded:%s %s %s a cluster-scoped %s, which is not namespace-scope-bounded' "$flag" "$label" "$action" "$doc_kind"; return 1
         fi
@@ -974,12 +1124,9 @@ _k8s_validate_kustomize_dir() {
                 return 1
                 ;;
         esac
-        case "$ref" in
-            ..|../*|*/..|*/../*)
-                echo "parent traversal in kustomization reference is not allowed: $ref"
-                return 1
-                ;;
-        esac
+        # Parent traversal is how every real overlay reaches its base
+        # (`../../base`), so it is allowed; the resolved-path check below
+        # keeps it inside the bound.
 
         # Generator files may use key=path syntax. Validate the path side;
         # remote/query forms were already rejected above before stripping.
@@ -1002,7 +1149,7 @@ _k8s_validate_kustomize_dir() {
         }
         case "$probe_real/" in
             "$root_real/"*) : ;;
-            *) echo "kustomization reference escapes the selected local root: $ref"; return 1 ;;
+            *) echo "kustomization reference escapes the repository holding the overlay ($root_real): $ref"; return 1 ;;
         esac
         if [[ -d "$candidate" ]]; then
             _k8s_validate_kustomize_dir "$root_real" "$candidate" || return 1
@@ -1018,7 +1165,23 @@ k8s_guard_validate_kustomize_tree() {
     }
     root_real="$(cd "$root" 2>/dev/null && pwd -P)" || return 1
     _K8S_KUSTOMIZE_VISITED=""
-    _k8s_validate_kustomize_dir "$root_real" "$root_real"
+    _k8s_validate_kustomize_dir "$(_k8s_kustomize_bound "$root_real")" "$root_real"
+}
+
+# The directory every kustomize reference must resolve inside: the nearest
+# enclosing Git repository (a `.git` directory or worktree file), else the
+# overlay itself. A repository is the unit someone reviewed; a reference that
+# leaves it could pull a stray file — a secretGenerator reading ~/.ssh — into
+# a Secret applied to the cluster.
+_k8s_kustomize_bound() {
+    local dir="$1"
+    while [[ -n "$dir" ]]; do
+        [[ -e "$dir/.git" ]] && { printf '%s' "$dir"; return 0; }
+        [[ "$dir" == "/" || "$dir" != */* ]] && break
+        dir="${dir%/*}"
+        [[ -n "$dir" ]] || dir="/"
+    done
+    printf '%s' "$1"
 }
 
 # Print one verdict: NOT_K8S | READ_NO_SCOPE | WRITE_NO_SCOPE |
@@ -1026,8 +1189,10 @@ k8s_guard_validate_kustomize_tree() {
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
 k8s_guard_evaluate() {
     local scope_ctx="$1" scope_ns_csv="$2"; shift 2
-    # Recognize both `kubectl ...` and `ws k8s ...` forms.
-    if [[ "$1" == "kubectl" ]]; then shift
+    # Recognize both `kubectl ...` and `ws k8s ...` forms. Only the raw form
+    # runs against kubectl's current context; `ws k8s` injects the scope's.
+    local raw_form=0
+    if [[ "$1" == "kubectl" ]]; then shift; raw_form=1
     elif [[ "$1" == *"/ws" || "$1" == "ws" || "$1" == "bash" ]]; then
         while [[ $# -gt 0 && "$1" != "k8s" ]]; do shift; done
         [[ "$1" == "k8s" ]] && shift || { printf 'NOT_K8S'; return 0; }
@@ -1040,11 +1205,18 @@ k8s_guard_evaluate() {
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
     local args=("$@")
-    local i=0
+    local i=0 verb_index=-1 verb2_index=-1 first_fragment=-1
+    for ((i = 0; i < ${#args[@]}; i++)); do
+        [[ "${args[i]}" == "--" ]] && break
+        if _k8s_is_split_fragment "${args[i]}"; then first_fragment=$i; break; fi
+    done
+    i=0
     while [[ $i -lt ${#args[@]} ]]; do
         a="${args[$i]}"
         if [[ $options_done -eq 1 ]]; then
-            if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi
+            if [[ -z "$verb" ]]; then verb="$a"; verb_index=$i
+            elif [[ -z "$verb2" ]]; then verb2="$a"; verb2_index=$i
+            else rest_pos+=("$a"); fi
             i=$((i+1))
             continue
         fi
@@ -1111,8 +1283,13 @@ k8s_guard_evaluate() {
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
             # must not read `5s` as a second namespace). Attached (`-oyaml`) and
             # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
-            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout) i=$((i+2)); continue ;;
-            --request-timeout=*) ;;
+            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout|-c|--container|--field-manager) i=$((i+2)); continue ;;
+            --request-timeout=*|--container=*|--field-manager=*|-c?*) ;;
+            # Valueless write options seen in real sessions (`apply
+            # --server-side`, `exec -it`). Their space form never consumes the
+            # next token, so the resource slot stays put.
+            --server-side|--force-conflicts|--overwrite|--force|--now|--all|--wait|--cascade|--validate|--record|--save-config|-i|--stdin|-t|--tty|-it|-ti|-q|--quiet) ;;
+            --server-side=*|--force-conflicts=*|--overwrite=*|--force=*|--now=*|--all=*|--wait=*|--cascade=*|--validate=*|--record=*|--save-config=*|--stdin=*|--tty=*|--quiet=*) ;;
             --namespaced)
                 if [[ "$verb" != "api-resources" ]]; then
                     printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
@@ -1151,15 +1328,33 @@ k8s_guard_evaluate() {
                 # they may take the next token as a value, shifting the command
                 # or resource into a slot with weaker classification. Fail closed
                 # and let the hook surface the guard reason to the operator.
-                if [[ -z "$verb" || -z "$verb2" ]]; then
+                # Once the verb is a plain read, nothing after it can turn the
+                # command into a write, so `logs --tail 5 pod` is safe to pass.
+                if [[ -z "$verb" ]] || { [[ -z "$verb2" ]] && ! _k8s_is_read_verb "$verb"; }; then
                     printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
                     return 0
                 fi
                 ;;
-            *) if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi ;;
+            *)
+                if [[ -z "$verb" ]]; then verb="$a"; verb_index=$i
+                elif [[ -z "$verb2" ]]; then verb2="$a"; verb2_index=$i
+                else rest_pos+=("$a"); fi
+                ;;
         esac
         i=$((i+1))
     done
+
+    # The hooks hand the guard shell text split on whitespace, so `-l 'a get'`
+    # arrives as `-l`, `'a`, `get'` and -l consumes only the first half. A
+    # split value sitting before the verb, or before a write's resource, can
+    # put the wrong token in that slot — `-l a\ get delete …` read as `get`.
+    if [[ $first_fragment -ge 0 ]]; then
+        if [[ $verb_index -lt 0 || $first_fragment -le $verb_index ]] \
+            || { { [[ $verb2_index -lt 0 || $first_fragment -le $verb2_index ]]; } && ! _k8s_is_read_verb "$verb"; }; then
+            printf 'BLOCK:precondition:a quoted or escaped value with whitespace (%s) sits before the kubectl verb or resource and cannot be tokenized safely; move that option after the resource' "${args[first_fragment]}"
+            return 0
+        fi
+    fi
 
     # `scope` is a wrapper-management verb (show/set/clear); it is not a
     # kubectl command. Return NOT_K8S so the hook passes it to the normal
@@ -1171,6 +1366,21 @@ k8s_guard_evaluate() {
     fi
     if [[ -n "$scope_ctx" && -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:context:explicit --context %s != the guard-scope context %s' "$ctx_arg" "$scope_ctx"; return 0
+    fi
+    # Without --context, raw kubectl acts on kubeconfig's current context, and
+    # arming a scope does not switch it. Comparing only an explicit flag let a
+    # plain `kubectl get` read homelab while the scope said GKE. An empty
+    # answer means kubectl has no current context and will refuse to run, so
+    # there is nothing to compare. `config` and `kustomize` never reach a
+    # cluster.
+    if [[ -n "$scope_ctx" && $raw_form -eq 1 && $ctx_arg_present -eq 0 && "$verb" != "config" && "$verb" != "kustomize" ]]; then
+        local current_ctx
+        current_ctx="$("${KUBECTL:-kubectl}" config current-context 2>/dev/null || true)"
+        current_ctx="${current_ctx%$'\r'}"
+        if [[ -n "$current_ctx" && "$current_ctx" != "$scope_ctx" ]]; then
+            printf 'BLOCK:context:kubectl'"'"'s current context %s is not the guard-scope context %s, so plain kubectl would act on %s — use `ws k8s <args>`, which injects --context, or pass --context %s' "$current_ctx" "$scope_ctx" "$current_ctx" "$scope_ctx"
+            return 0
+        fi
     fi
     local read_verdict="READ_IN_SCOPE"
     [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
@@ -1270,7 +1480,8 @@ k8s_guard_evaluate() {
     # is the scope-check target here, not -n. Requires at least one name and
     # EVERY named namespace in scope; a nameless form (label selector / --all)
     # has no name to bound and falls through to the cluster-scoped block below.
-    # (-f Namespace manifests stay conservative — handled in the -f block.)
+    # (-f / -k Namespace manifests get the same by-name check in
+    # _k8s_validate_rendered_docs.)
     # Extract the namespace type and an optional inline name, so the slash form
     # `delete ns/alice-sandbox` is treated like `delete ns alice-sandbox`.
     local _ns_type="$verb2" _ns_inline="" _ns_lifecycle_tuples_in_scope=0

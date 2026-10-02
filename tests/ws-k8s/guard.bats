@@ -17,7 +17,7 @@ make_kustomize_probe() {
 if [[ "\$1" == "kustomize" ]]; then
   touch "$KUSTOMIZE_PROBE"
   cat "$rendered"
-else
+elif [[ "\$*" != *current-context* ]]; then
   echo default
 fi
 EOF
@@ -461,7 +461,7 @@ metadata:
 EOF
     cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; elif [[ "\$*" != *current-context* ]]; then echo default; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
     export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
@@ -480,7 +480,7 @@ metadata:
 EOF
     cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; elif [[ "\$*" != *current-context* ]]; then echo default; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
     export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
@@ -498,7 +498,7 @@ metadata:
 EOF
     cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; elif [[ "\$*" != *current-context* ]]; then echo default; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
     export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
@@ -987,4 +987,199 @@ render_block() { run bash -c "source '$GUARD_LIB'; k8s_render_block \"\$1\" \"\$
 @test "scope set is NOT_K8S (wrapper management, not a kubectl command)" {
     run_guard "kind-practice" "alice-sandbox" ws k8s scope set --context kind-practice --namespace alice-sandbox
     [ "$output" = "NOT_K8S" ]
+}
+
+# ─── Papercuts from real overlays and real sessions ─────────────────
+
+# A repo-shaped tree: base + overlays/dev referencing ../../base.
+make_overlay_repo() {
+    local repo="$BATS_TEST_TMPDIR/repo"
+    mkdir -p "$repo/.git" "$repo/base" "$repo/overlays/dev"
+    printf 'resources:\n  - cm.yaml\n' > "$repo/base/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: base\n' > "$repo/base/cm.yaml"
+    printf 'resources:\n  - ../../base\n' > "$repo/overlays/dev/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: rendered\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+}
+
+@test "apply -k allows parent traversal that stays inside the overlay's repository" {
+    make_overlay_repo
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/repo/overlays/dev"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    [ -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k still refuses parent traversal that leaves the overlay's repository" {
+    make_overlay_repo
+    printf 'apiVersion: v1\nkind: ConfigMap\n' > "$BATS_TEST_TMPDIR/outside.yaml"
+    printf 'resources:\n  - ../../base\n  - ../../../outside.yaml\n' > "$BATS_TEST_TMPDIR/repo/overlays/dev/kustomization.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/repo/overlays/dev"
+    [[ "$output" == BLOCK:precondition:*"escapes"* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "read verbs accept options before the resource" {
+    local cmd
+    for cmd in "wait --for=condition=Ready pod/x" "wait --for condition=Ready pod/x" \
+        "logs --tail 5 pod/x" "logs --tail=5 -c main pod/x" "logs --since=1h --previous pod/x"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" kubectl $cmd
+        [ "$output" = "READ_IN_SCOPE" ]
+    done
+}
+
+@test "an unknown option before the verb still fails closed" {
+    run_guard "kind-practice" "alice-sandbox" kubectl --future-flag get pods
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "apply accepts server-side apply options before the manifest" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply --server-side --force-conflicts --field-manager gdd -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "known write options cannot hide a cluster-scoped resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete --wait=false --cascade=foreground clusterrole admin
+    [[ "$output" == BLOCK:unbounded:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl label --overwrite node/worker1 a=b
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
+
+@test "apply -f skips empty documents instead of demanding -n" {
+    printf -- '---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: alice-sandbox\n---\n# trailing comment only\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "apply -f of a Namespace that is itself in scope is allowed" {
+    printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: alice-sandbox\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "apply -f of an out-of-scope Namespace is classed 'scope'" {
+    printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: prod\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:scope:*"prod"* ]]
+}
+
+@test "apply -f of a nameless Namespace still fails closed" {
+    printf 'apiVersion: v1\nkind: Namespace\nmetadata: {}\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+}
+
+@test "exec accepts stdin, tty and container options" {
+    local flags
+    for flags in "-i" "-it" "-ti" "-i -t" "--stdin --tty" "--stdin=true" "-c main" "--container=main" "-q"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" kubectl exec $flags pod/x -n alice-sandbox -- cat
+        [ "$output" = "WRITE_IN_SCOPE" ]
+    done
+    run_guard "kind-practice" "alice-sandbox" kubectl exec -i pod/x -n prod -- cat
+    [[ "$output" == BLOCK:scope:* ]]
+}
+
+@test "a split quoted value before the verb fails closed instead of shifting it" {
+    # The hooks see shell text split on whitespace, so 'a get' arrives as two
+    # words; -l would consume the first and leave `get` in the verb slot.
+    run_guard "kind-practice" "alice-sandbox" kubectl -l "'a" "get'" delete clusterrole admin
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl -l 'a\' get delete clusterrole admin
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "a split quoted value after the resource stays harmless" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -l "'env" in "(prod)'"
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+# kubectl reports $1 as its current context.
+make_current_context_stub() {
+    cat > "$BATS_TEST_TMPDIR/kubectl-ctx" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+    *"config current-context"*) echo "$1" ;;
+    *"config view"*) echo alice-sandbox ;;
+esac
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/kubectl-ctx"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl-ctx"
+}
+
+@test "raw kubectl without --context is compared against kubectl's current context" {
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods
+    [[ "$output" == BLOCK:context:*"current context other"* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod x -n alice-sandbox
+    [[ "$output" == BLOCK:context:* ]]
+}
+
+@test "raw kubectl on the scope's current context, or with an explicit matching --context, passes" {
+    make_current_context_stub kind-practice
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" kubectl --context kind-practice get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "ws k8s injects --context, so kubectl's current context does not matter" {
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" ws k8s get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "an unset current context is not a mismatch (kubectl itself refuses to run)" {
+    make_current_context_stub ""
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "k8s_guard_verb finds the verb past global options" {
+    run bash -c 'source "$1"; shift; k8s_guard_verb "$@"' _ "$GUARD_LIB" -n alice-sandbox --context kind-practice exec -it pod/x -- ls
+    [ "$output" = "exec" ]
+    run bash -c 'source "$1"; shift; k8s_guard_verb "$@"' _ "$GUARD_LIB" --request-timeout 5s cp a pod:/b
+    [ "$output" = "cp" ]
+}
+
+# ─── Inline shells: classified by their payload ─────────────────────
+inline_status() { run bash -c 'source "$1"; k8s_guard_inline_shell_status "$2" "$3"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/work" "$1"; }
+
+@test "inline shell status: not an inline shell" {
+    inline_status "ls -la"
+    [ "$status" -eq 1 ]
+    inline_status "bash scripts/x.sh"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: a literal kubectl payload" {
+    inline_status "bash -c 'kubectl delete ns prod'"
+    [ "$status" -eq 0 ]
+}
+
+@test "inline shell status: a payload that runs a kubectl script is scanned" {
+    mkdir -p "$BATS_TEST_TMPDIR/work"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$BATS_TEST_TMPDIR/work/deploy.sh"
+    printf '#!/bin/bash\necho hi\n' > "$BATS_TEST_TMPDIR/work/hello.sh"
+    inline_status "bash -c './deploy.sh'"
+    [ "$status" -eq 0 ]
+    inline_status "sh -c \"bash deploy.sh --fast\""
+    [ "$status" -eq 0 ]
+    inline_status "bash -c ./hello.sh"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: a simple kubectl-free payload is clean" {
+    inline_status "bash -c 'echo hello'"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: compound and nested payloads are uninspectable" {
+    local c
+    for c in "bash -c 'cd x; ./deploy.sh'" "bash -c 'make deploy && echo ok'" "sh -c 'a | b'" "bash -c \"sh -c ./deploy.sh\"" "bash -lc 'echo \$X'"; do
+        inline_status "$c"
+        [ "$status" -eq 3 ]
+    done
 }

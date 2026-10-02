@@ -95,6 +95,15 @@ _k8s_scope() {
                 echo "guard scope armed: context=$ctx namespaces=(all — context-only)"
             else
                 echo "guard scope armed: context=$ctx namespaces=$ns"
+            fi
+            # Arming does not switch kubeconfig. Say so when they differ:
+            # plain kubectl keeps going to the old context, and nothing else
+            # makes that visible until the answers stop making sense.
+            local current
+            current="$("$KUBECTL" config current-context 2>/dev/null || true)"
+            current="${current%$'\r'}"
+            if [[ -n "$current" && "$current" != "$ctx" ]]; then
+                echo "NOTE: kubectl's current context is $current, not $ctx. Use 'ws k8s <args>' (it injects --context); the guard refuses plain kubectl without --context until they match." >&2
             fi ;;
         *) echo "Usage: ws k8s scope set|show|clear" >&2; return 1 ;;
     esac
@@ -182,6 +191,8 @@ A kubectl subcommand's own help still passes through, e.g. 'ws k8s get --help'.
 On Windows, QUOTE a native -f path or use forward slashes — an unquoted
 backslash path (ws k8s apply -f C:\dir\m.yaml) is mangled by the shell before
 ws sees it. Use 'ws k8s apply -f "C:\dir\m.yaml"' or '.../C:/dir/m.yaml'.
+exec, cp, debug, attach and run turn off Git Bash path conversion, so in-pod
+paths arrive intact; give cp's local side as a relative path.
 HELP
 }
 
@@ -203,9 +214,25 @@ main() {
         ambient="$(_k8s_ambient_scope)" || return $?
         ctx="${ambient%%|*}"; ns="${ambient#*|}"
     fi
-    local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" kubectl "$@")"
+    # The `ws k8s` form tells the guard --context is injected below, so
+    # kubectl's own current context is not the one that matters.
+    local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" ws k8s "$@")"
     case "$verdict" in
         BLOCK:*) k8s_render_block "$verdict" "$ctx" "k8s" >&2; printf '\n' >&2; return 1 ;;
+    esac
+    # Git Bash rewrites absolute-looking arguments for native kubectl.exe:
+    # `exec … -- cat /sys/fs/cgroup/cpu.stat` reached the pod as
+    # `C:/Program Files/Git/sys/…`, and `ns/pod:/tmp/x` became a Windows
+    # path list. These verbs carry in-pod paths, so conversion only does harm;
+    # verbs that read local files (-f, -k) keep it.
+    case "$(k8s_guard_verb "$@")" in
+        exec|cp|debug|attach|run)
+            case "$(uname -s 2>/dev/null || echo unknown)" in
+                MINGW*|MSYS*|CYGWIN*) export MSYS_NO_PATHCONV=1 ;;
+            esac
+            ;;
+    esac
+    case "$verdict" in
         READ_NO_SCOPE|WRITE_NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
         READ_IN_SCOPE|DRY_RUN_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;
         *) echo "ws k8s: unrecognized guard verdict '$verdict'" >&2; return 1 ;;
