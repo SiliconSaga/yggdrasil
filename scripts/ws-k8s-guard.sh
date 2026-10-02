@@ -1191,6 +1191,10 @@ k8s_guard_evaluate() {
                 *) [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
                    printf 'BLOCK:unbounded:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
             esac ;;
+        proxy)
+            printf 'BLOCK:unbounded:kubectl proxy exposes the full cluster API and is not namespace-scope-bounded'
+            return 0
+            ;;
         cluster-info)
             if [[ -z "$verb2" ]]; then
                 printf '%s' "$read_verdict"

@@ -1,4 +1,11 @@
 #!/usr/bin/env bats
+
+@test "proxy is unbounded even with an approved namespace or dry-run" {
+    run_guard kind-practice sandbox kubectl proxy -n sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+    run_guard kind-practice sandbox kubectl proxy -n sandbox --dry-run=server
+    [[ "$output" == BLOCK:* ]]
+}
 load test_helper
 setup() { make_kubectl_stub "default"; }
 
