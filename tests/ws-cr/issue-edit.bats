@@ -47,6 +47,7 @@ case "${1:-} ${2:-}" in
   "auth status") exit 0 ;;
 esac
 printf '%s\n' "gh" "$@" >> "$GH_LOG"
+[[ "${GH_TOKEN:-}" == fixture-mapped ]] && printf '%s\n' MAPPED_TOKEN >> "$GH_LOG"
 # Emit the created-issue URL the real CLI prints, so a test can assert the success path REPLAYS provider output rather than swallowing it into the buffer the failure path needs.
 case "${1:-} ${2:-}" in
   "issue create") echo "https://github.com/example/fork/issues/1" ;;
@@ -59,6 +60,17 @@ SH
 
 write_body() {
     printf '%s\n\nRevised problem statement.\n' "$1" > "$WORK/.issues/edit.md"
+}
+
+@test "issue creation uses the repository-mapped token instead of the ambient token" {
+    cat >> "$ECOSYSTEM_LOCAL" <<'YAML'
+defaults:
+  gitTokens:
+    github.com/example: GH_ISSUE_TOKEN
+YAML
+    GH_TOKEN=fixture-ambient GH_ISSUE_TOKEN=fixture-mapped run bash "$WS_BIN" issue yggdrasil "test: mapped issue" bug .issues/edit.md
+    [ "$status" -eq 0 ]
+    grep -q MAPPED_TOKEN "$GH_LOG"
 }
 
 @test "issue edit substitutes placeholders before sending" {
