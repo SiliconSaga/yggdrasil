@@ -29,11 +29,18 @@ HELP
     exit 0
 fi
 
-# Help needs no auth — let `--help`/`-h` (at any position) pass through to glab's
-# own help, matching the usage text above and avoiding a token-gate failure.
+# A help-shaped option value must not bypass authentication or root guards.
+_ws_glab_help=0
+_ws_glab_help_safe=1
 for _a in "$@"; do
-    case "$_a" in --help|-h) exec glab "$@" ;; esac
+    case "$_a" in
+        --help|-h) _ws_glab_help=1 ;;
+        *) [[ "$_a" =~ ^[A-Za-z0-9_-]+$ && "$_a" != -* ]] || _ws_glab_help_safe=0 ;;
+    esac
 done
+if [[ "$_ws_glab_help" -eq 1 && "$_ws_glab_help_safe" -eq 1 ]]; then
+    exec glab "$@"
+fi
 
 # Same root-directory hazard as ws-gh.sh — see the longer note there. `ws glab`
 # has no target, so a subcommand that mutates the repo it stands in lands on the

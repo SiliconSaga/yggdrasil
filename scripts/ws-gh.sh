@@ -66,7 +66,7 @@ esac
 if [[ -n "$_WS_GH_COMP" ]]; then
     _ws_gh_has_repo=""
     for _a in "$@"; do
-        case "$_a" in --repo|--repo=*|-R) _ws_gh_has_repo=1 ;; esac
+        case "$_a" in --repo|--repo=*|-R|-R?*) _ws_gh_has_repo=1 ;; esac
     done
     if [[ -z "$_ws_gh_has_repo" ]]; then
         # shellcheck source=git-provider.sh
@@ -78,7 +78,7 @@ if [[ -n "$_WS_GH_COMP" ]]; then
         _ws_gh_remotes=()
         while IFS= read -r _r; do
             [[ -n "$_r" ]] || continue
-            _url="$(git -C "$COMPONENT_DIR" remote get-url "$_r" 2>/dev/null)" || continue
+            _url="$(git -C "$COMPONENT_DIR" config --get-all "remote.$_r.url" 2>/dev/null | head -n1)" || continue
             _prov="$(gp_detect "$_url" "$_ws_gh_eco" 2>/dev/null)" || continue
             [[ "$_prov" == "github" ]] || continue
             _ws_gh_remotes+=("$_r")
@@ -102,8 +102,31 @@ if [[ -n "$_WS_GH_COMP" ]]; then
             echo "  Set defaults.upstreamRemote, or pass --repo <owner/name> explicitly." >&2
             exit 1
         fi
-        gp_load github 2>/dev/null || true
-        _ws_gh_slug="$(gp_extract_slug "$(git -C "$COMPONENT_DIR" remote get-url "$_ws_gh_pick")")"
+        # Transport rewrites must not select a different API host or credential.
+        _ws_gh_url="$(git -C "$COMPONENT_DIR" config --get-all "remote.$_ws_gh_pick.url" | head -n1)"
+        _ws_gh_host="$(git_remote_host "$_ws_gh_url")"
+        _ws_gh_host_value=0
+        for _a in "$@"; do
+            _ws_gh_override=""
+            if [[ "$_ws_gh_host_value" -eq 1 ]]; then
+                _ws_gh_override="$_a"
+                _ws_gh_host_value=0
+            else
+                case "$_a" in
+                    --hostname) _ws_gh_host_value=1; continue ;;
+                    --hostname=*) _ws_gh_override="${_a#*=}" ;;
+                    *) continue ;;
+                esac
+            fi
+            if [[ "$_ws_gh_override" != "$_ws_gh_host" ]]; then
+                echo "ERROR: --hostname conflicts with the component's GitHub remote; use a plain 'ws gh' call for another host." >&2
+                exit 1
+            fi
+        done
+        gp_detect_and_load "$_ws_gh_url" "$_ws_gh_eco"
+        _ws_gh_auth_eco="$(ws_resolve_local_ecosystem 2>/dev/null)" || _ws_gh_auth_eco=""
+        gp_set_token_for_url "$_ws_gh_url" "$_ws_gh_auth_eco"
+        _ws_gh_slug="$(gp_extract_slug "$_ws_gh_url")"
         if [[ -z "$_ws_gh_slug" || "$_ws_gh_slug" != */* ]]; then
             echo "ERROR: could not read an owner/name slug from remote '$_ws_gh_pick' of '$_WS_GH_COMP'." >&2
             exit 1
@@ -114,15 +137,23 @@ if [[ -n "$_WS_GH_COMP" ]]; then
         # repo` and the auth/config groups do not accept --repo at all and
         # would fail on the unknown flag.
         export GH_REPO="$_ws_gh_slug"
+        [[ "$GH_HOST" == github.com ]] || export GH_REPO="$GH_HOST/$_ws_gh_slug"
     fi
 fi
 
-# Help is informational and needs no auth — let `--help`/`-h` (at any position,
-# e.g. `ws gh pr --help`) pass straight through to gh's own help, matching the
-# usage text above and avoiding a pointless token-gate failure.
+# Only a command path plus a help flag is unambiguously informational. Another
+# option can consume --help as its value, so it must pass the normal guards.
+_ws_gh_help=0
+_ws_gh_help_safe=1
 for _a in "$@"; do
-    case "$_a" in --help|-h) exec gh "$@" ;; esac
+    case "$_a" in
+        --help|-h) _ws_gh_help=1 ;;
+        *) [[ "$_a" =~ ^[A-Za-z0-9_-]+$ && "$_a" != -* ]] || _ws_gh_help_safe=0 ;;
+    esac
 done
+if [[ "$_ws_gh_help" -eq 1 && "$_ws_gh_help_safe" -eq 1 ]]; then
+    exec gh "$@"
+fi
 
 # `ws gh` takes no target, so it runs at the workspace root. Most gh subcommands
 # are remote API calls and do not care, but a few mutate whatever repo they are
@@ -189,8 +220,13 @@ esac
 # Scoped to one host: unscoped `gh auth status` exits 1 when ANY known host has
 # a stale account, so an old login on an unrelated host would block a valid one
 # here. GH_HOST is what gh itself reads to pick the host.
-if [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]]; then
-    _ws_gh_host="${GH_HOST:-github.com}"
+_ws_gh_host="${GH_HOST:-github.com}"
+_ws_gh_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+case "$_ws_gh_host" in
+    github.com|*.ghe.com) ;;
+    *) _ws_gh_token="${GH_ENTERPRISE_TOKEN:-${GITHUB_ENTERPRISE_TOKEN:-}}" ;;
+esac
+if [[ -z "$_ws_gh_token" ]]; then
     if ! gh auth status --hostname "$_ws_gh_host" >/dev/null 2>&1; then
         echo "ERROR: no GitHub token in the environment (GH_TOKEN / GITHUB_TOKEN)," >&2
         echo "  and 'gh' has no valid stored login for $_ws_gh_host either." >&2
