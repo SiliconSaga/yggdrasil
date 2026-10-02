@@ -1,5 +1,13 @@
 #!/usr/bin/env bats
 
+@test "SSH paths cannot borrow another host's token mapping" {
+    local eco="$BATS_TEST_TMPDIR/token-map.yaml"
+    printf 'defaults:\n  gitTokens:\n    gitlab.example.test/team: GITLAB_PROBE_TOKEN\n' > "$eco"
+    export GITLAB_PROBE_TOKEN=synthetic-probe-only
+    run bash -c 'set -e; unset GITLAB_TOKEN GITLAB_HOST; source "$1/scripts/git-provider.sh"; url="ssh://untrusted.example/x@gitlab.example.test/team/repo.git"; gp_set_token_for_url "$url" "$2"; [[ "${GITLAB_TOKEN:-}" != synthetic-probe-only ]]; [[ "$(git_auth_normalize_url "$url")" == untrusted.example/x@gitlab.example.test/team/repo ]]; [[ "$(gp_detect "ssh://git@gitlab.com/team/repo.git")" == gitlab ]]' _ "$REPO_ROOT" "$eco"
+    [ "$status" -eq 0 ]
+}
+
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     source "$REPO_ROOT/scripts/git-provider.sh"

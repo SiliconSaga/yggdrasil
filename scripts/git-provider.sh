@@ -133,14 +133,9 @@ gp_detect() {
     local eco="${2:-}"
 
     # Extract domain from URL
-    local domain=""
-    if [[ "$url" =~ ^ssh://[^@]*@([^:/]+) ]]; then
-        domain="${BASH_REMATCH[1]}"
-    elif [[ "$url" =~ ^https?://([^/:]+) ]]; then
-        domain="${BASH_REMATCH[1]}"
-    elif [[ "$url" =~ ^git@([^:]+): ]]; then
-        domain="${BASH_REMATCH[1]}"
-    fi
+    local domain="" host_url="$url"
+    [[ "$host_url" != http://* ]] || host_url="https://${host_url#http://}"
+    domain="$(git_remote_host "$host_url" 2>/dev/null || true)"
 
     # Step 2: Check defaults.gitProviders.<domain> mapping
     if [[ -n "$eco" && -n "$domain" ]]; then
@@ -420,7 +415,11 @@ gp_set_token_for_url() {
     [[ "$map_count" -eq 0 ]] && return 0
 
     local normalized
-    normalized="$(git_auth_normalize_url "$url")"
+    normalized="$(git_auth_normalize_url "$url")" || return 1
+    if [[ "${normalized%%/*}" != "$host" ]]; then
+        echo "ERROR: token mapping host disagrees with the remote authority; no mapped credential attached." >&2
+        return 1
+    fi
 
     # Find the longest matching key (most-specific group path wins)
     local best_var="" best_len=0

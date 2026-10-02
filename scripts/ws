@@ -1234,8 +1234,7 @@ HELP
 
         # Normalize URL the same way gp_set_token_for_url does
         local normalized
-        normalized=$(echo "$url" \
-            | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||')
+        normalized=$(git_auth_normalize_url "$url") || continue
 
         # Longest-prefix match against defaults.gitTokens
         # (shared with ws-clone-fork.sh via ws-realm.sh).
@@ -1400,7 +1399,7 @@ HELP
     fi
 
     fork_token_target=$(printf '%s' "$fork_namespace" \
-        | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
+        | sed 's|^ssh://[^@/]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|\1/|; s|\.git$||; s|/$||')
     fork_token_target="${fork_token_target#/}"
     if [[ "$fork_token_target" != "$host" && "$fork_token_target" != "$host/"* ]]; then
         fork_token_target="$host/$fork_token_target"
