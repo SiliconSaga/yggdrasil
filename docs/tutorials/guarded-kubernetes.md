@@ -263,6 +263,18 @@ Ended-session files can continue contributing to this ambient aggregation becaus
 - Replace RBAC. The bypass is always one command away by design — server-side RBAC is the real authorization boundary.
 - Guard kubectl run entirely outside the workspace (a terminal not running the agent, CI, etc.).
 - Persist intentionally as shared configuration. The scope belongs to one session file; stale ended-session files may linger locally until `ws clean --sessions-all` removes them.
+- Tell a correct delete from a regrettable one. Inside an armed namespace the guard is about blast radius, never intent — see below.
+
+### Before deleting anything idle
+
+A dormant workload and a spent one look identical at runtime and mean opposite things: `replicas: 0` is how someone parks a server on purpose. One was deleted as "spent" with its three volumes and restored from Velero the same day — the only reason this is a checklist and not a loss.
+
+1. **Compare declared intent to live state.** `kubectl.kubernetes.io/last-applied-configuration` saying `replicas: 1` while live is `0` means a manual scale-down: parked, not abandoned. One command to check.
+2. **Inspect the data, not just the workload.** A quiet volume needs the look *more*, not less — nothing pushes back when you delete something nobody is using today.
+3. **Distrust inherited names.** "The two legacy servers" was true when said and stale when acted on; one had been refreshed into a live instance under its old namespace and labels. Re-verify against the cluster, not against an earlier sentence in the conversation.
+4. **Name the backup first.** Confirm a completed backup actually contains the volume, before deleting rather than after; a snapshot that outlives the disk is what makes the delete reversible for its TTL.
+
+Declared-versus-live, data inspected, backup named, *then* delete.
 
 ### Going further
 

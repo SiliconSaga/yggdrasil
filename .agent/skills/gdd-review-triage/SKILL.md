@@ -47,6 +47,12 @@ Understanding each reviewer's quirks is essential for effective triage.
   reviewing — avoid this
 - Does NOT track resolved threads across re-reviews — re-files the same
   findings even after they've been addressed (see resolution table below)
+- Its review overview is cumulative, not incremental: every run restates
+  the whole findings table, with addressed items still listed under "Open"
+  against code that no longer exists, and genuinely new ones marked "New".
+  Read the "New" and "Previously missed" markers, not the open count — over
+  five rounds on one PR, "open" never dropped below two for two findings
+  fixed in round one.
 
 ## Fetching Comments and Threads
 
