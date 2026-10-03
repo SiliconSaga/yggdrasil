@@ -19,6 +19,8 @@ setup() {
 [[ "$1" == "auth" && "$2" == "status" ]] && exit 1
 echo "GH_ARGS: $*"
 echo "GH_REPO: ${GH_REPO:-}"
+echo "GH_HOST: ${GH_HOST:-}"
+[[ "${GH_ENTERPRISE_TOKEN:-}" == fixture-mapped ]] && echo "GH_MAPPED_TOKEN"
 # Mirror the wrapper contract: GH_TOKEN or GITHUB_TOKEN counts as authenticated.
 [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]] && echo "GH_TOKEN_PRESENT" || echo "GH_TOKEN_ABSENT"
 EOF
@@ -37,7 +39,70 @@ EOF
 # real workspace's local config, whose identity.forkRemote would otherwise
 # merge over the fixture's and decide which remote the component-first form
 # picks.
-run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST -u GH_REPO WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
+run_ws() { run env -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN -u GITLAB_TOKEN -u GITLAB_HOST -u GH_HOST -u GH_REPO WS_FOOTER_DISABLE=1 ROOT_DIR="$WORK" ECOSYSTEM_LOCAL="$WORK/ecosystem.local.yaml" PATH="$WORK/bin:$PATH" bash "$WS_BIN" "$@"; }
+
+@test "ws gh does not delegate a clone whose flag value is --help" {
+    run_ws gh repo clone owner/repo --upstream-remote-name --help
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"GH_ARGS:"* ]]
+}
+
+@test "pure help for a guarded mutation still works without authentication" {
+    run_ws gh repo clone --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_ARGS: repo clone --help"* ]]
+    run_ws glab mr checkout --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GLAB_ARGS: mr checkout --help"* ]]
+}
+
+@test "ws glab does not delegate a checkout whose branch value is --help" {
+    run_ws glab mr checkout 42 -b --help
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"GLAB_ARGS:"* ]]
+}
+
+@test "a help-shaped option value does not bypass gh authentication" {
+    run_ws gh api user --header --help
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"GH_ARGS:"* ]]
+}
+
+@test "a help-shaped option value does not bypass glab authentication" {
+    run_ws glab api user --header --help
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"GLAB_ARGS:"* ]]
+}
+
+@test "component-first gh binds the configured host and mapped token despite insteadOf" {
+    printf 'GH_TOKEN=fixture-ambient\nGH_TEAM_TOKEN=fixture-mapped\n' > "$WORK/.env"
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+defaults:
+  gitProviders:
+    github.example.test: github
+  gitTokens:
+    github.example.test/team: GH_TEAM_TOKEN
+components:
+  app:
+    repo: https://github.example.test/team/repo.git
+YAML
+    mkdir -p "$WORK/components/app"
+    git -C "$WORK/components/app" init -q
+    git -C "$WORK/components/app" remote add origin https://github.example.test/team/repo.git
+    git -C "$WORK/components/app" config url.https://github.com/wrong/.insteadOf https://github.example.test/team/
+    run_ws gh app api 'repos/{owner}/{repo}/issues'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"GH_HOST: github.example.test"* ]]
+    [[ "$output" == *"GH_REPO: github.example.test/team/repo"* ]]
+    [[ "$output" == *"GH_MAPPED_TOKEN"* ]]
+    [[ "$output" != *"fixture-mapped"* ]]
+    run_ws gh app api user --hostname other.example.test
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"GH_ARGS:"* ]]
+    run_ws gh app api user --hostname=other.example.test
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"GH_ARGS:"* ]]
+}
 
 @test "ws gh execs gh with args and the .env token present, without leaking it" {
     printf 'export GH_TOKEN=secret-gh-tok\n' > "$WORK/.env"

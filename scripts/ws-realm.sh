@@ -576,6 +576,7 @@ _ws_lexical_absolute_path() {
 }
 
 ws_realm_trust_fingerprint() {
+    local captured_adapter="${2:-}" captured_content="${3:-}"
     local name="$1" realm_dir realm_file realm_real realm_lexical canonical adapter_file adapter_basename relative fingerprint
     local commands target_name target_dir command word candidate candidate_path
     local candidate_lexical lexical_in_realm candidate_parent_real referenced_path referenced_relative content_hash
@@ -616,7 +617,9 @@ ws_realm_trust_fingerprint() {
             return 1
         fi
         relative="adapters/$adapter_basename"
-        if ! canonical="$(yq -o=json -I=0 'sort_keys(..)' "$adapter_file" 2>/dev/null)"; then
+        if [[ "$adapter_file" == "$captured_adapter" ]]; then
+            canonical="$captured_content"
+        elif ! canonical="$(yq -o=json -I=0 'sort_keys(..)' "$adapter_file" 2>/dev/null)"; then
             echo "ERROR: Cannot canonicalize $adapter_file for trust approval." >&2
             return 1
         fi
@@ -639,7 +642,7 @@ ws_realm_trust_fingerprint() {
                 fi
                 ;;
         esac
-        if ! commands="$(yq -r '.commands // {} | to_entries | .[].value | select(tag == "!!str")' "$adapter_file" 2>/dev/null)"; then
+        if ! commands="$(yq -r '.commands // {} | to_entries | .[].value | select(tag == "!!str")' <<< "$canonical" 2>/dev/null)"; then
             echo "ERROR: Cannot inspect adapter commands in $adapter_file for referenced trust inputs." >&2
             return 1
         fi
@@ -757,7 +760,7 @@ ws_realm_trust_state() {
         echo "stale"
         return 0
     fi
-    if ! current_fingerprint="$(ws_realm_trust_fingerprint "$name" 2>/dev/null)"; then
+    if ! current_fingerprint="$(ws_realm_trust_fingerprint "$name" "${2:-}" "${3:-}" 2>/dev/null)"; then
         echo "error"
         return 0
     fi
@@ -770,7 +773,7 @@ ws_realm_trust_state() {
 
 ws_require_realm_trust() {
     local name="$1" state
-    state="$(ws_realm_trust_state "$name")"
+    state="$(ws_realm_trust_state "$name" "${2:-}" "${3:-}")"
     [[ "$state" == "current" ]] && return 0
     echo "ERROR: Realm '$name' trust reapproval is required (state: $state)." >&2
     echo "  Review the current trust summary, then run: ws realm use $name" >&2
@@ -785,6 +788,23 @@ ws_require_active_realm_trust() {
     [[ -n "$name" ]] || name="$(ws_detect_realm)"
     [[ -n "$name" ]] || return 0
     ws_require_realm_trust "$name"
+}
+
+# Verify the exact adapter content callers will consume, rather than checking
+# the live file and reopening it after a concurrent pull can replace it.
+ws_read_trusted_adapter() {
+    local name="$1" adapter_file="$2" captured
+    if [[ "$adapter_file" != "$REALMS_DIR/$name/adapters/"* || ! -f "$adapter_file" || -L "$adapter_file" ]]; then
+        echo "ERROR: Adapter trust input must be a regular realm adapter: $adapter_file" >&2
+        return 1
+    fi
+    if ! captured="$(yq -o=json -I=0 'sort_keys(..)' "$adapter_file" 2>/dev/null)"; then
+        echo "ERROR: Realm '$name' trust reapproval is required (state: error)." >&2
+        echo "  Cannot capture adapter trust input: $adapter_file; repair it, then run: ws realm use $name" >&2
+        return 1
+    fi
+    ws_require_realm_trust "$name" "$adapter_file" "$captured" || return 1
+    printf '%s\n' "$captured"
 }
 
 # Persist exactly the trust inputs the human reviewed. Recompute immediately
@@ -929,6 +949,16 @@ ws_resolve_token_var() {
 # ws_gdd_attribution_line now lives in scripts/gdd-attribution.sh, alongside the banner check and the placeholder substitution it belongs with. This file resolves realms, ecosystems and tokens; attribution is not that.
 
 # ---------------------------------------------------------------------------
+# Render untrusted display fields on one physical line; shared by nested-repo
+# status/pull output and the realm trust summary.
+_ws_realm_summary_inline_text() {
+    local value="$1"
+    value="${value//$'\r'/\\r}"
+    value="${value//$'\n'/\\n}"
+    value="${value//$'\t'/\\t}"
+    printf '%s' "$value" | jq -jRs 'gsub("[\\x{0000}-\\x{001f}\\x{007f}-\\x{009f}]"; "")'
+}
+
 # Subcommands — only run when called directly (not when sourced)
 # ---------------------------------------------------------------------------
 
@@ -1027,16 +1057,6 @@ _ws_realm_jq_string() {
     local filter="$1" record="$2" out=""
     out="$(jq -er "$filter" <<< "$record" 2>/dev/null)" || return 1
     printf '%s' "${out//$'\r\n'/$'\n'}"
-}
-
-# Render each realm-controlled field on one physical trust-summary line. The
-# record renderers add structural separators only after fields are escaped.
-_ws_realm_summary_inline_text() {
-    local value="$1"
-    value="${value//$'\r'/\\r}"
-    value="${value//$'\n'/\\n}"
-    value="${value//$'\t'/\\t}"
-    printf '%s' "$value" | jq -jRs 'gsub("[\\x{0000}-\\x{001f}\\x{007f}-\\x{009f}]"; "")'
 }
 
 _ws_realm_render_key_value_records() {

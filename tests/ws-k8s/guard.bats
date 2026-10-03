@@ -1,4 +1,11 @@
 #!/usr/bin/env bats
+
+@test "proxy is unbounded even with an approved namespace or dry-run" {
+    run_guard kind-practice sandbox kubectl proxy -n sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+    run_guard kind-practice sandbox kubectl proxy -n sandbox --dry-run=server
+    [[ "$output" == BLOCK:* ]]
+}
 load test_helper
 setup() { make_kubectl_stub "default"; }
 
@@ -751,6 +758,61 @@ YAML
     printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/cr.yaml"
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/cr.yaml" -n alice-sandbox
     [[ "$output" == BLOCK:* ]]
+}
+
+@test "an unknown custom kind cannot inherit namespace scope from -n" {
+    make_kubectl_stub "alice-sandbox"
+    printf 'apiVersion: example.test/v1\nkind: ClusterWidget\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/custom.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/custom.yaml" -n alice-sandbox
+    [[ "$output" == BLOCK:* ]]
+}
+
+@test "custom manifest discovery verifies namespace scope and pins the context" {
+    cat > "$BATS_TEST_TMPDIR/kubectl" <<'SH'
+#!/usr/bin/env bash
+[[ "$*" == '--context kind-practice --request-timeout=5s get --raw /apis/example.test/v1' ]] || exit 1
+printf '{"resources":[{"kind":"Widget","name":"widgets","namespaced":%s}]}' "$CUSTOM_NAMESPACED"
+SH
+    chmod +x "$BATS_TEST_TMPDIR/kubectl"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl"
+    printf 'apiVersion: example.test/v1\nkind: Widget\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/custom.yaml"
+    export CUSTOM_NAMESPACED=false
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/custom.yaml" -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:* ]]
+    export CUSTOM_NAMESPACED=true
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/custom.yaml"
+    [ "$output" = WRITE_IN_SCOPE ]
+}
+
+@test "a custom kind named Pod must still prove its API group scope" {
+    make_kubectl_stub "alice-sandbox"
+    printf 'apiVersion: example.test/v1\nkind: Pod\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/custom.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/custom.yaml"
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "unknown positional resource types fail closed under a namespace scope" {
+    make_kubectl_stub "alice-sandbox"
+    run_guard "kind-practice" "alice-sandbox" kubectl delete clusterwidgets x -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod/x clusterwidgets.example.test/y -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl rollout restart clusterwidgets.example.test/x -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl set image clusterwidgets.example.test/x app=image -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "qualified custom resource writes require namespaced discovery" {
+    cat > "$BATS_TEST_TMPDIR/kubectl" <<'SH'
+#!/usr/bin/env bash
+[[ "$*" == '--context kind-practice --request-timeout=5s api-resources --cached=false --namespaced=true -o name' ]] || exit 1
+printf '%s\n' widgets.example.test
+SH
+    chmod +x "$BATS_TEST_TMPDIR/kubectl"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl"
+    run_guard "kind-practice" "alice-sandbox" kubectl delete widgets.example.test/x -n alice-sandbox
+    [ "$output" = WRITE_IN_SCOPE ]
 }
 @test "create namespace whose name is IN scope is allowed (WRITE_IN_SCOPE)" {
     run_guard "kind-practice" "alice-sandbox" kubectl create namespace alice-sandbox

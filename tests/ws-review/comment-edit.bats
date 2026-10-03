@@ -100,6 +100,18 @@ run_ws_review() {
     [[ "$(cat "$PATH_LOG")" == "projects/upstream-group%2Fproject/merge_requests/1/notes/701" ]]
 }
 
+@test "review edit refuses a novel address unless explicitly overridden" {
+    printf 'Ping someone.new@newdomain.co.uk\n' > "$WORK/.crs/note.md"
+    run_ws_review app edit 1 note-701 "$WORK/.crs/note.md"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *REVIEW_ALLOW_PII=1* ]]
+    [ ! -f "$BODY_LOG" ]
+    export REVIEW_ALLOW_PII=1
+    run_ws_review app edit 1 note-701 "$WORK/.crs/note.md"
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$BODY_LOG")" == *someone.new@newdomain.co.uk* ]]
+}
+
 @test "an edited comment carries the attribution banner" {
     run_ws_review app edit 1 note-701 "$WORK/.crs/note.md"
 

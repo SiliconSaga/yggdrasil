@@ -56,6 +56,7 @@ fi
 
 # Attribution and placeholder resolution — see scripts/gdd-attribution.sh. ECO is still read here because gp_detect_and_load below needs it.
 ECO=$(ws_resolve_ecosystem)
+AUTH_ECO=$(ws_resolve_local_ecosystem 2>/dev/null) || AUTH_ECO=""
 HUMAN_ACCOUNT=$(gdd_attribution_human_account) || exit 1
 GDD_HOME=$(gdd_attribution_gdd_home)
 gdd_attribution_check "$BODYFILE" "templates/issue.md" || exit 1
@@ -127,6 +128,7 @@ fi
 
 # Detect and load provider
 gp_detect_and_load "$REMOTE_URL" "$ECO"
+gp_set_token_for_url "$REMOTE_URL" "$AUTH_ECO"
 gp_check_cli
 
 TARGET_SLUG=$(gp_extract_slug "$REMOTE_URL")
@@ -152,7 +154,7 @@ gp_create_issue \
   --title "$TITLE" \
   --label "$LABEL" \
   --body-file "$RESOLVED_BODY" >"$_ISSUE_OUTPUT" 2>&1 || _ISSUE_STATUS=$?
-cat "$_ISSUE_OUTPUT"
+gp_sanitize_provider_text < "$_ISSUE_OUTPUT"
 
 if [[ "$_ISSUE_STATUS" -ne 0 ]]; then
   # A fork starts with issues DISABLED on GitHub, and nobody chooses that — it is inherited silently by anything ws clone-fork produced. The bare provider error names the state and not the way out, and the improvised way out is to post the finding as a PR comment instead, which is how an unattributed comment reached a public repo. Naming the three real options here is the cheaper half of preventing that.

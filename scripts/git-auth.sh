@@ -30,12 +30,20 @@
 [[ -n "${_GIT_AUTH_SH_LOADED:-}" ]] && return 0
 _GIT_AUTH_SH_LOADED=1
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/git-remote.sh"
+
 # Strip protocol, embedded credentials, and .git suffix so the result can
 # be matched against ecosystem gitTokens keys (host/group/... form).
 git_auth_normalize_url() {
-  local url="$1"
-  echo "$url" \
-    | sed 's|^ssh://[^@]*@\([^:/]*\)[^/]*/|\1/|; s|^https://[^/@]*@||; s|^http://[^/@]*@||; s|^https://||; s|^http://||; s|^git@\([^:]*\):|/\1/|; s|^/||; s|\.git$||; s|/$||'
+  local url="$1" host_url="$1" host path rest
+  [[ "$host_url" != http://* ]] || host_url="https://${host_url#http://}"
+  host="$(git_remote_host "$host_url")" || return 1
+  case "$url" in
+    *://*) rest="${url#*://}"; path=""; [[ "$rest" != */* ]] || path="${rest#*/}" ;;
+    *) path="${url#*:}" ;;
+  esac
+  path="${path%/}"; path="${path%.git}"
+  printf '%s%s' "$host" "${path:+/$path}"
 }
 
 # Print the bare host of an https:// URL (empty/return 1 otherwise — SSH

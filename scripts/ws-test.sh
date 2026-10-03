@@ -149,18 +149,18 @@ active_realm="$(ws_detect_realm)" || true
 if [[ -n "$active_realm" ]]; then
     adapter_file="$REALMS_DIR/$active_realm/adapters/$comp.yaml"
     if [[ -f "$adapter_file" ]]; then
-        ws_require_active_realm_trust "$active_realm" || exit 1
+        adapter_content="$(ws_read_trusted_adapter "$active_realm" "$adapter_file")" || exit 1
         # Guard the substitution: under `set -euo pipefail` a non-zero yq
         # exit (malformed adapter YAML) would abort before the auto-detect
         # fallback below. `// ""` already maps a missing key to empty.
-        adapter_cmd=$(yq -r '.commands.test // ""' "$adapter_file" 2>/dev/null) || adapter_cmd=""
+        adapter_cmd=$(yq -r '.commands.test // ""' <<< "$adapter_content" 2>/dev/null) || adapter_cmd=""
         # Optional escape hatch for runners this script cannot translate for.
         # A make target, an npm script or a shell wrapper has no filter syntax
         # we can infer, so the adapter declares its own and names where the
         # selector goes with `{}`. Opt-in on purpose: silently dropping a
         # filter and running everything would report a green full suite as
         # though the one test asked for had passed.
-        adapter_filter_cmd=$(yq -r '.commands.testFilter // ""' "$adapter_file" 2>/dev/null) || adapter_filter_cmd=""
+        adapter_filter_cmd=$(yq -r '.commands.testFilter // ""' <<< "$adapter_content" 2>/dev/null) || adapter_filter_cmd=""
         if [[ -n "$adapter_cmd" ]]; then
             runner="adapter"
         fi

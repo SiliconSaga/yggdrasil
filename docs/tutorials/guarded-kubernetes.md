@@ -241,6 +241,7 @@ Across both supported harnesses:
 - A directly invoked script that shells out to `kubectl` is caught too (the hook scans script bodies).
 - Relative script paths are resolved from the command's working directory, and common transparent forms such as `bash -x script.sh`, `env KUBECONFIG=… kubectl`, absolute kubectl paths, and literal `bash -c` calls are normalized before classification. Hooks cannot see arbitrary nested execution through task runners, client libraries, Helm, or dynamically constructed command names; this remains a guardrail rather than a security boundary.
 - Scoped `apply -k` and `--kustomize` render an existing local directory before execution so every rendered namespace and cluster-scoped kind can be checked. Missing, remote, plugin-dependent, or unsuccessful renders fail closed; standalone `kubectl kustomize` remains a read.
+- Custom resources require read-only API discovery against the guarded context to verify that they are namespaced. Manifests identify the API group and version; positional writes use the canonical group-qualified name, such as `widgets.example.test/item`. Unavailable discovery or indeterminate scope blocks the write, even with an in-scope `-n`.
 
 Choose how much guardrail the work actually needs:
 

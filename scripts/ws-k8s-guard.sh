@@ -791,6 +791,57 @@ _k8s_is_cluster_scoped() {
     esac
 }
 
+# Positive built-in scope knowledge; an unfamiliar kind is never namespaced by
+# default. Group matching prevents a CRD borrowing a built-in kind's scope.
+_k8s_builtin_namespaced() {
+    local t group="${2-*}" builtin_group
+    t="$(_k8s_lc "${1%%/*}")"
+    if [[ "$t" == *.* ]]; then group="${t#*.}"; t="${t%%.*}"; fi
+    case "$t" in
+        pod|pods|po|service|services|svc|configmap|configmaps|cm|secret|secrets|\
+        persistentvolumeclaim|persistentvolumeclaims|pvc|replicationcontroller|replicationcontrollers|rc|\
+        serviceaccount|serviceaccounts|sa|endpoints|ep|limitrange|limitranges|limits|\
+        resourcequota|resourcequotas|quota) builtin_group="" ;;
+        deployment|deployments|deploy|replicaset|replicasets|rs|daemonset|daemonsets|ds|\
+        statefulset|statefulsets|sts|controllerrevision|controllerrevisions) builtin_group=apps ;;
+        job|jobs|cronjob|cronjobs|cj) builtin_group=batch ;;
+        role|roles|rolebinding|rolebindings) builtin_group=rbac.authorization.k8s.io ;;
+        ingress|ingresses|ing|networkpolicy|networkpolicies|netpol) builtin_group=networking.k8s.io ;;
+        horizontalpodautoscaler|horizontalpodautoscalers|hpa) builtin_group=autoscaling ;;
+        poddisruptionbudget|poddisruptionbudgets|pdb) builtin_group=policy ;;
+        endpointslice|endpointslices) builtin_group=discovery.k8s.io ;;
+        lease|leases) builtin_group=coordination.k8s.io ;;
+        event|events|ev) [[ "$group" == events.k8s.io ]] && return 0; builtin_group="" ;;
+        *) return 1 ;;
+    esac
+    [[ "$group" == '*' || "$group" == "$builtin_group" ]]
+}
+
+_k8s_verified_namespaced_type() {
+    local t="${1%%/*}" context="$2" discovered name
+    _k8s_builtin_namespaced "$t" && return 0
+    # Require the canonical group-qualified name for custom positional types.
+    # Unqualified names and aliases can resolve to a different API group.
+    [[ "$t" == *.* && "$t" =~ ^[a-z0-9.-]+$ ]] || return 1
+    discovered="$("${KUBECTL:-kubectl}" --context "$context" --request-timeout=5s api-resources --cached=false --namespaced=true -o name 2>/dev/null)" || return 1
+    while IFS= read -r name; do [[ "$name" == "$t" ]] && return 0; done <<< "$discovered"
+    return 1
+}
+
+_k8s_manifest_scope() {
+    local kind="$1" version="$2" context="$3" group="" endpoint discovery scope
+    [[ "$version" =~ ^[a-z0-9][a-z0-9.-]*(/[a-z0-9][a-z0-9]*)?$ && "$kind" =~ ^[A-Za-z][A-Za-z0-9]*$ ]] || return 1
+    [[ "$version" != */* ]] || group="${version%/*}"
+    if _k8s_builtin_namespaced "$kind" "$group"; then printf namespaced; return 0; fi
+    endpoint="/api/$version"
+    [[ -z "$group" ]] || endpoint="/apis/$version"
+    discovery="$("${KUBECTL:-kubectl}" --context "$context" --request-timeout=5s get --raw "$endpoint" 2>/dev/null)" || return 1
+    # Subresources do not establish the scope of the parent resource. Demand
+    # exactly one Boolean scope result; malformed or ambiguous discovery closes.
+    scope="$(KIND="$kind" yq -r '[.resources[] | select(.kind == strenv(KIND) and (.name | contains("/") | not)) | select(.namespaced | tag == "!!bool") | .namespaced] | unique | .[]' <<< "$discovery" 2>/dev/null)" || return 1
+    case "$scope" in true) printf namespaced ;; false) printf cluster ;; *) return 1 ;; esac
+}
+
 # True for the namespace resource type (full/plural/short-alias). Used to let an
 # in-scope namespace's own create/delete through (see k8s_guard_evaluate) even
 # though _k8s_is_cluster_scoped also matches it for the general blanket block.
@@ -816,22 +867,28 @@ _k8s_ns_in_csv() {
 # failure, print the complete BLOCK verdict and return non-zero; success is
 # silent so both -f and -k paths share exactly the same scope checks.
 _k8s_validate_rendered_docs() {
-    local flag="$1" label="$2" ns_arg="$3" scope_ns_csv="$4" input_path="${5:-}"
-    local parsed="" doc_kind doc_ns docs_seen=0 action empty_reason
+    local flag="$1" label="$2" ns_arg="$3" scope_ns_csv="$4" input_path="${5:-}" context="$6"
+    local parsed="" doc_kind doc_version doc_ns doc_scope docs_seen=0 action empty_reason
     case "$flag" in
         -f) action="contains"; empty_reason="parsed no documents (yq failed or empty)" ;;
         -k) action="renders"; empty_reason="rendered no documents" ;;
         *) printf 'BLOCK:precondition:%s %s uses an unsupported validation source' "$flag" "$label"; return 1 ;;
     esac
     if [[ -n "$input_path" ]]; then
-        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' "$input_path" 2>/dev/null || true)"
+        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "")' "$input_path" 2>/dev/null || true)"
     else
-        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "\t" + (.metadata.namespace // "")' 2>/dev/null || true)"
+        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "")' 2>/dev/null || true)"
     fi
     [[ -n "$parsed" ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
-    while IFS=$'\t' read -r doc_kind doc_ns; do
+    while IFS='|' read -r doc_kind doc_version doc_ns; do
         docs_seen=$((docs_seen + 1))
         if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
+            printf 'BLOCK:unbounded:%s %s %s a cluster-scoped %s, which is not namespace-scope-bounded' "$flag" "$label" "$action" "$doc_kind"; return 1
+        fi
+        doc_scope="$(_k8s_manifest_scope "$doc_kind" "$doc_version" "$context")" || {
+            printf 'BLOCK:precondition:%s %s cannot verify namespace scope for %s (%s)' "$flag" "$label" "$doc_kind" "$doc_version"; return 1;
+        }
+        if [[ "$doc_scope" == cluster ]]; then
             printf 'BLOCK:unbounded:%s %s %s a cluster-scoped %s, which is not namespace-scope-bounded' "$flag" "$label" "$action" "$doc_kind"; return 1
         fi
         [[ -z "$doc_ns" || "$doc_ns" == "null" ]] && doc_ns="$ns_arg"
@@ -1134,6 +1191,10 @@ k8s_guard_evaluate() {
                 *) [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
                    printf 'BLOCK:unbounded:kubectl config %s mutates kubeconfig and is not namespace-scope-bounded' "${verb2:-(none)}"; return 0 ;;
             esac ;;
+        proxy)
+            printf 'BLOCK:unbounded:kubectl proxy exposes the full cluster API and is not namespace-scope-bounded'
+            return 0
+            ;;
         cluster-info)
             if [[ -z "$verb2" ]]; then
                 printf '%s' "$read_verdict"
@@ -1249,6 +1310,27 @@ k8s_guard_evaluate() {
         fi
         # No name (label selector / --all) → fall through to the cluster-scoped block.
     fi
+    # rollout/set put their resource after a subcommand rather than verb2.
+    if [[ ${#ffiles[@]} -eq 0 && ( "$verb" == rollout || "$verb" == set ) ]]; then
+        local _nested_target _nested_type _nested_first=1
+        for _nested_target in ${rest_pos[@]+"${rest_pos[@]}"}; do
+            [[ "$_nested_target" == *=* || "$_nested_target" == *- ]] && break
+            if [[ "$_nested_first" -eq 1 || "$_nested_target" == */* ]]; then
+                _nested_first=0
+                local -a _nested_segments=()
+                IFS=',' read -ra _nested_segments <<< "$_nested_target"
+                for _nested_type in "${_nested_segments[@]}"; do
+                    _nested_type="${_nested_type%%/*}"
+                    if _k8s_is_cluster_scoped "$_nested_type"; then
+                        printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "$_nested_type"; return 0
+                    fi
+                    _k8s_verified_namespaced_type "$_nested_type" "$scope_ctx" || {
+                        printf 'BLOCK:precondition:cannot verify namespace scope for resource type %s; use a group-qualified resource name or a manifest' "$_nested_type"; return 0;
+                    }
+                done
+            fi
+        done
+    fi
     if [[ ${#ffiles[@]} -eq 0 && -n "$verb2" ]]; then
         local _resource_segment _resource_type _typed_operand
         local -a _resource_segments=()
@@ -1261,6 +1343,13 @@ k8s_guard_evaluate() {
             if _k8s_is_cluster_scoped "$_resource_type"; then
                 printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "$_resource_type"; return 0
             fi
+            case "$verb" in
+                delete|patch|edit|replace|scale|autoscale|expose|label|annotate)
+                    _k8s_verified_namespaced_type "$_resource_type" "$scope_ctx" || {
+                        printf 'BLOCK:precondition:cannot verify namespace scope for resource type %s; use a group-qualified resource name or a manifest' "$_resource_type"; return 0;
+                    }
+                    ;;
+            esac
         done
         # label/annotate accept extra resource tuples before their first key
         # assignment or removal; everything from that data operand onward is inert.
@@ -1277,6 +1366,9 @@ k8s_guard_evaluate() {
                 if _k8s_is_cluster_scoped "$_resource_type"; then
                     printf 'BLOCK:unbounded:%s is a cluster-scoped resource; writes to it are not namespace-scope-bounded' "$_resource_type"; return 0
                 fi
+                _k8s_verified_namespaced_type "$_resource_type" "$scope_ctx" || {
+                    printf 'BLOCK:precondition:cannot verify namespace scope for resource type %s; use a group-qualified resource name or a manifest' "$_resource_type"; return 0;
+                }
             done
         fi
     fi
@@ -1292,7 +1384,7 @@ k8s_guard_evaluate() {
             f_path="$f"
             [[ -f "$f_path" ]] || f_path="$(_k8s_normalize_path "$f")"
             [[ -f "$f_path" ]] || { printf 'BLOCK:precondition:-f %s not found on disk' "$f"; return 0; }
-            validation="$(_k8s_validate_rendered_docs -f "$f" "$ns_arg" "$scope_ns_csv" "$f_path")" || { printf '%s' "$validation"; return 0; }
+            validation="$(_k8s_validate_rendered_docs -f "$f" "$ns_arg" "$scope_ns_csv" "$f_path" "$scope_ctx")" || { printf '%s' "$validation"; return 0; }
         done
         printf '%s' "$write_verdict"; return 0
     fi
@@ -1314,7 +1406,7 @@ k8s_guard_evaluate() {
             rendered="$("${KUBECTL:-kubectl}" kustomize "$k_path" 2>/dev/null)" || {
                 printf 'BLOCK:precondition:-k %s could not be rendered safely' "$k"; return 0;
             }
-            validation="$(_k8s_validate_rendered_docs -k "$k" "$ns_arg" "$scope_ns_csv" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
+            validation="$(_k8s_validate_rendered_docs -k "$k" "$ns_arg" "$scope_ns_csv" "" "$scope_ctx" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
         done
         printf '%s' "$write_verdict"; return 0
     fi
