@@ -36,6 +36,15 @@
     [[ "$output" == *'cannot read staged content'* ]]
 }
 
+@test "a failed staged diff aborts the streamed scan" {
+    printf 'fresh@newdomain.co.uk\n' > "$REPO/probe.txt"
+    git -C "$REPO" add probe.txt
+    git() { [[ "$*" != *'diff --cached -U0'* ]] || return 1; command git "$@"; }
+    run ws_pii_staged_added_lines "$REPO"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'cannot diff staged content'* ]]
+}
+
 # The incident: an address filled into a local sample manifest, read later by an
 # agent doing unrelated work, and carried into a documentation pass. No secret
 # scanner would notice — the value is an ordinary email, harmless where it sat

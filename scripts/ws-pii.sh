@@ -175,16 +175,15 @@ $(cat "$bodyfile")" "$repo" "$override"
 # out because it is the one byte the scan tolerates (stripped before matching),
 # and bytes above 0x7F are not counted, so non-ASCII prose stays text.
 _ws_pii_blob_is_text() {
-    local repo="$1" path="$2" index_file="${3:-}" sample total control blob_file
-    # Separate the read from sampling so a failed git show cannot look binary.
-    blob_file="$(mktemp)" || return 2
+    local repo="$1" path="$2" index_file="${3:-}" sample total control
+    # Stream the blob: only the sample is kept, and the rest is drained rather
+    # than left for SIGPIPE. Under pipefail a failed read returns 2, distinct
+    # from binary (1), so an unreadable blob cannot pass as excluded content.
     if [[ -n "$index_file" ]]; then
-        GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" > "$blob_file" 2>/dev/null || { rm -f "$blob_file"; return 2; }
+        sample="$(set -o pipefail; GIT_INDEX_FILE="$index_file" git -C "$repo" show ":$path" 2>/dev/null | { head -c 65536; cat >/dev/null; } | od -An -v -tu1)" || return 2
     else
-        git -C "$repo" show ":$path" > "$blob_file" 2>/dev/null || { rm -f "$blob_file"; return 2; }
+        sample="$(set -o pipefail; git -C "$repo" show ":$path" 2>/dev/null | { head -c 65536; cat >/dev/null; } | od -An -v -tu1)" || return 2
     fi
-    sample="$(head -c 65536 "$blob_file" | od -An -v -tu1)" || { rm -f "$blob_file"; return 2; }
-    rm -f "$blob_file"
     read -r total control < <(printf '%s\n' "$sample" | awk '
         { for (i = 1; i <= NF; i++) { n++; b = $i + 0; if ((b < 32 && b != 0 && b != 9 && b != 10 && b != 13 && b != 27) || b == 127) c++ } }
         END { print n + 0, c + 0 }')
@@ -203,7 +202,7 @@ _ws_pii_blob_is_text() {
 # content line starting `++` looks the same.
 ws_pii_staged_added_lines() (
     set -o pipefail
-    local repo="${1:-$PWD}" index_file="${2:-}" path paths_file scan_status diff_text
+    local repo="${1:-$PWD}" index_file="${2:-}" path paths_file scan_status
     local -a text_paths=()
     # NUL-delimited: without -z git quotes any unusual path (non-ASCII included)
     # and the quoted form names nothing in the index, so the file goes unscanned.
@@ -229,14 +228,17 @@ ws_pii_staged_added_lines() (
     done < "$paths_file"
     rm -f "$paths_file"
     [[ ${#text_paths[@]} -gt 0 ]] || return 0
+    # Streamed, so memory does not scale with the change. pipefail (set above)
+    # surfaces a failed diff; the caller discards partial output on failure.
     if [[ -n "$index_file" ]]; then
-        diff_text="$(GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null | tr -d '\000')" || { echo 'ERROR: cannot diff staged content for PII scanning.' >&2; return 1; }
+        GIT_INDEX_FILE="$index_file" git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null
     else
-        diff_text="$(git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null | tr -d '\000')" || { echo 'ERROR: cannot diff staged content for PII scanning.' >&2; return 1; }
-    fi
-    printf '%s\n' "$diff_text" | tr -d '\000' \
+        git -C "$repo" diff --cached -U0 --no-color --text -- "${text_paths[@]}" 2>/dev/null
+    fi \
+        | tr -d '\000' \
         | awk '/^diff --git / { header = 1; next }
                /^@@/ { header = 0; next }
                header { next }
-               /^\+/ { print substr($0, 2) }'
+               /^\+/ { print substr($0, 2) }' \
+        || { echo 'ERROR: cannot diff staged content for PII scanning.' >&2; return 1; }
 )
