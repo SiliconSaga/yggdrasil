@@ -54,7 +54,7 @@ Once a scope is armed, the hook's scoped-redirect tier intercepts every Bash too
 
 Read verbs accepted by the guard: `get`, `describe`, `logs`, `top`, `explain`, `events`, `api-resources`, `api-versions`, `version`, `diff`, `wait`, and standalone `kustomize`; plus `auth can-i`, `auth whoami`, `config view`, `config get-contexts`, `config current-context`, `config get-clusters`, and `config get-users`. Other `auth` and `config` operations are writes because those command families include mutations. Unknown verbs are writes by default.
 
-The hooks normalize common transparent launch forms before classification: leading environment assignments, `env`, `command`, absolute paths ending in `kubectl`, shell options before a script path, and literal kubectl inside `bash -c`/`sh -c`. They do not claim to observe arbitrary nested execution through task runners, client libraries, Helm, or a script that constructs the kubectl executable name without the literal token; server-side RBAC remains the boundary for those cases.
+The hooks normalize common transparent launch forms before classification: leading environment assignments, `env`, `command`, absolute paths ending in `kubectl` or `helm`, shell options before a script path, and literal kubectl or helm inside `bash -c`/`sh -c` or a script it runs. Under a scope, a command-line `KUBECONFIG=` or `HELM_KUBE*=` is refused. They do not claim to observe arbitrary nested execution through task runners, client libraries, a remote helm chart (refused, not inspected) or a chart's offline `lookup` calls, or a script that constructs the tool's name without the literal token; server-side RBAC remains the boundary for those cases.
 
 Two things worth knowing before they cost a session:
 

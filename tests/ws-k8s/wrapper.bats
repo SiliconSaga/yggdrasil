@@ -266,6 +266,8 @@ run_ws_uname() {
     [ "$status" -ne 0 ]
     run_ws k8s sample pod/x --count 0 -- uptime
     [ "$status" -ne 0 ]
+    run_ws k8s sample pod/x --every 3601 -- uptime
+    [ "$status" -ne 0 ]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
 @test "sample refuses a write command through the guard" {

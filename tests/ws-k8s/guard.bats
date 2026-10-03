@@ -1157,12 +1157,14 @@ EOF
 
 # ─── helm: classified and, for local charts, rendered ───────────────
 
-# helm stub: `template` logs its argv and prints $1; anything else is silent.
+# helm stub: `template` logs its argv and prints $1; `get values` logs and
+# prints a stored value; anything else is silent.
 make_helm_stub() {
     export HELM_LOG="$BATS_TEST_TMPDIR/helm.log"
     cat > "$BATS_TEST_TMPDIR/helm" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "template" ]]; then echo "\$*" >> "$HELM_LOG"; cat "$1"; fi
+if [[ "\$1" == "template" ]]; then echo "\$*" >> "$HELM_LOG"; cat "$1"
+elif [[ "\$1 \$2" == "get values" ]]; then echo "\$*" >> "$HELM_LOG"; echo "stored: true"; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/helm"
     export HELM="$BATS_TEST_TMPDIR/helm"
@@ -1174,11 +1176,41 @@ EOF
     run_guard "" "" helm list -A
     [ "$output" = "READ_NO_SCOPE" ]
     local cmd
-    for cmd in "list -A" "status web -n alice-sandbox" "history web" "get values web" "template web ./chart" "repo add bitnami https://charts.example" "show values bitnami/redis" "version"; do
+    for cmd in "list -A" "status web -n alice-sandbox" "history web" "get values web" "template web ./chart" "show values bitnami/redis" "version"; do
         # shellcheck disable=SC2086
         run_guard "kind-practice" "alice-sandbox" helm $cmd
         [ "$output" = "READ_IN_SCOPE" ]
     done
+}
+
+@test "helm's local housekeeping is not a read the hooks would auto-approve" {
+    local cmd
+    for cmd in "plugin install https://plugins.example/x" "repo add bitnami https://charts.example" "push chart.tgz oci://registry.example" "registry login registry.example" "dependency update ./chart" "pull bitnami/redis" "create demo" "template web ./chart --post-renderer ./patch.sh"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" helm $cmd
+        [ "$output" = "NOT_K8S" ]
+    done
+}
+
+@test "helm upgrade renders with the release's stored values when it would reuse them" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox --reuse-values
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "get values web --namespace alice-sandbox --kube-context kind-practice" "$HELM_LOG"
+    grep -q -- "template web .* -f " "$HELM_LOG"
+    : > "$HELM_LOG"
+    run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox
+    grep -q -- "get values" "$HELM_LOG"
+    : > "$HELM_LOG"
+    : > "$BATS_TEST_TMPDIR/values.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox -f "$BATS_TEST_TMPDIR/values.yaml"
+    ! grep -q -- "get values" "$HELM_LOG"
+}
+
+@test "helm refuses a split value anywhere before --" {
+    run_guard "kind-practice" "alice-sandbox" helm -n 'a\' list install web ./chart
+    [[ "$output" == BLOCK:precondition:*"quoted or escaped value"* ]]
 }
 
 @test "helm writes are classified even when no scope is armed" {
@@ -1191,6 +1223,7 @@ EOF
 @test "helm install of a local chart renders it and allows in-scope output" {
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: b\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
     make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    : > "$BATS_TEST_TMPDIR/values.yaml"
     run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox -f "$BATS_TEST_TMPDIR/values.yaml" --set a=b
     [ "$output" = "WRITE_IN_SCOPE" ]
     grep -q -- "--include-crds" "$HELM_LOG"
@@ -1297,6 +1330,35 @@ EOF
         run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- $cmd
         [[ "$output" == BLOCK:precondition:* ]]
     done
+}
+
+@test "ws k8s sample takes bare command names and refuses write forms" {
+    local cmd
+    for cmd in "/tmp/x/cat /etc/hosts" "./ps" "date -s 2020-01-01" "date --set=noon" "hostname evil" "hostname -F /etc/x"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- $cmd
+        [[ "$output" == BLOCK:precondition:* ]]
+    done
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- date +%s
+    [ "$output" = "READ_IN_SCOPE" ]
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- hostname -f
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "kubectl -s is the short --server and is blocked like it" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -s https://other.example
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -shttps://other.example
+    [[ "$output" == BLOCK:context:* ]]
+}
+
+@test "env option operands do not hide a later KUBECONFIG assignment" {
+    run bash -c 'source "$1"; k8s_guard_env_override "env -u FOO KUBECONFIG=x kubectl get pods"' _ "$GUARD_LIB"
+    [ "$output" = "KUBECONFIG" ]
+    run bash -c 'source "$1"; k8s_guard_env_override "env --chdir /tmp HELM_KUBECONTEXT=prod helm list"' _ "$GUARD_LIB"
+    [ "$output" = "HELM_KUBECONTEXT" ]
+    run bash -c 'source "$1"; k8s_guard_env_override "kubectl annotate pod x KUBECONFIG=y"' _ "$GUARD_LIB"
+    [ "$status" -eq 1 ]
 }
 
 @test "ws k8s sample needs a pod and a command after --" {

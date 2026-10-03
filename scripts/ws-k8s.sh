@@ -171,7 +171,9 @@ _k8s_sample() {
         esac
     done
     every="${every%s}"
-    [[ "$every" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "ERROR: --every wants seconds (e.g. 2 or 0.5), not '$every'" >&2; return 1; }
+    # Bounded: sample auto-approves as a read, so it must not become an
+    # hours-long blocking call by accident.
+    [[ "$every" =~ ^[0-9]+([.][0-9]+)?$ && "${every%%.*}" -le 3600 ]] || { echo "ERROR: --every wants 0-3600 seconds (e.g. 2 or 0.5), not '$every'" >&2; return 1; }
     [[ "$count" =~ ^[0-9]+$ && "$count" -ge 1 && "$count" -le 1000 ]] || { echo "ERROR: --count wants 1-1000, not '$count'" >&2; return 1; }
     [[ -n "$pod" && ${#cmd[@]} -gt 0 ]] || { echo "Usage: ws k8s sample <pod> [-n ns] [-c container] [--every s] [--count n] -- <cmd>" >&2; return 1; }
     [[ -n "$ctx" ]] && ctx_args=(--context "$ctx")

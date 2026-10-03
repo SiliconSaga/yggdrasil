@@ -1250,10 +1250,14 @@ k8s_guard_env_override() {
     local word
     # Only the prefix before the command word: leading assignments, and those
     # an `env` (with its options) sets up. Later words are the tool's data.
-    for word in ${words[@]+"${words[@]}"}; do
-        word="${word#[\"\']}"
+    local i
+    for ((i = 0; i < ${#words[@]}; i++)); do
+        word="${words[i]#[\"\']}"
         case "$word" in
             KUBECONFIG=*|HELM_KUBE*=*|HELM_NAMESPACE=*) printf '%s' "${word%%=*}"; return 0 ;;
+            # env options that take an operand: skip it, or `env -u X
+            # KUBECONFIG=…` hides the assignment behind X.
+            -u|--unset|-C|--chdir|-a|--argv0|-P) i=$((i + 1)) ;;
             [A-Za-z_]*=*|env|*/env|-*) ;;
             *) return 1 ;;
         esac
@@ -1282,6 +1286,19 @@ _k8s_guard_evaluate_helm() {
     local scope_ctx="$1" scope_ns_csv="$2"; shift 2
     local -a args=("$@") pos=() render_flags=()
     local i=0 a verb="" kube_ctx="" kube_ctx_present=0 ns_arg="" all_ns=0 dry_run=0 skip_crds=0 post_renderer=0 options_done=0
+    local reuse_values=0 reset_values=0
+    # Same split-value refusal as kubectl's, on any helm command: a value
+    # flag that consumes half of `'a list'` leaves `list` in the verb slot.
+    if [[ "${K8S_GUARD_NO_SPLIT_CHECK:-0}" != "1" ]]; then
+        for ((i = 0; i < ${#args[@]}; i++)); do
+            [[ "${args[i]}" == "--" ]] && break
+            if _k8s_is_split_fragment "${args[i]}"; then
+                printf 'BLOCK:precondition:a quoted or escaped value with whitespace (%s) cannot be tokenized safely in a helm command; pass it without spaces or from a values file' "${args[i]}"
+                return 0
+            fi
+        done
+        i=0
+    fi
     while [[ $i -lt ${#args[@]} ]]; do
         a="${args[$i]}"
         if [[ $options_done -eq 1 ]]; then
@@ -1312,7 +1329,9 @@ _k8s_guard_evaluate_helm() {
             --dry-run) dry_run=1 ;;
             --dry-run=*) [[ "${a#*=}" == "none" ]] || dry_run=1 ;;
             --skip-crds) skip_crds=1 ;;
-            --atomic|--wait|--wait-for-jobs|--create-namespace|--force|--reset-values|--reuse-values|--reset-then-reuse-values|--devel|--dependency-update|--disable-openapi-validation|-g|--generate-name|-i|--install|--cleanup-on-fail|--no-hooks|--render-subchart-notes|--skip-schema-validation|--take-ownership|--enable-dns|--insecure-skip-tls-verify|--pass-credentials|--plain-http|--verify|--debug|--keep-history|--hide-notes|--include-crds|-a|--all|--deployed|--failed|--pending|--superseded|--uninstalled|--uninstalling|--short|-q|--date|-r|--reverse|--no-headers|--hide-secret|--rollback-on-failure|--force-replace|--force-conflicts|--server-side|--recreate-pods|--cascade|--cascade=*) ;;
+            --reuse-values|--reset-then-reuse-values) reuse_values=1 ;;
+            --reset-values) reset_values=1 ;;
+            --atomic|--wait|--wait-for-jobs|--create-namespace|--force|--devel|--dependency-update|--disable-openapi-validation|-g|--generate-name|-i|--install|--cleanup-on-fail|--no-hooks|--render-subchart-notes|--skip-schema-validation|--take-ownership|--enable-dns|--insecure-skip-tls-verify|--pass-credentials|--plain-http|--verify|--debug|--keep-history|--hide-notes|--include-crds|-a|--all|--deployed|--failed|--pending|--superseded|--uninstalled|--uninstalling|--short|-q|--date|-r|--reverse|--no-headers|--hide-secret|--rollback-on-failure|--force-replace|--force-conflicts|--server-side|--recreate-pods|--cascade|--cascade=*) ;;
             --*=*) ;;   # a self-contained equals form cannot shift a positional
             -*)
                 if [[ -z "$verb" ]] || ! _k8s_helm_is_read_verb "$verb"; then
@@ -1341,6 +1360,12 @@ _k8s_guard_evaluate_helm() {
 
     local read_verdict="READ_IN_SCOPE"
     [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
+    # Local housekeeping — plugins, registries, repos, chart files — never
+    # touches the cluster, but it can run or fetch code, so it is no read for
+    # the hooks to auto-approve: NOT_K8S hands it to normal approval. A
+    # post-renderer turns template/lint into running a local binary.
+    if _k8s_helm_is_local_verb "$verb"; then printf 'NOT_K8S'; return 0; fi
+    if [[ $post_renderer -eq 1 ]] && [[ "$verb" == template || "$verb" == lint ]]; then printf 'NOT_K8S'; return 0; fi
     if [[ -z "$verb" ]] || _k8s_helm_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
     case "$verb" in
         install|upgrade|uninstall|delete|del|un|rollback|test) ;;
@@ -1382,20 +1407,40 @@ _k8s_guard_evaluate_helm() {
         printf 'BLOCK:precondition:helm %s of %s cannot be inspected without fetching it — run `helm pull %s --untar --untardir <dir>` first, then install from that directory' "$verb" "$chart" "$chart"
         return 0
     fi
-    local -a crds=(--include-crds)
+    local -a crds=(--include-crds) stored=()
     [[ $skip_crds -eq 1 ]] && crds=()
-    rendered="$("${HELM:-helm}" template "$release" "$chart_path" --namespace "$target_ns" ${crds[@]+"${crds[@]}"} ${render_flags[@]+"${render_flags[@]}"} 2>/dev/null)" || {
+    # An upgrade that reuses the release's values (--reuse-values, or helm's
+    # own default when no values are given) installs what those values
+    # render, so render with them: `helm get values` is a read. A release
+    # that does not exist yet (`upgrade --install`) has none to reuse.
+    local stored_file=""
+    if [[ "$verb" == upgrade && $reset_values -eq 0 ]] && { [[ $reuse_values -eq 1 ]] || [[ ${#render_flags[@]} -eq 0 ]]; }; then
+        stored_file="$(mktemp "${TMPDIR:-/tmp}/ws-k8s-helm-values.XXXXXX")" || { printf 'BLOCK:precondition:could not create a temporary file for the release values'; return 0; }
+        if "${HELM:-helm}" get values "$release" --namespace "$target_ns" --kube-context "$scope_ctx" -o yaml > "$stored_file" 2>/dev/null; then
+            stored=(-f "$stored_file")
+        fi
+    fi
+    rendered="$("${HELM:-helm}" template "$release" "$chart_path" --namespace "$target_ns" ${crds[@]+"${crds[@]}"} ${stored[@]+"${stored[@]}"} ${render_flags[@]+"${render_flags[@]}"} 2>/dev/null)" || {
+        [[ -z "$stored_file" ]] || rm -f "$stored_file"
         printf 'BLOCK:precondition:helm chart %s could not be rendered (missing dependencies? run `helm dependency build` first)' "$chart"; return 0;
     }
+    [[ -z "$stored_file" ]] || rm -f "$stored_file"
     validation="$(_k8s_validate_rendered_docs helm "$chart" "$target_ns" "$scope_ns_csv" "" "$scope_ctx" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
     printf '%s' "$write_verdict"
 }
 
-# helm commands that never change the cluster: reads, local rendering and
-# local repo/plugin/chart housekeeping.
+# helm commands that only read: the cluster, a chart, or helm itself.
 _k8s_helm_is_read_verb() {
     case "$1" in
-        list|ls|status|get|history|hist|show|inspect|search|template|lint|version|env|help|completion|verify|pull|fetch|package|repo|dependency|dep|plugin|registry|create|push) return 0 ;;
+        list|ls|status|get|history|hist|show|inspect|search|template|lint|version|env|help|completion|verify) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# helm commands that change local state or a registry, never the cluster.
+_k8s_helm_is_local_verb() {
+    case "$1" in
+        pull|fetch|package|repo|dependency|dep|plugin|registry|create|push) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -1462,8 +1507,12 @@ k8s_guard_evaluate() {
                         ;;
                 esac
                 ;;
-            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority|--tls-server-name|--insecure-skip-tls-verify)
+            --kubeconfig|--server|-s|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority|--tls-server-name|--insecure-skip-tls-verify)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "$a"
+                return 0
+                ;;
+            -s?*)   # attached short --server
+                printf 'BLOCK:context:-s cannot override the guarded Kubernetes connection or credentials'
                 return 0
                 ;;
             --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--as-user-extra=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*|--tls-server-name=*|--insecure-skip-tls-verify=*)
@@ -1611,13 +1660,24 @@ k8s_guard_evaluate() {
             printf 'BLOCK:precondition:ws k8s sample needs a pod and a command after --: ws k8s sample <pod> [-n ns] [-c container] [--every s] [--count n] -- <cmd>'
             return 0
         fi
-        case "${rest_pos[0]##*/}" in
+        # Bare names only: `/tmp/x/cat` is whatever binary sits there. date
+        # and hostname also have write forms, which are refused.
+        local sample_arg
+        case "${rest_pos[0]}" in
             cat|head|tail|ls|ps|df|du|free|uptime|date|wc|nproc|stat|id|hostname) ;;
             *)
-                printf 'BLOCK:precondition:ws k8s sample runs read-only commands only (cat head tail ls ps df du free uptime date wc nproc stat id hostname), not %s' "${rest_pos[0]}"
+                printf 'BLOCK:precondition:ws k8s sample runs read-only commands by bare name only (cat head tail ls ps df du free uptime date wc nproc stat id hostname), not %s' "${rest_pos[0]}"
                 return 0
                 ;;
         esac
+        for sample_arg in "${rest_pos[@]:1}"; do
+            case "${rest_pos[0]}:$sample_arg" in
+                date:-s*|date:--set*|hostname:[!-]*|hostname:-F*|hostname:--file*|hostname:-b|hostname:--boot)
+                    printf 'BLOCK:precondition:ws k8s sample refuses %s %s, which changes the pod rather than reading it' "${rest_pos[0]}" "$sample_arg"
+                    return 0
+                    ;;
+            esac
+        done
         [[ -z "$scope_ctx" ]] && { printf 'READ_NO_SCOPE'; return 0; }
         printf 'READ_IN_SCOPE'; return 0
     fi
