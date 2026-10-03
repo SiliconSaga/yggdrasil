@@ -196,7 +196,9 @@ else
             # well over a hundred, and a wall of paths in a sweep that already
             # decided not to touch them is noise, not information. `ws status
             # --nested` is the place that lists.
-            echo "  NOTE: ${#nested_rel[@]} nested repo(s) not pulled — e.g. 'ws pull $(_ws_realm_summary_inline_text "$name/${nested_rel[0]}")'; 'ws status --nested' lists them"
+            # %q quotes reversibly and renders control bytes as $'\E…' escapes,
+            # so the suggestion names the real path and is safe to copy.
+            printf "  NOTE: %d nested repo(s) not pulled — e.g. ws pull %q; 'ws status --nested' lists them\n" "${#nested_rel[@]}" "$name/${nested_rel[0]}"
         fi
     done < <(yq -r '.components // {} | keys | .[]' "$ECO")
 

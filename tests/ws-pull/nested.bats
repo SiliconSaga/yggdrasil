@@ -90,6 +90,14 @@ nested_head() {
     [ "$status" -eq 0 ]
     [[ "$output" != *$'\033'* ]]
     [[ "$output" == *Hidden* ]]
+    [[ "$output" == *"ws pull \$'terasology/modules/Hidden\\E[2J'"* ]]
+}
+
+@test "nested pull suggestions quote an apostrophe so the command copies intact" {
+    mv "$COMPONENTS_DIR/terasology/modules/Health" "$COMPONENTS_DIR/terasology/modules/It's"
+    run bash "$PULL_BIN"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ws pull terasology/modules/It\\'s;"* ]]
 }
 
 host_head() {
