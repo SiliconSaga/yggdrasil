@@ -10,6 +10,10 @@ setup() {
     cp "$REPO_ROOT/scripts/ws-session.sh" "$WORK/scripts/ws-session.sh"
     cp "$REPO_ROOT/scripts/ws-k8s-guard.sh" "$WORK/scripts/ws-k8s-guard.sh"
     export HOME="$WORK/_home"
+    # Keep the developer's real kubeconfig out of the guard's verdicts.
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/_home/kubectl-silent"
+    chmod +x "$WORK/_home/kubectl-silent"
+    export KUBECTL="$WORK/_home/kubectl-silent"
 }
 
 seed_scope() {
@@ -361,6 +365,116 @@ assert_denied() {
 
 @test "bash -c containing kubectl is denied when no scope is active" {
     run_codex_hook "bash -c 'kubectl run script-test --image=pause -n gdd-practice'" no-scope
+    assert_denied
+}
+
+@test "bash -c running a kubectl script is denied like the script itself" {
+    printf '#!/usr/bin/env bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    run_codex_hook "bash -c './deploy.sh'" no-scope
+    assert_denied
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash -c './deploy.sh'"
+    assert_denied
+}
+
+@test "a compound inline shell payload is denied as uninspectable under a scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash -c 'cd tools; ./deploy.sh'"
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"cannot be inspected"* ]]
+}
+
+@test "inline shells without a scope or without kubectl in reach defer to Codex" {
+    run_codex_hook "bash -c 'cd tools; ./deploy.sh'" no-scope
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash -c 'echo hello'"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "the compound-form deny names ws k8s and kubectl's own output shaping" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'kubectl get pods | grep web'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"custom-columns"* ]]
+}
+
+@test "raw kubectl pointed at another current context is denied under a scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\ncase "$*" in *current-context*) echo homelab ;; esac\n' > "$WORK/_home/kubectl-homelab"
+    chmod +x "$WORK/_home/kubectl-homelab"
+    export KUBECTL="$WORK/_home/kubectl-homelab"
+    run_codex_hook 'kubectl get pods'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"current context homelab"* ]]
+}
+
+@test "review #176: quoted -c and exec payloads still reach the inline-shell checks" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    run_codex_hook "bash \"-c\" 'cd tools; ./deploy.sh'"
+    assert_denied
+    run_codex_hook "bash -c 'exec ./deploy.sh'"
+    assert_denied
+}
+
+@test "review #176: a script's own -c argument is not inline-shell mode" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\necho hi\n' > "$WORK/hello.sh"
+    run_codex_hook "bash ./hello.sh -c config.yaml"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "review #176: a quoted value cannot shift a delete into a read through quote stripping" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "kubectl --cache-dir 'cache get' delete clusterrole admin"
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"quoted or escaped value"* ]]
+}
+
+@test "review #176: an apostrophe inside a double-quoted value is data" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "ws k8s --cache-dir \"/work/O'Neil/cache\" get pods"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "review #176: a command-local KUBECONFIG is refused under scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'KUBECONFIG=other.yaml kubectl get pods'
+    assert_denied
+    run_codex_hook 'env HELM_KUBECONTEXT=prod helm list'
+    assert_denied
+    run_codex_hook 'kubectl annotate pod x note=KUBECONFIG=y -n alice-sandbox'
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason // ""' <<< "$output")" != *"KUBECONFIG="* ]]
+}
+
+@test "helm writes are denied unscoped, reads defer, and scoped checks apply" {
+    run_codex_hook 'helm install web bitnami/redis -n web' no-scope
+    assert_denied
+    run_codex_hook 'helm list -A' no-scope
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'helm.exe install web oci://registry.example/redis -n alice-sandbox'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"helm pull"* ]]
+    # uninstall reads the release's stored manifest; this one holds nothing.
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/_home/helm-empty"
+    chmod +x "$WORK/_home/helm-empty"
+    export HELM="$WORK/_home/helm-empty"
+    run_codex_hook 'helm uninstall web -n alice-sandbox'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "a script running helm is denied like a kubectl script" {
+    printf '#!/usr/bin/env bash\nhelm install web ./chart\n' > "$WORK/deploy.sh"
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash $WORK/deploy.sh"
     assert_denied
 }
 

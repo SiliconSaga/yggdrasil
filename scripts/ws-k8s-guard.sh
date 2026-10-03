@@ -8,6 +8,16 @@
 K8S_GUARD_UNSAFE_COMMAND_SENTINEL="__GDD_K8S_UNSAFE_COMMAND__"
 K8S_GUARD_NO_XARGS_SENTINEL="__GDD_K8S_NO_XARGS__"
 
+# The cluster tools whose literal mention in a script or inline shell makes it
+# a Kubernetes candidate. helm writes namespaces, CRDs and ClusterRoles as
+# readily as kubectl, so a script that runs it gets the same scan.
+K8S_GUARD_TOOL_RE='(^|[^[:alnum:]_])(kubectl|helm)([^[:alnum:]_]|$)'
+
+# Appended to every composition denial of a Kubernetes command, in both hooks.
+# The generic text names ws exec and ws commit, which are the wrong way out
+# here; the right one is a single ws k8s call with kubectl's own shaping.
+K8S_GUARD_COMPOSITION_HINT="For Kubernetes, issue one \`ws k8s <args>\` per call (it injects the armed --context). In place of a pipe or filter use kubectl's own output shaping — \`-o custom-columns=NAME:.metadata.name,...\`, \`-o jsonpath='{range .items[*]}...{end}'\`, \`-l\` / \`--field-selector\` — and \`kubectl wait --for=...\` in place of a poll loop. A loop inside \`exec -- sh -c\` counts too: run each sample as its own \`ws k8s exec <pod> -- <cmd>\` call."
+
 # Normalize a filesystem path for the -f on-disk check. Claude Code passes
 # native Windows paths (C:\Users\…\m.yaml) on Windows; Git Bash's `[[ -f ]]`
 # and yq choke on the backslash/drive form, so the guard would fail closed with
@@ -340,7 +350,10 @@ k8s_guard_normalize_command() {
 
     token="${words[i]}"
     base="${token##*/}"
-    [[ "$base" == "kubectl" ]] && words[i]="kubectl"
+    # Native Windows spellings (`helm.exe`, `C:/tools/kubectl.exe`) are the
+    # same tools and must reach the same checks.
+    base="${base%.exe}"; base="${base%.EXE}"
+    [[ "$base" == "kubectl" || "$base" == "helm" ]] && words[i]="$base"
     printf '%s' "${words[*]:$i}"
 }
 
@@ -486,7 +499,7 @@ k8s_guard_script_mentions_kubectl() {
     esac
 
     text="$(tr -d '\000' < "$path" 2>/dev/null)" || return 2
-    grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$text"
+    grep -Eq "$K8S_GUARD_TOOL_RE" <<< "$text"
 }
 
 # Mask inert single- and double-quoted spans before deciding whether an unsafe
@@ -727,9 +740,166 @@ k8s_guard_inline_shell_contains_kubectl() {
     for ((i = 1; i < ${#words[@]}; i++)); do
         token="${words[$i]}"
         if [[ "$token" == "-c" || ( "$token" == -[^-]* && "$token" == *c* ) ]]; then
-            grep -Eq '(^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$)' <<< "$normalized"
+            grep -Eq "$K8S_GUARD_TOOL_RE" <<< "$normalized"
             return $?
         fi
+    done
+    return 1
+}
+
+# True for the first half of a value the shell would have kept whole: a word
+# that ends inside an open quote, or with an unescaped backslash (an escaped
+# space). Scanned with shell quoting rules, so an apostrophe inside double
+# quotes ("/work/O'Neil") is data, not an open quote. Only meaningful on the
+# hooks' whitespace-split view of shell text; real argv never splits.
+_k8s_is_split_fragment() {
+    local word="$1" char state="plain" i=0 length=${#1}
+    while [[ $i -lt $length ]]; do
+        char="${word:i:1}"
+        case "$state:$char" in
+            plain:"\\")
+                [[ $((i + 1)) -lt $length ]] || return 0
+                i=$((i + 2)); continue ;;
+            plain:"'") state="single" ;;
+            plain:'"') state="double" ;;
+            single:"'") state="plain" ;;
+            double:"\\") i=$((i + 2)); continue ;;
+            double:'"') state="plain" ;;
+        esac
+        i=$((i + 1))
+    done
+    [[ "$state" != "plain" ]]
+}
+
+# Print the kubectl verb of an argv, past global options. Only meaningful
+# after k8s_guard_evaluate accepted the same argv: anything it lets through
+# before the verb is one of the value options named here or valueless.
+k8s_guard_verb() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --) shift; break ;;
+            --context|-n|--namespace|-f|--filename|-k|--kustomize|-o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout|-c|--container|--field-manager|--raw)
+                shift 2 || return 0 ;;
+            -*) shift ;;
+            *) break ;;
+        esac
+    done
+    [[ $# -gt 0 ]] && printf '%s' "$1"
+}
+
+# Classify an inline shell (`bash -c <payload>`) by its payload, the way the
+# payload would be classified if run directly. Status:
+#   0  the payload invokes kubectl, literally or through a script it runs
+#   1  not an inline shell, or a simple payload with no kubectl in reach
+#   2  the payload runs a script that could not be read
+#   3  UNINSPECTABLE — compound, expanding or nested; callers deny under scope
+# Inspecting only the command line used to wave `bash -c ./deploy.sh` through
+# unscanned while the same `./deploy.sh` run directly was content-checked.
+k8s_guard_inline_shell_status() {
+    local cwd="$1" command="$2" masked normalized payload=""
+    # The payload's own quoting would trip the compound-form sentinel, so
+    # decide "is this an inline shell" from the quote-masked command.
+    masked="$(k8s_guard_mask_inert_quotes "$command")"
+    normalized="$(k8s_guard_normalize_command "$masked")"
+    if [[ "$normalized" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
+        # A compound or expanding command that still launches an inline
+        # shell somewhere cannot be followed into its payload. Quotes are
+        # dropped first so a quoted `"-c"` still reads as the option.
+        local inline_re='(^|[[:space:];&|(])([^[:space:]]*/)?(bash|sh)[[:space:]]([^[:space:]]+[[:space:]])*-[A-Za-z]*c([[:space:]]|$)'
+        local unquoted="${command//[\"\']/}"
+        [[ "$unquoted" =~ $inline_re ]] && return 3
+        return 1
+    fi
+    # Masking blanks quoted operands, a quoted `"-c"` included, so it only
+    # names the runner; the -c question goes to the quote-aware word split.
+    case "${normalized%% *}" in bash|*/bash|sh|*/sh) ;; *) return 1 ;; esac
+    local rc=0
+    payload="$(_k8s_inline_payload "$command")" || rc=$?
+    case "$rc" in
+        0) ;;
+        1) return 1 ;;   # no -c before the script operand: a script run
+        *) return 3 ;;
+    esac
+    grep -Eq "$K8S_GUARD_TOOL_RE" <<< "$command" && return 0
+    [[ -n "$payload" ]] || return 1
+    k8s_guard_has_live_shell_expansion "$payload" && return 3
+    normalized="$(k8s_guard_normalize_command "$payload")"
+    [[ "$normalized" != "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]] || return 3
+    [[ -n "$normalized" ]] || return 1
+    # `exec <cmd>` runs <cmd>; judge that. An option to exec (-a, -c, -l)
+    # is a shape not worth following.
+    if [[ "$normalized" == exec || "$normalized" == "exec "* ]]; then
+        payload="${normalized#exec}"; payload="${payload# }"
+        [[ -n "$payload" && "$payload" != -* ]] || return 3
+        normalized="$payload"
+    fi
+    _k8s_is_inline_shell "$normalized" && return 3
+    [[ "${normalized%% *}" == "eval" ]] && return 3
+    local script
+    script="$(k8s_guard_script_path "$cwd" "$payload" 2>/dev/null)" || return 1
+    k8s_guard_script_mentions_kubectl "$script"
+}
+
+# True when a normalized command is `bash`/`sh` with a -c option among its
+# own options — those before the script operand. A `-c` after the operand is
+# the script's argument (`bash ./run.sh -c config.yaml`).
+_k8s_is_inline_shell() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    [[ ${#words[@]} -gt 1 ]] || return 1
+    case "${words[0]##*/}" in bash|sh) ;; *) return 1 ;; esac
+    local i
+    for ((i = 1; i < ${#words[@]}; i++)); do
+        case "${words[i]}" in
+            -c|-[!-]*c*) return 0 ;;
+            -o|+o|--rcfile|--init-file) i=$((i + 1)) ;;
+            --) return 1 ;;
+            -*|+*) ;;
+            *) return 1 ;;
+        esac
+    done
+    return 1
+}
+
+# The command string an inline shell will run: the first non-option word
+# after the shell, unquoted. Returns 1 when the shell has no -c before its
+# first operand (a script run, not an inline shell) and 2 on quoting it
+# cannot follow, which the caller treats as uninspectable.
+_k8s_inline_payload() {
+    local input="$1" char quote="" word="" in_word=0 past_shell=0 saw_c=0
+    local i=0 length=${#1}
+    local -a out=()
+    while [[ $i -le $length ]]; do
+        char="${input:i:1}"
+        if [[ -n "$quote" ]]; then
+            if [[ "$char" == "$quote" ]]; then quote=""
+            elif [[ -z "$char" ]]; then return 2
+            elif [[ "$quote" == '"' && "$char" == '\' ]]; then i=$((i + 1)); word+="${input:i:1}"
+            else word+="$char"; fi
+        else
+            case "$char" in
+                "'"|'"') quote="$char"; in_word=1 ;;
+                '\') i=$((i + 1)); word+="${input:i:1}"; in_word=1 ;;
+                ' '|$'\t'|'')
+                    if [[ $in_word -eq 1 ]]; then out+=("$word"); word=""; in_word=0; fi ;;
+                *) word+="$char"; in_word=1 ;;
+            esac
+        fi
+        i=$((i + 1))
+    done
+    for ((i = 0; i < ${#out[@]}; i++)); do
+        word="${out[i]}"
+        if [[ $past_shell -eq 0 ]]; then
+            case "${word##*/}" in bash|sh) past_shell=1 ;; esac
+            continue
+        fi
+        case "$word" in
+            -o|+o|--rcfile|--init-file) i=$((i + 1)); continue ;;
+            -c|-[!-]*c*) saw_c=1; continue ;;
+            -*|+*) continue ;;
+        esac
+        [[ $saw_c -eq 1 ]] && { printf '%s' "$word"; return 0; }
+        return 1
     done
     return 1
 }
@@ -868,20 +1038,46 @@ _k8s_ns_in_csv() {
 # silent so both -f and -k paths share exactly the same scope checks.
 _k8s_validate_rendered_docs() {
     local flag="$1" label="$2" ns_arg="$3" scope_ns_csv="$4" input_path="${5:-}" context="$6"
-    local parsed="" doc_kind doc_version doc_ns doc_scope docs_seen=0 action empty_reason
+    local parsed="" doc_kind doc_version doc_ns doc_name doc_scope docs_seen=0 action empty_reason
     case "$flag" in
         -f) action="contains"; empty_reason="parsed no documents (yq failed or empty)" ;;
-        -k) action="renders"; empty_reason="rendered no documents" ;;
+        -k|helm) action="renders"; empty_reason="rendered no documents" ;;
         *) printf 'BLOCK:precondition:%s %s uses an unsupported validation source' "$flag" "$label"; return 1 ;;
     esac
+    # `select(. != null)` drops empty documents — a leading `---` or a
+    # comment-only tail — which kubectl skips too; counting them demanded a
+    # namespace for a document that does not exist.
+    # `|` separates the fields because tab is whitespace to `read`: an empty
+    # namespace column collapsed and the name slid into its place. No Kind,
+    # namespace or object name can contain `|`.
+    local query='select(. != null) | ( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "") + "|" + (.metadata.name // "")'
     if [[ -n "$input_path" ]]; then
-        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "")' "$input_path" 2>/dev/null || true)"
+        parsed="$(yq -r "$query" "$input_path" 2>/dev/null || true)"
     else
-        parsed="$(yq -r '( (select(.kind == "List") | .items[]) , (select(.kind != "List")) ) | (.kind // "") + "|" + (.apiVersion // "") + "|" + (.metadata.namespace // "")' 2>/dev/null || true)"
+        parsed="$(yq -r "$query" 2>/dev/null || true)"
     fi
     [[ -n "$parsed" ]] || { printf 'BLOCK:precondition:%s %s %s' "$flag" "$label" "$empty_reason"; return 1; }
-    while IFS='|' read -r doc_kind doc_version doc_ns; do
+    while IFS='|' read -r doc_kind doc_version doc_ns doc_name; do
+        doc_name="${doc_name%$'\r'}"
+        # yq prints `---` between the rows of a multi-document file. Read as a
+        # row it was a document with no namespace — or, once scope discovery
+        # arrived, one whose scope "cannot be verified" — so every
+        # multi-document manifest failed whatever its documents said.
+        [[ "${doc_kind%$'\r'}" == "---" && -z "$doc_version" ]] && continue
         docs_seen=$((docs_seen + 1))
+        # A Namespace manifest naming an in-scope namespace is the same act
+        # as `create namespace <in-scope>`, which the CLI path already allows.
+        # Core v1 only: a custom resource named Namespace in another API
+        # group gets no exemption from the cluster-scope checks below.
+        if [[ -n "$doc_kind" && "${doc_version%$'\r'}" == "v1" ]] && _k8s_is_namespace_type "$doc_kind"; then
+            if [[ -z "$doc_name" || "$doc_name" == "null" ]]; then
+                printf 'BLOCK:precondition:%s %s %s a Namespace with no name' "$flag" "$label" "$action"; return 1
+            fi
+            _k8s_ns_in_csv "$doc_name" "$scope_ns_csv" || {
+                printf 'BLOCK:scope:%s %s %s namespace %s, outside the guard scope (%s)' "$flag" "$label" "$action" "$doc_name" "$scope_ns_csv"; return 1;
+            }
+            continue
+        fi
         if [[ -n "$doc_kind" ]] && _k8s_is_cluster_scoped "$doc_kind"; then
             printf 'BLOCK:unbounded:%s %s %s a cluster-scoped %s, which is not namespace-scope-bounded' "$flag" "$label" "$action" "$doc_kind"; return 1
         fi
@@ -896,7 +1092,7 @@ _k8s_validate_rendered_docs() {
             if [[ "$flag" == "-f" ]]; then
                 printf 'BLOCK:precondition:-f %s has a doc with no namespace and no -n (cannot bound to the guard scope)' "$label"
             else
-                printf 'BLOCK:precondition:-k %s renders a doc with no namespace and no -n (cannot bound to the guard scope)' "$label"
+                printf 'BLOCK:precondition:%s %s renders a doc with no namespace and no -n (cannot bound to the guard scope)' "$flag" "$label"
             fi
             return 1
         fi
@@ -974,12 +1170,9 @@ _k8s_validate_kustomize_dir() {
                 return 1
                 ;;
         esac
-        case "$ref" in
-            ..|../*|*/..|*/../*)
-                echo "parent traversal in kustomization reference is not allowed: $ref"
-                return 1
-                ;;
-        esac
+        # Parent traversal is how every real overlay reaches its base
+        # (`../../base`), so it is allowed; the resolved-path check below
+        # keeps it inside the bound.
 
         # Generator files may use key=path syntax. Validate the path side;
         # remote/query forms were already rejected above before stripping.
@@ -1002,7 +1195,7 @@ _k8s_validate_kustomize_dir() {
         }
         case "$probe_real/" in
             "$root_real/"*) : ;;
-            *) echo "kustomization reference escapes the selected local root: $ref"; return 1 ;;
+            *) echo "kustomization reference escapes the repository holding the overlay ($root_real): $ref"; return 1 ;;
         esac
         if [[ -d "$candidate" ]]; then
             _k8s_validate_kustomize_dir "$root_real" "$candidate" || return 1
@@ -1018,7 +1211,298 @@ k8s_guard_validate_kustomize_tree() {
     }
     root_real="$(cd "$root" 2>/dev/null && pwd -P)" || return 1
     _K8S_KUSTOMIZE_VISITED=""
-    _k8s_validate_kustomize_dir "$root_real" "$root_real"
+    _k8s_validate_kustomize_dir "$(_k8s_kustomize_bound "$root_real")" "$root_real"
+}
+
+# The directory every kustomize reference must resolve inside: the nearest
+# enclosing Git repository (a `.git` directory or worktree file), else the
+# overlay itself. A repository is the unit someone reviewed; a reference that
+# leaves it could pull a stray file — a secretGenerator reading ~/.ssh — into
+# a Secret applied to the cluster.
+_k8s_kustomize_bound() {
+    local dir="$1"
+    while [[ -n "$dir" ]]; do
+        [[ -e "$dir/.git" ]] && { printf '%s' "$dir"; return 0; }
+        [[ "$dir" == "/" || "$dir" != */* ]] && break
+        dir="${dir%/*}"
+        [[ -n "$dir" ]] || dir="/"
+    done
+    printf '%s' "$1"
+}
+
+# True when raw shell text, split on whitespace as the hooks see it, holds a
+# word that is half of a quoted or escaped value. Checked on the text before
+# normalization, which strips balanced outer quotes and would make the
+# apostrophe in "/work/O'Neil" look like an open quote.
+k8s_guard_has_split_value() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    local word
+    for word in ${words[@]+"${words[@]}"}; do
+        _k8s_is_split_fragment "$word" && return 0
+    done
+    return 1
+}
+
+# Print the name of a command-local assignment that redirects kubectl or helm
+# to other credentials or another cluster (`KUBECONFIG=other.yaml kubectl …`),
+# else nothing. Normalization drops such assignments, and the guard's own
+# current-context probe reads the hook's environment, not the command's, so
+# under a scope these are refused outright rather than half-checked.
+k8s_guard_env_override() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    local word
+    # Only the prefix before the command word: leading assignments, and those
+    # an `env` (with its options) sets up. Later words are the tool's data.
+    local i
+    for ((i = 0; i < ${#words[@]}; i++)); do
+        word="${words[i]#[\"\']}"
+        case "$word" in
+            KUBECONFIG=*|HELM_KUBE*=*|HELM_NAMESPACE=*) printf '%s=' "${word%%=*}"; return 0 ;;
+            # Clearing the environment, or unsetting KUBECONFIG, changes the
+            # kubeconfig the tool reads away from the one the guard checked.
+            -i|--ignore-environment|-) printf 'env %s' "$word"; return 0 ;;
+            -u|--unset)
+                case "${words[i + 1]:-}" in KUBECONFIG|HELM_KUBE*|HELM_NAMESPACE) printf 'env -u %s' "${words[i + 1]}"; return 0 ;; esac
+                i=$((i + 1)) ;;
+            -uKUBECONFIG|--unset=KUBECONFIG) printf 'env %s' "$word"; return 0 ;;
+            # Other operand-taking options: skip the operand, or `env -C dir
+            # KUBECONFIG=…` hides the assignment behind it.
+            -C|--chdir|-a|--argv0|-P) i=$((i + 1)) ;;
+            [A-Za-z_]*=*|env|*/env|-*) ;;
+            *) return 1 ;;
+        esac
+    done
+    return 1
+}
+
+# Print a BLOCK:context verdict when kubeconfig's current context is not the
+# scope's, else nothing. An empty answer means kubectl has no current context
+# and the tool will refuse to run, so there is nothing to compare.
+_k8s_current_context_mismatch() {
+    local scope_ctx="$1" tool="$2" remedy="$3" current
+    current="$("${KUBECTL:-kubectl}" config current-context 2>/dev/null || true)"
+    current="${current%$'\r'}"
+    [[ -n "$current" && "$current" != "$scope_ctx" ]] || return 0
+    printf 'BLOCK:context:kubectl'"'"'s current context %s is not the guard-scope context %s, so plain %s would act on %s — %s' "$current" "$scope_ctx" "$tool" "$current" "$remedy"
+}
+
+# helm, classified with the same verdicts as kubectl. Under a scope a write is
+# previewed by helm itself — install/upgrade with `--dry-run=server -o json`,
+# uninstall/rollback/test from the stored manifests and hooks — and every
+# resource goes through the -f/-k checks. A remote chart is refused with the
+# pull-then-install route, so its crds/ directory can be checked too.
+_k8s_guard_evaluate_helm() {
+    local scope_ctx="$1" scope_ns_csv="$2"; shift 2
+    local -a args=("$@") pos=()
+    local i=0 a verb="" kube_ctx="" kube_ctx_present=0 ns_arg="" all_ns=0 dry_run=0 skip_crds=0 post_renderer=0 options_done=0
+    local generate_name=0
+    # Same split-value refusal as kubectl's, on any helm command: a value
+    # flag that consumes half of `'a list'` leaves `list` in the verb slot.
+    if [[ "${K8S_GUARD_NO_SPLIT_CHECK:-0}" != "1" ]]; then
+        for ((i = 0; i < ${#args[@]}; i++)); do
+            [[ "${args[i]}" == "--" ]] && break
+            if _k8s_is_split_fragment "${args[i]}"; then
+                printf 'BLOCK:precondition:a quoted or escaped value with whitespace (%s) cannot be tokenized safely in a helm command; pass it without spaces or from a values file' "${args[i]}"
+                return 0
+            fi
+        done
+        i=0
+    fi
+    while [[ $i -lt ${#args[@]} ]]; do
+        a="${args[$i]}"
+        if [[ $options_done -eq 1 ]]; then
+            if [[ -z "$verb" ]]; then verb="$a"; else pos+=("$a"); fi
+            i=$((i + 1)); continue
+        fi
+        case "$a" in
+            --) options_done=1 ;;
+            --kube-context) kube_ctx_present=1; kube_ctx="${args[$((i + 1))]:-}"; i=$((i + 2)); continue ;;
+            --kube-context=*) kube_ctx_present=1; kube_ctx="${a#*=}" ;;
+            -n|--namespace) ns_arg="${args[$((i + 1))]:-}"; i=$((i + 2)); continue ;;
+            -n=*|--namespace=*) ns_arg="${a#*=}" ;;
+            -n?*) ns_arg="${a#-n}" ;;
+            -A|--all-namespaces) all_ns=1 ;;
+            --kubeconfig|--kubeconfig=*|--kube-apiserver|--kube-apiserver=*|--kube-token|--kube-token=*|--kube-as-user|--kube-as-user=*|--kube-as-group|--kube-as-group=*|--kube-ca-file|--kube-ca-file=*|--kube-tls-server-name|--kube-tls-server-name=*|--kube-insecure-skip-tls-verify|--kube-insecure-skip-tls-verify=*)
+                printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "${a%%=*}"
+                return 0
+                ;;
+            --post-renderer|--post-renderer-args) post_renderer=1; i=$((i + 2)); continue ;;
+            --post-renderer=*|--post-renderer-args=*) post_renderer=1 ;;
+            -f|--values|--set|--set-string|--set-file|--set-json|--set-literal|--version|--repo|--timeout|--description|--username|--password|--ca-file|--cert-file|--key-file|--keyring|--name-template|-l|--labels|-o|--output|--history-max|--max|--offset|--filter|--revision|--burst-limit|--qps|--registry-config|--repository-cache|--repository-config|--time-format)
+                i=$((i + 2)); continue ;;
+            -f?*) ;;
+            --dry-run) dry_run=1 ;;
+            --dry-run=*) [[ "${a#*=}" == "none" ]] || dry_run=1 ;;
+            --skip-crds) skip_crds=1 ;;
+            -g|--generate-name) generate_name=1 ;;
+            --reuse-values|--reset-then-reuse-values|--reset-values|--atomic|--wait|--wait-for-jobs|--create-namespace|--force|--devel|--dependency-update|--disable-openapi-validation|-i|--install|--cleanup-on-fail|--no-hooks|--render-subchart-notes|--skip-schema-validation|--take-ownership|--enable-dns|--insecure-skip-tls-verify|--pass-credentials|--plain-http|--verify|--debug|--keep-history|--hide-notes|--include-crds|-a|--all|--deployed|--failed|--pending|--superseded|--uninstalled|--uninstalling|--short|-q|--date|-r|--reverse|--no-headers|--hide-secret|--rollback-on-failure|--force-replace|--force-conflicts|--server-side|--recreate-pods|--cascade|--cascade=*) ;;
+            --*=*) ;;   # a self-contained equals form cannot shift a positional
+            -*)
+                # After a read or a local verb an option cannot make the
+                # command a cluster write; elsewhere it may shift a positional.
+                if [[ -z "$verb" ]] || { ! _k8s_helm_is_read_verb "$verb" && ! _k8s_helm_is_local_verb "$verb"; }; then
+                    printf 'BLOCK:precondition:unrecognized helm option before the chart: %s' "$a"
+                    return 0
+                fi
+                ;;
+            *) if [[ -z "$verb" ]]; then verb="$a"; else pos+=("$a"); fi ;;
+        esac
+        i=$((i + 1))
+    done
+
+    local read_verdict="READ_IN_SCOPE"
+    [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
+    # Local housekeeping — plugins, registries, repos, chart files — never
+    # touches the cluster, but it can run or fetch code, so it is no read for
+    # the hooks to auto-approve: NOT_K8S hands it to normal approval. A
+    # post-renderer turns template/lint into running a local binary. Neither
+    # reaches the cluster, so neither needs the context checks below; nor do
+    # the offline reads.
+    if _k8s_helm_is_local_verb "$verb"; then printf 'NOT_K8S'; return 0; fi
+    if [[ $post_renderer -eq 1 ]] && [[ "$verb" == template || "$verb" == lint ]]; then printf 'NOT_K8S'; return 0; fi
+    case "$verb" in
+        ""|template|lint|show|inspect|search|version|env|help|completion|verify) printf '%s' "$read_verdict"; return 0 ;;
+    esac
+
+    if [[ -n "$scope_ctx" ]]; then
+        # Exported HELM_KUBE* settings move helm off the kubeconfig the
+        # context checks read, and a command-line prefix is not where they
+        # live, so check the environment helm will inherit.
+        local env_name
+        for env_name in HELM_KUBEAPISERVER HELM_KUBETOKEN HELM_KUBEASUSER HELM_KUBEASGROUPS HELM_KUBECAFILE HELM_KUBEINSECURE_SKIP_TLS_VERIFY HELM_KUBETLS_SERVER_NAME; do
+            if [[ -n "${!env_name:-}" ]]; then
+                printf 'BLOCK:context:%s is set in the environment, which points helm at a connection the guard does not check' "$env_name"; return 0
+            fi
+        done
+        if [[ $kube_ctx_present -eq 1 ]]; then
+            [[ "$kube_ctx" == "$scope_ctx" ]] || {
+                printf 'BLOCK:context:explicit --kube-context %s != the guard-scope context %s' "${kube_ctx:-(empty)}" "$scope_ctx"; return 0;
+            }
+        elif [[ -n "${HELM_KUBECONTEXT:-}" && "$HELM_KUBECONTEXT" != "$scope_ctx" ]]; then
+            printf 'BLOCK:context:HELM_KUBECONTEXT %s != the guard-scope context %s' "$HELM_KUBECONTEXT" "$scope_ctx"; return 0
+        elif [[ -z "${HELM_KUBECONTEXT:-}" ]]; then
+            local mismatch
+            mismatch="$(_k8s_current_context_mismatch "$scope_ctx" helm "pass --kube-context $scope_ctx")"
+            [[ -z "$mismatch" ]] || { printf '%s' "$mismatch"; return 0; }
+        fi
+    fi
+    if _k8s_helm_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
+    case "$verb" in
+        install|upgrade|uninstall|delete|del|un|rollback|test) ;;
+        *)
+            [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
+            printf 'BLOCK:unbounded:helm %s is not a helm command the guard recognizes, so it cannot be bounded' "$verb"; return 0
+            ;;
+    esac
+    [[ -z "$scope_ctx" ]] && { printf 'WRITE_NO_SCOPE'; return 0; }
+    [[ $all_ns -eq 1 ]] && { printf 'BLOCK:unbounded:--all-namespaces write is not scope-bounded'; return 0; }
+    if [[ $post_renderer -eq 1 ]]; then
+        printf 'BLOCK:unbounded:a helm --post-renderer rewrites the manifests after the guard has checked them'; return 0
+    fi
+
+    local target_ns="${ns_arg:-${HELM_NAMESPACE:-}}"
+    if [[ -z "$target_ns" ]]; then
+        target_ns="$("${KUBECTL:-kubectl}" config view --minify --context "$scope_ctx" -o 'jsonpath={..namespace}' 2>/dev/null)"
+        [[ -n "$target_ns" ]] || target_ns="default"
+    fi
+    _k8s_ns_in_csv "$target_ns" "$scope_ns_csv" || {
+        printf 'BLOCK:scope:helm %s targets namespace %s outside the guard scope (%s)' "$verb" "$target_ns" "$scope_ns_csv"; return 0;
+    }
+    # The user's own dry run writes nothing; no preview needed.
+    [[ $dry_run -eq 1 ]] && { printf 'DRY_RUN_IN_SCOPE'; return 0; }
+
+    # What a helm write touches is decided by helm: values merged with the
+    # release's, `.Release.IsUpgrade`, stored manifests and hooks. An offline
+    # `helm template` gets each of those subtly wrong, so ask helm itself —
+    # every call below is a read — and check what it reports.
+    local -a conn=(--kube-context "$scope_ctx" --namespace "$target_ns")
+    local preview="" label="" release chart chart_path
+    case "$verb" in
+        install|upgrade)
+            if [[ $generate_name -eq 1 ]] || [[ "$verb" == install && ${#pos[@]} -eq 1 ]]; then
+                printf 'BLOCK:precondition:helm %s --generate-name picks a name the guard cannot preview with; name the release' "$verb"; return 0
+            fi
+            [[ ${#pos[@]} -eq 2 ]] || { printf 'BLOCK:precondition:helm %s expects NAME CHART, got %s positional arguments' "$verb" "${#pos[@]}"; return 0; }
+            release="${pos[0]}"; chart="${pos[1]}"; label="$chart"
+            chart_path="$chart"
+            [[ -e "$chart_path" ]] || chart_path="$(_k8s_normalize_path "$chart")"
+            case "$chart" in oci://*|http://*|https://*) chart_path="" ;; esac
+            if [[ -z "$chart_path" ]] || { [[ ! -d "$chart_path" ]] && [[ ! -f "$chart_path" || "$chart_path" != *.tgz ]]; }; then
+                printf 'BLOCK:precondition:helm %s of %s cannot be inspected without fetching it — run `helm pull %s --untar --untardir <dir>` first, then install from that directory' "$verb" "$chart" "$chart"
+                return 0
+            fi
+            # CRDs under crds/ are installed outside the release manifest,
+            # and every CRD is cluster-scoped.
+            if [[ $skip_crds -eq 0 ]] && _k8s_helm_chart_has_crds "$chart_path"; then
+                printf 'BLOCK:unbounded:chart %s installs CRDs from its crds/ directory, which are cluster-scoped (--skip-crds if they are already installed)' "$chart"; return 0
+            fi
+            preview="$(_k8s_helm_preview_json "${HELM:-helm}" "${args[@]}" "${conn[@]}" --dry-run=server -o json)" || {
+                printf 'BLOCK:precondition:helm %s %s could not be previewed with --dry-run=server (missing dependencies, or the cluster is unreachable)' "$verb" "$chart"; return 0;
+            }
+            ;;
+        uninstall|delete|del|un|test)
+            [[ ${#pos[@]} -ge 1 ]] || { printf 'BLOCK:precondition:helm %s needs a release name' "$verb"; return 0; }
+            local rel; label="release ${pos[*]}"
+            for rel in "${pos[@]}"; do
+                local part=""
+                if [[ "$verb" != test ]]; then
+                    part="$("${HELM:-helm}" get manifest "$rel" "${conn[@]}" 2>/dev/null)" || {
+                        printf 'BLOCK:precondition:could not read the stored manifest of release %s' "$rel"; return 0;
+                    }
+                fi
+                preview+="$part"$'\n---\n'"$("${HELM:-helm}" get hooks "$rel" "${conn[@]}" 2>/dev/null || true)"$'\n---\n'
+            done
+            ;;
+        rollback)
+            [[ ${#pos[@]} -eq 2 ]] || { printf 'BLOCK:precondition:helm rollback under a scope needs the revision named (helm rollback <release> <revision>), so the guard can read what it restores'; return 0; }
+            label="release ${pos[0]} revision ${pos[1]}"
+            preview="$("${HELM:-helm}" get manifest "${pos[0]}" --revision "${pos[1]}" "${conn[@]}" 2>/dev/null)" || {
+                printf 'BLOCK:precondition:could not read revision %s of release %s' "${pos[1]}" "${pos[0]}"; return 0;
+            }
+            preview+=$'\n---\n'"$("${HELM:-helm}" get hooks "${pos[0]}" --revision "${pos[1]}" "${conn[@]}" 2>/dev/null || true)"
+            ;;
+    esac
+    # A release with no resources (or no hooks for `test`) touches nothing.
+    if [[ -z "$(tr -d '[:space:]-' <<< "$preview")" ]]; then printf 'WRITE_IN_SCOPE'; return 0; fi
+    local validation
+    validation="$(_k8s_validate_rendered_docs helm "$label" "$target_ns" "$scope_ns_csv" "" "$scope_ctx" <<< "$preview")" || { printf '%s' "$validation"; return 0; }
+    printf 'WRITE_IN_SCOPE'
+}
+
+# Run a helm dry-run that prints a release as JSON and print its manifest
+# and hook manifests as one YAML stream.
+_k8s_helm_preview_json() {
+    local json
+    json="$("$@" 2>/dev/null)" || return 1
+    yq -p json -r '([.manifest] + [(.hooks // [])[] | .manifest]) | .[] | select(. != null) | . + "\n---"' <<< "$json" 2>/dev/null
+}
+
+# True when a local chart (directory or .tgz) carries files under crds/.
+_k8s_helm_chart_has_crds() {
+    local chart="$1"
+    if [[ -d "$chart" ]]; then
+        [[ -d "$chart/crds" && -n "$(ls -A "$chart/crds" 2>/dev/null)" ]]
+    else
+        tar -tzf "$chart" 2>/dev/null | grep -Eq '^[^/]+/crds/.+'
+    fi
+}
+
+# helm commands that only read: the cluster, a chart, or helm itself.
+_k8s_helm_is_read_verb() {
+    case "$1" in
+        list|ls|status|get|history|hist|show|inspect|search|template|lint|version|env|help|completion|verify) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# helm commands that change local state or a registry, never the cluster.
+_k8s_helm_is_local_verb() {
+    case "$1" in
+        pull|fetch|package|repo|dependency|dep|plugin|registry|create|push) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 # Print one verdict: NOT_K8S | READ_NO_SCOPE | WRITE_NO_SCOPE |
@@ -1026,8 +1510,11 @@ k8s_guard_validate_kustomize_tree() {
 # Usage: k8s_guard_evaluate <context> <namespaces-csv> <argv...>
 k8s_guard_evaluate() {
     local scope_ctx="$1" scope_ns_csv="$2"; shift 2
-    # Recognize both `kubectl ...` and `ws k8s ...` forms.
-    if [[ "$1" == "kubectl" ]]; then shift
+    # Recognize both `kubectl ...` and `ws k8s ...` forms. Only the raw form
+    # runs against kubectl's current context; `ws k8s` injects the scope's.
+    local raw_form=0
+    if [[ "$1" == "helm" ]]; then shift; _k8s_guard_evaluate_helm "$scope_ctx" "$scope_ns_csv" "$@"; return 0
+    elif [[ "$1" == "kubectl" ]]; then shift; raw_form=1
     elif [[ "$1" == *"/ws" || "$1" == "ws" || "$1" == "bash" ]]; then
         while [[ $# -gt 0 && "$1" != "k8s" ]]; do shift; done
         [[ "$1" == "k8s" ]] && shift || { printf 'NOT_K8S'; return 0; }
@@ -1040,16 +1527,29 @@ k8s_guard_evaluate() {
     local kdirs=()
     local rest_pos=()   # positional resource names after verb + resource-type
     local args=("$@")
-    local i=0
+    local i=0 verb_index=-1 verb2_index=-1 first_fragment=-1 dd_index=-1 rest_first_index=-1
+    # Only shell text with its quotes intact can show a split value. The
+    # wrapper's real argv never splits, and the hooks' quote-stripped view
+    # cannot tell; both set K8S_GUARD_NO_SPLIT_CHECK=1, and the hooks run
+    # this check on a separate quote-preserving view instead.
+    if [[ "${K8S_GUARD_NO_SPLIT_CHECK:-0}" != "1" ]]; then
+        for ((i = 0; i < ${#args[@]}; i++)); do
+            [[ "${args[i]}" == "--" ]] && break
+            if _k8s_is_split_fragment "${args[i]}"; then first_fragment=$i; break; fi
+        done
+    fi
+    i=0
     while [[ $i -lt ${#args[@]} ]]; do
         a="${args[$i]}"
         if [[ $options_done -eq 1 ]]; then
-            if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi
+            if [[ -z "$verb" ]]; then verb="$a"; verb_index=$i
+            elif [[ -z "$verb2" ]]; then verb2="$a"; verb2_index=$i
+            else [[ $rest_first_index -lt 0 ]] && rest_first_index=$i; rest_pos+=("$a"); fi
             i=$((i+1))
             continue
         fi
         case "$a" in
-            --) options_done=1 ;;
+            --) options_done=1; dd_index=$i ;;
             --context) ctx_arg_present=1; ctx_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
             --context=*) ctx_arg_present=1; ctx_arg="${a#--context=}";;
             -n|--namespace) ns_arg="${args[$((i+1))]:-}"; i=$((i+2)); continue ;;
@@ -1067,8 +1567,12 @@ k8s_guard_evaluate() {
                         ;;
                 esac
                 ;;
-            --kubeconfig|--server|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority|--tls-server-name|--insecure-skip-tls-verify)
+            --kubeconfig|--server|-s|--token|--as|--as-group|--as-uid|--as-user-extra|--user|--cluster|--client-certificate|--client-key|--certificate-authority|--tls-server-name|--insecure-skip-tls-verify)
                 printf 'BLOCK:context:%s cannot override the guarded Kubernetes connection or credentials' "$a"
+                return 0
+                ;;
+            -s?*)   # attached short --server
+                printf 'BLOCK:context:-s cannot override the guarded Kubernetes connection or credentials'
                 return 0
                 ;;
             --kubeconfig=*|--server=*|--token=*|--as=*|--as-group=*|--as-uid=*|--as-user-extra=*|--user=*|--cluster=*|--client-certificate=*|--client-key=*|--certificate-authority=*|--tls-server-name=*|--insecure-skip-tls-verify=*)
@@ -1111,8 +1615,13 @@ k8s_guard_evaluate() {
             # in a create/delete lifecycle op — `delete namespace foo --timeout 5s`
             # must not read `5s` as a second namespace). Attached (`-oyaml`) and
             # equals (`--timeout=5s`) forms are single tokens and fall to `-*)`.
-            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout) i=$((i+2)); continue ;;
-            --request-timeout=*) ;;
+            -o|--output|--timeout|--grace-period|-l|--selector|--field-selector|--cache-dir|--type|--request-timeout|-c|--container|--field-manager|--every|--count) i=$((i+2)); continue ;;
+            --request-timeout=*|--container=*|--field-manager=*|-c?*) ;;
+            # Valueless write options seen in real sessions (`apply
+            # --server-side`, `exec -it`). Their space form never consumes the
+            # next token, so the resource slot stays put.
+            --server-side|--force-conflicts|--overwrite|--force|--now|--all|--wait|--cascade|--validate|--record|--save-config|-i|--stdin|-t|--tty|-it|-ti|-q|--quiet) ;;
+            --server-side=*|--force-conflicts=*|--overwrite=*|--force=*|--now=*|--all=*|--wait=*|--cascade=*|--validate=*|--record=*|--save-config=*|--stdin=*|--tty=*|--quiet=*) ;;
             --namespaced)
                 if [[ "$verb" != "api-resources" ]]; then
                     printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
@@ -1151,15 +1660,33 @@ k8s_guard_evaluate() {
                 # they may take the next token as a value, shifting the command
                 # or resource into a slot with weaker classification. Fail closed
                 # and let the hook surface the guard reason to the operator.
-                if [[ -z "$verb" || -z "$verb2" ]]; then
+                # Once the verb is a plain read, nothing after it can turn the
+                # command into a write, so `logs --tail 5 pod` is safe to pass.
+                if [[ -z "$verb" ]] || { [[ -z "$verb2" ]] && ! _k8s_is_read_verb "$verb"; }; then
                     printf 'BLOCK:precondition:unrecognized option before kubectl resource: %s' "$a"
                     return 0
                 fi
                 ;;
-            *) if [[ -z "$verb" ]]; then verb="$a"; elif [[ -z "$verb2" ]]; then verb2="$a"; else rest_pos+=("$a"); fi ;;
+            *)
+                if [[ -z "$verb" ]]; then verb="$a"; verb_index=$i
+                elif [[ -z "$verb2" ]]; then verb2="$a"; verb2_index=$i
+                else [[ $rest_first_index -lt 0 ]] && rest_first_index=$i; rest_pos+=("$a"); fi
+                ;;
         esac
         i=$((i+1))
     done
+
+    # The hooks hand the guard shell text split on whitespace, so `-l 'a get'`
+    # arrives as `-l`, `'a`, `get'` and -l consumes only the first half. A
+    # split value sitting before the verb, or before a write's resource, can
+    # put the wrong token in that slot — `-l a\ get delete …` read as `get`.
+    if [[ $first_fragment -ge 0 ]]; then
+        if [[ $verb_index -lt 0 || $first_fragment -le $verb_index ]] \
+            || { { [[ $verb2_index -lt 0 || $first_fragment -le $verb2_index ]]; } && ! _k8s_is_read_verb "$verb"; }; then
+            printf 'BLOCK:precondition:a quoted or escaped value with whitespace (%s) sits before the kubectl verb or resource and cannot be tokenized safely; move that option after the resource' "${args[first_fragment]}"
+            return 0
+        fi
+    fi
 
     # `scope` is a wrapper-management verb (show/set/clear); it is not a
     # kubectl command. Return NOT_K8S so the hook passes it to the normal
@@ -1171,6 +1698,52 @@ k8s_guard_evaluate() {
     fi
     if [[ -n "$scope_ctx" && -n "$ctx_arg" && "$ctx_arg" != "$scope_ctx" ]]; then
         printf 'BLOCK:context:explicit --context %s != the guard-scope context %s' "$ctx_arg" "$scope_ctx"; return 0
+    fi
+    # Without --context, raw kubectl acts on kubeconfig's current context, and
+    # arming a scope does not switch it. Comparing only an explicit flag let a
+    # plain `kubectl get` read homelab while the scope said GKE. An empty
+    # answer means kubectl has no current context and will refuse to run, so
+    # there is nothing to compare. `config` and `kustomize` never reach a
+    # cluster.
+    if [[ -n "$scope_ctx" && $raw_form -eq 1 && $ctx_arg_present -eq 0 && "$verb" != "config" && "$verb" != "kustomize" ]]; then
+        local mismatch
+        mismatch="$(_k8s_current_context_mismatch "$scope_ctx" kubectl "use \`ws k8s <args>\`, which injects --context, or pass --context $scope_ctx")"
+        [[ -z "$mismatch" ]] || { printf '%s' "$mismatch"; return 0; }
+    fi
+    # `ws k8s sample` is the wrapper's own verb: repeated exec of one command
+    # from a read-only list, so a poll loop needs no `sh -c 'for …'` in the
+    # pod. Raw `kubectl sample` would be a plugin and stays on the write path.
+    if [[ $raw_form -eq 0 && "$verb" == "sample" ]]; then
+        # The pod comes before `--` and nothing else does: a stray word there
+        # would be the pod to the wrapper while the guard vetted another.
+        if [[ -z "$verb2" || $dd_index -lt 0 || $verb2_index -gt $dd_index || ${#rest_pos[@]} -eq 0 || $rest_first_index -lt $dd_index ]]; then
+            printf 'BLOCK:precondition:ws k8s sample needs a pod and a command after --: ws k8s sample <pod> [-n ns] [-c container] [--every s] [--count n] -- <cmd>'
+            return 0
+        fi
+        # Bare names only: `/tmp/x/cat` is whatever binary sits there. date
+        # and hostname also have write forms, which are refused.
+        local sample_arg
+        case "${rest_pos[0]}" in
+            cat|head|tail|ls|ps|df|du|free|uptime|date|wc|nproc|stat|id|hostname) ;;
+            *)
+                printf 'BLOCK:precondition:ws k8s sample runs read-only commands by bare name only (cat head tail ls ps df du free uptime date wc nproc stat id hostname), not %s' "${rest_pos[0]}"
+                return 0
+                ;;
+        esac
+        # date and hostname take arguments from an allowlist of read forms:
+        # date sets the clock from a bare timestamp or a clustered -s.
+        for sample_arg in "${rest_pos[@]:1}"; do
+            case "${rest_pos[0]}:$sample_arg" in
+                date:-u|date:--utc|date:--universal|date:-R|date:--rfc-email|date:-I|date:-I[a-z]*|date:--iso-8601*|date:--rfc-3339=*|date:+*) ;;
+                hostname:-f|hostname:--fqdn|hostname:--long|hostname:-s|hostname:--short|hostname:-d|hostname:--domain|hostname:-i|hostname:--ip-address|hostname:-I|hostname:--all-ip-addresses|hostname:-A|hostname:--all-fqdns) ;;
+                date:*|hostname:*)
+                    printf 'BLOCK:precondition:ws k8s sample allows only the read forms of %s, not %s' "${rest_pos[0]}" "$sample_arg"
+                    return 0
+                    ;;
+            esac
+        done
+        [[ -z "$scope_ctx" ]] && { printf 'READ_NO_SCOPE'; return 0; }
+        printf 'READ_IN_SCOPE'; return 0
     fi
     local read_verdict="READ_IN_SCOPE"
     [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
@@ -1270,7 +1843,8 @@ k8s_guard_evaluate() {
     # is the scope-check target here, not -n. Requires at least one name and
     # EVERY named namespace in scope; a nameless form (label selector / --all)
     # has no name to bound and falls through to the cluster-scoped block below.
-    # (-f Namespace manifests stay conservative — handled in the -f block.)
+    # (-f / -k Namespace manifests get the same by-name check in
+    # _k8s_validate_rendered_docs.)
     # Extract the namespace type and an optional inline name, so the slash form
     # `delete ns/alice-sandbox` is treated like `delete ns alice-sandbox`.
     local _ns_type="$verb2" _ns_inline="" _ns_lifecycle_tuples_in_scope=0

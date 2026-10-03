@@ -44,7 +44,10 @@ dirty_nested() {
 
 @test "nested display names cannot emit terminal controls" {
     local odd=$'Hidden\033[2J'
-    git init -q "$COMPONENTS_DIR/terasology/modules/$odd"
+    # Windows filesystems refuse control characters in a name (MSYS mkdir
+    # remaps them, native git does not), so the hostile repo cannot exist
+    # there and there is nothing to display.
+    git init -q "$COMPONENTS_DIR/terasology/modules/$odd" 2>/dev/null || skip "filesystem rejects control characters in names"
     dirty_nested "$odd"
     run bash "$WS_BIN" status --nested
     [ "$status" -eq 0 ]

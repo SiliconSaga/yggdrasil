@@ -35,11 +35,17 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/git-remote.sh"
 # Strip protocol, embedded credentials, and .git suffix so the result can
 # be matched against ecosystem gitTokens keys (host/group/... form).
 git_auth_normalize_url() {
-  local url="$1" host_url="$1" host path rest
+  local url="$1" host_url="$1" host path rest authority
   [[ "$host_url" != http://* ]] || host_url="https://${host_url#http://}"
   host="$(git_remote_host "$host_url")" || return 1
   case "$url" in
-    *://*) rest="${url#*://}"; path=""; [[ "$rest" != */* ]] || path="${rest#*/}" ;;
+    *://*)
+      rest="${url#*://}"; path=""; [[ "$rest" != */* ]] || path="${rest#*/}"
+      # Keep an explicit port: a gitTokens key like `git.corp:8443/group`
+      # stopped matching once the host was parsed out without it.
+      authority="${rest%%/*}"; authority="${authority##*@}"
+      [[ "$authority" =~ :([0-9]+)$ ]] && host+=":${BASH_REMATCH[1]}"
+      ;;
     *) path="${url#*:}" ;;
   esac
   path="${path%/}"; path="${path%.git}"

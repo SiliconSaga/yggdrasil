@@ -1,7 +1,8 @@
 #!/usr/bin/env bats
 
 @test "symlink-to-file type changes are scanned in real and scratch indexes" {
-    ln -s known.yaml "$REPO/replaced.txt"
+    ln -s known.yaml "$REPO/replaced.txt" 2>/dev/null || skip "symlink creation unavailable"
+    [ -L "$REPO/replaced.txt" ] || skip "symlink created as a copy (MSYS copy-mode), so there is no type change to stage"
     git -C "$REPO" add replaced.txt
     git -C "$REPO" commit -q -m 'seed symlink'
     cp "$REPO/.git/index" "$REPO/scratch.index"
@@ -17,6 +18,17 @@
     run ws_pii_staged_added_lines "$REPO"
     [ "$status" -eq 0 ]
     [[ "$output" == *fresh@newdomain.co.uk* ]]
+}
+
+@test "binary exclusions are summarized on one line, not one per file" {
+    local n
+    for n in 1 2 3 4 5; do printf 'PNG\000\001\002%s' "$n" > "$REPO/asset$n.bin"; done
+    git -C "$REPO" add asset1.bin asset2.bin asset3.bin asset4.bin asset5.bin
+    run ws_pii_staged_added_lines "$REPO"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c 'NOTE:' <<< "$output")" -eq 1 ]
+    [[ "$output" == *"5 binary staged file(s)"* ]]
+    [[ "$output" == *"…"* ]]
 }
 
 @test "ESC-heavy text is scanned rather than silently excluded" {
@@ -254,7 +266,7 @@ stage_allowlist() {
     [ "$status" -eq 0 ]
     [[ "$output" != *"newdomain.co.uk"* ]]
     [[ "$output" != *"k@k.do"* ]]
-    [[ "$output" == *'binary staged file excluded'* ]]
+    [[ "$output" == *'1 binary staged file(s) excluded'*export.pdf* ]]
 }
 
 @test "a text file larger than the sample is still scanned" {

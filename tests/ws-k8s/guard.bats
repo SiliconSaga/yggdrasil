@@ -17,7 +17,7 @@ make_kustomize_probe() {
 if [[ "\$1" == "kustomize" ]]; then
   touch "$KUSTOMIZE_PROBE"
   cat "$rendered"
-else
+elif [[ "\$*" != *current-context* ]]; then
   echo default
 fi
 EOF
@@ -461,7 +461,7 @@ metadata:
 EOF
     cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; elif [[ "\$*" != *current-context* ]]; then echo default; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
     export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
@@ -480,7 +480,7 @@ metadata:
 EOF
     cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; elif [[ "\$*" != *current-context* ]]; then echo default; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
     export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
@@ -498,7 +498,7 @@ metadata:
 EOF
     cat > "$BATS_TEST_TMPDIR/kubectl-kustomize" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; else echo default; fi
+if [[ "\$1" == "kustomize" ]]; then cat "$BATS_TEST_TMPDIR/rendered.yaml"; elif [[ "\$*" != *current-context* ]]; then echo default; fi
 EOF
     chmod +x "$BATS_TEST_TMPDIR/kubectl-kustomize"
     export KUBECTL="$BATS_TEST_TMPDIR/kubectl-kustomize"
@@ -987,4 +987,521 @@ render_block() { run bash -c "source '$GUARD_LIB'; k8s_render_block \"\$1\" \"\$
 @test "scope set is NOT_K8S (wrapper management, not a kubectl command)" {
     run_guard "kind-practice" "alice-sandbox" ws k8s scope set --context kind-practice --namespace alice-sandbox
     [ "$output" = "NOT_K8S" ]
+}
+
+# ─── Papercuts from real overlays and real sessions ─────────────────
+
+# A repo-shaped tree: base + overlays/dev referencing ../../base.
+make_overlay_repo() {
+    local repo="$BATS_TEST_TMPDIR/repo"
+    mkdir -p "$repo/.git" "$repo/base" "$repo/overlays/dev"
+    printf 'resources:\n  - cm.yaml\n' > "$repo/base/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: base\n' > "$repo/base/cm.yaml"
+    printf 'resources:\n  - ../../base\n' > "$repo/overlays/dev/kustomization.yaml"
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: rendered\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_kustomize_probe "$BATS_TEST_TMPDIR/rendered.yaml"
+}
+
+@test "apply -k allows parent traversal that stays inside the overlay's repository" {
+    make_overlay_repo
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/repo/overlays/dev"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    [ -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "apply -k still refuses parent traversal that leaves the overlay's repository" {
+    make_overlay_repo
+    printf 'apiVersion: v1\nkind: ConfigMap\n' > "$BATS_TEST_TMPDIR/outside.yaml"
+    printf 'resources:\n  - ../../base\n  - ../../../outside.yaml\n' > "$BATS_TEST_TMPDIR/repo/overlays/dev/kustomization.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -k "$BATS_TEST_TMPDIR/repo/overlays/dev"
+    [[ "$output" == BLOCK:precondition:*"escapes"* ]]
+    [ ! -e "$KUSTOMIZE_PROBE" ]
+}
+
+@test "read verbs accept options before the resource" {
+    local cmd
+    for cmd in "wait --for=condition=Ready pod/x" "wait --for condition=Ready pod/x" \
+        "logs --tail 5 pod/x" "logs --tail=5 -c main pod/x" "logs --since=1h --previous pod/x"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" kubectl $cmd
+        [ "$output" = "READ_IN_SCOPE" ]
+    done
+}
+
+@test "an unknown option before the verb still fails closed" {
+    run_guard "kind-practice" "alice-sandbox" kubectl --future-flag get pods
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "apply accepts server-side apply options before the manifest" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: x\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply --server-side --force-conflicts --field-manager gdd -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "known write options cannot hide a cluster-scoped resource" {
+    run_guard "kind-practice" "alice-sandbox" kubectl delete --wait=false --cascade=foreground clusterrole admin
+    [[ "$output" == BLOCK:unbounded:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl label --overwrite node/worker1 a=b
+    [[ "$output" == BLOCK:unbounded:* ]]
+}
+
+@test "apply -f skips empty documents instead of demanding -n" {
+    printf -- '---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: alice-sandbox\n---\n# trailing comment only\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "apply -f with a trailing separator and -n passes scope discovery" {
+    # Loki's #175 review: the bare `---` row reached scope discovery as a
+    # kind-less document and failed "cannot verify namespace scope for  ()".
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\n# only a comment\n---\napiVersion: v1\nkind: Secret\nmetadata:\n  name: b\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "apply -f of a Namespace that is itself in scope is allowed" {
+    printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: alice-sandbox\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "apply -f of an out-of-scope Namespace is classed 'scope'" {
+    printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: prod\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:scope:*"prod"* ]]
+}
+
+@test "apply -f of a nameless Namespace still fails closed" {
+    printf 'apiVersion: v1\nkind: Namespace\nmetadata: {}\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+}
+
+@test "exec accepts stdin, tty and container options" {
+    local flags
+    for flags in "-i" "-it" "-ti" "-i -t" "--stdin --tty" "--stdin=true" "-c main" "--container=main" "-q"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" kubectl exec $flags pod/x -n alice-sandbox -- cat
+        [ "$output" = "WRITE_IN_SCOPE" ]
+    done
+    run_guard "kind-practice" "alice-sandbox" kubectl exec -i pod/x -n prod -- cat
+    [[ "$output" == BLOCK:scope:* ]]
+}
+
+@test "a split quoted value before the verb fails closed instead of shifting it" {
+    # The hooks see shell text split on whitespace, so 'a get' arrives as two
+    # words; -l would consume the first and leave `get` in the verb slot.
+    run_guard "kind-practice" "alice-sandbox" kubectl -l "'a" "get'" delete clusterrole admin
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl -l 'a\' get delete clusterrole admin
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "a split quoted value after the resource stays harmless" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -l "'env" in "(prod)'"
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+# kubectl reports $1 as its current context.
+make_current_context_stub() {
+    cat > "$BATS_TEST_TMPDIR/kubectl-ctx" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+    *"config current-context"*) echo "$1" ;;
+    *"config view"*) echo alice-sandbox ;;
+esac
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/kubectl-ctx"
+    export KUBECTL="$BATS_TEST_TMPDIR/kubectl-ctx"
+}
+
+@test "raw kubectl without --context is compared against kubectl's current context" {
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods
+    [[ "$output" == BLOCK:context:*"current context other"* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl delete pod x -n alice-sandbox
+    [[ "$output" == BLOCK:context:* ]]
+}
+
+@test "raw kubectl on the scope's current context, or with an explicit matching --context, passes" {
+    make_current_context_stub kind-practice
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" kubectl --context kind-practice get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "ws k8s injects --context, so kubectl's current context does not matter" {
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" ws k8s get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "an unset current context is not a mismatch (kubectl itself refuses to run)" {
+    make_current_context_stub ""
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "k8s_guard_verb finds the verb past global options" {
+    run bash -c 'source "$1"; shift; k8s_guard_verb "$@"' _ "$GUARD_LIB" -n alice-sandbox --context kind-practice exec -it pod/x -- ls
+    [ "$output" = "exec" ]
+    run bash -c 'source "$1"; shift; k8s_guard_verb "$@"' _ "$GUARD_LIB" --request-timeout 5s cp a pod:/b
+    [ "$output" = "cp" ]
+}
+
+# ─── helm: classified and, for local charts, rendered ───────────────
+
+# helm stub. Every call is logged. A --dry-run=server install/upgrade prints
+# a release JSON whose manifest is $1 (and hooks from $2, if given); `get
+# manifest` prints $1 and `get hooks` prints $2. Anything else is silent.
+make_helm_stub() {
+    export HELM_LOG="$BATS_TEST_TMPDIR/helm.log"
+    local hooks="${2:-$BATS_TEST_TMPDIR/no-hooks.yaml}"
+    [[ -n "${2:-}" ]] || : > "$hooks"
+    cat > "$BATS_TEST_TMPDIR/helm" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$HELM_LOG"
+case "\$1 \$2" in
+    "get manifest") cat "$1" ;;
+    "get hooks") cat "$hooks" ;;
+    *)
+        if [[ "\$*" == *"--dry-run=server -o json"* ]]; then
+            jq -n --rawfile m "$1" --rawfile h "$hooks" '{manifest: \$m, hooks: (if \$h == "" then [] else [{manifest: \$h}] end)}'
+        fi ;;
+esac
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/helm"
+    export HELM="$BATS_TEST_TMPDIR/helm"
+    mkdir -p "$BATS_TEST_TMPDIR/chart"
+    printf 'apiVersion: v2\nname: demo\nversion: 0.1.0\n' > "$BATS_TEST_TMPDIR/chart/Chart.yaml"
+}
+
+@test "helm reads are classified as reads" {
+    run_guard "" "" helm list -A
+    [ "$output" = "READ_NO_SCOPE" ]
+    local cmd
+    for cmd in "list -A" "status web -n alice-sandbox" "history web" "get values web" "template web ./chart" "show values bitnami/redis" "version"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" helm $cmd
+        [ "$output" = "READ_IN_SCOPE" ]
+    done
+}
+
+@test "helm's local housekeeping is not a read the hooks would auto-approve" {
+    local cmd
+    for cmd in "plugin install https://plugins.example/x" "repo add bitnami https://charts.example" "push chart.tgz oci://registry.example" "registry login registry.example" "dependency update ./chart" "pull bitnami/redis" "create demo" "template web ./chart --post-renderer ./patch.sh"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" helm $cmd
+        [ "$output" = "NOT_K8S" ]
+    done
+}
+
+@test "helm upgrade is previewed by helm's own server dry run, values reuse included" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox --reuse-values
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "upgrade web .*--reuse-values --kube-context kind-practice --namespace alice-sandbox --dry-run=server -o json" "$HELM_LOG"
+    ! grep -q -- "^template" "$HELM_LOG"
+}
+
+@test "an upgrade whose preview includes an upgrade-only ClusterRole hook is blocked" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: hook\n' > "$BATS_TEST_TMPDIR/hooks.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml" "$BATS_TEST_TMPDIR/hooks.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:*ClusterRole* ]]
+}
+
+@test "helm --generate-name is refused under scope" {
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install "$BATS_TEST_TMPDIR/chart" --generate-name -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:*"generate-name"* ]]
+}
+
+@test "helm cluster-independent commands skip the context check" {
+    make_current_context_stub other
+    local cmd
+    for cmd in "version" "repo add x https://charts.example" "pull bitnami/redis --untar" "template web ./chart"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" helm $cmd
+        [[ "$output" != BLOCK:* ]]
+    done
+}
+
+@test "an exported HELM_KUBEAPISERVER is refused for cluster commands under scope" {
+    run env HELM_KUBEAPISERVER=https://other.example bash -c "source '$GUARD_LIB'; k8s_guard_evaluate kind-practice alice-sandbox helm list"
+    [[ "$output" == BLOCK:context:*HELM_KUBEAPISERVER* ]]
+}
+
+@test "helm refuses a split value anywhere before --" {
+    run_guard "kind-practice" "alice-sandbox" helm -n 'a\' list install web ./chart
+    [[ "$output" == BLOCK:precondition:*"quoted or escaped value"* ]]
+}
+
+@test "helm writes are classified even when no scope is armed" {
+    run_guard "" "" helm install web bitnami/redis
+    [ "$output" = "WRITE_NO_SCOPE" ]
+    run_guard "" "" helm uninstall web
+    [ "$output" = "WRITE_NO_SCOPE" ]
+}
+
+@test "helm install of a local chart renders it and allows in-scope output" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: b\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    : > "$BATS_TEST_TMPDIR/values.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox -f "$BATS_TEST_TMPDIR/values.yaml" --set a=b
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "install web .*--set a=b --kube-context kind-practice --namespace alice-sandbox --dry-run=server -o json" "$HELM_LOG"
+}
+
+@test "helm install blocks a chart that renders a cluster-scoped resource" {
+    printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm upgrade --install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:*ClusterRole* ]]
+}
+
+@test "a chart with a crds/ directory is blocked unless --skip-crds" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    mkdir -p "$BATS_TEST_TMPDIR/chart/crds"
+    printf 'kind: CustomResourceDefinition\n' > "$BATS_TEST_TMPDIR/chart/crds/thing.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:*crds/* ]]
+    run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox --skip-crds
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
+@test "helm install into an out-of-scope namespace is classed 'scope'" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n prod
+    [[ "$output" == BLOCK:scope:*prod* ]]
+}
+
+@test "helm install of a remote chart fails closed without rendering" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    local chart
+    for chart in bitnami/redis oci://registry.example/charts/redis https://charts.example/redis-1.0.0.tgz; do
+        run_guard "kind-practice" "alice-sandbox" helm install web "$chart" -n alice-sandbox
+        [[ "$output" == BLOCK:precondition:*"helm pull"* ]]
+    done
+    [ ! -e "$HELM_LOG" ]
+}
+
+@test "helm connection overrides, a foreign kube-context and post-renderers are blocked" {
+    run_guard "kind-practice" "alice-sandbox" helm list --kube-context other
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" helm install web ./chart --kubeconfig /tmp/k
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" helm install web ./chart --kube-token=abc
+    [[ "$output" == BLOCK:context:* ]]
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox --post-renderer ./patch.sh
+    [[ "$output" == BLOCK:unbounded:*post-renderer* ]]
+}
+
+@test "helm without --kube-context is compared against kubectl's current context" {
+    make_current_context_stub other
+    run_guard "kind-practice" "alice-sandbox" helm list
+    [[ "$output" == BLOCK:context:*"current context other"* ]]
+    run_guard "kind-practice" "alice-sandbox" helm list --kube-context kind-practice
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "helm uninstall, rollback and test check the release's stored manifests and hooks" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm uninstall web -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "get manifest web --kube-context kind-practice --namespace alice-sandbox" "$HELM_LOG"
+    run_guard "kind-practice" "alice-sandbox" helm rollback web 2 -n prod
+    [[ "$output" == BLOCK:scope:* ]]
+    run_guard "kind-practice" "alice-sandbox" helm rollback web 2 -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "get manifest web --revision 2" "$HELM_LOG"
+    run_guard "kind-practice" "alice-sandbox" helm rollback web -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:*revision* ]]
+    run_guard "kind-practice" "alice-sandbox" helm test web --namespace=alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    run_guard "kind-practice" "alice-sandbox" helm uninstall web -n alice-sandbox --dry-run
+    [ "$output" = "DRY_RUN_IN_SCOPE" ]
+}
+
+@test "helm uninstall of a release holding a cluster-scoped resource is blocked" {
+    printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm uninstall web -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:*ClusterRoleBinding* ]]
+}
+
+@test "the Namespace exemption covers core v1 only, and .exe tools normalize" {
+    printf 'apiVersion: example.test/v1\nkind: Namespace\nmetadata:\n  name: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "C:/tools/helm.exe list"
+    [ "$output" = "helm list" ]
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "kubectl.exe get pods"
+    [ "$output" = "kubectl get pods" ]
+}
+
+@test "env clearing or unsetting KUBECONFIG counts as an override" {
+    local c
+    for c in "env -i kubectl get pods" "env -u KUBECONFIG kubectl get pods" "env - kubectl get pods"; do
+        run bash -c 'source "$1"; k8s_guard_env_override "$2"' _ "$GUARD_LIB" "$c"
+        [ "$status" -eq 0 ]
+    done
+    run bash -c 'source "$1"; k8s_guard_env_override "env -u UNUSED KUBECONFIG=x kubectl get pods"' _ "$GUARD_LIB"
+    [ "$output" = "KUBECONFIG=" ]
+}
+
+@test "unknown helm commands and options fail closed under scope" {
+    run_guard "kind-practice" "alice-sandbox" helm frobnicate web
+    [[ "$output" == BLOCK:* ]]
+    run_guard "kind-practice" "alice-sandbox" helm install --future-flag web ./chart
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" helm install web ./chart extra -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "a slash-qualified helm normalizes like kubectl" {
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "/usr/local/bin/helm list"
+    [ "$output" = "helm list" ]
+}
+
+@test "script content scanning catches helm as well as kubectl" {
+    printf '#!/bin/bash\nhelm install web ./chart\n' > "$BATS_TEST_TMPDIR/deploy.sh"
+    run bash -c 'source "$1"; k8s_guard_script_mentions_kubectl "$2"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/deploy.sh"
+    [ "$status" -eq 0 ]
+}
+
+# ─── ws k8s sample: repeated read-only exec ─────────────────────────
+@test "ws k8s sample of a read-only command is a read" {
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -n kube-system --every 2 --count 5 -- cat /sys/fs/cgroup/cpu.stat
+    [ "$output" = "READ_IN_SCOPE" ]
+    run_guard "" "" ws k8s sample pod/x -c main -- ps aux
+    [ "$output" = "READ_NO_SCOPE" ]
+}
+
+@test "ws k8s sample refuses commands outside its read-only list" {
+    local cmd
+    for cmd in "rm -rf /data" "sh -c ps" "bao policy write x -" "/bin/kill 1"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- $cmd
+        [[ "$output" == BLOCK:precondition:* ]]
+    done
+}
+
+@test "ws k8s sample takes bare command names and refuses write forms" {
+    local cmd
+    for cmd in "/tmp/x/cat /etc/hosts" "./ps" "date -s 2020-01-01" "date --set=noon" "date 100303442026" "date -us 2026-10-03" "hostname evil" "hostname -F /etc/x"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- $cmd
+        [[ "$output" == BLOCK:precondition:* ]]
+    done
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- date +%s
+    [ "$output" = "READ_IN_SCOPE" ]
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- hostname -f
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "kubectl -s is the short --server and is blocked like it" {
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -s https://other.example
+    [[ "$output" == BLOCK:context:* ]]
+    run_guard "kind-practice" "alice-sandbox" kubectl get pods -shttps://other.example
+    [[ "$output" == BLOCK:context:* ]]
+}
+
+@test "env option operands do not hide a later KUBECONFIG assignment" {
+    run bash -c 'source "$1"; k8s_guard_env_override "env -u FOO KUBECONFIG=x kubectl get pods"' _ "$GUARD_LIB"
+    [ "$output" = "KUBECONFIG=" ]
+    run bash -c 'source "$1"; k8s_guard_env_override "env --chdir /tmp HELM_KUBECONTEXT=prod helm list"' _ "$GUARD_LIB"
+    [ "$output" = "HELM_KUBECONTEXT=" ]
+    run bash -c 'source "$1"; k8s_guard_env_override "kubectl annotate pod x KUBECONFIG=y"' _ "$GUARD_LIB"
+    [ "$status" -eq 1 ]
+}
+
+@test "ws k8s sample needs a pod and a command after --" {
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x cat /proc/loadavg
+    [[ "$output" == BLOCK:precondition:* ]]
+    run_guard "kind-practice" "alice-sandbox" ws k8s sample -- cat /proc/loadavg
+    [[ "$output" == BLOCK:precondition:* ]]
+}
+
+@test "raw kubectl sample is not the wrapper verb" {
+    run_guard "kind-practice" "alice-sandbox" kubectl sample pod/x -- cat /proc/loadavg
+    [ "$output" != "READ_IN_SCOPE" ]
+}
+
+# ─── Inline shells: classified by their payload ─────────────────────
+inline_status() { run bash -c 'source "$1"; k8s_guard_inline_shell_status "$2" "$3"' _ "$GUARD_LIB" "$BATS_TEST_TMPDIR/work" "$1"; }
+
+@test "inline shell status: not an inline shell" {
+    inline_status "ls -la"
+    [ "$status" -eq 1 ]
+    inline_status "bash scripts/x.sh"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: a literal kubectl payload" {
+    inline_status "bash -c 'kubectl delete ns prod'"
+    [ "$status" -eq 0 ]
+}
+
+@test "inline shell status: a payload that runs a kubectl script is scanned" {
+    mkdir -p "$BATS_TEST_TMPDIR/work"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$BATS_TEST_TMPDIR/work/deploy.sh"
+    printf '#!/bin/bash\necho hi\n' > "$BATS_TEST_TMPDIR/work/hello.sh"
+    inline_status "bash -c './deploy.sh'"
+    [ "$status" -eq 0 ]
+    inline_status "sh -c \"bash deploy.sh --fast\""
+    [ "$status" -eq 0 ]
+    inline_status "bash -c ./hello.sh"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: a simple kubectl-free payload is clean" {
+    inline_status "bash -c 'echo hello'"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: a script's own -c argument is not inline mode" {
+    mkdir -p "$BATS_TEST_TMPDIR/work"
+    printf '#!/bin/bash\necho hi\n' > "$BATS_TEST_TMPDIR/work/hello.sh"
+    inline_status "bash ./hello.sh -c config.yaml"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: quoted -c and exec payloads are followed" {
+    mkdir -p "$BATS_TEST_TMPDIR/work"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$BATS_TEST_TMPDIR/work/deploy.sh"
+    inline_status "bash \"-c\" './deploy.sh'"
+    [ "$status" -eq 0 ]
+    inline_status "bash -c 'exec ./deploy.sh'"
+    [ "$status" -eq 0 ]
+    inline_status "bash -c 'exec -a x ./deploy.sh'"
+    [ "$status" -eq 3 ]
+}
+
+@test "the split-value check reads shell quoting, and real argv skips it" {
+    run_guard "kind-practice" "alice-sandbox" kubectl --cache-dir '"/work/O'"'"'Neil/cache"' get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+    run bash -c 'source "$1"; K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate kind-practice alice-sandbox ws k8s --cache-dir "/work/O'"'"'Neil/cache" get pods' _ "$GUARD_LIB"
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
+@test "inline shell status: compound and nested payloads are uninspectable" {
+    local c
+    for c in "bash -c 'cd x; ./deploy.sh'" "bash -c 'make deploy && echo ok'" "sh -c 'a | b'" "bash -c \"sh -c ./deploy.sh\"" "bash -lc 'echo \$X'"; do
+        inline_status "$c"
+        [ "$status" -eq 3 ]
+    done
 }

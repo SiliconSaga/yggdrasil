@@ -20,6 +20,7 @@ case "$*" in
         exit 1
         ;;
     *"get namespace "*) echo "namespace/alice-sandbox" ;;
+    *"config current-context"*) echo "${STUB_CURRENT_CONTEXT:-}" ;;
     *) exit 0 ;;
 esac
 EOF
@@ -216,6 +217,93 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     run_ws k8s delete pod x -n carol
     [ "$status" -ne 0 ]
     [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
+}
+msys_stub_kubectl() {
+    mkdir -p "$BATS_TEST_TMPDIR/bin"
+    printf '#!/usr/bin/env bash\nprintf "%%s\\n" "${TEST_UNAME:-Linux}"\n' > "$BATS_TEST_TMPDIR/bin/uname"
+    cat > "$ROOT_DIR/kubectl" <<'EOF'
+#!/usr/bin/env bash
+echo "KUBECTL_ARGS: $* MSYS_NO_PATHCONV=${MSYS_NO_PATHCONV-<unset>}" >> "$ROOT_DIR/kubectl.log"
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/bin/uname" "$ROOT_DIR/kubectl"
+}
+run_ws_uname() {
+    local os="$1"; shift
+    run env -u MSYS_NO_PATHCONV WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" \
+        TEST_UNAME="$os" PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash "$WS_BIN" "$@"
+}
+@test "Git Bash: exec and cp keep in-pod paths unrewritten" {
+    msys_stub_kubectl
+    run_ws_uname MINGW64_NT-10.0 k8s exec -it pod/x -n alice-sandbox -- cat /sys/fs/cgroup/cpu.stat
+    [ "$status" -eq 0 ]
+    run_ws_uname MINGW64_NT-10.0 k8s cp ./policy.hcl alice-sandbox/vault-0:/tmp/policy.hcl
+    [ "$status" -eq 0 ]
+    [ "$(grep -c 'MSYS_NO_PATHCONV=1' "$ROOT_DIR/kubectl.log")" -eq 2 ]
+}
+@test "Git Bash: verbs that read local paths keep MSYS conversion" {
+    msys_stub_kubectl
+    run_ws_uname MINGW64_NT-10.0 k8s get pods
+    [ "$status" -eq 0 ]
+    grep -q 'MSYS_NO_PATHCONV=<unset>' "$ROOT_DIR/kubectl.log"
+}
+@test "macOS and Linux leave MSYS path suppression unset for exec" {
+    msys_stub_kubectl
+    run_ws_uname Darwin k8s exec pod/x -- ls /
+    [ "$status" -eq 0 ]
+    grep -q 'MSYS_NO_PATHCONV=<unset>' "$ROOT_DIR/kubectl.log"
+}
+@test "sample runs exec --count times with the armed context" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s sample pod/x -n kube-system -c main --every 0 --count 3 -- cat /proc/loadavg
+    [ "$status" -eq 0 ]
+    [ "$(grep -c -- '--context kind-practice exec -n kube-system -c main pod/x -- cat /proc/loadavg' "$ROOT_DIR/kubectl.log")" -eq 3 ]
+    [[ "$output" == *"sample 3/3"* ]]
+}
+@test "sample works with options before the verb" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s -n kube-system sample pod/x --every 0 --count 2 -- uptime
+    [ "$status" -eq 0 ]
+    [ "$(grep -c -- 'exec -n kube-system pod/x -- uptime' "$ROOT_DIR/kubectl.log")" -eq 2 ]
+}
+@test "sample rejects a non-numeric interval or count before calling kubectl" {
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s sample pod/x --every soon -- uptime
+    [ "$status" -ne 0 ]
+    run_ws k8s sample pod/x --count 0 -- uptime
+    [ "$status" -ne 0 ]
+    run_ws k8s sample pod/x --every 3601 -- uptime
+    [ "$status" -ne 0 ]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "sample refuses a write command through the guard" {
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s sample pod/x -- rm -rf /data
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"REJECTED"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "Git Bash: sample keeps in-pod paths unrewritten" {
+    msys_stub_kubectl
+    run_ws_uname MINGW64_NT-10.0 k8s sample pod/x --every 0 --count 1 -- cat /sys/fs/cgroup/cpu.stat
+    [ "$status" -eq 0 ]
+    grep -q 'MSYS_NO_PATHCONV=1' "$ROOT_DIR/kubectl.log"
+}
+@test "scope set warns when kubectl's current context is elsewhere" {
+    export STUB_CURRENT_CONTEXT=homelab
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"current context is homelab"* ]]
+    [[ "$output" == *"ws k8s"* ]]
+}
+@test "scope set is quiet about the context when kubectl already points at it" {
+    export STUB_CURRENT_CONTEXT=kind-practice
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"current context"* ]]
 }
 @test "ambient: different contexts refuse to guard" {
     unset GDD_SESSION_ID
