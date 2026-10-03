@@ -3190,9 +3190,10 @@ EOF
     run_hook 'curl --user=bob:CurlSecret2 https://api.example/x | jq .'
     run_hook 'DB_PASSWORD="first"ConcatenatedTail ws exec app ./m.sh | cat'
     run_hook "deploy --password \$'AnsiSecret words' --target prod; echo ok"
+    run_hook "deploy --password \$'AnsiEsc\\'aped EscapedTail' --target prod; echo ok"
     log="$HOME/.claude/hook-audit.log"
     [ -f "$log" ]
-    run grep -E 'ghp_abcdefghijklmnopqrstuvwxyz0123456789|eyJhbGciOiJIUzI1NiJ9|glpat-AbCdEfGhIjKlMnOpQrSt|private value|p w d|words|hidden remainder|TabbedSecret|SpacedSecret|CurlSecret|ConcatenatedTail|AnsiSecret' "$log"
+    run grep -E 'ghp_abcdefghijklmnopqrstuvwxyz0123456789|eyJhbGciOiJIUzI1NiJ9|glpat-AbCdEfGhIjKlMnOpQrSt|private value|p w d|words|hidden remainder|TabbedSecret|SpacedSecret|CurlSecret|ConcatenatedTail|AnsiSecret|AnsiEsc|EscapedTail' "$log"
     [ "$status" -eq 1 ]
     grep -q -- '--with-token <redacted> && git push' "$log"
     grep -q 'Authorization: Bearer <redacted>' "$log"
