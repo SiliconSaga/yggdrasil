@@ -1343,6 +1343,31 @@ inline_status() { run bash -c 'source "$1"; k8s_guard_inline_shell_status "$2" "
     [ "$status" -eq 1 ]
 }
 
+@test "inline shell status: a script's own -c argument is not inline mode" {
+    mkdir -p "$BATS_TEST_TMPDIR/work"
+    printf '#!/bin/bash\necho hi\n' > "$BATS_TEST_TMPDIR/work/hello.sh"
+    inline_status "bash ./hello.sh -c config.yaml"
+    [ "$status" -eq 1 ]
+}
+
+@test "inline shell status: quoted -c and exec payloads are followed" {
+    mkdir -p "$BATS_TEST_TMPDIR/work"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$BATS_TEST_TMPDIR/work/deploy.sh"
+    inline_status "bash \"-c\" './deploy.sh'"
+    [ "$status" -eq 0 ]
+    inline_status "bash -c 'exec ./deploy.sh'"
+    [ "$status" -eq 0 ]
+    inline_status "bash -c 'exec -a x ./deploy.sh'"
+    [ "$status" -eq 3 ]
+}
+
+@test "the split-value check reads shell quoting, and real argv skips it" {
+    run_guard "kind-practice" "alice-sandbox" kubectl --cache-dir '"/work/O'"'"'Neil/cache"' get pods
+    [ "$output" = "READ_IN_SCOPE" ]
+    run bash -c 'source "$1"; K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate kind-practice alice-sandbox ws k8s --cache-dir "/work/O'"'"'Neil/cache" get pods' _ "$GUARD_LIB"
+    [ "$output" = "READ_IN_SCOPE" ]
+}
+
 @test "inline shell status: compound and nested payloads are uninspectable" {
     local c
     for c in "bash -c 'cd x; ./deploy.sh'" "bash -c 'make deploy && echo ok'" "sh -c 'a | b'" "bash -c \"sh -c ./deploy.sh\"" "bash -lc 'echo \$X'"; do

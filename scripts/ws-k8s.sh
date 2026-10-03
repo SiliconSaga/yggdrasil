@@ -256,7 +256,7 @@ main() {
     fi
     # The `ws k8s` form tells the guard --context is injected below, so
     # kubectl's own current context is not the one that matters.
-    local verdict; verdict="$(k8s_guard_evaluate "$ctx" "$ns" ws k8s "$@")"
+    local verdict; verdict="$(K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate "$ctx" "$ns" ws k8s "$@")"
     case "$verdict" in
         BLOCK:*) k8s_render_block "$verdict" "$ctx" "k8s" >&2; printf '\n' >&2; return 1 ;;
     esac

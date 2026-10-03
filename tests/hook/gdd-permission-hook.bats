@@ -4127,6 +4127,22 @@ BASH
     run_hook_with_session "bash $WORK/deploy.sh" "sk8s"
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
 }
+@test "review #176: quoted -c, exec payloads, split values and KUBECONFIG are caught under scope" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf '#!/bin/bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    local command
+    for command in "bash \"-c\" 'cd tools; ./deploy.sh'" "bash -c 'exec ./deploy.sh'" "kubectl --cache-dir 'cache get' delete clusterrole admin" "KUBECONFIG=other.yaml kubectl get pods"; do
+        run_hook_with_session "$command" "sk8s"
+        [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    done
+}
+@test "review #176: an apostrophe inside a double-quoted value is data" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session "ws k8s --cache-dir \"/work/O'Neil/cache\" get pods" "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+}
 @test "scoped-redirect: ws k8s sample of a read-only command auto-approves" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"

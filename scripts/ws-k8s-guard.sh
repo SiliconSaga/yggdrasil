@@ -744,17 +744,28 @@ k8s_guard_inline_shell_contains_kubectl() {
     return 1
 }
 
-# True for a word that is half of a value the shell would have kept whole:
-# an odd count of either quote character, or an odd run of trailing
-# backslashes (an escaped space). Real argv from the wrapper never splits, so
-# this only fires on the hooks' whitespace-split view of shell text.
+# True for the first half of a value the shell would have kept whole: a word
+# that ends inside an open quote, or with an unescaped backslash (an escaped
+# space). Scanned with shell quoting rules, so an apostrophe inside double
+# quotes ("/work/O'Neil") is data, not an open quote. Only meaningful on the
+# hooks' whitespace-split view of shell text; real argv never splits.
 _k8s_is_split_fragment() {
-    local word="$1" sq="'" dq='"' singles doubles slashes=0
-    singles="${word//[^$sq]/}"
-    doubles="${word//[^$dq]/}"
-    (( ${#singles} % 2 == 1 || ${#doubles} % 2 == 1 )) && return 0
-    while [[ "$word" == *'\' ]]; do word="${word%?}"; slashes=$((slashes + 1)); done
-    (( slashes % 2 == 1 ))
+    local word="$1" char state="plain" i=0 length=${#1}
+    while [[ $i -lt $length ]]; do
+        char="${word:i:1}"
+        case "$state:$char" in
+            plain:"\\")
+                [[ $((i + 1)) -lt $length ]] || return 0
+                i=$((i + 2)); continue ;;
+            plain:"'") state="single" ;;
+            plain:'"') state="double" ;;
+            single:"'") state="plain" ;;
+            double:"\\") i=$((i + 2)); continue ;;
+            double:'"') state="plain" ;;
+        esac
+        i=$((i + 1))
+    done
+    [[ "$state" != "plain" ]]
 }
 
 # Print the kubectl verb of an argv, past global options. Only meaningful
@@ -789,20 +800,36 @@ k8s_guard_inline_shell_status() {
     normalized="$(k8s_guard_normalize_command "$masked")"
     if [[ "$normalized" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
         # A compound or expanding command that still launches an inline
-        # shell somewhere cannot be followed into its payload.
+        # shell somewhere cannot be followed into its payload. Quotes are
+        # dropped first so a quoted `"-c"` still reads as the option.
         local inline_re='(^|[[:space:];&|(])([^[:space:]]*/)?(bash|sh)[[:space:]]([^[:space:]]+[[:space:]])*-[A-Za-z]*c([[:space:]]|$)'
-        [[ "$masked" =~ $inline_re ]] && return 3
+        local unquoted="${command//[\"\']/}"
+        [[ "$unquoted" =~ $inline_re ]] && return 3
         return 1
     fi
-    _k8s_is_inline_shell "$normalized" || return 1
+    # Masking blanks quoted operands, a quoted `"-c"` included, so it only
+    # names the runner; the -c question goes to the quote-aware word split.
+    case "${normalized%% *}" in bash|*/bash|sh|*/sh) ;; *) return 1 ;; esac
+    local rc=0
+    payload="$(_k8s_inline_payload "$command")" || rc=$?
+    case "$rc" in
+        0) ;;
+        1) return 1 ;;   # no -c before the script operand: a script run
+        *) return 3 ;;
+    esac
     grep -Eq "$K8S_GUARD_TOOL_RE" <<< "$command" && return 0
-
-    payload="$(_k8s_inline_payload "$command")" || return 3
     [[ -n "$payload" ]] || return 1
     k8s_guard_has_live_shell_expansion "$payload" && return 3
     normalized="$(k8s_guard_normalize_command "$payload")"
     [[ "$normalized" != "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]] || return 3
     [[ -n "$normalized" ]] || return 1
+    # `exec <cmd>` runs <cmd>; judge that. An option to exec (-a, -c, -l)
+    # is a shape not worth following.
+    if [[ "$normalized" == exec || "$normalized" == "exec "* ]]; then
+        payload="${normalized#exec}"; payload="${payload# }"
+        [[ -n "$payload" && "$payload" != -* ]] || return 3
+        normalized="$payload"
+    fi
     _k8s_is_inline_shell "$normalized" && return 3
     [[ "${normalized%% *}" == "eval" ]] && return 3
     local script
@@ -810,7 +837,9 @@ k8s_guard_inline_shell_status() {
     k8s_guard_script_mentions_kubectl "$script"
 }
 
-# True when a normalized command is `bash`/`sh` with a -c option.
+# True when a normalized command is `bash`/`sh` with a -c option among its
+# own options — those before the script operand. A `-c` after the operand is
+# the script's argument (`bash ./run.sh -c config.yaml`).
 _k8s_is_inline_shell() {
     local -a words=()
     read -r -a words <<< "$1"
@@ -818,14 +847,21 @@ _k8s_is_inline_shell() {
     case "${words[0]##*/}" in bash|sh) ;; *) return 1 ;; esac
     local i
     for ((i = 1; i < ${#words[@]}; i++)); do
-        [[ "${words[i]}" == "-c" || ( "${words[i]}" == -[^-]* && "${words[i]}" == *c* ) ]] && return 0
+        case "${words[i]}" in
+            -c|-[!-]*c*) return 0 ;;
+            -o|+o|--rcfile|--init-file) i=$((i + 1)) ;;
+            --) return 1 ;;
+            -*|+*) ;;
+            *) return 1 ;;
+        esac
     done
     return 1
 }
 
 # The command string an inline shell will run: the first non-option word
-# after the shell, unquoted. Fails (so the caller says "uninspectable") on
-# quoting it cannot follow.
+# after the shell, unquoted. Returns 1 when the shell has no -c before its
+# first operand (a script run, not an inline shell) and 2 on quoting it
+# cannot follow, which the caller treats as uninspectable.
 _k8s_inline_payload() {
     local input="$1" char quote="" word="" in_word=0 past_shell=0 saw_c=0
     local i=0 length=${#1}
@@ -834,7 +870,7 @@ _k8s_inline_payload() {
         char="${input:i:1}"
         if [[ -n "$quote" ]]; then
             if [[ "$char" == "$quote" ]]; then quote=""
-            elif [[ -z "$char" ]]; then return 1
+            elif [[ -z "$char" ]]; then return 2
             elif [[ "$quote" == '"' && "$char" == '\' ]]; then i=$((i + 1)); word+="${input:i:1}"
             else word+="$char"; fi
         else
@@ -1189,6 +1225,42 @@ _k8s_kustomize_bound() {
     printf '%s' "$1"
 }
 
+# True when raw shell text, split on whitespace as the hooks see it, holds a
+# word that is half of a quoted or escaped value. Checked on the text before
+# normalization, which strips balanced outer quotes and would make the
+# apostrophe in "/work/O'Neil" look like an open quote.
+k8s_guard_has_split_value() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    local word
+    for word in ${words[@]+"${words[@]}"}; do
+        _k8s_is_split_fragment "$word" && return 0
+    done
+    return 1
+}
+
+# Print the name of a command-local assignment that redirects kubectl or helm
+# to other credentials or another cluster (`KUBECONFIG=other.yaml kubectl …`),
+# else nothing. Normalization drops such assignments, and the guard's own
+# current-context probe reads the hook's environment, not the command's, so
+# under a scope these are refused outright rather than half-checked.
+k8s_guard_env_override() {
+    local -a words=()
+    read -r -a words <<< "$1"
+    local word
+    # Only the prefix before the command word: leading assignments, and those
+    # an `env` (with its options) sets up. Later words are the tool's data.
+    for word in ${words[@]+"${words[@]}"}; do
+        word="${word#[\"\']}"
+        case "$word" in
+            KUBECONFIG=*|HELM_KUBE*=*|HELM_NAMESPACE=*) printf '%s' "${word%%=*}"; return 0 ;;
+            [A-Za-z_]*=*|env|*/env|-*) ;;
+            *) return 1 ;;
+        esac
+    done
+    return 1
+}
+
 # Print a BLOCK:context verdict when kubeconfig's current context is not the
 # scope's, else nothing. An empty answer means kubectl has no current context
 # and the tool will refuse to run, so there is nothing to compare.
@@ -1351,10 +1423,16 @@ k8s_guard_evaluate() {
     local rest_pos=()   # positional resource names after verb + resource-type
     local args=("$@")
     local i=0 verb_index=-1 verb2_index=-1 first_fragment=-1 dd_index=-1 rest_first_index=-1
-    for ((i = 0; i < ${#args[@]}; i++)); do
-        [[ "${args[i]}" == "--" ]] && break
-        if _k8s_is_split_fragment "${args[i]}"; then first_fragment=$i; break; fi
-    done
+    # Only shell text with its quotes intact can show a split value. The
+    # wrapper's real argv never splits, and the hooks' quote-stripped view
+    # cannot tell; both set K8S_GUARD_NO_SPLIT_CHECK=1, and the hooks run
+    # this check on a separate quote-preserving view instead.
+    if [[ "${K8S_GUARD_NO_SPLIT_CHECK:-0}" != "1" ]]; then
+        for ((i = 0; i < ${#args[@]}; i++)); do
+            [[ "${args[i]}" == "--" ]] && break
+            if _k8s_is_split_fragment "${args[i]}"; then first_fragment=$i; break; fi
+        done
+    fi
     i=0
     while [[ $i -lt ${#args[@]} ]]; do
         a="${args[$i]}"

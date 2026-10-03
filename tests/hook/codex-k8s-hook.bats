@@ -411,6 +411,47 @@ assert_denied() {
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"current context homelab"* ]]
 }
 
+@test "review #176: quoted -c and exec payloads still reach the inline-shell checks" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\nkubectl delete ns prod\n' > "$WORK/deploy.sh"
+    run_codex_hook "bash \"-c\" 'cd tools; ./deploy.sh'"
+    assert_denied
+    run_codex_hook "bash -c 'exec ./deploy.sh'"
+    assert_denied
+}
+
+@test "review #176: a script's own -c argument is not inline-shell mode" {
+    seed_scope codex-test kind-practice alice-sandbox
+    printf '#!/usr/bin/env bash\necho hi\n' > "$WORK/hello.sh"
+    run_codex_hook "bash ./hello.sh -c config.yaml"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "review #176: a quoted value cannot shift a delete into a read through quote stripping" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "kubectl --cache-dir 'cache get' delete clusterrole admin"
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"quoted or escaped value"* ]]
+}
+
+@test "review #176: an apostrophe inside a double-quoted value is data" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "ws k8s --cache-dir \"/work/O'Neil/cache\" get pods"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "review #176: a command-local KUBECONFIG is refused under scope" {
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'KUBECONFIG=other.yaml kubectl get pods'
+    assert_denied
+    run_codex_hook 'env HELM_KUBECONTEXT=prod helm list'
+    assert_denied
+    run_codex_hook 'kubectl annotate pod x note=KUBECONFIG=y -n alice-sandbox'
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason // ""' <<< "$output")" != *"KUBECONFIG="* ]]
+}
+
 @test "helm writes are denied unscoped, reads defer, and scoped checks apply" {
     run_codex_hook 'helm install web bitnami/redis -n web' no-scope
     assert_denied

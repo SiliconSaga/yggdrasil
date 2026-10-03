@@ -1996,6 +1996,24 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
             deny "Kubernetes commands must be issued as one composition-free command. This wrapped or constructed form cannot be evaluated safely. ${K8S_GUARD_COMPOSITION_HINT:-}"
         fi
     fi
+    # $match_cmd has its quotes stripped, so `--cache-dir 'cache get' delete …`
+    # reaches the guard as `--cache-dir cache get delete …` — a read. Evaluate
+    # the quote-preserving view too; its split-value refusal wins.
+    case "$_k8s_match_cmd" in
+        kubectl|kubectl\ *|helm|helm\ *|ws\ k8s\ *|k8s\ *)
+            _k8s_raw_view="$(k8s_guard_normalize_command "$cmd")"
+            if [[ "$_k8s_raw_view" != "$_k8s_unsafe_sentinel" ]] && k8s_guard_has_split_value "$cmd"; then
+                # shellcheck disable=SC2086
+                _k8s_raw_verdict="$(k8s_guard_evaluate "$(_sr_get GDD_K8S_CONTEXT)" "$(_sr_get GDD_K8S_NAMESPACES)" $_k8s_raw_view 2>/dev/null || true)"
+                if [[ "$_k8s_raw_verdict" == "BLOCK:precondition:a quoted or escaped value"* ]]; then
+                    deny "$(k8s_render_block "$_k8s_raw_verdict" "$(_sr_get GDD_K8S_CONTEXT)" k8s)"
+                fi
+            fi
+            if [[ -n "$(_sr_get GDD_K8S_CONTEXT)" ]] && _k8s_env_var="$(k8s_guard_env_override "$cmd")"; then
+                deny "$(k8s_render_block "BLOCK:context:$_k8s_env_var= on the command line points kubectl or helm at other credentials or another cluster than the guard checks" "$(_sr_get GDD_K8S_CONTEXT)" k8s)"
+            fi
+            ;;
+    esac
     _k8s_script_file="$(k8s_guard_script_path "$cwd" "$cmd" 2>/dev/null || true)"
     # The dispatcher and permission audit entrypoint legitimately mention
     # kubectl while handling unrelated commands. Keep this carve-out exact and
@@ -2023,7 +2041,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                     allow "unscoped Kubernetes write bypass"
                 fi
                 # shellcheck disable=SC2086
-                if ! _k8s_floor_verdict="$(k8s_guard_evaluate "" "" $_k8s_match_cmd 2>/dev/null)" \
+                if ! _k8s_floor_verdict="$(K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate "" "" $_k8s_match_cmd 2>/dev/null)" \
                     || [[ -z "$_k8s_floor_verdict" ]]; then
                     ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
                 fi
@@ -2085,7 +2103,7 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # (a) ws k8s commands → route by guard verdict.
     if [[ "$_k8s_match_cmd" == ws\ k8s\ * || "$_k8s_match_cmd" == k8s\ * ]]; then
         # shellcheck disable=SC2086
-        if ! _sr_verdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
+        if ! _sr_verdict="$(K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
             || [[ -z "$_sr_verdict" ]]; then
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
@@ -2116,7 +2134,7 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # trusting what it reports. It falls through to the (b) redirect instead.
     if [[ "$_k8s_match_cmd" == kubectl\ * || "$_k8s_match_cmd" == kubectl ]]; then
         # shellcheck disable=SC2086
-        if ! _sr_kverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
+        if ! _sr_kverdict="$(K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
             || [[ -z "$_sr_kverdict" ]]; then
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi
@@ -2136,7 +2154,7 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     # already been compared with the scope's).
     if [[ "$_k8s_match_cmd" == helm || "$_k8s_match_cmd" == helm\ * ]]; then
         # shellcheck disable=SC2086
-        if ! _sr_hverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
+        if ! _sr_hverdict="$(K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
             || [[ -z "$_sr_hverdict" ]]; then
             ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
         fi

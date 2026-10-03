@@ -137,6 +137,26 @@ case "$k8s_match_cmd" in
     ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) exit 0 ;;
 esac
 
+# normalize_for_match strips quotes, so `--cache-dir 'cache get' delete …`
+# reaches the guard as a read. Evaluate the quote-preserving view too; its
+# split-value refusal wins. Command-local KUBECONFIG and friends are refused
+# under scope: the guard's context probe cannot see them.
+case "$k8s_match_cmd" in
+    kubectl|kubectl\ *|helm|helm\ *|ws\ k8s\ *|k8s\ *)
+        raw_view="$(k8s_guard_normalize_command "$cmd")"
+        if [[ "$raw_view" != "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]] && k8s_guard_has_split_value "$cmd"; then
+            read -r -a raw_args <<< "$raw_view"
+            raw_verdict="$(k8s_guard_evaluate "$ctx" "$namespaces" ${raw_args[@]+"${raw_args[@]}"} 2>/dev/null || true)"
+            if [[ "$raw_verdict" == "BLOCK:precondition:a quoted or escaped value"* ]]; then
+                deny "$(k8s_render_block "$raw_verdict" "$ctx" k8s)"
+            fi
+        fi
+        if [[ -n "$ctx" ]] && env_var="$(k8s_guard_env_override "$cmd")"; then
+            deny "$(k8s_render_block "BLOCK:context:$env_var= on the command line points kubectl or helm at other credentials or another cluster than the guard checks" "$ctx" k8s)"
+        fi
+        ;;
+esac
+
 script_has_kubectl=0
 # 0 = calls kubectl, 2 = could not be inspected. Both fail closed here: an
 # unreadable script is not evidence that it is safe.
@@ -170,7 +190,8 @@ evaluate_command() {
     local command="$1"
     local -a args
     read -r -a args <<< "$command"
-    k8s_guard_evaluate "$ctx" "$namespaces" "${args[@]}"
+    # Quote-stripped words: the split check runs on the raw view above.
+    K8S_GUARD_NO_SPLIT_CHECK=1 k8s_guard_evaluate "$ctx" "$namespaces" "${args[@]}"
 }
 
 if [[ "$k8s_match_cmd" == ws\ k8s\ * || "$k8s_match_cmd" == k8s\ * ]]; then
