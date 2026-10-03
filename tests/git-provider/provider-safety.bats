@@ -21,6 +21,14 @@ setup() {
     [ "$output" = "attacker.example/x@gitlab.mycorp.com/team/widget" ]
 }
 
+@test "an explicit port stays part of the normalized token key" {
+    run git_auth_normalize_url "https://git.corp.example:8443/group/repo.git"
+    [ "$status" -eq 0 ]
+    [ "$output" = "git.corp.example:8443/group/repo" ]
+    run git_auth_normalize_url "https://git.corp.example/group/repo.git"
+    [ "$output" = "git.corp.example/group/repo" ]
+}
+
 @test "provider token routing does not cross an at-sign in the URL path" {
     local eco="$BATS_TEST_TMPDIR/ecosystem-at-path.yaml"
     cat > "$eco" <<'YAML'

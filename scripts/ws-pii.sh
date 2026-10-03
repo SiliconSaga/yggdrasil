@@ -203,7 +203,7 @@ _ws_pii_blob_is_text() {
 ws_pii_staged_added_lines() (
     set -o pipefail
     local repo="${1:-$PWD}" index_file="${2:-}" path paths_file scan_status
-    local -a text_paths=()
+    local -a text_paths=() binary_paths=()
     # NUL-delimited: without -z git quotes any unusual path (non-ASCII included)
     # and the quoted form names nothing in the index, so the file goes unscanned.
     paths_file="$(mktemp)" || return 1
@@ -223,10 +223,19 @@ ws_pii_staged_added_lines() (
                 echo 'ERROR: cannot read staged content for PII scanning.' >&2
                 return 1
             fi
-            printf 'NOTE: binary staged file excluded from PII scanning: %q\n' "$path" >&2
+            binary_paths+=("$path")
         fi
     done < "$paths_file"
     rm -f "$paths_file"
+    # One line, not one per file: an asset-heavy commit printed a wall of
+    # notes that buried whatever the commit itself had to say.
+    if [[ ${#binary_paths[@]} -gt 0 ]]; then
+        local shown
+        shown="$(printf '%q, ' "${binary_paths[@]:0:3}")"
+        shown="${shown%, }"
+        [[ ${#binary_paths[@]} -gt 3 ]] && shown+=", …"
+        printf 'NOTE: %d binary staged file(s) excluded from PII scanning: %s\n' "${#binary_paths[@]}" "$shown" >&2
+    fi
     [[ ${#text_paths[@]} -gt 0 ]] || return 0
     # Streamed, so memory does not scale with the change. pipefail (set above)
     # surfaces a failed diff; the caller discards partial output on failure.
