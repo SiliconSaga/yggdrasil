@@ -2010,7 +2010,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                 fi
             fi
             if [[ -n "$(_sr_get GDD_K8S_CONTEXT)" ]] && _k8s_env_var="$(k8s_guard_env_override "$cmd")"; then
-                deny "$(k8s_render_block "BLOCK:context:$_k8s_env_var= on the command line points kubectl or helm at other credentials or another cluster than the guard checks" "$(_sr_get GDD_K8S_CONTEXT)" k8s)"
+                deny "$(k8s_render_block "BLOCK:context:$_k8s_env_var on the command line points kubectl or helm at other credentials or another cluster than the guard checks" "$(_sr_get GDD_K8S_CONTEXT)" k8s)"
             fi
             ;;
     esac

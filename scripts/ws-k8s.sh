@@ -153,10 +153,12 @@ _k8s_ambient_scope() {
 # The guard has already vetted the command against its read-only list.
 _k8s_sample() {
     local ctx="$1"; shift
-    shift   # the `sample` verb itself
-    local every=1 count=5 pod="" k rc=0
+    local every=1 count=5 pod="" k rc=0 saw_verb=0
     local -a opts=() cmd=() ctx_args=()
     while [[ $# -gt 0 ]]; do
+        # The verb may follow options (`ws k8s -n ns sample pod -- …`), so
+        # drop the first bare `sample` wherever it sits.
+        if [[ $saw_verb -eq 0 && "$1" == sample ]]; then saw_verb=1; shift; continue; fi
         case "$1" in
             --) shift; cmd=("$@"); break ;;
             --every) every="${2:-}"; shift 2 || shift ;;

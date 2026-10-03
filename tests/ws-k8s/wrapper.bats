@@ -260,6 +260,13 @@ run_ws_uname() {
     [ "$(grep -c -- '--context kind-practice exec -n kube-system -c main pod/x -- cat /proc/loadavg' "$ROOT_DIR/kubectl.log")" -eq 3 ]
     [[ "$output" == *"sample 3/3"* ]]
 }
+@test "sample works with options before the verb" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s -n kube-system sample pod/x --every 0 --count 2 -- uptime
+    [ "$status" -eq 0 ]
+    [ "$(grep -c -- 'exec -n kube-system pod/x -- uptime' "$ROOT_DIR/kubectl.log")" -eq 2 ]
+}
 @test "sample rejects a non-numeric interval or count before calling kubectl" {
     : > "$ROOT_DIR/kubectl.log"
     run_ws k8s sample pod/x --every soon -- uptime

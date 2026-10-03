@@ -350,6 +350,9 @@ k8s_guard_normalize_command() {
 
     token="${words[i]}"
     base="${token##*/}"
+    # Native Windows spellings (`helm.exe`, `C:/tools/kubectl.exe`) are the
+    # same tools and must reach the same checks.
+    base="${base%.exe}"; base="${base%.EXE}"
     [[ "$base" == "kubectl" || "$base" == "helm" ]] && words[i]="$base"
     printf '%s' "${words[*]:$i}"
 }
@@ -1064,7 +1067,9 @@ _k8s_validate_rendered_docs() {
         docs_seen=$((docs_seen + 1))
         # A Namespace manifest naming an in-scope namespace is the same act
         # as `create namespace <in-scope>`, which the CLI path already allows.
-        if [[ -n "$doc_kind" ]] && _k8s_is_namespace_type "$doc_kind"; then
+        # Core v1 only: a custom resource named Namespace in another API
+        # group gets no exemption from the cluster-scope checks below.
+        if [[ -n "$doc_kind" && "${doc_version%$'\r'}" == "v1" ]] && _k8s_is_namespace_type "$doc_kind"; then
             if [[ -z "$doc_name" || "$doc_name" == "null" ]]; then
                 printf 'BLOCK:precondition:%s %s %s a Namespace with no name' "$flag" "$label" "$action"; return 1
             fi
@@ -1254,10 +1259,17 @@ k8s_guard_env_override() {
     for ((i = 0; i < ${#words[@]}; i++)); do
         word="${words[i]#[\"\']}"
         case "$word" in
-            KUBECONFIG=*|HELM_KUBE*=*|HELM_NAMESPACE=*) printf '%s' "${word%%=*}"; return 0 ;;
-            # env options that take an operand: skip it, or `env -u X
-            # KUBECONFIG=…` hides the assignment behind X.
-            -u|--unset|-C|--chdir|-a|--argv0|-P) i=$((i + 1)) ;;
+            KUBECONFIG=*|HELM_KUBE*=*|HELM_NAMESPACE=*) printf '%s=' "${word%%=*}"; return 0 ;;
+            # Clearing the environment, or unsetting KUBECONFIG, changes the
+            # kubeconfig the tool reads away from the one the guard checked.
+            -i|--ignore-environment|-) printf 'env %s' "$word"; return 0 ;;
+            -u|--unset)
+                case "${words[i + 1]:-}" in KUBECONFIG|HELM_KUBE*|HELM_NAMESPACE) printf 'env -u %s' "${words[i + 1]}"; return 0 ;; esac
+                i=$((i + 1)) ;;
+            -uKUBECONFIG|--unset=KUBECONFIG) printf 'env %s' "$word"; return 0 ;;
+            # Other operand-taking options: skip the operand, or `env -C dir
+            # KUBECONFIG=…` hides the assignment behind it.
+            -C|--chdir|-a|--argv0|-P) i=$((i + 1)) ;;
             [A-Za-z_]*=*|env|*/env|-*) ;;
             *) return 1 ;;
         esac
@@ -1276,17 +1288,16 @@ _k8s_current_context_mismatch() {
     printf 'BLOCK:context:kubectl'"'"'s current context %s is not the guard-scope context %s, so plain %s would act on %s — %s' "$current" "$scope_ctx" "$tool" "$current" "$remedy"
 }
 
-# helm, classified with the same verdicts as kubectl. A local chart's install
-# or upgrade is rendered (`helm template`, CRDs included) and every resource
-# goes through the -f/-k checks; a remote chart cannot be inspected without a
-# network fetch, so it fails closed with the pull-then-install route.
-# Limits: `lookup` calls render empty offline, and uninstall/rollback/test are
-# bounded only by the release namespace.
+# helm, classified with the same verdicts as kubectl. Under a scope a write is
+# previewed by helm itself — install/upgrade with `--dry-run=server -o json`,
+# uninstall/rollback/test from the stored manifests and hooks — and every
+# resource goes through the -f/-k checks. A remote chart is refused with the
+# pull-then-install route, so its crds/ directory can be checked too.
 _k8s_guard_evaluate_helm() {
     local scope_ctx="$1" scope_ns_csv="$2"; shift 2
-    local -a args=("$@") pos=() render_flags=()
+    local -a args=("$@") pos=()
     local i=0 a verb="" kube_ctx="" kube_ctx_present=0 ns_arg="" all_ns=0 dry_run=0 skip_crds=0 post_renderer=0 options_done=0
-    local reuse_values=0 reset_values=0
+    local generate_name=0
     # Same split-value refusal as kubectl's, on any helm command: a value
     # flag that consumes half of `'a list'` leaves `list` in the verb slot.
     if [[ "${K8S_GUARD_NO_SPLIT_CHECK:-0}" != "1" ]]; then
@@ -1319,22 +1330,19 @@ _k8s_guard_evaluate_helm() {
                 ;;
             --post-renderer|--post-renderer-args) post_renderer=1; i=$((i + 2)); continue ;;
             --post-renderer=*|--post-renderer-args=*) post_renderer=1 ;;
-            # Value options that change what renders travel to `helm template`.
-            -f|--values|--set|--set-string|--set-file|--set-json|--set-literal)
-                render_flags+=("$a" "${args[$((i + 1))]:-}"); i=$((i + 2)); continue ;;
-            -f=*|--values=*|--set=*|--set-string=*|--set-file=*|--set-json=*|--set-literal=*) render_flags+=("$a") ;;
-            -f?*) render_flags+=("$a") ;;
-            --version|--repo|--timeout|--description|--username|--password|--ca-file|--cert-file|--key-file|--keyring|--name-template|-l|--labels|-o|--output|--history-max|--max|--offset|--filter|--revision|--burst-limit|--qps|--registry-config|--repository-cache|--repository-config|--time-format)
+            -f|--values|--set|--set-string|--set-file|--set-json|--set-literal|--version|--repo|--timeout|--description|--username|--password|--ca-file|--cert-file|--key-file|--keyring|--name-template|-l|--labels|-o|--output|--history-max|--max|--offset|--filter|--revision|--burst-limit|--qps|--registry-config|--repository-cache|--repository-config|--time-format)
                 i=$((i + 2)); continue ;;
+            -f?*) ;;
             --dry-run) dry_run=1 ;;
             --dry-run=*) [[ "${a#*=}" == "none" ]] || dry_run=1 ;;
             --skip-crds) skip_crds=1 ;;
-            --reuse-values|--reset-then-reuse-values) reuse_values=1 ;;
-            --reset-values) reset_values=1 ;;
-            --atomic|--wait|--wait-for-jobs|--create-namespace|--force|--devel|--dependency-update|--disable-openapi-validation|-g|--generate-name|-i|--install|--cleanup-on-fail|--no-hooks|--render-subchart-notes|--skip-schema-validation|--take-ownership|--enable-dns|--insecure-skip-tls-verify|--pass-credentials|--plain-http|--verify|--debug|--keep-history|--hide-notes|--include-crds|-a|--all|--deployed|--failed|--pending|--superseded|--uninstalled|--uninstalling|--short|-q|--date|-r|--reverse|--no-headers|--hide-secret|--rollback-on-failure|--force-replace|--force-conflicts|--server-side|--recreate-pods|--cascade|--cascade=*) ;;
+            -g|--generate-name) generate_name=1 ;;
+            --reuse-values|--reset-then-reuse-values|--reset-values|--atomic|--wait|--wait-for-jobs|--create-namespace|--force|--devel|--dependency-update|--disable-openapi-validation|-i|--install|--cleanup-on-fail|--no-hooks|--render-subchart-notes|--skip-schema-validation|--take-ownership|--enable-dns|--insecure-skip-tls-verify|--pass-credentials|--plain-http|--verify|--debug|--keep-history|--hide-notes|--include-crds|-a|--all|--deployed|--failed|--pending|--superseded|--uninstalled|--uninstalling|--short|-q|--date|-r|--reverse|--no-headers|--hide-secret|--rollback-on-failure|--force-replace|--force-conflicts|--server-side|--recreate-pods|--cascade|--cascade=*) ;;
             --*=*) ;;   # a self-contained equals form cannot shift a positional
             -*)
-                if [[ -z "$verb" ]] || ! _k8s_helm_is_read_verb "$verb"; then
+                # After a read or a local verb an option cannot make the
+                # command a cluster write; elsewhere it may shift a positional.
+                if [[ -z "$verb" ]] || { ! _k8s_helm_is_read_verb "$verb" && ! _k8s_helm_is_local_verb "$verb"; }; then
                     printf 'BLOCK:precondition:unrecognized helm option before the chart: %s' "$a"
                     return 0
                 fi
@@ -1344,7 +1352,30 @@ _k8s_guard_evaluate_helm() {
         i=$((i + 1))
     done
 
+    local read_verdict="READ_IN_SCOPE"
+    [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
+    # Local housekeeping — plugins, registries, repos, chart files — never
+    # touches the cluster, but it can run or fetch code, so it is no read for
+    # the hooks to auto-approve: NOT_K8S hands it to normal approval. A
+    # post-renderer turns template/lint into running a local binary. Neither
+    # reaches the cluster, so neither needs the context checks below; nor do
+    # the offline reads.
+    if _k8s_helm_is_local_verb "$verb"; then printf 'NOT_K8S'; return 0; fi
+    if [[ $post_renderer -eq 1 ]] && [[ "$verb" == template || "$verb" == lint ]]; then printf 'NOT_K8S'; return 0; fi
+    case "$verb" in
+        ""|template|lint|show|inspect|search|version|env|help|completion|verify) printf '%s' "$read_verdict"; return 0 ;;
+    esac
+
     if [[ -n "$scope_ctx" ]]; then
+        # Exported HELM_KUBE* settings move helm off the kubeconfig the
+        # context checks read, and a command-line prefix is not where they
+        # live, so check the environment helm will inherit.
+        local env_name
+        for env_name in HELM_KUBEAPISERVER HELM_KUBETOKEN HELM_KUBEASUSER HELM_KUBEASGROUPS HELM_KUBECAFILE HELM_KUBEINSECURE_SKIP_TLS_VERIFY HELM_KUBETLS_SERVER_NAME; do
+            if [[ -n "${!env_name:-}" ]]; then
+                printf 'BLOCK:context:%s is set in the environment, which points helm at a connection the guard does not check' "$env_name"; return 0
+            fi
+        done
         if [[ $kube_ctx_present -eq 1 ]]; then
             [[ "$kube_ctx" == "$scope_ctx" ]] || {
                 printf 'BLOCK:context:explicit --kube-context %s != the guard-scope context %s' "${kube_ctx:-(empty)}" "$scope_ctx"; return 0;
@@ -1357,16 +1388,7 @@ _k8s_guard_evaluate_helm() {
             [[ -z "$mismatch" ]] || { printf '%s' "$mismatch"; return 0; }
         fi
     fi
-
-    local read_verdict="READ_IN_SCOPE"
-    [[ -z "$scope_ctx" ]] && read_verdict="READ_NO_SCOPE"
-    # Local housekeeping — plugins, registries, repos, chart files — never
-    # touches the cluster, but it can run or fetch code, so it is no read for
-    # the hooks to auto-approve: NOT_K8S hands it to normal approval. A
-    # post-renderer turns template/lint into running a local binary.
-    if _k8s_helm_is_local_verb "$verb"; then printf 'NOT_K8S'; return 0; fi
-    if [[ $post_renderer -eq 1 ]] && [[ "$verb" == template || "$verb" == lint ]]; then printf 'NOT_K8S'; return 0; fi
-    if [[ -z "$verb" ]] || _k8s_helm_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
+    if _k8s_helm_is_read_verb "$verb"; then printf '%s' "$read_verdict"; return 0; fi
     case "$verb" in
         install|upgrade|uninstall|delete|del|un|rollback|test) ;;
         *)
@@ -1379,8 +1401,6 @@ _k8s_guard_evaluate_helm() {
     if [[ $post_renderer -eq 1 ]]; then
         printf 'BLOCK:unbounded:a helm --post-renderer rewrites the manifests after the guard has checked them'; return 0
     fi
-    local write_verdict="WRITE_IN_SCOPE"
-    [[ $dry_run -eq 1 ]] && write_verdict="DRY_RUN_IN_SCOPE"
 
     local target_ns="${ns_arg:-${HELM_NAMESPACE:-}}"
     if [[ -z "$target_ns" ]]; then
@@ -1390,43 +1410,83 @@ _k8s_guard_evaluate_helm() {
     _k8s_ns_in_csv "$target_ns" "$scope_ns_csv" || {
         printf 'BLOCK:scope:helm %s targets namespace %s outside the guard scope (%s)' "$verb" "$target_ns" "$scope_ns_csv"; return 0;
     }
-    case "$verb" in install|upgrade) ;; *) printf '%s' "$write_verdict"; return 0 ;; esac
+    # The user's own dry run writes nothing; no preview needed.
+    [[ $dry_run -eq 1 ]] && { printf 'DRY_RUN_IN_SCOPE'; return 0; }
 
-    local release chart chart_path rendered validation
-    case "${#pos[@]}" in
-        1) release="release"; chart="${pos[0]}" ;;
-        2) release="${pos[0]}"; chart="${pos[1]}" ;;
-        *) printf 'BLOCK:precondition:helm %s expects [NAME] CHART, got %s positional arguments' "$verb" "${#pos[@]}"; return 0 ;;
+    # What a helm write touches is decided by helm: values merged with the
+    # release's, `.Release.IsUpgrade`, stored manifests and hooks. An offline
+    # `helm template` gets each of those subtly wrong, so ask helm itself —
+    # every call below is a read — and check what it reports.
+    local -a conn=(--kube-context "$scope_ctx" --namespace "$target_ns")
+    local preview="" label="" release chart chart_path
+    case "$verb" in
+        install|upgrade)
+            if [[ $generate_name -eq 1 ]] || [[ "$verb" == install && ${#pos[@]} -eq 1 ]]; then
+                printf 'BLOCK:precondition:helm %s --generate-name picks a name the guard cannot preview with; name the release' "$verb"; return 0
+            fi
+            [[ ${#pos[@]} -eq 2 ]] || { printf 'BLOCK:precondition:helm %s expects NAME CHART, got %s positional arguments' "$verb" "${#pos[@]}"; return 0; }
+            release="${pos[0]}"; chart="${pos[1]}"; label="$chart"
+            chart_path="$chart"
+            [[ -e "$chart_path" ]] || chart_path="$(_k8s_normalize_path "$chart")"
+            case "$chart" in oci://*|http://*|https://*) chart_path="" ;; esac
+            if [[ -z "$chart_path" ]] || { [[ ! -d "$chart_path" ]] && [[ ! -f "$chart_path" || "$chart_path" != *.tgz ]]; }; then
+                printf 'BLOCK:precondition:helm %s of %s cannot be inspected without fetching it — run `helm pull %s --untar --untardir <dir>` first, then install from that directory' "$verb" "$chart" "$chart"
+                return 0
+            fi
+            # CRDs under crds/ are installed outside the release manifest,
+            # and every CRD is cluster-scoped.
+            if [[ $skip_crds -eq 0 ]] && _k8s_helm_chart_has_crds "$chart_path"; then
+                printf 'BLOCK:unbounded:chart %s installs CRDs from its crds/ directory, which are cluster-scoped (--skip-crds if they are already installed)' "$chart"; return 0
+            fi
+            preview="$(_k8s_helm_preview_json "${HELM:-helm}" "${args[@]}" "${conn[@]}" --dry-run=server -o json)" || {
+                printf 'BLOCK:precondition:helm %s %s could not be previewed with --dry-run=server (missing dependencies, or the cluster is unreachable)' "$verb" "$chart"; return 0;
+            }
+            ;;
+        uninstall|delete|del|un|test)
+            [[ ${#pos[@]} -ge 1 ]] || { printf 'BLOCK:precondition:helm %s needs a release name' "$verb"; return 0; }
+            local rel; label="release ${pos[*]}"
+            for rel in "${pos[@]}"; do
+                local part=""
+                if [[ "$verb" != test ]]; then
+                    part="$("${HELM:-helm}" get manifest "$rel" "${conn[@]}" 2>/dev/null)" || {
+                        printf 'BLOCK:precondition:could not read the stored manifest of release %s' "$rel"; return 0;
+                    }
+                fi
+                preview+="$part"$'\n---\n'"$("${HELM:-helm}" get hooks "$rel" "${conn[@]}" 2>/dev/null || true)"$'\n---\n'
+            done
+            ;;
+        rollback)
+            [[ ${#pos[@]} -eq 2 ]] || { printf 'BLOCK:precondition:helm rollback under a scope needs the revision named (helm rollback <release> <revision>), so the guard can read what it restores'; return 0; }
+            label="release ${pos[0]} revision ${pos[1]}"
+            preview="$("${HELM:-helm}" get manifest "${pos[0]}" --revision "${pos[1]}" "${conn[@]}" 2>/dev/null)" || {
+                printf 'BLOCK:precondition:could not read revision %s of release %s' "${pos[1]}" "${pos[0]}"; return 0;
+            }
+            preview+=$'\n---\n'"$("${HELM:-helm}" get hooks "${pos[0]}" --revision "${pos[1]}" "${conn[@]}" 2>/dev/null || true)"
+            ;;
     esac
-    chart_path="$chart"
-    [[ -e "$chart_path" ]] || chart_path="$(_k8s_normalize_path "$chart")"
-    case "$chart" in
-        oci://*|http://*|https://*) chart_path="" ;;
-    esac
-    if [[ -z "$chart_path" ]] || { [[ ! -d "$chart_path" ]] && [[ ! -f "$chart_path" || "$chart_path" != *.tgz ]]; }; then
-        printf 'BLOCK:precondition:helm %s of %s cannot be inspected without fetching it — run `helm pull %s --untar --untardir <dir>` first, then install from that directory' "$verb" "$chart" "$chart"
-        return 0
+    # A release with no resources (or no hooks for `test`) touches nothing.
+    if [[ -z "$(tr -d '[:space:]-' <<< "$preview")" ]]; then printf 'WRITE_IN_SCOPE'; return 0; fi
+    local validation
+    validation="$(_k8s_validate_rendered_docs helm "$label" "$target_ns" "$scope_ns_csv" "" "$scope_ctx" <<< "$preview")" || { printf '%s' "$validation"; return 0; }
+    printf 'WRITE_IN_SCOPE'
+}
+
+# Run a helm dry-run that prints a release as JSON and print its manifest
+# and hook manifests as one YAML stream.
+_k8s_helm_preview_json() {
+    local json
+    json="$("$@" 2>/dev/null)" || return 1
+    yq -p json -r '([.manifest] + [(.hooks // [])[] | .manifest]) | .[] | select(. != null) | . + "\n---"' <<< "$json" 2>/dev/null
+}
+
+# True when a local chart (directory or .tgz) carries files under crds/.
+_k8s_helm_chart_has_crds() {
+    local chart="$1"
+    if [[ -d "$chart" ]]; then
+        [[ -d "$chart/crds" && -n "$(ls -A "$chart/crds" 2>/dev/null)" ]]
+    else
+        tar -tzf "$chart" 2>/dev/null | grep -Eq '^[^/]+/crds/.+'
     fi
-    local -a crds=(--include-crds) stored=()
-    [[ $skip_crds -eq 1 ]] && crds=()
-    # An upgrade that reuses the release's values (--reuse-values, or helm's
-    # own default when no values are given) installs what those values
-    # render, so render with them: `helm get values` is a read. A release
-    # that does not exist yet (`upgrade --install`) has none to reuse.
-    local stored_file=""
-    if [[ "$verb" == upgrade && $reset_values -eq 0 ]] && { [[ $reuse_values -eq 1 ]] || [[ ${#render_flags[@]} -eq 0 ]]; }; then
-        stored_file="$(mktemp "${TMPDIR:-/tmp}/ws-k8s-helm-values.XXXXXX")" || { printf 'BLOCK:precondition:could not create a temporary file for the release values'; return 0; }
-        if "${HELM:-helm}" get values "$release" --namespace "$target_ns" --kube-context "$scope_ctx" -o yaml > "$stored_file" 2>/dev/null; then
-            stored=(-f "$stored_file")
-        fi
-    fi
-    rendered="$("${HELM:-helm}" template "$release" "$chart_path" --namespace "$target_ns" ${crds[@]+"${crds[@]}"} ${stored[@]+"${stored[@]}"} ${render_flags[@]+"${render_flags[@]}"} 2>/dev/null)" || {
-        [[ -z "$stored_file" ]] || rm -f "$stored_file"
-        printf 'BLOCK:precondition:helm chart %s could not be rendered (missing dependencies? run `helm dependency build` first)' "$chart"; return 0;
-    }
-    [[ -z "$stored_file" ]] || rm -f "$stored_file"
-    validation="$(_k8s_validate_rendered_docs helm "$chart" "$target_ns" "$scope_ns_csv" "" "$scope_ctx" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
-    printf '%s' "$write_verdict"
 }
 
 # helm commands that only read: the cluster, a chart, or helm itself.
@@ -1670,10 +1730,14 @@ k8s_guard_evaluate() {
                 return 0
                 ;;
         esac
+        # date and hostname take arguments from an allowlist of read forms:
+        # date sets the clock from a bare timestamp or a clustered -s.
         for sample_arg in "${rest_pos[@]:1}"; do
             case "${rest_pos[0]}:$sample_arg" in
-                date:-s*|date:--set*|hostname:[!-]*|hostname:-F*|hostname:--file*|hostname:-b|hostname:--boot)
-                    printf 'BLOCK:precondition:ws k8s sample refuses %s %s, which changes the pod rather than reading it' "${rest_pos[0]}" "$sample_arg"
+                date:-u|date:--utc|date:--universal|date:-R|date:--rfc-email|date:-I|date:-I[a-z]*|date:--iso-8601*|date:--rfc-3339=*|date:+*) ;;
+                hostname:-f|hostname:--fqdn|hostname:--long|hostname:-s|hostname:--short|hostname:-d|hostname:--domain|hostname:-i|hostname:--ip-address|hostname:-I|hostname:--all-ip-addresses|hostname:-A|hostname:--all-fqdns) ;;
+                date:*|hostname:*)
+                    printf 'BLOCK:precondition:ws k8s sample allows only the read forms of %s, not %s' "${rest_pos[0]}" "$sample_arg"
                     return 0
                     ;;
             esac

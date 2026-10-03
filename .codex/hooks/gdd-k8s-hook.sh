@@ -152,7 +152,7 @@ case "$k8s_match_cmd" in
             fi
         fi
         if [[ -n "$ctx" ]] && env_var="$(k8s_guard_env_override "$cmd")"; then
-            deny "$(k8s_render_block "BLOCK:context:$env_var= on the command line points kubectl or helm at other credentials or another cluster than the guard checks" "$ctx" k8s)"
+            deny "$(k8s_render_block "BLOCK:context:$env_var on the command line points kubectl or helm at other credentials or another cluster than the guard checks" "$ctx" k8s)"
         fi
         ;;
 esac

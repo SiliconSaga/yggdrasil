@@ -1157,14 +1157,24 @@ EOF
 
 # ─── helm: classified and, for local charts, rendered ───────────────
 
-# helm stub: `template` logs its argv and prints $1; `get values` logs and
-# prints a stored value; anything else is silent.
+# helm stub. Every call is logged. A --dry-run=server install/upgrade prints
+# a release JSON whose manifest is $1 (and hooks from $2, if given); `get
+# manifest` prints $1 and `get hooks` prints $2. Anything else is silent.
 make_helm_stub() {
     export HELM_LOG="$BATS_TEST_TMPDIR/helm.log"
+    local hooks="${2:-$BATS_TEST_TMPDIR/no-hooks.yaml}"
+    [[ -n "${2:-}" ]] || : > "$hooks"
     cat > "$BATS_TEST_TMPDIR/helm" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == "template" ]]; then echo "\$*" >> "$HELM_LOG"; cat "$1"
-elif [[ "\$1 \$2" == "get values" ]]; then echo "\$*" >> "$HELM_LOG"; echo "stored: true"; fi
+echo "\$*" >> "$HELM_LOG"
+case "\$1 \$2" in
+    "get manifest") cat "$1" ;;
+    "get hooks") cat "$hooks" ;;
+    *)
+        if [[ "\$*" == *"--dry-run=server -o json"* ]]; then
+            jq -n --rawfile m "$1" --rawfile h "$hooks" '{manifest: \$m, hooks: (if \$h == "" then [] else [{manifest: \$h}] end)}'
+        fi ;;
+esac
 EOF
     chmod +x "$BATS_TEST_TMPDIR/helm"
     export HELM="$BATS_TEST_TMPDIR/helm"
@@ -1192,20 +1202,42 @@ EOF
     done
 }
 
-@test "helm upgrade renders with the release's stored values when it would reuse them" {
+@test "helm upgrade is previewed by helm's own server dry run, values reuse included" {
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
     make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
     run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox --reuse-values
     [ "$output" = "WRITE_IN_SCOPE" ]
-    grep -q -- "get values web --namespace alice-sandbox --kube-context kind-practice" "$HELM_LOG"
-    grep -q -- "template web .* -f " "$HELM_LOG"
-    : > "$HELM_LOG"
+    grep -q -- "upgrade web .*--reuse-values --kube-context kind-practice --namespace alice-sandbox --dry-run=server -o json" "$HELM_LOG"
+    ! grep -q -- "^template" "$HELM_LOG"
+}
+
+@test "an upgrade whose preview includes an upgrade-only ClusterRole hook is blocked" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: hook\n' > "$BATS_TEST_TMPDIR/hooks.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml" "$BATS_TEST_TMPDIR/hooks.yaml"
     run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox
-    grep -q -- "get values" "$HELM_LOG"
-    : > "$HELM_LOG"
-    : > "$BATS_TEST_TMPDIR/values.yaml"
-    run_guard "kind-practice" "alice-sandbox" helm upgrade web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox -f "$BATS_TEST_TMPDIR/values.yaml"
-    ! grep -q -- "get values" "$HELM_LOG"
+    [[ "$output" == BLOCK:unbounded:*ClusterRole* ]]
+}
+
+@test "helm --generate-name is refused under scope" {
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install "$BATS_TEST_TMPDIR/chart" --generate-name -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:*"generate-name"* ]]
+}
+
+@test "helm cluster-independent commands skip the context check" {
+    make_current_context_stub other
+    local cmd
+    for cmd in "version" "repo add x https://charts.example" "pull bitnami/redis --untar" "template web ./chart"; do
+        # shellcheck disable=SC2086
+        run_guard "kind-practice" "alice-sandbox" helm $cmd
+        [[ "$output" != BLOCK:* ]]
+    done
+}
+
+@test "an exported HELM_KUBEAPISERVER is refused for cluster commands under scope" {
+    run env HELM_KUBEAPISERVER=https://other.example bash -c "source '$GUARD_LIB'; k8s_guard_evaluate kind-practice alice-sandbox helm list"
+    [[ "$output" == BLOCK:context:*HELM_KUBEAPISERVER* ]]
 }
 
 @test "helm refuses a split value anywhere before --" {
@@ -1226,9 +1258,7 @@ EOF
     : > "$BATS_TEST_TMPDIR/values.yaml"
     run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox -f "$BATS_TEST_TMPDIR/values.yaml" --set a=b
     [ "$output" = "WRITE_IN_SCOPE" ]
-    grep -q -- "--include-crds" "$HELM_LOG"
-    grep -q -- "--namespace alice-sandbox" "$HELM_LOG"
-    grep -q -- "--set a=b" "$HELM_LOG"
+    grep -q -- "install web .*--set a=b --kube-context kind-practice --namespace alice-sandbox --dry-run=server -o json" "$HELM_LOG"
 }
 
 @test "helm install blocks a chart that renders a cluster-scoped resource" {
@@ -1238,12 +1268,15 @@ EOF
     [[ "$output" == BLOCK:unbounded:*ClusterRole* ]]
 }
 
-@test "helm install --skip-crds renders without the crds directory" {
+@test "a chart with a crds/ directory is blocked unless --skip-crds" {
     printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
     make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    mkdir -p "$BATS_TEST_TMPDIR/chart/crds"
+    printf 'kind: CustomResourceDefinition\n' > "$BATS_TEST_TMPDIR/chart/crds/thing.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:*crds/* ]]
     run_guard "kind-practice" "alice-sandbox" helm install web "$BATS_TEST_TMPDIR/chart" -n alice-sandbox --skip-crds
     [ "$output" = "WRITE_IN_SCOPE" ]
-    ! grep -q -- "--include-crds" "$HELM_LOG"
 }
 
 @test "helm install into an out-of-scope namespace is classed 'scope'" {
@@ -1284,15 +1317,50 @@ EOF
     [ "$output" = "READ_IN_SCOPE" ]
 }
 
-@test "helm uninstall, rollback and test are bounded by the release namespace" {
+@test "helm uninstall, rollback and test check the release's stored manifests and hooks" {
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
     run_guard "kind-practice" "alice-sandbox" helm uninstall web -n alice-sandbox
     [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "get manifest web --kube-context kind-practice --namespace alice-sandbox" "$HELM_LOG"
     run_guard "kind-practice" "alice-sandbox" helm rollback web 2 -n prod
     [[ "$output" == BLOCK:scope:* ]]
+    run_guard "kind-practice" "alice-sandbox" helm rollback web 2 -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    grep -q -- "get manifest web --revision 2" "$HELM_LOG"
+    run_guard "kind-practice" "alice-sandbox" helm rollback web -n alice-sandbox
+    [[ "$output" == BLOCK:precondition:*revision* ]]
     run_guard "kind-practice" "alice-sandbox" helm test web --namespace=alice-sandbox
     [ "$output" = "WRITE_IN_SCOPE" ]
     run_guard "kind-practice" "alice-sandbox" helm uninstall web -n alice-sandbox --dry-run
     [ "$output" = "DRY_RUN_IN_SCOPE" ]
+}
+
+@test "helm uninstall of a release holding a cluster-scoped resource is blocked" {
+    printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: x\n' > "$BATS_TEST_TMPDIR/rendered.yaml"
+    make_helm_stub "$BATS_TEST_TMPDIR/rendered.yaml"
+    run_guard "kind-practice" "alice-sandbox" helm uninstall web -n alice-sandbox
+    [[ "$output" == BLOCK:unbounded:*ClusterRoleBinding* ]]
+}
+
+@test "the Namespace exemption covers core v1 only, and .exe tools normalize" {
+    printf 'apiVersion: example.test/v1\nkind: Namespace\nmetadata:\n  name: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"
+    [[ "$output" == BLOCK:* ]]
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "C:/tools/helm.exe list"
+    [ "$output" = "helm list" ]
+    run bash -c 'source "$1"; k8s_guard_normalize_command "$2"' _ "$GUARD_LIB" "kubectl.exe get pods"
+    [ "$output" = "kubectl get pods" ]
+}
+
+@test "env clearing or unsetting KUBECONFIG counts as an override" {
+    local c
+    for c in "env -i kubectl get pods" "env -u KUBECONFIG kubectl get pods" "env - kubectl get pods"; do
+        run bash -c 'source "$1"; k8s_guard_env_override "$2"' _ "$GUARD_LIB" "$c"
+        [ "$status" -eq 0 ]
+    done
+    run bash -c 'source "$1"; k8s_guard_env_override "env -u UNUSED KUBECONFIG=x kubectl get pods"' _ "$GUARD_LIB"
+    [ "$output" = "KUBECONFIG=" ]
 }
 
 @test "unknown helm commands and options fail closed under scope" {
@@ -1334,7 +1402,7 @@ EOF
 
 @test "ws k8s sample takes bare command names and refuses write forms" {
     local cmd
-    for cmd in "/tmp/x/cat /etc/hosts" "./ps" "date -s 2020-01-01" "date --set=noon" "hostname evil" "hostname -F /etc/x"; do
+    for cmd in "/tmp/x/cat /etc/hosts" "./ps" "date -s 2020-01-01" "date --set=noon" "date 100303442026" "date -us 2026-10-03" "hostname evil" "hostname -F /etc/x"; do
         # shellcheck disable=SC2086
         run_guard "kind-practice" "alice-sandbox" ws k8s sample pod/x -- $cmd
         [[ "$output" == BLOCK:precondition:* ]]
@@ -1354,9 +1422,9 @@ EOF
 
 @test "env option operands do not hide a later KUBECONFIG assignment" {
     run bash -c 'source "$1"; k8s_guard_env_override "env -u FOO KUBECONFIG=x kubectl get pods"' _ "$GUARD_LIB"
-    [ "$output" = "KUBECONFIG" ]
+    [ "$output" = "KUBECONFIG=" ]
     run bash -c 'source "$1"; k8s_guard_env_override "env --chdir /tmp HELM_KUBECONTEXT=prod helm list"' _ "$GUARD_LIB"
-    [ "$output" = "HELM_KUBECONTEXT" ]
+    [ "$output" = "HELM_KUBECONTEXT=" ]
     run bash -c 'source "$1"; k8s_guard_env_override "kubectl annotate pod x KUBECONFIG=y"' _ "$GUARD_LIB"
     [ "$status" -eq 1 ]
 }

@@ -462,6 +462,10 @@ assert_denied() {
     run_codex_hook 'helm.exe install web oci://registry.example/redis -n alice-sandbox'
     assert_denied
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"helm pull"* ]]
+    # uninstall reads the release's stored manifest; this one holds nothing.
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$WORK/_home/helm-empty"
+    chmod +x "$WORK/_home/helm-empty"
+    export HELM="$WORK/_home/helm-empty"
     run_codex_hook 'helm uninstall web -n alice-sandbox'
     [ "$status" -eq 0 ]
     [ -z "$output" ]
