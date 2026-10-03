@@ -147,6 +147,42 @@ _k8s_ambient_scope() {
     printf '%s|%s' "$found_ctx" "$all_ns"
 }
 
+# `ws k8s sample <pod> [exec options] [--every s] [--count n] -- <cmd…>`:
+# run one read-only command in a pod repeatedly, from here. It replaces the
+# `exec -- sh -c 'for …; sleep 1; done'` loop, which the hooks cannot inspect.
+# The guard has already vetted the command against its read-only list.
+_k8s_sample() {
+    local ctx="$1"; shift
+    shift   # the `sample` verb itself
+    local every=1 count=5 pod="" k rc=0
+    local -a opts=() cmd=() ctx_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --) shift; cmd=("$@"); break ;;
+            --every) every="${2:-}"; shift 2 || shift ;;
+            --every=*) every="${1#*=}"; shift ;;
+            --count) count="${2:-}"; shift 2 || shift ;;
+            --count=*) count="${1#*=}"; shift ;;
+            -n|--namespace|-c|--container|--context|--request-timeout) opts+=("$1" "${2:-}"); shift 2 || shift ;;
+            -*) opts+=("$1"); shift ;;
+            *)
+                [[ -z "$pod" ]] || { echo "ERROR: sample takes one pod; got '$pod' and '$1'" >&2; return 1; }
+                pod="$1"; shift ;;
+        esac
+    done
+    every="${every%s}"
+    [[ "$every" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "ERROR: --every wants seconds (e.g. 2 or 0.5), not '$every'" >&2; return 1; }
+    [[ "$count" =~ ^[0-9]+$ && "$count" -ge 1 && "$count" -le 1000 ]] || { echo "ERROR: --count wants 1-1000, not '$count'" >&2; return 1; }
+    [[ -n "$pod" && ${#cmd[@]} -gt 0 ]] || { echo "Usage: ws k8s sample <pod> [-n ns] [-c container] [--every s] [--count n] -- <cmd>" >&2; return 1; }
+    [[ -n "$ctx" ]] && ctx_args=(--context "$ctx")
+    for ((k = 1; k <= count; k++)); do
+        printf -- '--- sample %d/%d %s\n' "$k" "$count" "$(date '+%H:%M:%S')"
+        "$KUBECTL" ${ctx_args[@]+"${ctx_args[@]}"} exec ${opts[@]+"${opts[@]}"} "$pod" -- "${cmd[@]}" || rc=$?
+        [[ $k -lt $count ]] && sleep "$every"
+    done
+    return "$rc"
+}
+
 _k8s_help() {
     cat <<'HELP'
 Usage: ws k8s scope set|show|clear        # manage the practice guard scope
@@ -185,6 +221,10 @@ Choose the boundary deliberately:
   - With explicit confirmation, use 'ws hook-bypass k8s' for unattended raw-
     kubectl automation or deliberately unscoped Codex writes. An armed wrapper
     scope still applies. The bypass lasts for the session, not one command.
+
+Sampling (a read, so no prompt) in place of an in-pod `sh -c 'for …'` loop:
+  ws k8s sample <pod> [-n ns] [-c container] [--every 1] [--count 5] -- <cmd>
+  <cmd> is one of: cat head tail ls ps df du free uptime date wc nproc stat id hostname
 
 A kubectl subcommand's own help still passes through, e.g. 'ws k8s get --help'.
 
@@ -225,13 +265,21 @@ main() {
     # `C:/Program Files/Git/sys/…`, and `ns/pod:/tmp/x` became a Windows
     # path list. These verbs carry in-pod paths, so conversion only does harm;
     # verbs that read local files (-f, -k) keep it.
-    case "$(k8s_guard_verb "$@")" in
-        exec|cp|debug|attach|run)
+    local verb; verb="$(k8s_guard_verb "$@")"
+    case "$verb" in
+        exec|cp|debug|attach|run|sample)
             case "$(uname -s 2>/dev/null || echo unknown)" in
                 MINGW*|MSYS*|CYGWIN*) export MSYS_NO_PATHCONV=1 ;;
             esac
             ;;
     esac
+    if [[ "$verb" == "sample" ]]; then
+        case "$verdict" in
+            READ_IN_SCOPE) _k8s_sample "$ctx" "$@"; return ;;
+            READ_NO_SCOPE) _k8s_sample "" "$@"; return ;;
+            *) echo "ws k8s: unexpected guard verdict '$verdict' for sample" >&2; return 1 ;;
+        esac
+    fi
     case "$verdict" in
         READ_NO_SCOPE|WRITE_NO_SCOPE|NOT_K8S) exec "$KUBECTL" "$@" ;;
         READ_IN_SCOPE|DRY_RUN_IN_SCOPE|WRITE_IN_SCOPE) exec "$KUBECTL" --context "$ctx" "$@" ;;

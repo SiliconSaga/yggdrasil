@@ -252,6 +252,37 @@ run_ws_uname() {
     [ "$status" -eq 0 ]
     grep -q 'MSYS_NO_PATHCONV=<unset>' "$ROOT_DIR/kubectl.log"
 }
+@test "sample runs exec --count times with the armed context" {
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s sample pod/x -n kube-system -c main --every 0 --count 3 -- cat /proc/loadavg
+    [ "$status" -eq 0 ]
+    [ "$(grep -c -- '--context kind-practice exec -n kube-system -c main pod/x -- cat /proc/loadavg' "$ROOT_DIR/kubectl.log")" -eq 3 ]
+    [[ "$output" == *"sample 3/3"* ]]
+}
+@test "sample rejects a non-numeric interval or count before calling kubectl" {
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s sample pod/x --every soon -- uptime
+    [ "$status" -ne 0 ]
+    run_ws k8s sample pod/x --count 0 -- uptime
+    [ "$status" -ne 0 ]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "sample refuses a write command through the guard" {
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s scope set --context kind-practice --namespace alice-sandbox
+    : > "$ROOT_DIR/kubectl.log"
+    run_ws k8s sample pod/x -- rm -rf /data
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"REJECTED"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+@test "Git Bash: sample keeps in-pod paths unrewritten" {
+    msys_stub_kubectl
+    run_ws_uname MINGW64_NT-10.0 k8s sample pod/x --every 0 --count 1 -- cat /sys/fs/cgroup/cpu.stat
+    [ "$status" -eq 0 ]
+    grep -q 'MSYS_NO_PATHCONV=1' "$ROOT_DIR/kubectl.log"
+}
 @test "scope set warns when kubectl's current context is elsewhere" {
     export STUB_CURRENT_CONTEXT=homelab
     run_ws k8s scope set --context kind-practice --namespace alice-sandbox
