@@ -1107,7 +1107,7 @@ _has_bare_windows_path() {
 # Kubernetes command hears about `ws k8s` and kubectl's own output shaping
 # rather than only the ws exec / ws commit advice below.
 _k8s_t1_hint=""
-if [[ "$tier1_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) || "$tier1_cmd" == *"ws k8s"* ]]; then
+if [[ "$tier1_cmd" =~ (^|[^[:alnum:]_])(kubectl|helm)([^[:alnum:]_]|$) || "$tier1_cmd" == *"ws k8s"* ]]; then
     _k8s_t1_hint=" ${K8S_GUARD_COMPOSITION_HINT:-}"
 fi
 case "$tier1_cmd" in
@@ -1970,14 +1970,14 @@ _k8s_literal_direct=0
 _k8s_script_file=""
 _k8s_inline_shell=0
 case "$match_cmd" in
-    kubectl|kubectl\ *|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *) _k8s_literal_direct=1 ;;
+    kubectl|kubectl\ *|helm|helm\ *|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *) _k8s_literal_direct=1 ;;
 esac
 for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; do
     [[ "${_entry%%|*}" == "k8s" ]] && { _k8s_floor_enabled=1; break; }
 done
 if [[ "$_k8s_floor_enabled" == "1" && "$_k8s_guard_loaded" != "1" ]]; then
     case "$match_cmd" in
-        *kubectl*|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *)
+        *kubectl*|helm|helm\ *|ws\ k8s|ws\ k8s\ *|k8s|k8s\ *)
             ask "The Kubernetes guard is unavailable, so this command cannot be classified safely. Repair the guard or approve this invocation explicitly."
             ;;
     esac
@@ -1990,7 +1990,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
         # removes quotes, but the unsafe-form check must retain the distinction
         # between an executable command word and inert quoted data.
         _k8s_masked_match_cmd="$(k8s_guard_mask_inert_quotes "$cmd")"
-        if [[ "$_k8s_masked_match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
+        if [[ "$_k8s_masked_match_cmd" =~ (^|[^[:alnum:]_])(kubectl|helm)([^[:alnum:]_]|$) ]] \
             || [[ "$_k8s_masked_match_cmd" == *"ws k8s"* || "$_k8s_masked_match_cmd" == *"scripts/ws k8s"* ]] \
             || { declare -F k8s_guard_xargs_child_contains_kubectl >/dev/null 2>&1 && k8s_guard_xargs_child_contains_kubectl "$cmd"; }; then
             deny "Kubernetes commands must be issued as one composition-free command. This wrapped or constructed form cannot be evaluated safely. ${K8S_GUARD_COMPOSITION_HINT:-}"
@@ -2017,7 +2017,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
     if [[ -z "$_k8s_floor_ctx" ]]; then
         case "$_k8s_match_cmd" in
             ws\ k8s\ scope|ws\ k8s\ scope\ *|k8s\ scope|k8s\ scope\ *) : ;;
-            kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *)
+            kubectl|kubectl\ *|helm|helm\ *|ws\ k8s\ *|k8s\ *)
                 if _k8s_bypass_active; then
                     echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
                     allow "unscoped Kubernetes write bypass"
@@ -2041,7 +2041,7 @@ if [[ "$_k8s_floor_enabled" == "1" ]] && declare -F k8s_guard_evaluate >/dev/nul
                         echo "[$(date '+%Y-%m-%d %H:%M:%S')] BYPASS-SCOPE [k8s] [$event]: $(audit_safe "$cmd")" >> "$audit_log"
                         allow "unscoped Kubernetes script bypass"
                     fi
-                    ask "No Kubernetes guard scope is active and this shell invocation contains kubectl. Approve it once, arm a scope, or use the audited session bypass for deliberate automation."
+                    ask "No Kubernetes guard scope is active and this shell invocation contains kubectl or helm. Approve it once, arm a scope, or use the audited session bypass for deliberate automation."
                 fi
                 ;;
         esac
@@ -2130,6 +2130,22 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
             *) : ;;  # WRITE_IN_SCOPE → fall through to (b) redirect
         esac
     fi
+    # (a3) helm → the same guard. Reads auto-allow; a write passes to normal
+    # approval once the guard has rendered and checked it, since there is no
+    # wrapper to redirect to (--kube-context or the current context has
+    # already been compared with the scope's).
+    if [[ "$_k8s_match_cmd" == helm || "$_k8s_match_cmd" == helm\ * ]]; then
+        # shellcheck disable=SC2086
+        if ! _sr_hverdict="$(k8s_guard_evaluate "$_sr_ctx" "$_sr_ns" $_k8s_match_cmd 2>/dev/null)" \
+            || [[ -z "$_sr_hverdict" ]]; then
+            ask "Kubernetes guard evaluation failed, so this command requires explicit human approval."
+        fi
+        case "$_sr_hverdict" in
+            READ_IN_SCOPE) [[ "$_k8s_literal_direct" == "1" ]] && allow "helm in-scope read (guard)" ;;
+            BLOCK:*) deny "$(k8s_render_block "$_sr_hverdict" "$_sr_ctx" "$_sr_slug")" ;;
+        esac
+        continue
+    fi
     # (b) raw tool matching the pattern → redirect.
     # shellcheck disable=SC2053
     if [[ "$_k8s_match_cmd" == $_sr_pattern ]]; then
@@ -2139,13 +2155,13 @@ for _entry in ${scoped_redirect_commands[@]+"${scoped_redirect_commands[@]}"}; d
     _k8s_script_verdict=0
     k8s_guard_script_mentions_kubectl "$_k8s_script_file" || _k8s_script_verdict=$?
     if [[ "$_k8s_script_verdict" -eq 0 ]]; then
-        deny "Script $_k8s_script_file calls raw kubectl within a guarded scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+        deny "Script $_k8s_script_file calls raw kubectl or helm within a guarded scope — run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
     fi
     if [[ "$_k8s_script_verdict" -eq 2 ]]; then
         deny "Script $_k8s_script_file could not be read for inspection, so the guard cannot tell whether it calls kubectl. Failing closed. Fix the file's permissions, run each step via 'ws k8s', or 'ws hook-bypass $_sr_slug'."
     fi
     if [[ "$_k8s_inline_shell" == "1" ]]; then
-        deny "Inline shell command calls raw kubectl within a guarded scope — use 'ws k8s', or 'ws hook-bypass $_sr_slug'."
+        deny "Inline shell command calls raw kubectl or helm within a guarded scope — use 'ws k8s', or 'ws hook-bypass $_sr_slug'."
     fi
     if [[ "${_k8s_inline_status:-1}" == "3" ]]; then
         deny "Inline shell payload cannot be inspected within a guarded scope — it is compound, expands variables, or nests another shell, so the guard cannot tell whether it reaches kubectl. Run each step as its own command, put the steps in a script file (scripts are content-scanned), or 'ws hook-bypass $_sr_slug'."

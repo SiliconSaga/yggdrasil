@@ -87,6 +87,8 @@ normalize_for_match() {
     case "$value" in
         kubectl.exe) value="kubectl" ;;
         kubectl.exe\ *) value="kubectl ${value#kubectl.exe }" ;;
+        helm.exe) value="helm" ;;
+        helm.exe\ *) value="helm ${value#helm.exe }" ;;
     esac
     printf '%s' "$value"
 }
@@ -118,10 +120,10 @@ if [[ "$k8s_match_cmd" == "$K8S_GUARD_UNSAFE_COMMAND_SENTINEL" ]]; then
     unsafe_inline_shell=0
     unsafe_inline_re='(^|[;&|[:space:]]|\()(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|command)[[:space:]]+)*([^[:space:]]*/)?(bash|sh|dash|ash|ksh|ksh93|mksh|zsh)[[:space:]]([^[:space:]]+[[:space:]])*-[A-Za-z]*c([[:space:]]|$)'
     if [[ "$match_cmd" =~ $unsafe_inline_re ]] \
-        && [[ "$match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]]; then
+        && [[ "$match_cmd" =~ $K8S_GUARD_TOOL_RE ]]; then
         unsafe_inline_shell=1
     fi
-    if [[ "$masked_match_cmd" =~ (^|[^[:alnum:]_])kubectl([^[:alnum:]_]|$) ]] \
+    if [[ "$masked_match_cmd" =~ $K8S_GUARD_TOOL_RE ]] \
         || [[ "$masked_match_cmd" == *"ws k8s"* || "$masked_match_cmd" == *"scripts/ws k8s"* ]] \
         || k8s_guard_xargs_child_contains_kubectl "$cmd" \
         || [[ "$unsafe_inline_shell" == "1" ]]; then
@@ -148,7 +150,7 @@ if [[ "$script_verdict" -eq 0 || "$script_verdict" -eq 2 ]]; then
 fi
 k8s_candidate=0
 case "$k8s_match_cmd" in
-    kubectl|kubectl\ *|ws\ k8s\ *|k8s\ *) k8s_candidate=1 ;;
+    kubectl|kubectl\ *|helm|helm\ *|ws\ k8s\ *|k8s\ *) k8s_candidate=1 ;;
 esac
 [[ "$script_has_kubectl" == "1" ]] && k8s_candidate=1
 [[ "$inline_shell" == "1" ]] && k8s_candidate=1
@@ -198,17 +200,31 @@ if [[ "$k8s_match_cmd" == kubectl || "$k8s_match_cmd" == kubectl\ * ]]; then
     esac
 fi
 
+# helm has no wrapper to redirect to: the guard renders and checks a write,
+# and compares --kube-context (or the current context) with the scope, so
+# anything it does not block defers to Codex's own approval.
+if [[ "$k8s_match_cmd" == helm || "$k8s_match_cmd" == helm\ * ]]; then
+    verdict="$(evaluate_command "$k8s_match_cmd" 2>/dev/null || true)"
+    case "$verdict" in
+        READ_NO_SCOPE|READ_IN_SCOPE|DRY_RUN_IN_SCOPE|WRITE_IN_SCOPE) exit 0 ;;
+        WRITE_NO_SCOPE)
+            deny "No Kubernetes guard scope is active. Arm one with 'ws k8s scope set --context <ctx> --namespace <ns,...>', or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session." ;;
+        BLOCK:*) deny "$(k8s_render_block "$verdict" "$ctx" k8s)" ;;
+        *) deny "Kubernetes guard evaluation failed; the helm command was not run." ;;
+    esac
+fi
+
 if [[ "$script_has_kubectl" == "1" ]]; then
     if [[ -n "$ctx" ]]; then
-        deny "Script $script_path calls raw kubectl within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
+        deny "Script $script_path calls raw kubectl or helm within a guarded scope — run each Kubernetes step via 'ws k8s', or use 'ws hook-bypass k8s'."
     fi
-    deny "Script $script_path calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
+    deny "Script $script_path calls raw kubectl or helm while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
 fi
 if [[ "$inline_shell" == "1" ]]; then
     if [[ -n "$ctx" ]]; then
-        deny "Inline shell command calls raw kubectl within a guarded scope — use 'ws k8s', or use 'ws hook-bypass k8s'."
+        deny "Inline shell command calls raw kubectl or helm within a guarded scope — use 'ws k8s', or use 'ws hook-bypass k8s'."
     fi
-    deny "Inline shell command calls raw kubectl while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
+    deny "Inline shell command calls raw kubectl or helm while no Kubernetes guard scope is active. Arm a scope, or obtain explicit user confirmation before using 'ws hook-bypass k8s' for this session."
 fi
 [[ -n "$ctx" && "$inline_status" -eq 3 ]] && deny "$uninspectable_reason"
 

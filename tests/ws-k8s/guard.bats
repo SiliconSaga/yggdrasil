@@ -1052,6 +1052,17 @@ make_overlay_repo() {
     [ "$output" = "WRITE_IN_SCOPE" ]
 }
 
+@test "apply -f with a trailing separator and -n passes scope discovery" {
+    # Loki's #175 review: the bare `---` row reached scope discovery as a
+    # kind-less document and failed "cannot verify namespace scope for  ()".
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+    printf 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\n# only a comment\n---\napiVersion: v1\nkind: Secret\nmetadata:\n  name: b\n' > "$BATS_TEST_TMPDIR/m.yaml"
+    run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml" -n alice-sandbox
+    [ "$output" = "WRITE_IN_SCOPE" ]
+}
+
 @test "apply -f of a Namespace that is itself in scope is allowed" {
     printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: alice-sandbox\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: alice-sandbox\n' > "$BATS_TEST_TMPDIR/m.yaml"
     run_guard "kind-practice" "alice-sandbox" kubectl apply -f "$BATS_TEST_TMPDIR/m.yaml"

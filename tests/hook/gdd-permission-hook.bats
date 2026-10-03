@@ -4102,6 +4102,39 @@ BASH
     [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
     [[ "$output" == *"current context homelab"* ]]
 }
+@test "k8s safety floor: an unscoped helm write force-asks" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    write_project_settings 'Bash(helm:*)'
+    run_hook_with_session 'helm install web bitnami/redis -n web' "no-scope-sess"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"\"permissionDecision\":\"ask\""* ]]
+}
+@test "scoped-redirect: helm reads auto-approve and a remote chart install is denied" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'helm list -n alice-sandbox' "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    run_hook_with_session 'helm install web bitnami/redis -n alice-sandbox' "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+    [[ "$output" == *"helm pull"* ]]
+    run_hook_with_session 'helm upgrade web ./chart --kube-context prod' "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: a script running helm is denied like a kubectl script" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    printf '#!/bin/bash\nhelm install web ./chart\n' > "$WORK/deploy.sh"
+    run_hook_with_session "bash $WORK/deploy.sh" "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
+@test "scoped-redirect: ws k8s sample of a read-only command auto-approves" {
+    write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
+    seed_k8s_scope "sk8s" "kind-practice" "alice-sandbox"
+    run_hook_with_session 'ws k8s sample pod/x -n alice-sandbox --every 1 --count 5 -- cat /proc/loadavg' "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"allow\""* ]]
+    run_hook_with_session 'ws k8s sample pod/x -- rm -rf /data' "sk8s"
+    [[ "$output" == *"\"permissionDecision\":\"deny\""* ]]
+}
 @test "k8s safety floor: matching bypass permits an unscoped write" {
     write_project_hook_rules "$(printf '[scoped-redirect-commands]\nk8s | kubectl* | GDD_K8S_CONTEXT | Use ws k8s\n')"
     write_bypass_marker "k8s" "no-scope-sess" "disposable cluster automation"

@@ -1315,7 +1315,7 @@ _k8s_guard_evaluate_helm() {
     rendered="$("${HELM:-helm}" template "$release" "$chart_path" --namespace "$target_ns" ${crds[@]+"${crds[@]}"} ${render_flags[@]+"${render_flags[@]}"} 2>/dev/null)" || {
         printf 'BLOCK:precondition:helm chart %s could not be rendered (missing dependencies? run `helm dependency build` first)' "$chart"; return 0;
     }
-    validation="$(_k8s_validate_rendered_docs helm "$chart" "$target_ns" "$scope_ns_csv" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
+    validation="$(_k8s_validate_rendered_docs helm "$chart" "$target_ns" "$scope_ns_csv" "" "$scope_ctx" <<< "$rendered")" || { printf '%s' "$validation"; return 0; }
     printf '%s' "$write_verdict"
 }
 

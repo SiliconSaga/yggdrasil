@@ -411,6 +411,28 @@ assert_denied() {
     [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"current context homelab"* ]]
 }
 
+@test "helm writes are denied unscoped, reads defer, and scoped checks apply" {
+    run_codex_hook 'helm install web bitnami/redis -n web' no-scope
+    assert_denied
+    run_codex_hook 'helm list -A' no-scope
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook 'helm.exe install web oci://registry.example/redis -n alice-sandbox'
+    assert_denied
+    [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<< "$output")" == *"helm pull"* ]]
+    run_codex_hook 'helm uninstall web -n alice-sandbox'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "a script running helm is denied like a kubectl script" {
+    printf '#!/usr/bin/env bash\nhelm install web ./chart\n' > "$WORK/deploy.sh"
+    seed_scope codex-test kind-practice alice-sandbox
+    run_codex_hook "bash $WORK/deploy.sh"
+    assert_denied
+}
+
 @test "matching k8s bypass marker permits an unscoped write and audits it" {
     write_bypass_marker no-scope
     run_codex_hook 'kubectl apply -k overlays/plain' no-scope
