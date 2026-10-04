@@ -31,6 +31,8 @@ printf '%s\n' "gh" "$@" >> "$API_LOG"
 case "$endpoint" in
   *"/pulls/1/comments")  payload='[{"id":501,"user":{"login":"rev"},"path":"a.sh","line":10,"body":"inline text"}]' ;;
   *"/issues/1/comments") payload='[{"id":601,"user":{"login":"rev"},"body":"note text"}]' ;;
+  *"/pulls/comments/501") payload="{\"pull_request_url\":\"${COMMENT_API:-https://api.github.com}/repos/${COMMENT_REPO:-owner/repo}/pulls/${COMMENT_PR:-1}\"}" ;;
+  *"/issues/comments/601") payload="{\"issue_url\":\"${COMMENT_API:-https://api.github.com}/repos/${COMMENT_REPO:-owner/repo}/issues/${COMMENT_PR:-1}\"}" ;;
   *) payload='[]' ;;
 esac
 if [[ -n "$filter" ]]; then
@@ -131,6 +133,53 @@ SH
     [ "$status" -ne 0 ]
     [[ "$output" == *"unknown comment id kind"* ]]
     [ ! -s "$API_LOG" ]
+}
+
+@test "github comment edits refuse other PRs and repositories without PATCH" {
+    source "$REPO_ROOT/scripts/providers/github.sh"
+    local comment
+    for comment in inline-501 issue-601; do
+        : > "$API_LOG"
+        export COMMENT_PR=2
+        run gp_update_comment owner/repo 1 "$comment" "new text"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"Nothing was edited"* ]]
+        run grep -Fx PATCH "$API_LOG"
+        [ "$status" -ne 0 ]
+        unset COMMENT_PR
+        export COMMENT_REPO=someone/else
+        run gp_update_comment owner/repo 1 "$comment" "new text"
+        [ "$status" -ne 0 ]
+        unset COMMENT_REPO
+        run grep -Fx PATCH "$API_LOG"
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "github comment edits refuse missing ownership information without PATCH" {
+    source "$REPO_ROOT/scripts/providers/github.sh"
+    run gp_update_comment owner/repo 1 inline-999 "new text"
+    [ "$status" -ne 0 ]
+    run grep -Fx PATCH "$API_LOG"
+    [ "$status" -ne 0 ]
+}
+
+@test "github comment ownership accepts case variants, repos-named slugs and enterprise URLs" {
+    source "$REPO_ROOT/scripts/providers/github.sh"
+    local slug comment api
+    for api in https://api.github.com https://git.example.test/api/v3; do
+        export COMMENT_API="$api"
+        for slug in owner/repos repos/project Owner/Repo; do
+            export COMMENT_REPO="$slug"
+            for comment in inline-501 issue-601; do
+                run gp_update_comment "$slug" 1 "$comment" "new text"
+                [ "$status" -eq 0 ]
+            done
+        done
+    done
+    export COMMENT_REPO=OWNER/REPO
+    run gp_update_comment owner/repo 1 inline-501 "new text"
+    [ "$status" -eq 0 ]
 }
 
 @test "gp_update_comment rejects a non-numeric id tail" {

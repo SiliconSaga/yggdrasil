@@ -187,24 +187,39 @@ gp_review_list_notes() {
 #
 # The id carries its kind because GitHub edits a top-level note and an inline review comment through different resources: `inline-<n>` is a pull-request review comment, `issue-<n>` is a PR/issue conversation comment. Reading the kind off the id beats probing both endpoints and guessing from which one answers.
 #
-# CR_NUM is accepted for contract symmetry with GitLab, whose notes are nested under the merge request. GitHub does not need it.
+# GitHub's edit endpoints are repository-wide, so bind the comment to this PR first.
 # Usage: gp_update_comment SLUG CR_NUM COMMENT_ID MESSAGE
 gp_update_comment() {
-    # shellcheck disable=SC2034
     local slug="$1" cr_num="$2" comment_id="$3" message="$4"
     local kind="${comment_id%%-*}" num="${comment_id#*-}"
-    if [[ ! "$num" =~ ^[0-9]+$ ]]; then
+    if [[ ! "$num" =~ ^[0-9]+$ || ! "$cr_num" =~ ^[0-9]+$ ]]; then
         echo "ERROR: comment id must be <kind>-<number>, got '$comment_id'" >&2
         return 1
     fi
+    local endpoint field resource location expected
     case "$kind" in
-        inline) gh api --method PATCH "repos/$slug/pulls/comments/$num" -f body="$message" >/dev/null ;;
-        issue)  gh api --method PATCH "repos/$slug/issues/comments/$num" -f body="$message" >/dev/null ;;
+        inline) endpoint="repos/$slug/pulls/comments/$num"; field=pull_request_url; resource=pulls ;;
+        issue) endpoint="repos/$slug/issues/comments/$num"; field=issue_url; resource=issues ;;
         *)
             echo "ERROR: unknown comment id kind '$kind' — expected inline- or issue-." >&2
             return 1
             ;;
     esac
+    location=$(gh api "$endpoint" --jq ".$field // empty" 2>/dev/null) || location=""
+    expected="/repos/$slug/$resource/$cr_num"
+    # GitHub Enterprise uses /api/v3 before the same repository-scoped path.
+    if [[ "$location" =~ ^https?://[^/]+(/api/v3)?(/repos/[^/]+/[^/]+/(pulls|issues)/[0-9]+)$ ]]; then
+        location="${BASH_REMATCH[2]}"
+    else
+        location=""
+    fi
+    location=$(printf '%s' "$location" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    expected=$(printf '%s' "$expected" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    if [[ "$location" != "$expected" ]]; then
+        echo "ERROR: Could not confirm that comment $comment_id belongs to $slug#$cr_num. Nothing was edited." >&2
+        return 1
+    fi
+    gh api --method PATCH "$endpoint" -f body="$message" >/dev/null
 }
 
 # Get PR head branch name (for --since push event lookup).
