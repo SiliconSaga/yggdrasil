@@ -772,6 +772,28 @@ review_notes() {
     fi
 }
 
+review_require_thread_scope() {
+    local cr_num="$1" thread_id="$2" action="$3"
+    local thread_at thread_repo thread_pr thread_repo_lc repo_slug_lc
+    thread_at=$(gp_review_thread_location "$REPO_SLUG" "$cr_num" "$thread_id" 2>/dev/null) || thread_at="unknown"
+    if [[ "$thread_at" == "unknown" ]]; then
+        echo "ERROR: Could not confirm that thread $thread_id is on CR #$cr_num ($REPO_SLUG). Nothing was $action." >&2
+        echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids, then retry." >&2
+        return 1
+    fi
+    # GitLab addresses discussions through the selected MR already.
+    [[ -n "$thread_at" ]] || return 0
+    thread_repo="${thread_at%%$'\t'*}"
+    thread_pr="${thread_at##*$'\t'}"
+    thread_repo_lc=$(printf '%s' "$thread_repo" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    repo_slug_lc=$(printf '%s' "$REPO_SLUG" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    if [[ "$thread_repo_lc" != "$repo_slug_lc" || "$thread_pr" != "$cr_num" ]]; then
+        echo "ERROR: Thread $thread_id belongs to $thread_repo#$thread_pr, not $REPO_SLUG#$cr_num. Nothing was $action." >&2
+        echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids." >&2
+        return 1
+    fi
+}
+
 review_threads() {
     if [[ $# -lt 1 ]]; then
         echo "Usage: ws review <comp> threads <cr#> [--remote <name>] [--status | --resolve <id> | --resolve-all]" >&2
@@ -833,6 +855,7 @@ review_threads() {
             }
             ;;
         resolve)
+            review_require_thread_scope "$pr_num" "$resolve_id" resolved || exit 1
             gp_review_thread_resolve "$REPO_SLUG" "$pr_num" "$resolve_id" || {
                 echo "ERROR: Failed to resolve thread $resolve_id on CR #$pr_num." >&2
                 exit 1
@@ -960,32 +983,7 @@ review_reply() {
         echo "  The id:inline-<n> / id:issue-<n> values beside comments are for 'ws review $COMP edit'." >&2
         exit 1
     fi
-    # A thread id is global on GitHub, so a stale one from another PR — or
-    # another repository's PR with the same number — would post the reply
-    # there; a merged, unrelated PR has received one this way. Fail closed
-    # unless the provider confirms the thread is on this repository and this
-    # CR. Empty means the provider addresses threads through the CR already
-    # (GitLab) and there is nothing to confirm.
-    local thread_at="" thread_repo="" thread_pr=""
-    thread_at=$(gp_review_thread_location "$REPO_SLUG" "$cr_num" "$thread_id" 2>/dev/null) || thread_at="unknown"
-    if [[ "$thread_at" == "unknown" ]]; then
-        echo "ERROR: Could not confirm that thread $thread_id is on CR #$cr_num ($REPO_SLUG). Nothing was posted." >&2
-        echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids, then retry." >&2
-        exit 1
-    elif [[ -n "$thread_at" ]]; then
-        thread_repo="${thread_at%%$'\t'*}"
-        thread_pr="${thread_at##*$'\t'}"
-        # GitHub slugs are case-insensitive, and the remote URL may spell the
-        # owner differently from the API's nameWithOwner.
-        local thread_repo_lc repo_slug_lc
-        thread_repo_lc=$(printf '%s' "$thread_repo" | LC_ALL=C tr '[:upper:]' '[:lower:]')
-        repo_slug_lc=$(printf '%s' "$REPO_SLUG" | LC_ALL=C tr '[:upper:]' '[:lower:]')
-        if [[ "$thread_repo_lc" != "$repo_slug_lc" || "$thread_pr" != "$cr_num" ]]; then
-            echo "ERROR: Thread $thread_id belongs to $thread_repo#$thread_pr, not $REPO_SLUG#$cr_num. Nothing was posted." >&2
-            echo "  Re-run: ws review $COMP threads $cr_num   to get this CR's thread ids." >&2
-            exit 1
-        fi
-    fi
+    review_require_thread_scope "$cr_num" "$thread_id" posted || exit 1
 
     local banner
     banner=$(ws_gdd_attribution_line "reply") || exit 1
