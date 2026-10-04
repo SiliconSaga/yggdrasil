@@ -92,3 +92,19 @@ assert_captured_command() {
     [[ "$output" == *"reapproval is required"* ]]
     cmp "$SNAPSHOT_ADAPTER" "$ROOT_DIR/approved.yaml"
 }
+
+@test "trusted adapter reads reject nested files omitted from the fingerprint" {
+    mkdir -p "$REALMS_DIR/realm-test/adapters/yggdrasil"
+    local nested="$REALMS_DIR/realm-test/adapters/yggdrasil/hidden.yaml"
+    printf 'commands:\n  test: touch unapproved-executed\n' > "$nested"
+    run bash -c 'source "$1"; ws_read_trusted_adapter realm-test "$2"' _ "$REALM_LIB" "$nested"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"regular realm adapter"* ]]
+    [ ! -e "$ROOT_DIR/unapproved-executed" ]
+}
+
+@test "trusted adapter reads reject traversal aliases to an approved file" {
+    mkdir -p "$REALMS_DIR/realm-test/adapters/subdir"
+    run bash -c 'source "$1"; ws_read_trusted_adapter realm-test "$2"' _ "$REALM_LIB" "$REALMS_DIR/realm-test/adapters/subdir/../yggdrasil.yaml"
+    [ "$status" -ne 0 ]
+}

@@ -793,8 +793,10 @@ ws_require_active_realm_trust() {
 # Verify the exact adapter content callers will consume, rather than checking
 # the live file and reopening it after a concurrent pull can replace it.
 ws_read_trusted_adapter() {
-    local name="$1" adapter_file="$2" captured
-    if [[ "$adapter_file" != "$REALMS_DIR/$name/adapters/"* || ! -f "$adapter_file" || -L "$adapter_file" ]]; then
+    local name="$1" adapter_file="$2" captured relative
+    relative="${adapter_file#"$REALMS_DIR/$name/adapters/"}"
+    # Only these top-level names participate in approval and fingerprinting.
+    if [[ "$adapter_file" != "$REALMS_DIR/$name/adapters/$relative" || ! "$relative" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.yaml$ || ! -f "$adapter_file" || -L "$adapter_file" ]]; then
         echo "ERROR: Adapter trust input must be a regular realm adapter: $adapter_file" >&2
         return 1
     fi
