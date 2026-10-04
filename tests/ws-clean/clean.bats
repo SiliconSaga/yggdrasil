@@ -78,7 +78,7 @@ setup() {
     mkdir -p "$outside"
     printf 'keep\n' > "$outside/keep.md"
     rmdir "$WORK/.crs"
-    ln -s "$outside" "$WORK/.crs"
+    ln -s "$outside" "$WORK/.crs" || skip "symlinks are unavailable on this filesystem"
     [ -L "$WORK/.crs" ] || skip "symlinks are unavailable on this filesystem"
     run_ws clean --force
     [ "$status" -ne 0 ]
@@ -94,6 +94,52 @@ setup() {
     [[ "$output" == *"Cleaned 2 draft file(s) total."* ]]
     [[ "$output" != *"Holding off"* ]]
     [ "$(count_scratch)" -eq 0 ]
+}
+
+stub_failed_find() {
+    export REAL_FIND="$(type -P find)"
+    export FIND_FAIL_ROOT="$1"
+    mkdir -p "$WORK/bin"
+    cat > "$WORK/bin/find" <<'SH'
+#!/usr/bin/env bash
+"$REAL_FIND" "$@" || exit $?
+[[ "$1" != "$FIND_FAIL_ROOT" ]] || exit 1
+SH
+    chmod +x "$WORK/bin/find"
+    export PATH="$WORK/bin:$PATH"
+}
+
+@test "failed draft scan blocks cleanup even after emitting a path" {
+    make_drafts .commits 1
+    stub_failed_find "$WORK/.commits"
+    run_ws clean --force
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ERROR: cannot scan cleanup directory"* ]]
+    [[ "$output" != *"Cleaned "* ]]
+    [ -f "$WORK/.commits/draft-1.md" ]
+}
+
+@test "failed scratch scan blocks cleanup even after emitting a path" {
+    make_drafts .commits 1
+    printf 'scratch\n' > "$WORK/.tmp/item"
+    stub_failed_find "$WORK/.tmp"
+    run_ws clean --force
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ERROR: cannot scan cleanup directory"* ]]
+    [[ "$output" != *"Cleaned "* ]]
+    [ -f "$WORK/.commits/draft-1.md" ]
+    [ -f "$WORK/.tmp/item" ]
+}
+
+@test "failed session scan returns failure without a success summary" {
+    mkdir -p "$WORK/.tmp/gdd-agent-sessions"
+    printf 'GDD_ROLE=developer\n' > "$WORK/.tmp/gdd-agent-sessions/ended.env"
+    stub_failed_find "$WORK/.tmp/gdd-agent-sessions"
+    run_ws clean --force --sessions-all
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ERROR: cannot scan cleanup directory"* ]]
+    [[ "$output" != *"Cleaned "* ]]
+    [[ "$output" != *"Also cleared "* ]]
 }
 
 @test "no scratch files: reports nothing to clean" {

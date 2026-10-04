@@ -846,10 +846,12 @@ ws_clean() {
         fi
         local before=${#candidates[@]}
         local f
+        # find emits absolute paths; this bare error record cannot name a child.
         while IFS= read -r -d '' f; do
+            [[ "$f" != '__WS_FIND_ERROR__' ]] || { echo "ERROR: cannot scan cleanup directory: $dirpath" >&2; return 1; }
             [[ "$f" == "$dirpath/"* && "${f#"$dirpath/"}" != */* ]] || return 1
             candidates+=("$f")
-        done < <(find "$dirpath" -maxdepth 1 -name "$pattern" -type f -print0)
+        done < <(find "$dirpath" -maxdepth 1 -name "$pattern" -type f -print0 || printf '%s\0' '__WS_FIND_ERROR__')
         local n=$(( ${#candidates[@]} - before ))
         [[ "$n" -gt 0 ]] && report+=("  $dir/  $n file(s)")
     done
@@ -860,9 +862,10 @@ ws_clean() {
         fi
         local e
         while IFS= read -r -d '' e; do
+            [[ "$e" != '__WS_FIND_ERROR__' ]] || { echo "ERROR: cannot scan cleanup directory: $tmp_dir" >&2; return 1; }
             [[ "$e" == "$tmp_dir/"* && "${e#"$tmp_dir/"}" != */* ]] || return 1
             tmp_entries+=("$e")
-        done < <(find "$tmp_dir" -mindepth 1 -maxdepth 1 -print0)
+        done < <(find "$tmp_dir" -mindepth 1 -maxdepth 1 -print0 || printf '%s\0' '__WS_FIND_ERROR__')
         [[ ${#tmp_entries[@]} -gt 0 ]] && report+=("  .tmp/  ${#tmp_entries[@]} entr(ies)")
     fi
 
@@ -920,11 +923,12 @@ ws_clean() {
                     local child
                     [[ ! -L "$e" ]] || { echo "ERROR: refusing to clean symlinked session state." >&2; return 1; }
                     while IFS= read -r -d '' child; do
+                        [[ "$child" != '__WS_FIND_ERROR__' ]] || { echo "ERROR: cannot scan cleanup directory: $e" >&2; return 1; }
                         [[ "$child" == "$e/"* && "${child#"$e/"}" != */* ]] || return 1
                         [[ -n "$keep" && "$child" == "$keep" ]] && continue
                         rm -rf -- "$child"
                         sessions_cleared=$(( sessions_cleared + 1 ))
-                    done < <(find "$e" -mindepth 1 -maxdepth 1 -print0)
+                    done < <(find "$e" -mindepth 1 -maxdepth 1 -print0 || printf '%s\0' '__WS_FIND_ERROR__')
                 fi
             else
                 rm -rf -- "$e"

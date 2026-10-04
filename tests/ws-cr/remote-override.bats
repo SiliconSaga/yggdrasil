@@ -170,6 +170,25 @@ SH
     chmod +x "$GH_STUB_DIR/tr"
 }
 
+@test "current-branch upstream CR rejects an unsafe fork remote" {
+    git -C "$WORK" remote remove fork
+    git -C "$WORK" config 'remote.--exec=unexpected.url' https://github.com/example/fork.git
+    export GIT_CR_REMOTE='--exec=unexpected'
+    run bash "$WS_BIN" cr yggdrasil --upstream "test: unsafe fork" .crs/body.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Git remote names must"* ]]
+    [ ! -e "$GH_LOG" ]
+}
+
+@test "stale-base override does not bypass upstream remote validation" {
+    git -C "$WORK" remote remove alt
+    git -C "$WORK" config 'remote.--exec=unexpected.url' https://github.com/alt/project.git
+    run bash "$WS_BIN" cr yggdrasil --remote fork --upstream --stale-base-ok "test: unsafe target" .crs/body.md
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Git remote names must"* ]]
+    [ ! -e "$GH_LOG" ]
+}
+
 @test "ws cr --remote selects an alternate fork remote" {
     run bash "$WS_BIN" cr yggdrasil --remote alt "test: alternate CR remote" .crs/body.md
 
