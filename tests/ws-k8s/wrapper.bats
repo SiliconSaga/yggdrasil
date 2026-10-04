@@ -207,16 +207,35 @@ run_ws() { run env WS_FOOTER_DISABLE=1 ROOT_DIR="$ROOT_DIR" KUBECTL="$KUBECTL" b
     [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
     [ ! -s "$ROOT_DIR/kubectl.log" ]
 }
-@test "ambient: same-context scopes union their namespaces" {
+@test "ambient: same-context scopes with different namespaces refuse to guard" {
     unset GDD_SESSION_ID
     mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
     printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=alice-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s1.env"
     printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=bob-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s2.env"
     run_ws k8s delete pod y -n bob-sandbox
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"disagree on namespaces"* ]]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+
+@test "ambient: a lingering wildcard cannot widen a narrow scope" {
+    unset GDD_SESSION_ID
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=alice-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s1.env"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=*\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s2.env"
+    run_ws k8s delete pod y -n prod
+    [ "$status" -eq 2 ]
+    [ ! -s "$ROOT_DIR/kubectl.log" ]
+}
+
+@test "ambient: matching namespace sets allow reordered duplicates" {
+    unset GDD_SESSION_ID
+    mkdir -p "$ROOT_DIR/.tmp/gdd-agent-sessions"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=alice-sandbox,bob-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s1.env"
+    printf 'GDD_K8S_CONTEXT=kind-practice\nGDD_K8S_NAMESPACES=bob-sandbox,alice-sandbox,bob-sandbox\n' > "$ROOT_DIR/.tmp/gdd-agent-sessions/s2.env"
+    run_ws k8s delete pod y -n bob-sandbox
     [ "$status" -eq 0 ]
-    run_ws k8s delete pod x -n carol
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"outside the guard scope"* || "$output" == *"REJECTED"* ]]
+    [[ "$output" == *"matching guard scopes"* ]]
 }
 msys_stub_kubectl() {
     mkdir -p "$BATS_TEST_TMPDIR/bin"

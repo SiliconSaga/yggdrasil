@@ -258,7 +258,7 @@ export GITLAB_USER=your-gitlab-username
 export GITLAB_HOST=git.mycompany.com
 ```
 
-`ws` parses `.env` as literal `KEY=value` or `export KEY=value` assignments. It does not execute command substitutions, pipelines, or other shell syntax from the file. Single- and double-quoted values are accepted as literal text. Variables that alter command lookup or shell/runtime startup, such as `PATH`, `BASH_ENV`, and dynamic-loader variables, are rejected; configure those in your shell profile instead.
+`ws` parses `.env` as literal `KEY=value` or `export KEY=value` assignments. It does not execute command substitutions, pipelines, or other shell syntax from the file. Single- and double-quoted values are accepted as literal text. Variables that alter command lookup, interpreter startup, runtime search paths, temporary-file locations, Kubernetes configuration, Git wrapper routing, or agent session selection are rejected. This includes `PATH`, `BASH_ENV`, dynamic-loader variables, `NODE_OPTIONS`, `PYTHONPATH`, `npm_config_*`, `KUBECONFIG`, `TMPDIR`, `GIT_PUSH_*`, `GIT_CR_*`, and session ID variables. Set deliberate runtime overrides in the launching shell; choose Git remotes through the wrapper flags or ecosystem configuration.
 
 ### Load and verify
 

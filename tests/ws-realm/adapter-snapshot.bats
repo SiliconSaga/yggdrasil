@@ -92,3 +92,62 @@ assert_captured_command() {
     [[ "$output" == *"reapproval is required"* ]]
     cmp "$SNAPSHOT_ADAPTER" "$ROOT_DIR/approved.yaml"
 }
+
+@test "trusted adapter reads reject nested files omitted from the fingerprint" {
+    mkdir -p "$REALMS_DIR/realm-test/adapters/yggdrasil"
+    local nested="$REALMS_DIR/realm-test/adapters/yggdrasil/hidden.yaml"
+    printf 'commands:\n  test: touch unapproved-executed\n' > "$nested"
+    run bash -c 'source "$1"; ws_read_trusted_adapter realm-test "$2"' _ "$REALM_LIB" "$nested"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"regular realm adapter"* ]]
+    [ ! -e "$ROOT_DIR/unapproved-executed" ]
+}
+
+@test "trusted adapter reads reject traversal aliases to an approved file" {
+    mkdir -p "$REALMS_DIR/realm-test/adapters/subdir"
+    run bash -c 'source "$1"; ws_read_trusted_adapter realm-test "$2"' _ "$REALM_LIB" "$REALMS_DIR/realm-test/adapters/subdir/../yggdrasil.yaml"
+    [ "$status" -ne 0 ]
+}
+
+move_adapter_directory_outside_realm() {
+    mv "$REALMS_DIR/realm-test/adapters" "$ROOT_DIR/outside-adapters"
+    ln -s "$ROOT_DIR/outside-adapters" "$REALMS_DIR/realm-test/adapters" || skip "symlinks are unavailable on this filesystem"
+    [ -L "$REALMS_DIR/realm-test/adapters" ] || skip "symlinks are unavailable on this filesystem"
+}
+
+@test "approval rejects an adapter directory resolving outside the realm" {
+    move_adapter_directory_outside_realm
+    run bash -c 'source "$1"; ws_realm_trust_fingerprint realm-test' _ "$REALM_LIB"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"adapter directory escapes the realm"* ]]
+}
+
+@test "trusted reads reject an external adapter directory with unchanged content" {
+    move_adapter_directory_outside_realm
+    run bash -c 'source "$1"; ws_read_trusted_adapter realm-test "$SNAPSHOT_ADAPTER"' _ "$REALM_LIB"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"adapter directory escapes the realm"* ]]
+}
+
+@test "run rejects an external adapter directory before executing its command" {
+    move_adapter_directory_outside_realm
+    run bash "$REPO_ROOT/scripts/ws" run yggdrasil
+    [ "$status" -ne 0 ]
+    [[ "$output" != *"approved"* ]]
+}
+
+@test "adapter directory symlinks within the realm retain approved reads" {
+    mv "$REALMS_DIR/realm-test/adapters" "$REALMS_DIR/realm-test/adapter-files"
+    ln -s adapter-files "$REALMS_DIR/realm-test/adapters" || skip "symlinks are unavailable on this filesystem"
+    [ -L "$REALMS_DIR/realm-test/adapters" ] || skip "symlinks are unavailable on this filesystem"
+    run bash -c 'source "$1"; ws_read_trusted_adapter realm-test "$SNAPSHOT_ADAPTER"' _ "$REALM_LIB"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"printf approved"* ]]
+}
+
+@test "realm approval permits a realm without adapters" {
+    mv "$REALMS_DIR/realm-test/adapters" "$ROOT_DIR/unused-adapters"
+    run bash -c 'source "$1"; ws_realm_trust_fingerprint realm-test' _ "$REALM_LIB"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ ^[a-f0-9]{40}$ ]]
+}

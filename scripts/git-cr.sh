@@ -480,6 +480,7 @@ fi
 
 # Find the fork remote — see scripts/git-cr-remote.sh, shared with the edit path. The bash 3.2 sweep this branch performs lands there rather than here, so the constructs are fixed in one place instead of in a copy that no longer exists.
 gdd_cr_resolve_fork_remote "$CR_REMOTE" "$_ECO" || exit 1
+git_remote_name_validate "$FORK_REMOTE" || exit 1
 # The --upstream block below reads this array to find the non-fork remote; keep the old name rather than churning every reference to it.
 # Plain read loop, not `mapfile`: that is a bash 4.0 builtin and macOS ships bash 3.2.57 (frozen in 2007 over the GPLv3 relicense), where it does not exist at all. Same reasoning as git-push.sh.
 _ALL_REMOTES=()
@@ -504,7 +505,7 @@ if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   # auth failure. Collapsing both into "push the branch" would send an operator
   # with an expired token off to debug the wrong problem.
   _LS_STATUS=0
-  REMOTE_LS_OUTPUT=$(git_auth_run git ls-remote --exit-code "$FORK_REMOTE" "refs/heads/$BRANCH") || _LS_STATUS=$?
+  REMOTE_LS_OUTPUT=$(git_auth_run git ls-remote --exit-code -- "$FORK_REMOTE" "refs/heads/$BRANCH") || _LS_STATUS=$?
   if [[ "$_LS_STATUS" -eq 2 ]]; then
     echo "ERROR: source branch '$BRANCH' is not known on remote '$FORK_REMOTE'." >&2
     echo "  Push the branch to '$FORK_REMOTE' before creating the CR." >&2
@@ -565,6 +566,7 @@ changelog_reminder() {
 
 check_base_branch_fresh() {
   local remote="$1" remote_url="$2" base_branch="$3"
+  git_remote_name_validate "$remote" || return 1
   [[ "$STALE_BASE_OK" == "1" ]] && return 0
   # Written by git_auth_env_for_url (sourced) and read by git_auth_run;
   # local so the auth env stays scoped to this call.
@@ -574,7 +576,7 @@ check_base_branch_fresh() {
   local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
   git_auth_env_for_url "$remote_url"
   local _bs=0 _out _tip
-  _out=$(git_auth_run git ls-remote --exit-code "$remote" "refs/heads/$base_branch") || _bs=$?
+  _out=$(git_auth_run git ls-remote --exit-code -- "$remote" "refs/heads/$base_branch") || _bs=$?
   if [[ "$_bs" -eq 2 ]]; then
     echo "ERROR: target branch '$base_branch' is not known on remote '$remote'." >&2
     echo "  Check the repository default branch and remote selection, then retry." >&2

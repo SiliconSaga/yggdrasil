@@ -575,6 +575,22 @@ _ws_lexical_absolute_path() {
     printf '%s' "${result:-/}"
 }
 
+_ws_realm_adapter_directory_validate() {
+    local realm_dir="$1" realm_real adapters_real
+    realm_real="$(cd "$realm_dir" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: Cannot resolve realm directory: $realm_dir" >&2
+        return 1
+    }
+    adapters_real="$(cd "$realm_dir/adapters" 2>/dev/null && pwd -P)" || {
+        echo "ERROR: Cannot resolve realm adapter directory: $realm_dir/adapters" >&2
+        return 1
+    }
+    if [[ "$adapters_real" != "$realm_real"/* ]]; then
+        echo "ERROR: Realm adapter directory escapes the realm through a symlink: $realm_dir/adapters" >&2
+        return 1
+    fi
+}
+
 ws_realm_trust_fingerprint() {
     local captured_adapter="${2:-}" captured_content="${3:-}"
     local name="$1" realm_dir realm_file realm_real realm_lexical canonical adapter_file adapter_basename relative fingerprint
@@ -591,6 +607,10 @@ ws_realm_trust_fingerprint() {
         echo "ERROR: Cannot resolve realm directory for trust fingerprinting: $realm_dir" >&2
         return 1
     }
+    # Adapter-free realms are valid; existing or dangling directories must resolve safely.
+    if [[ -e "$realm_dir/adapters" || -L "$realm_dir/adapters" ]]; then
+        _ws_realm_adapter_directory_validate "$realm_dir" || return 1
+    fi
     realm_lexical="$(_ws_lexical_absolute_path "$realm_dir")" || {
         echo "ERROR: Cannot normalize realm directory for trust fingerprinting: $realm_dir" >&2
         return 1
@@ -793,11 +813,14 @@ ws_require_active_realm_trust() {
 # Verify the exact adapter content callers will consume, rather than checking
 # the live file and reopening it after a concurrent pull can replace it.
 ws_read_trusted_adapter() {
-    local name="$1" adapter_file="$2" captured
-    if [[ "$adapter_file" != "$REALMS_DIR/$name/adapters/"* || ! -f "$adapter_file" || -L "$adapter_file" ]]; then
+    local name="$1" adapter_file="$2" captured relative
+    relative="${adapter_file#"$REALMS_DIR/$name/adapters/"}"
+    # Only these top-level names participate in approval and fingerprinting.
+    if [[ "$adapter_file" != "$REALMS_DIR/$name/adapters/$relative" || ! "$relative" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.yaml$ || ! -f "$adapter_file" || -L "$adapter_file" ]]; then
         echo "ERROR: Adapter trust input must be a regular realm adapter: $adapter_file" >&2
         return 1
     fi
+    _ws_realm_adapter_directory_validate "$REALMS_DIR/$name" || return 1
     if ! captured="$(yq -o=json -I=0 'sort_keys(..)' "$adapter_file" 2>/dev/null)"; then
         echo "ERROR: Realm '$name' trust reapproval is required (state: error)." >&2
         echo "  Cannot capture adapter trust input: $adapter_file; repair it, then run: ws realm use $name" >&2

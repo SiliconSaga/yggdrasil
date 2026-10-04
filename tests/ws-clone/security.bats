@@ -51,6 +51,26 @@ YAML
     [ ! -s "$GIT_LOG" ]
 }
 
+@test "declared component rejects an option-shaped derived remote name" {
+    cat > "$WORK/ecosystem.yaml" <<'YAML'
+components:
+  unsafe:
+    repo: https://example.test/--exec=unexpected/repo.git
+YAML
+    run bash "$WORK/scripts/ws-clone.sh" unsafe
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Git remote names must"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
+@test "explicit URL mode rejects punctuation in a derived remote name" {
+    printf 'components: {}\n' > "$WORK/ecosystem.yaml"
+    run bash "$WORK/scripts/ws-clone.sh" --url 'https://example.test/group;unexpected/repo.git' --name unsafe
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Git remote names must"* ]]
+    [ ! -s "$GIT_LOG" ]
+}
+
 @test "explicit URL mode rejects option-like repository values before git clone" {
     cat > "$WORK/ecosystem.yaml" <<'YAML'
 components: {}

@@ -80,6 +80,10 @@ ws_load_env() {
         __WS_ENV_KEY="${BASH_REMATCH[2]}"
         __WS_ENV_RAW_VALUE="${BASH_REMATCH[3]}"
         case "$__WS_ENV_KEY" in
+            NODE_OPTIONS|NODE_PATH|PYTHON*|PERL5*|PERLLIB|RUBYOPT|RUBYLIB|JAVA_TOOL_OPTIONS|_JAVA_OPTIONS|JDK_JAVA_OPTIONS|CLASSPATH|NPM_CONFIG_*|npm_config_*|KUBECONFIG|KUBECTL|TMPDIR|TMP|TEMP|GIT_PUSH_*|GIT_CR_*|GDD_SESSION_ID|CLAUDE_CODE_SESSION_ID|CODEX_THREAD_ID)
+                echo "ERROR: refusing to set reserved variable '$__WS_ENV_KEY' from .env line $__WS_ENV_LINE_NUMBER in $__WS_ENV_FILE." >&2
+                return 1
+                ;;
             __WS_ENV_*)
                 echo "ERROR: refusing to set reserved variable '$__WS_ENV_KEY' from .env line $__WS_ENV_LINE_NUMBER in $__WS_ENV_FILE." >&2
                 return 1

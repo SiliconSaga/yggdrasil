@@ -251,6 +251,18 @@ EOF
     [ "$GITLAB_TOKEN" = "glpat-example" ]
 }
 
+@test "ws_load_env rejects interpreter startup and command routing variables" {
+    source "$ENV_LIB"
+    local key env_file
+    for key in NODE_OPTIONS NODE_PATH PYTHONPATH PYTHONSTARTUP PYTHONINSPECT PERL5OPT PERL5LIB PERLLIB RUBYOPT RUBYLIB JAVA_TOOL_OPTIONS _JAVA_OPTIONS JDK_JAVA_OPTIONS CLASSPATH npm_config_script_shell NPM_CONFIG_SCRIPT_SHELL KUBECONFIG KUBECTL TMPDIR TMP TEMP GIT_PUSH_REMOTE GIT_CR_REMOTE GIT_CR_STALE_BASE_OK GDD_SESSION_ID CLAUDE_CODE_SESSION_ID CODEX_THREAD_ID; do
+        env_file="$BATS_TEST_TMPDIR/$key.env"
+        printf '%s=untrusted\n' "$key" > "$env_file"
+        run ws_load_env "$env_file"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"reserved variable '$key'"* ]]
+    done
+}
+
 @test "ws_load_env rejects malformed shell content without executing it" {
     local env_file="$BATS_TEST_TMPDIR/.env"
     local marker="$BATS_TEST_TMPDIR/command-ran"

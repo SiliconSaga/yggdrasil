@@ -330,6 +330,26 @@ run_ws_review() {
     [ "$output" = "1" ]
 }
 
+@test "single-thread resolution refuses another PR or repository and unknown locations" {
+    local thread
+    for thread in PRRT_other PRRT_elsewhere PRRT_offline PRRT_missing; do
+        : > "$API_LOG"
+        run_ws_review app threads 1 --resolve "$thread"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"Nothing was resolved"* ]]
+        run grep 'resolveReviewThread' "$API_LOG"
+        [ "$status" -eq 1 ]
+    done
+}
+
+@test "single-thread resolution permits a thread on the selected PR" {
+    run_ws_review app threads 1 --resolve PRRT_old
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Resolved thread PRRT_old on CR #1"* ]]
+    run grep -c 'resolveReviewThread' "$API_LOG"
+    [ "$output" = "1" ]
+}
+
 @test "reply refuses novel PII before posting or resolving" {
     run_ws_review app reply 1 PRRT_old "Ping someone.new@newdomain.co.uk" --resolve
     [ "$status" -ne 0 ]

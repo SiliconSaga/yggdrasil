@@ -58,6 +58,13 @@ git_remote_display_value() {
     printf '%s' "$value"
 }
 
+git_remote_name_validate() {
+    if [[ ! "${1:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+        echo "ERROR: Git remote names must start with a letter or digit and contain only letters, digits, '.', '_' or '-'." >&2
+        return 1
+    fi
+}
+
 git_remote_validate() {
     local value="${1:-}" mode="${2:-remote}" expected="${3:-}"
     local display_value
