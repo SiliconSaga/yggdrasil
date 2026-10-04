@@ -237,6 +237,7 @@ clone_component() {
 
     local remote
     remote=$(remote_name_from_url "$repo_url")
+    git_remote_name_validate "$remote" || return 1
 
     git_remote_validate "$repo_url" remote
 
@@ -308,6 +309,7 @@ clone_url() {
     else
         local remote
         remote=$(remote_name_from_url "$url")
+        git_remote_name_validate "$remote" || return 1
 
         echo "CLONE: $safe_url -> $target (remote: $remote)"
         # Written by git_auth_env_for_url (sourced) and read by git_auth_run;

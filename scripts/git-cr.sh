@@ -504,7 +504,8 @@ if [[ -n "$EXPLICIT_SOURCE_BRANCH" ]]; then
   # auth failure. Collapsing both into "push the branch" would send an operator
   # with an expired token off to debug the wrong problem.
   _LS_STATUS=0
-  REMOTE_LS_OUTPUT=$(git_auth_run git ls-remote --exit-code "$FORK_REMOTE" "refs/heads/$BRANCH") || _LS_STATUS=$?
+  git_remote_name_validate "$FORK_REMOTE" || exit 1
+  REMOTE_LS_OUTPUT=$(git_auth_run git ls-remote --exit-code -- "$FORK_REMOTE" "refs/heads/$BRANCH") || _LS_STATUS=$?
   if [[ "$_LS_STATUS" -eq 2 ]]; then
     echo "ERROR: source branch '$BRANCH' is not known on remote '$FORK_REMOTE'." >&2
     echo "  Push the branch to '$FORK_REMOTE' before creating the CR." >&2
@@ -574,7 +575,8 @@ check_base_branch_fresh() {
   local GIT_AUTH_LABEL="" GIT_AUTH_PROVIDER=""
   git_auth_env_for_url "$remote_url"
   local _bs=0 _out _tip
-  _out=$(git_auth_run git ls-remote --exit-code "$remote" "refs/heads/$base_branch") || _bs=$?
+  git_remote_name_validate "$remote" || return 1
+  _out=$(git_auth_run git ls-remote --exit-code -- "$remote" "refs/heads/$base_branch") || _bs=$?
   if [[ "$_bs" -eq 2 ]]; then
     echo "ERROR: target branch '$base_branch' is not known on remote '$remote'." >&2
     echo "  Check the repository default branch and remote selection, then retry." >&2

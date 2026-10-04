@@ -6,6 +6,23 @@ setup() {
     init_push_repo
 }
 
+@test "push refuses an existing option-shaped remote before invoking git push" {
+    git -C "$REPO_DIR" remote remove fork
+    git -C "$REPO_DIR" config 'remote.--exec=unexpected.url' "$REMOTE_DIR"
+    install_git_push_spy
+    run_git_push main
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Git remote names must"* ]]
+    [ ! -e "$GIT_PUSH_SPY_LOG" ]
+}
+
+@test "push places an option boundary before the remote and refspec" {
+    install_git_push_spy
+    run_git_push main
+    [ "$status" -eq 0 ]
+    [[ "$(cat "$GIT_PUSH_SPY_LOG")" == *"-- fork refs/heads/main:refs/heads/main"* ]]
+}
+
 @test "pushes an explicit local tag as a tag ref" {
     git -C "$REPO_DIR" tag v0.1.0
 

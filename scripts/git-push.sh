@@ -161,7 +161,11 @@ else
   exit 1
 fi
 
-REMOTE_URL=$(git remote get-url "$REMOTE_NAME" 2>/dev/null || echo "")
+git_remote_name_validate "$REMOTE_NAME" || exit 1
+if ! REMOTE_URL=$(git remote get-url "$REMOTE_NAME" 2>/dev/null) || [[ -z "$REMOTE_URL" ]]; then
+  echo "ERROR: Cannot read the URL for the selected Git remote." >&2
+  exit 1
+fi
 ORG_REPO=$(echo "$REMOTE_URL" | sed 's|^ssh://[^/]*/||; s|^https://[^/]*/||; s|^http://[^/]*/||; s|^git@[^:]*:||; s|\.git$||')
 GIT_PUSH_AUTH_LABEL=""
 GIT_PUSH_AUTH_PROVIDER=""
@@ -180,7 +184,7 @@ if [[ "$TARGET_KIND" == "tag" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  git_push_run "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
+  git_push_run -- "$REMOTE_NAME" "refs/tags/$TARGET:refs/tags/$TARGET"
   exit 0
 fi
 
@@ -218,11 +222,11 @@ if [[ -n "$FORCE" ]]; then
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  git_push_run --force ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
+  git_push_run --force ${SET_UPSTREAM:+$SET_UPSTREAM} -- "$REMOTE_NAME" "$BRANCH_REFSPEC"
 else
   echo "Pushing $BRANCH → $REMOTE_NAME ($ORG_REPO)"
   if [[ -n "$GIT_PUSH_AUTH_LABEL" ]]; then
     echo "Using $GIT_PUSH_AUTH_LABEL for HTTPS $GIT_PUSH_AUTH_PROVIDER push auth (no credential helper prompt)"
   fi
-  git_push_run ${SET_UPSTREAM:+$SET_UPSTREAM} "$REMOTE_NAME" "$BRANCH_REFSPEC"
+  git_push_run ${SET_UPSTREAM:+$SET_UPSTREAM} -- "$REMOTE_NAME" "$BRANCH_REFSPEC"
 fi
