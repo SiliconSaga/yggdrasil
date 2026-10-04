@@ -8,6 +8,9 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Security
 
+- Clone, push, and CR flows reject unsafe Git remote names; pushes and remote checks separate options from repository arguments. Cleanup preserves newline-containing filenames and refuses symlinked scratch roots.
+- Trusted adapter reads are limited to the top-level files included in realm approval. Dotenv rejects interpreter startup, runtime routing, and session-selection variables.
+- GitHub comment edits and individual thread resolutions verify the selected PR before mutation. Ambient Kubernetes guards refuse conflicting namespace scopes, including stale all-namespace grants.
 - Adapter-routed verbs verify and execute commands from the same captured adapter content, including test filters, so a concurrent realm update cannot substitute an unapproved command after the trust check.
 - Provider wrappers verify help requests before delegating and bind component GitHub calls to their configured host and credential. SSH token lookup uses the remote authority, including when a path contains `@`; issue creation honors local credential mappings.
 - Scoped Kubernetes writes require verified namespace scope for custom resources and reject the full-API `kubectl proxy` relay.
