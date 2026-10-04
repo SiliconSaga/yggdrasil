@@ -111,16 +111,15 @@ _k8s_scope() {
 
 # When no session id resolves (e.g. a human's own terminal, which has no
 # CLAUDE_CODE_SESSION_ID), gather the guard scope from ALL local session files
-# so `ws k8s` still guards. Unions namespaces when every scope shares a context;
-# refuses (exit 2) when scopes target different contexts. Prints
+# so `ws k8s` still guards. Requires every scope to agree on context and namespaces;
+# refuses (exit 2) when scopes disagree. Prints
 # "context|namespaces" on success, nothing when no scope is active.
 #
 # Deliberately reads every session file without filtering by age: this model has
 # no liveness marker, and gating on age would be basing an action on staleness,
 # which is a soft-nudge signal only — never a gate (see the session-liveness-
-# marker arc). An ended session's lingering scope only ever over-restricts
-# (fail-safe) or makes the ambient path decline to guard, in which case a human
-# falls back to raw kubectl. Remedy for stale scopes: `ws clean --sessions-all`.
+# marker arc). Conflicting lingering scopes fail closed rather than granting
+# the union of their permissions. Remedy: `ws clean --sessions-all`.
 _k8s_ambient_scope() {
     local dir="$ROOT_DIR/.tmp/gdd-agent-sessions"
     [[ -d "$dir" ]] || return 0
@@ -130,10 +129,15 @@ _k8s_ambient_scope() {
         ctx="$(ws_session_get GDD_K8S_CONTEXT "$f")"
         [[ -n "$ctx" ]] || continue
         ns="$(ws_session_get GDD_K8S_NAMESPACES "$f")"
+        # Compare sets, so equivalent ordering and duplicates do not conflict.
+        ns="$(printf '%s' "$ns" | tr ',' '\n' | LC_ALL=C sort -u | awk 'NF' | paste -sd, -)"
         if [[ -z "$found_ctx" ]]; then
             found_ctx="$ctx"; all_ns="$ns"
         elif [[ "$ctx" == "$found_ctx" ]]; then
-            all_ns="${all_ns:+$all_ns,}$ns"
+            if [[ "$ns" != "$all_ns" ]]; then
+                echo "ws k8s: active guard scopes disagree on namespaces for context '$ctx' — refusing to guard ambiguously. Run within a single session, or clear the extra scope." >&2
+                return 2
+            fi
         else
             echo "ws k8s: active guard scopes target different contexts ('$found_ctx' and '$ctx') — refusing to guard ambiguously. Run within a single session, or clear the extra scope." >&2
             return 2
@@ -141,9 +145,7 @@ _k8s_ambient_scope() {
         n=$((n+1))
     done
     [[ $n -eq 0 ]] && return 0
-    # Dedup the unioned namespace list (preserve first-seen order, drop empties).
-    all_ns="$(printf '%s' "$all_ns" | tr ',' '\n' | awk 'NF && !seen[$0]++' | paste -sd, -)"
-    [[ $n -gt 1 ]] && echo "ws k8s: aggregated $n active guard scopes for context '$found_ctx' → namespaces: $all_ns" >&2
+    [[ $n -gt 1 ]] && echo "ws k8s: $n matching guard scopes for context '$found_ctx' → namespaces: $all_ns" >&2
     printf '%s|%s' "$found_ctx" "$all_ns"
 }
 

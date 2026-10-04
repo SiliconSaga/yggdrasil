@@ -257,7 +257,7 @@ Tool output visibility varies by harness and configuration. After the first reje
 
 Open a separate plain terminal — no agent, no session id — while an agent session's scope is armed, and `ws k8s` is *still* guarded there: it aggregates the active session's scope. A read works; an out-of-scope write is rejected even though this terminal has no session of its own. The human terminal cannot reconfigure the guard — `ws k8s scope set` and `scope clear` require a session ID, which a plain terminal does not have. To change the scope, ask your agent to run the command (or export `GDD_SESSION_ID` manually for advanced use). The human terminal's escape from a rejection is plain `kubectl`.
 
-Ended-session files can continue contributing to this ambient aggregation because the workspace has no session-liveness marker. If a stale scope appears, run `ws clean --sessions-all`; it removes ended-session files while preserving the current session.
+The ambient guard requires all scoped session files to agree on the context and namespace set. Conflicting contexts or namespace sets stop the command, including when one file grants all namespaces and another grants a narrower set. Ended-session files can cause a conflict because the workspace has no session-liveness marker. Run `ws clean --sessions-all` from the active agent session to remove ended-session files while preserving the current session.
 
 ### What the guard does NOT do
 
