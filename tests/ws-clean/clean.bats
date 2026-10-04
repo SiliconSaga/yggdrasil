@@ -49,6 +49,43 @@ setup() {
     [ "$(count_scratch)" -eq 0 ]
 }
 
+@test "newline scratch names cannot delete a relative directory in the caller cwd" {
+    mkdir -p "$WORK/protected"
+    printf 'keep\n' > "$WORK/protected/file"
+    printf 'scratch\n' > "$WORK/.tmp/"$'scratch\nprotected'
+    cd "$WORK"
+    run_ws clean --force
+    [ "$status" -eq 0 ]
+    [ -f "$WORK/protected/file" ]
+    [ ! -e "$WORK/.tmp/"$'scratch\nprotected' ]
+    [[ "$output" == *"Cleaned 1 draft file(s) total."* ]]
+}
+
+@test "newlines in draft filenames cannot inflate the mining threshold" {
+    export WS_CLEAN_MINE_THRESHOLD=3
+    printf 'draft\n' > "$WORK/.commits/"$'one\ntwo\nthree.md'
+    run_ws clean
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"only 1 scratch file(s)"* ]]
+    [ -f "$WORK/.commits/"$'one\ntwo\nthree.md' ]
+    run_ws clean --force
+    [ "$status" -eq 0 ]
+    [ ! -e "$WORK/.commits/"$'one\ntwo\nthree.md' ]
+}
+
+@test "symlinked draft directories cannot clean files outside the workspace" {
+    local outside="$BATS_TEST_TMPDIR/outside"
+    mkdir -p "$outside"
+    printf 'keep\n' > "$outside/keep.md"
+    rmdir "$WORK/.crs"
+    ln -s "$outside" "$WORK/.crs"
+    [ -L "$WORK/.crs" ] || skip "symlinks are unavailable on this filesystem"
+    run_ws clean --force
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"symlinked draft directory"* ]]
+    [ -f "$outside/keep.md" ]
+}
+
 @test "at/above threshold without --force: cleans" {
     export WS_CLEAN_MINE_THRESHOLD=2
     make_drafts .commits 2

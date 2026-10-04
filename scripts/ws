@@ -840,19 +840,29 @@ ws_clean() {
         local pattern="${spec#*:}"
         local dirpath="$ROOT_DIR/$dir"
         [[ -d "$dirpath" ]] || continue
+        if [[ -L "$dirpath" ]]; then
+            echo "ERROR: refusing to clean a symlinked draft directory: $dirpath" >&2
+            return 1
+        fi
         local before=${#candidates[@]}
         local f
-        while IFS= read -r f; do
+        while IFS= read -r -d '' f; do
+            [[ "$f" == "$dirpath/"* && "${f#"$dirpath/"}" != */* ]] || return 1
             candidates+=("$f")
-        done < <(find "$dirpath" -maxdepth 1 -name "$pattern" -type f)
+        done < <(find "$dirpath" -maxdepth 1 -name "$pattern" -type f -print0)
         local n=$(( ${#candidates[@]} - before ))
         [[ "$n" -gt 0 ]] && report+=("  $dir/  $n file(s)")
     done
     if [[ -d "$tmp_dir" ]]; then
+        if [[ -L "$tmp_dir" ]]; then
+            echo "ERROR: refusing to clean a symlinked scratch directory: $tmp_dir" >&2
+            return 1
+        fi
         local e
-        while IFS= read -r e; do
+        while IFS= read -r -d '' e; do
+            [[ "$e" == "$tmp_dir/"* && "${e#"$tmp_dir/"}" != */* ]] || return 1
             tmp_entries+=("$e")
-        done < <(find "$tmp_dir" -mindepth 1 -maxdepth 1)
+        done < <(find "$tmp_dir" -mindepth 1 -maxdepth 1 -print0)
         [[ ${#tmp_entries[@]} -gt 0 ]] && report+=("  .tmp/  ${#tmp_entries[@]} entr(ies)")
     fi
 
@@ -908,11 +918,13 @@ ws_clean() {
                 spared=$(( spared + 1 ))
                 if [[ "$clean_sessions" -eq 1 ]]; then
                     local child
-                    while IFS= read -r child; do
+                    [[ ! -L "$e" ]] || { echo "ERROR: refusing to clean symlinked session state." >&2; return 1; }
+                    while IFS= read -r -d '' child; do
+                        [[ "$child" == "$e/"* && "${child#"$e/"}" != */* ]] || return 1
                         [[ -n "$keep" && "$child" == "$keep" ]] && continue
                         rm -rf -- "$child"
                         sessions_cleared=$(( sessions_cleared + 1 ))
-                    done < <(find "$e" -mindepth 1 -maxdepth 1)
+                    done < <(find "$e" -mindepth 1 -maxdepth 1 -print0)
                 fi
             else
                 rm -rf -- "$e"
