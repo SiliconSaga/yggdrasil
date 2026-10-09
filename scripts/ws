@@ -544,7 +544,8 @@ HELP
             echo "ERROR: --cr needs a positive integer, got '$cr'." >&2
             exit 1
         fi
-        if [[ -n "$remote" && ! "$remote" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+        # A leading dash would reach git as an option, not a remote name.
+        if [[ -n "$remote" && ( "$remote" == -* || ! "$remote" =~ ^[A-Za-z0-9._/-]+$ ) ]]; then
             echo "ERROR: Invalid remote name '$remote'." >&2
             exit 1
         fi

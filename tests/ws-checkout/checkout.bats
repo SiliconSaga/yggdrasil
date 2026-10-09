@@ -198,6 +198,15 @@ setup() {
     [[ "$output" == *"--cr takes no branch"* ]]
 }
 
+@test "--cr rejects a remote name that starts with a dash" {
+    setup_cr_fixture
+
+    run_ws checkout terasology --cr 7 --remote -evil
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid remote name"* ]]
+}
+
 @test "--cr rejects a non-numeric number" {
     setup_cr_fixture
 

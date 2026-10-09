@@ -129,6 +129,18 @@ setup() { init_parent; }
     [ "$output" = "$BAYS_DIR/bay-1" ]
 }
 
+@test "rm treats a repository whose status cannot be read as dirty" {
+    make_bay bay-1
+    # A corrupt index makes git status fail outright. (A corrupt HEAD would
+    # not: git then treats the module as not-a-repo and reports the enclosing
+    # engine checkout's status, which is clean.)
+    printf 'garbage\n' > "$BAY/components/terasology/modules/Cooking/.git/index"
+    run_ws bay rm bay-1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot read the status"* ]]
+    [ -d "$BAY" ]
+}
+
 @test "rm refuses uncommitted work unless forced" {
     make_bay bay-1
     printf 'wip\n' > "$BAY/components/terasology/wip.txt"

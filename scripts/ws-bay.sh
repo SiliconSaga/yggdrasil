@@ -209,7 +209,10 @@ cmd_add() {
     bay_ws "$name" realm "$url"
     bay_ws "$name" realm use "$realm" --trust
 
-    for comp in "${with[@]}"; do
+    # ${with[@]+"${with[@]}"}: an empty array expands to nothing under set -u on
+    # bash 3.2, where a bare "${with[@]}" is an unbound-variable error.
+    local with_label=""
+    for comp in ${with[@]+"${with[@]}"}; do
         echo "bay add $name: cloning $comp"
         bay_ws "$name" clone "$comp"
         init="$(yq_scalar "$(bay_adapter_file "$name" "$comp")" .provision.init)"
@@ -217,12 +220,13 @@ cmd_add() {
             echo "bay add $name: provisioning $comp: $init"
             (cd "$dir/components/$comp" && bash -c "$init")
         fi
+        with_label="${with_label:+$with_label }$comp"
     done
     if [[ -n "$hoard" ]]; then
         echo "bay add $name: hoard $hoard"
         bay_ws "$name" hoard "$hoard"
     fi
-    echo "bay add $name: ready at $dir (realm $realm${with[*]:+, components ${with[*]}}, machine $machine)"
+    echo "bay add $name: ready at $dir (realm $realm${with_label:+, components $with_label}, machine $machine)"
 }
 
 # Fetch, hard-reset and switch one repository to <remote>'s default branch (or
@@ -247,8 +251,9 @@ reset_one() { # <dir> <remote> <branch-or-empty> <deep:yes|no> <fails-dir>
 }
 
 cmd_reset() {
-    local name="$1" deep=no dir realm fails running=0 failed=0 started r comp adapter
+    local name="$1" deep=no dir realm fails failed=0 started r comp adapter st
     local td tdeep remote override obranch rd c t
+    local -a pids=()
     shift
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -296,8 +301,14 @@ cmd_reset() {
             continue
         fi
         reset_one "$td" "$remote" "$obranch" "$tdeep" "$fails" &
-        running=$((running + 1))
-        if [[ "$running" -ge "$RESET_PARALLEL" ]]; then wait -n; running=$((running - 1)); fi
+        pids+=("$!")
+        # At most RESET_PARALLEL in flight: wait for the oldest. `wait -n`
+        # would be the natural throttle but needs bash 4.3, and the dispatcher
+        # runs on the 3.2 a stock Mac ships.
+        if [[ ${#pids[@]} -ge "$RESET_PARALLEL" ]]; then
+            wait "${pids[0]}" || true
+            pids=(${pids[@]+"${pids[@]:1}"})
+        fi
     done
     wait
     for r in "$fails"/*; do
@@ -325,10 +336,14 @@ cmd_reset() {
         done < <(yq_list "$(bay_adapter_file "$name" "$(basename "$c")")" .provision.runtime_dirs)
     done
 
-    # Every repository must now be clean, or the reset did not do its job.
+    # Every repository must now be clean, or the reset did not do its job. A
+    # status that cannot be read is not clean either.
     for t in "${plan[@]}"; do
         IFS=$'\t' read -r td tdeep override obranch <<< "$t"
-        if [[ -n "$(git -C "$td" status --porcelain)" ]]; then
+        if ! st="$(git -C "$td" status --porcelain 2>&1)"; then
+            echo "reset $name: cannot read the status of $td: $st" >&2
+            failed=1
+        elif [[ -n "$st" ]]; then
             echo "reset $name: $td is still dirty" >&2
             failed=1
         fi
@@ -352,13 +367,16 @@ cmd_list() {
 }
 
 cmd_rm() {
-    local name="$1" force="${2:-}" dir r dirty=0
+    local name="$1" force="${2:-}" dir r dirty=0 st
     bay_require "$name"
     dir="$(bay_dir "$name")"
     [[ -z "$force" || "$force" == "--force" ]] || { echo "ERROR: Unknown option '$force'." >&2; exit 1; }
     while IFS= read -r r; do
         [[ -n "$r" && -d "$r/.git" ]] || continue
-        if [[ -n "$(git -C "$r" status --porcelain)" ]]; then
+        if ! st="$(git -C "$r" status --porcelain 2>&1)"; then
+            echo "bay rm $name: cannot read the status of $r: $st" >&2
+            dirty=1
+        elif [[ -n "$st" ]]; then
             echo "bay rm $name: $r has uncommitted work" >&2
             dirty=1
         fi
