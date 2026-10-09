@@ -35,6 +35,12 @@ find*-fprint*
 find*-fls*
 find*-ok*
 ws exec *
+# `ws bay exec` is `ws exec` one workspace over: the bay's own dispatcher
+# runs whatever follows (`ws bay exec <bay> exec <comp> …` reaches a raw
+# command), so it carries the same prompt. The wrapper redirects for commit,
+# push and cr are not mirrored: a bay is a throwaway checkout and nothing
+# should be committed from inside one.
+ws bay exec *
 ws bay reset*
 ws bay rm*
 ws hook-bypass [a-z]*
