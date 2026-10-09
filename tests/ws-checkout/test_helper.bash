@@ -68,3 +68,51 @@ YAML
     run bash "$WS_BIN" realm use --trust community
     [ "$status" -eq 0 ]
 }
+
+# A component whose "remote" is a local bare repository carrying a change
+# request head ref, the shape GitHub exposes as refs/pull/<n>/head. The work
+# branch that made the commit is deleted again, so the only way to reach
+# CR_SHA is the ref.
+setup_cr_fixture() {
+    setup_component_repo
+    CR_REMOTE="$BATS_TEST_TMPDIR/remote.git"
+    git init -q --bare "$CR_REMOTE"
+    git -C "$COMPONENTS_DIR/terasology" remote add origin "$CR_REMOTE"
+    git -C "$COMPONENTS_DIR/terasology" push -q origin main
+    publish_cr_head "$COMPONENTS_DIR/terasology" 7 "first change"
+}
+
+# Add a commit on top of main and publish it only as <ref> on the repo's
+# origin (default: the GitHub pull-request ref). Sets CR_SHA. Calling it again
+# for the same number moves the change request.
+publish_cr_head() { # <repo> <number> <text> [<ref>]
+    local repo="$1" number="$2" text="$3" ref="${4:-refs/pull/$2/head}"
+    git -C "$repo" switch -q -c cr-work
+    printf '%s\n' "$text" >> "$repo/cr.txt"
+    git -C "$repo" add cr.txt
+    git -C "$repo" commit -qm "$text"
+    CR_SHA="$(git -C "$repo" rev-parse HEAD)"
+    git -C "$repo" push -q -f origin "HEAD:$ref"
+    git -C "$repo" switch -q main
+    git -C "$repo" branch -q -D cr-work
+}
+
+# The nested shape with a change request on the module's own origin.
+setup_nested_cr_fixture() {
+    setup_nested_component
+    local mod="$COMPONENTS_DIR/terasology/modules/Cooking"
+    MOD_REMOTE="$BATS_TEST_TMPDIR/cooking.git"
+    git init -q --bare "$MOD_REMOTE"
+    git -C "$mod" remote add origin "$MOD_REMOTE"
+    git -C "$mod" push -q origin main
+    publish_cr_head "$mod" 3 "module change"
+}
+
+# Make the fixture's origin look like a GitLab remote without any network: the
+# remote URL says gitlab.com, and git's url.<base>.insteadOf rewrites it to the
+# local bare repo for every fetch. Provider detection reads the URL; git reads
+# the rewrite.
+make_origin_gitlab() { # <repo>
+    git -C "$1" remote set-url origin "https://gitlab.com/group/terasology.git"
+    git -C "$1" config url."$CR_REMOTE".insteadOf "https://gitlab.com/group/terasology.git"
+}

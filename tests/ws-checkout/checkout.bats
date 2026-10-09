@@ -115,3 +115,103 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage: ws checkout"* ]]
 }
+
+@test "--cr fetches a change request head into cr/<n> and switches to it" {
+    setup_cr_fixture
+
+    run_ws checkout terasology --cr 7
+
+    [ "$status" -eq 0 ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology")" = "cr/7" ]
+    [ "$(git -C "$COMPONENTS_DIR/terasology" rev-parse HEAD)" = "$CR_SHA" ]
+    [[ "$output" == *"change request #7 on origin, refs/pull/7/head"* ]]
+}
+
+@test "--pr and --mr are aliases of --cr" {
+    setup_cr_fixture
+
+    run_ws checkout terasology --pr 7
+    [ "$status" -eq 0 ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology")" = "cr/7" ]
+
+    run_ws checkout terasology main
+    run_ws checkout terasology --mr 7
+    [ "$status" -eq 0 ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology")" = "cr/7" ]
+}
+
+@test "--cr run again follows a moved change request" {
+    setup_cr_fixture
+    run_ws checkout terasology --cr 7
+    [ "$status" -eq 0 ]
+    publish_cr_head "$COMPONENTS_DIR/terasology" 7 "second change"
+
+    run_ws checkout terasology --cr 7
+
+    [ "$status" -eq 0 ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology")" = "cr/7" ]
+    [ "$(git -C "$COMPONENTS_DIR/terasology" rev-parse HEAD)" = "$CR_SHA" ]
+}
+
+@test "--cr works on a nested module repo" {
+    setup_nested_cr_fixture
+
+    run_ws checkout terasology/modules/Cooking --cr 3
+
+    [ "$status" -eq 0 ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology/modules/Cooking")" = "cr/3" ]
+    [ "$(git -C "$COMPONENTS_DIR/terasology/modules/Cooking" rev-parse HEAD)" = "$CR_SHA" ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology")" = "main" ]
+}
+
+@test "--cr fetches a merge request ref from a GitLab remote" {
+    setup_cr_fixture
+    make_origin_gitlab "$COMPONENTS_DIR/terasology"
+    publish_cr_head "$COMPONENTS_DIR/terasology" 9 "mr change" refs/merge-requests/9/head
+
+    run_ws checkout terasology --cr 9
+
+    [ "$status" -eq 0 ]
+    [ "$(current_branch "$COMPONENTS_DIR/terasology")" = "cr/9" ]
+    [ "$(git -C "$COMPONENTS_DIR/terasology" rev-parse HEAD)" = "$CR_SHA" ]
+    [[ "$output" == *"refs/merge-requests/9/head"* ]]
+}
+
+@test "--cr fails when no remote carries the change request" {
+    setup_cr_fixture
+
+    run_ws checkout terasology --cr 99
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"No remote"*"#99"* ]]
+}
+
+@test "--cr refuses a branch argument and -b" {
+    setup_cr_fixture
+
+    run_ws checkout terasology main --cr 7
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--cr takes no branch"* ]]
+
+    run_ws checkout terasology --cr 7 -b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--cr takes no branch"* ]]
+}
+
+@test "--cr rejects a remote name that starts with a dash" {
+    setup_cr_fixture
+
+    run_ws checkout terasology --cr 7 --remote -evil
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid remote name"* ]]
+}
+
+@test "--cr rejects a non-numeric number" {
+    setup_cr_fixture
+
+    run_ws checkout terasology --cr seven
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"positive integer"* ]]
+}

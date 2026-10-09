@@ -2977,18 +2977,38 @@ ws review * threads * --resolve*"
     fi
 }
 
-@test "drift: committed ask-list force-prompts ws exec" {
-    local ask_entries
+@test "drift: committed ask-list force-prompts ws exec and ws bay exec" {
+    local ask_entries entry
     ask_entries=$(awk '/^\[ask-commands\]/{f=1; next} /^\[/{f=0} f' \
         "$REPO_ROOT/.claude/hooks/hook-rules" \
         | grep -v '^[[:space:]]*#' | grep -v '^[[:space:]]*$')
 
-    if ! grep -Fxq 'ws exec *' <<< "$ask_entries"; then
-        echo "hook-rules [ask-commands] must include: ws exec *"
-        echo "--- hook-rules [ask-commands] ---"
-        echo "$ask_entries"
-        return 1
-    fi
+    # `ws bay exec` is `ws exec` one workspace over: the bay's own dispatcher
+    # runs whatever follows, so it carries the same prompt.
+    for entry in 'ws exec *' 'ws bay exec *'; do
+        if ! grep -Fxq "$entry" <<< "$ask_entries"; then
+            echo "hook-rules [ask-commands] must include: $entry"
+            echo "--- hook-rules [ask-commands] ---"
+            echo "$ask_entries"
+            return 1
+        fi
+    done
+}
+
+@test "ask: ws bay exec prompts like ws exec, with or without --pass" {
+    write_project_hook_rules "[ask-commands]
+ws bay exec *"
+    run_hook "ws bay exec dionysus-1 exec terasology rm -rf build"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+
+    run_hook "ws bay exec --pass GH_TOKEN dionysus-1 test terasology"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
+
+    run_hook "bash scripts/ws bay exec dionysus-1 status"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"permissionDecision":"ask"'* ]]
 }
 
 @test "ask: find -exec matches the broadened find ask-pattern" {
