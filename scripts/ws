@@ -610,22 +610,22 @@ ws_cr_ref() { # <remote> <n>
 # it are not something this verb preserves.
 ws_checkout_cr() {
     local cr="$1" remote="$2" r ref
-    local -a found=()
+    local -a carriers=()
     # shellcheck source=git-provider.sh
     source "$SCRIPT_DIR/git-provider.sh"
     if [[ -z "$remote" ]]; then
         for r in $(git remote); do
             if git ls-remote --exit-code "$r" "$(ws_cr_ref "$r" "$cr")" >/dev/null 2>&1; then
-                found+=("$r")
+                carriers+=("$r")
             fi
         done
-        case ${#found[@]} in
+        case ${#carriers[@]} in
             0)
                 echo "ERROR: No remote of this repo has change request #$cr (remotes: $(git remote | tr '\n' ' '))." >&2
                 exit 1 ;;
-            1) remote="${found[0]}" ;;
+            1) remote="${carriers[0]}" ;;
             *)
-                echo "ERROR: Change request #$cr exists on several remotes: ${found[*]}." >&2
+                echo "ERROR: Change request #$cr exists on several remotes: ${carriers[*]}." >&2
                 echo "  Use --remote <name> to pick one." >&2
                 exit 1 ;;
         esac
