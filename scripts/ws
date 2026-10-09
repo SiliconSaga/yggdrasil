@@ -48,6 +48,8 @@
 #   hoard list                 Show hoards and which thalami hoard is active
 #   hoard upgrade <hoard> [--plan|--apply|--rollback] [--template <name>]  Provenance-tracked plugin/config upgrade
 #   hoard lock <template> [--plugin <id>]  Refresh pinned plugin release SHA-256 locks
+#   bay add <name> [--with <comp>]... [--realm <name>] [--hoard <url>] [--from <url>]  Make a child workspace under bays/
+#   bay list | reset <name> [--deep] | dir <name> | exec <name> <ws-args...> | rm <name> [--force]
 #   component init <flavor> [name]   Scaffold a new component from a template
 #   component list                   Show known component flavors
 #   actions <comp>    List adapter commands for a component
@@ -127,7 +129,7 @@ Usage: ws <command> [args...]
        ws help --all         The complete reference
 
   orient  preflight  list  status  diagnose  whoami  session   ← start here
-  clone  clone-fork  pull  checkout  log  vscode                ← get code
+  clone  clone-fork  pull  checkout  log  vscode  bay           ← get code
   commit  push  cr  issue  review  exec  clean                  ← make changes
   test  lint  format  build  run  actions                       ← run the project
   realm  hoard  component  mcp-setup  mcp-status                ← config layers
@@ -1791,6 +1793,9 @@ case "$COMMAND" in
         ;;
     hoard)
         bash "$SCRIPT_DIR/ws-hoard.sh" "$@"
+        ;;
+    bay)
+        bash "$SCRIPT_DIR/ws-bay.sh" "$@"
         ;;
     component)
         bash "$SCRIPT_DIR/ws-component.sh" "$@"

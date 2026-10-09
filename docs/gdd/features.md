@@ -21,6 +21,7 @@ The discoverability layer — `ws orient` (run at session start), the per-comman
 - `ws clone <component>` — Clone a component declared in ecosystem config.
 - `ws commit <component> <bodyfile>` — Bodyfile-driven commit (auto-stages, adds Co-Authored-By trailer).
 - `ws checkout <component> <branch> [-b]` / `ws checkout <component> --cr <n>` — Switch or create a branch, or check out a change request's head (a pull request on GitHub, a merge request on GitLab; `--pr` and `--mr` are aliases) as branch `cr/<n>`, refetched each time so it follows a change request that moved. Branches only; it has no path mode, so it cannot discard working-tree changes.
+- `ws bay add <name> [--with <component>]…` / `ws bay reset <name> [--deep]` / `ws bay exec <name> <verb…>` — A bay is a second, complete workspace under `bays/<name>/`: its own clone of yggdrasil, its own realm checkout and trust, the components you name, optionally a hoard with its own machine name so Thalamus files never collide. Use one for a parallel session that must not share your scripts, or let naust run pull requests through it. `reset` brings every repository in it back to base and keeps build output; `exec` runs the bay's own `ws`.
 - `ws push <component> [branch]` — Push to the per-developer fork remote.
 - `ws cr <component> <title> <bodyfile>` — Open a pull/merge request; `ws cr <component> edit <n> <bodyfile>` updates one. `ws issue` has the same pair.
 - `ws review <component> <pr#>` — Fetch CodeRabbit / Copilot review threads.

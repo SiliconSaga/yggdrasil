@@ -35,6 +35,8 @@ find*-fprint*
 find*-fls*
 find*-ok*
 ws exec *
+ws bay reset*
+ws bay rm*
 ws hook-bypass [a-z]*
 # Interpreter passthroughs. Quoted spans (single-quoted, and
 # double-quoted with no live `$`/backtick) are masked before Tier-1

@@ -22,6 +22,12 @@
 /hoards/*
 !/hoards/.gitkeep
 
+# Bays — child workspaces made by `ws bay add`, each a complete yggdrasil clone
+# with its own realm and components, ignored by this clone's Git. Only
+# .gitkeep is tracked. Naust keeps its machine-local state in bays/.naust/.
+/bays/*
+!/bays/.gitkeep
+
 # Local ecosystem overrides (per-developer, never committed)
 ecosystem.local.yaml
 
