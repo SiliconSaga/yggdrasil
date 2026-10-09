@@ -24,7 +24,7 @@ Usage: ws bay add <name> [--with <component>]... [--realm <name>] [--hoard <url>
        ws bay list
        ws bay reset <name> [--deep]
        ws bay dir <name>
-       ws bay exec <name> <ws-args...>
+       ws bay exec [--pass <KEY>]... <name> <ws-args...>
        ws bay rm <name> [--force]
 
 A bay is a second, complete workspace under bays/<name>/: a clone of this
@@ -43,8 +43,13 @@ reset    Fetch, hard-reset and clean every repository in the bay (root, realm,
          Gradle output under build/ and .gradle/ survives; --deep removes it
          too (component and nested repos only). Exit 1 names every repository
          that failed or is still dirty.
-exec     Run the bay's own ws, from the bay, with this workspace's roots unset.
+exec     Run the bay's own ws, from the bay, with this workspace's roots and
+         every key its .env defines unset; --pass <KEY> keeps one of those.
 rm       Remove the bay. Refuses uncommitted work unless --force.
+
+The bay's realm follows this workspace's realm checkout, commit for commit:
+reset brings it to the commit you have reviewed and trusted here, never to
+the remote's head, and re-approves it inside the bay when that commit moves.
 
 Adapter keys (all optional, under provision:): init, runtime_dirs, remote, branch.
 HELP
@@ -69,12 +74,36 @@ bay_require() {
     [[ -f "$(bay_dir "$1")/scripts/ws" ]] || { echo "ERROR: No bay named '$1' under $BAYS_DIR." >&2; exit 1; }
 }
 
-# Run the bay's own ws, from the bay, with none of this workspace's roots in
-# the environment: ws honours a pre-set ROOT_DIR and exports ECOSYSTEM_LOCAL,
-# so an inherited value would point the bay's ws straight back at the parent.
-bay_ws() { # <name> <args...>
-    local dir; dir="$(bay_dir "$1")"; shift
-    (cd "$dir" && env -u ROOT_DIR -u ECOSYSTEM -u ECOSYSTEM_LOCAL -u REALMS_DIR -u COMPONENTS_DIR -u HOARDS_DIR -u BAYS_DIR bash scripts/ws "$@")
+# The keys this workspace's .env defines, one per line: the same line shape
+# ws_load_env reads, since those are exactly the variables the dispatcher has
+# already exported into this process by the time a verb runs.
+env_file_keys() {
+    [[ -f "$ROOT_DIR/.env" ]] || return 0
+    sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p' "$ROOT_DIR/.env"
+}
+
+# Run the bay's own ws, from the bay, with none of this workspace's roots and
+# none of its secrets in the environment. ws honours a pre-set ROOT_DIR and
+# exports ECOSYSTEM_LOCAL, so an inherited value would point the bay's ws
+# straight back at the parent; and the dispatcher loads .env before any verb,
+# so every token in it is in this process and would reach whatever the bay
+# runs. --pass <KEY> keeps one key, for a caller that set it on purpose.
+bay_ws() { # [--pass <KEY>]... <name> <args...>
+    local dir k
+    local -a scrub=(-u ROOT_DIR -u ECOSYSTEM -u ECOSYSTEM_LOCAL -u REALMS_DIR -u COMPONENTS_DIR -u HOARDS_DIR -u BAYS_DIR)
+    local -a pass=()
+    while [[ "${1:-}" == --pass ]]; do
+        [[ $# -ge 2 && "$2" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "ERROR: --pass needs a variable name." >&2; exit 1; }
+        pass+=("$2"); shift 2
+    done
+    bay_require "${1:-}"
+    dir="$(bay_dir "$1")"; shift
+    while IFS= read -r k; do
+        [[ -n "$k" ]] || continue
+        case " ${pass[*]+"${pass[*]}"} " in *" $k "*) continue ;; esac
+        scrub+=(-u "$k")
+    done < <(env_file_keys)
+    (cd "$dir" && env "${scrub[@]}" bash scripts/ws "$@")
 }
 
 yq_scalar() { # <file> <path> → the value, empty when absent or null
@@ -250,6 +279,38 @@ reset_one() { # <dir> <remote> <branch-or-empty> <deep:yes|no> <fails-dir>
     return 0
 }
 
+# Bring the bay's realm clone to the commit this workspace's realm checkout is
+# on, and re-approve it inside the bay when that commit changed. Fails when
+# the parent's commit is not on the realm's remote: push it first, so the bay
+# runs only what the operator has reviewed and published.
+reset_realm() { # <bay name> <bay realm dir> <fails-dir>
+    local name="$1" d="$2" fails="$3" realm remote pin before key
+    realm="$(bay_realm "$name")"
+    key="$(printf '%s' "$d" | tr '/:\\' '___')"
+    if ! pin="$(git -C "$REALMS_DIR/$realm" rev-parse HEAD 2>/dev/null)"; then
+        printf '%s (this workspace has no realm checkout at %s to follow)\n' "$d" "$REALMS_DIR/$realm" > "$fails/$key"
+        return 0
+    fi
+    if ! remote="$(repo_remote "$d" "" "$ECOSYSTEM_LOCAL" "$d/ecosystem.yaml")"; then
+        printf '%s\n' "$d" > "$fails/$key"
+        return 0
+    fi
+    before="$(git -C "$d" rev-parse HEAD 2>/dev/null || true)"
+    git -C "$d" fetch --quiet "$remote" || { printf '%s (fetch failed)\n' "$d" > "$fails/$key"; return 0; }
+    if ! git -C "$d" cat-file -e "$pin^{commit}" 2>/dev/null; then
+        printf '%s (this workspace'"'"'s realm is at %s, which is not on the realm remote; push it first)\n' "$d" "${pin:0:7}" > "$fails/$key"
+        return 0
+    fi
+    if git -C "$d" reset -q --hard "$pin" && git -C "$d" clean -qfd; then
+        if [[ "$before" != "$pin" ]]; then
+            echo "reset $name: realm $realm moved to ${pin:0:7}, re-approving it in the bay"
+            bay_ws "$name" realm use "$realm" --trust || printf '%s (realm use --trust failed)\n' "$d" > "$fails/$key"
+        fi
+        return 0
+    fi
+    printf '%s\n' "$d" > "$fails/$key"
+}
+
 cmd_reset() {
     local name="$1" deep=no dir realm fails failed=0 started r comp adapter st
     local td tdeep remote override obranch rd c t
@@ -266,20 +327,31 @@ cmd_reset() {
     started="$(date +%s)"
     fails="$(mktemp -d)"
 
-    # The bay's root and its realm go first, one after the other, and never
-    # deep-clean (their ignored paths are the clones themselves): the realm's
-    # adapters say how the components are reset, so they must be current
-    # before the component plan is read from them.
+    # The bay's root goes first, then its realm, one after the other, and
+    # neither deep-cleans (their ignored paths are the clones themselves). The
+    # realm's adapters say how the components are reset, so they must be in
+    # place before the component plan is read from them.
+    #
+    # The root follows its remote's default branch. The realm follows this
+    # workspace's realm checkout, commit for commit: that is the content the
+    # operator reviewed and trusted here, and what a bay executes (provision
+    # commands, hooks, adapter commands) must never run ahead of that review.
+    # Plan rows are joined with the unit separator, not a tab: tab is IFS
+    # whitespace and a run of tabs collapses an empty column.
+    local SEP=$'\x1f'
     local -a plan=()
-    for r in "$dir" ${realm:+"$dir/realms/$realm"}; do
-        [[ -d "$r/.git" ]] || continue
-        if ! remote="$(repo_remote "$r" "" "$dir/ecosystem.local.yaml" "$dir/realms/$realm/ecosystem.yaml")"; then
-            printf '%s\n' "$r" > "$fails/$(printf '%s' "$r" | tr '/:\\' '___')"
-            continue
+    if [[ -d "$dir/.git" ]]; then
+        if remote="$(repo_remote "$dir" "" "$dir/ecosystem.local.yaml" "$dir/realms/$realm/ecosystem.yaml")"; then
+            reset_one "$dir" "$remote" "" no "$fails"
+        else
+            printf '%s\n' "$dir" > "$fails/$(printf '%s' "$dir" | tr '/:\\' '___')"
         fi
-        reset_one "$r" "$remote" "" no "$fails"
-        plan+=("$r"$'\t'no$'\t'$'\t')
-    done
+        plan+=("$dir${SEP}no${SEP}${SEP}")
+    fi
+    if [[ -n "$realm" && -d "$dir/realms/$realm/.git" ]]; then
+        reset_realm "$name" "$dir/realms/$realm" "$fails"
+        plan+=("$dir/realms/$realm${SEP}no${SEP}${SEP}")
+    fi
     while IFS= read -r r; do
         [[ -n "$r" ]] || continue
         comp="${r#"$dir"/components/}"; comp="${comp%%/*}"
@@ -289,12 +361,12 @@ cmd_reset() {
             override="$(yq_scalar "$adapter" .provision.remote)"
             obranch="$(yq_scalar "$adapter" .provision.branch)"
         fi
-        plan+=("$r"$'\t'"$deep"$'\t'"$override"$'\t'"$obranch")
+        plan+=("$r${SEP}$deep${SEP}$override${SEP}$obranch")
     done < <(bay_component_repos "$name")
     echo "reset $name: ${#plan[@]} repositories (deep=$deep)"
 
     for t in "${plan[@]}"; do
-        IFS=$'\t' read -r td tdeep override obranch <<< "$t"
+        IFS="$SEP" read -r td tdeep override obranch <<< "$t"
         [[ "$td" != "$dir" && "$td" != "$dir/realms/$realm" ]] || continue   # already done, above
         if ! remote="$(repo_remote "$td" "$override" "$dir/ecosystem.local.yaml" "$dir/realms/$realm/ecosystem.yaml")"; then
             printf '%s\n' "$td" > "$fails/$(printf '%s' "$td" | tr '/:\\' '___')"
@@ -339,7 +411,7 @@ cmd_reset() {
     # Every repository must now be clean, or the reset did not do its job. A
     # status that cannot be read is not clean either.
     for t in "${plan[@]}"; do
-        IFS=$'\t' read -r td tdeep override obranch <<< "$t"
+        IFS="$SEP" read -r td tdeep override obranch <<< "$t"
         if ! st="$(git -C "$td" status --porcelain 2>&1)"; then
             echo "reset $name: cannot read the status of $td: $st" >&2
             failed=1
@@ -397,7 +469,7 @@ case "${1:-}" in
     reset) shift; [[ $# -ge 1 ]] || { echo "ERROR: ws bay reset <name> [--deep]" >&2; exit 1; }; cmd_reset "$@" ;;
     list)  cmd_list ;;
     dir)   shift; [[ $# -eq 1 ]] || { echo "ERROR: ws bay dir <name>" >&2; exit 1; }; bay_require "$1"; bay_dir "$1" ;;
-    exec)  shift; [[ $# -ge 2 ]] || { echo "ERROR: ws bay exec <name> <ws-args...>" >&2; exit 1; }; bay_require "$1"; bay_ws "$@" ;;
+    exec)  shift; [[ $# -ge 2 ]] || { echo "ERROR: ws bay exec [--pass <KEY>]... <name> <ws-args...>" >&2; exit 1; }; bay_ws "$@" ;;
     rm)    shift; [[ $# -ge 1 ]] || { echo "ERROR: ws bay rm <name> [--force]" >&2; exit 1; }; cmd_rm "$@" ;;
     *) echo "ERROR: ws bay {add|list|reset|dir|exec|rm} ...; see ws bay --help" >&2; exit 1 ;;
 esac

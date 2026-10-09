@@ -24,8 +24,45 @@ setup() { init_parent; }
     [ "$status" -eq 0 ]
     run_ws bay exec bay-1 status --nested
     [ "$status" -eq 0 ]
-    grep -q '^status --nested|root=unset|cwd=.*/bay-1$' "$BAY_WS_LOG"
-    grep -q '^realm use community --trust|root=unset|' "$BAY_WS_LOG"
+    grep -q '^status --nested|.*|root=unset|cwd=.*/bay-1$' "$BAY_WS_LOG"
+    grep -q '^realm use community --trust|.*|root=unset|' "$BAY_WS_LOG"
+}
+
+@test "exec scrubs every key the parent's .env defines unless it is passed through" {
+    run_ws bay add bay-1
+    [ "$status" -eq 0 ]
+    # The parent dispatcher loads this into its environment before any verb
+    # runs; the bay's ws must not inherit it.
+    printf 'export GH_TOKEN=secret\nNAUST_GITHUB_TOKEN=tok\n' > "$WORK/.env"
+    run_ws bay exec bay-1 status
+    [ "$status" -eq 0 ]
+    grep -q '^status|gh=unset|naust=unset|' "$BAY_WS_LOG"
+    GH_TOKEN=machine run_ws bay exec --pass GH_TOKEN bay-1 review
+    [ "$status" -eq 0 ]
+    grep -q '^review|gh=machine|naust=unset|' "$BAY_WS_LOG"
+}
+
+@test "reset pins the bay's realm to the parent's reviewed commit, and re-trusts it when that moves" {
+    make_bay bay-1
+    realm_source_append $'  branch: develop'
+    run_ws bay reset bay-1
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$BAY/realms/community" rev-parse HEAD)" = "$(git -C "$REALMS_DIR/community" rev-parse HEAD)" ]
+    ! grep -q 'branch: develop' "$BAY/realms/community/adapters/terasology.yaml"
+    git -C "$REALMS_DIR/community" pull -q
+    run_ws bay reset bay-1
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$BAY/realms/community" rev-parse HEAD)" = "$(git -C "$REALMS_DIR/community" rev-parse HEAD)" ]
+    grep -q 'branch: develop' "$BAY/realms/community/adapters/terasology.yaml"
+    grep -q '^realm use community --trust|' "$BAY_WS_LOG"
+}
+
+@test "reset honours provision.branch on its own" {
+    make_bay bay-1
+    realm_adapter_append $'  branch: develop'
+    run_ws bay reset bay-1
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$BAY/components/terasology" rev-parse --abbrev-ref HEAD)" = "develop" ]
 }
 
 @test "add refuses an existing bay and a bad name" {

@@ -56,7 +56,7 @@ init_parent() {
 # A stand-in for a bay's ws: records every call with the ROOT_DIR it saw and
 # the directory it ran from, and fakes the verbs bay add relies on.
 here="$(cd "$(dirname "$0")/.." && pwd)"
-printf '%s|root=%s|cwd=%s\n' "$*" "${ROOT_DIR:-unset}" "$PWD" >> "$BAY_WS_LOG"
+printf '%s|gh=%s|naust=%s|root=%s|cwd=%s\n' "$*" "${GH_TOKEN:-unset}" "${NAUST_GITHUB_TOKEN:-unset}" "${ROOT_DIR:-unset}" "$PWD" >> "$BAY_WS_LOG"
 case "$1" in
   realm)
     case "$2" in
@@ -115,14 +115,20 @@ YAML
     git clone -q "$REMOTES/community.git" "$REALMS_DIR/community"
 }
 
-# Change the realm's Terasology adapter at its source, so a bay's realm reset
-# picks it up rather than reverting it.
-realm_adapter_append() { # <text>
+# Change the realm's Terasology adapter at its source and push it. The parent's
+# checkout is not pulled: a bay follows the parent's reviewed commit, not the
+# remote's head.
+realm_source_append() { # <text>
     local rsrc="$BATS_TEST_TMPDIR/realm-src"
     printf '%s\n' "$1" >> "$rsrc/adapters/terasology.yaml"
     git -C "$rsrc" add -A
     git -C "$rsrc" commit -qm "adapter change"
     git -C "$rsrc" push -q origin main
+}
+
+# The same, with the parent pulling it: what an operator does after reviewing.
+realm_adapter_append() { # <text>
+    realm_source_append "$1"
     git -C "$REALMS_DIR/community" pull -q
 }
 
