@@ -29,7 +29,7 @@
 #   run <comp> [args...] Run the component itself — game, dev server, sandbox (adapter commands.run)
 #   review <comp> <cr#|threads> [options]  CR review comments and threads (see ws review --help)
 #   commit <comp> <bodyfile> Commit with Co-Authored-By trailer (bodyfile-driven; see templates/commit.md)
-#   checkout <target> <branch> [-b|--create]  Switch/create a branch (branches only, never paths)
+#   checkout <target> <branch> [-b|--create] | --cr <n>  Switch/create a branch, or check out a change request's head (branches only, never paths)
 #   log [target] [--oneline] [--stat] [--limit N] [--against <ref>] [--incoming]
 #                     Commits on this branch vs the trunk, or what a pull would bring in
 #   clean [--force]   Remove drafts: *.md in .issues/ .crs/ .commits/, *.txt in .outputs/, and .tmp/ (holds off below the mining threshold unless --force)
@@ -464,8 +464,10 @@ ws_checkout() {
         if [[ "$_arg" == "--help" || "$_arg" == "-h" ]]; then
             cat <<'HELP'
 Usage: ws checkout <target> <branch> [-b|--create]
+       ws checkout <target> --cr <n> [--remote <name>]
 
-Switch a component, realm, hoard or nested repo to a branch.
+Switch a component, realm, hoard or nested repo to a branch, or to the head of
+a change request (a GitHub pull request or a GitLab merge request).
 
 Branches only. This deliberately cannot restore paths the way `git checkout --
 <path>` does, because that silently discards working-tree changes; do that by
@@ -475,22 +477,41 @@ The target accepts the same names as every other repo-touching verb, so nested
 repos work here too: `ws checkout terasology/modules/Cooking fix/x -b` branches
 the module in place, inside the tree where it actually builds.
 
+--cr <n> fetches the change request's head ref (refs/pull/<n>/head on GitHub,
+refs/merge-requests/<n>/head on GitLab, by the remote's provider) from the one
+remote that has it and resets the local branch cr/<n> to it, so running it
+again follows a change request that moved. Local commits on cr/<n> are not
+kept; branch off it if you need them. --remote picks the remote when more than
+one has it. --pr and --mr are the same flag under the provider's own word.
+
 Options:
   -b, --create        Create the branch and switch to it
+  --cr <n>            Check out change request <n> as branch cr/<n> (--pr, --mr: aliases)
+  --remote <name>     With --cr: the remote to fetch from
 
 Examples:
   ws checkout yggdrasil main                        # the workspace root
   ws checkout terasology fix/assets -b              # a component
   ws checkout terasology/modules/Cooking fix/x -b   # a nested module repo
+  ws checkout terasology --cr 5400                  # a PR, as branch cr/5400
+  ws checkout terasology/modules/Health --pr 12     # a PR on a nested module
 HELP
             return 0
         fi
     done
 
-    local create="" target="" branch=""
+    local create="" target="" branch="" cr="" remote=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -b|--create) create="yes"; shift ;;
+            --cr|--pr|--mr)
+                [[ $# -ge 2 ]] || { echo "ERROR: $1 needs a change request number." >&2; exit 1; }
+                cr="$2"; shift 2 ;;
+            --cr=*|--pr=*|--mr=*) cr="${1#--??=}"; shift ;;
+            --remote)
+                [[ $# -ge 2 ]] || { echo "ERROR: --remote needs a remote name." >&2; exit 1; }
+                remote="$2"; shift 2 ;;
+            --remote=*) remote="${1#--remote=}"; shift ;;
             --)
                 echo "ERROR: 'ws checkout' switches branches only; it does not restore paths." >&2
                 echo "  Restoring a path discards working-tree changes. Do that with git, deliberately." >&2
@@ -511,6 +532,26 @@ HELP
                 shift ;;
         esac
     done
+
+    if [[ -n "$cr" ]]; then
+        if [[ -n "$branch" || -n "$create" ]]; then
+            echo "ERROR: --cr takes no branch and no -b; the branch is always cr/<n>." >&2
+            exit 1
+        fi
+        if [[ ! "$cr" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERROR: --cr needs a positive integer, got '$cr'." >&2
+            exit 1
+        fi
+        if [[ -n "$remote" && ! "$remote" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "ERROR: Invalid remote name '$remote'." >&2
+            exit 1
+        fi
+        [[ -n "$target" ]] || { echo "ERROR: ws checkout --cr requires a target." >&2; exit 1; }
+        ws_resolve_target "$target"
+        cd "$COMPONENT_DIR"
+        ws_checkout_cr "$cr" "$remote"
+        return
+    fi
 
     if [[ -z "$target" || -z "$branch" ]]; then
         echo "ERROR: ws checkout requires a target and a branch." >&2
@@ -536,6 +577,66 @@ HELP
     else
         git switch "$branch"
     fi
+}
+
+# The ref a change request's head lives at on <remote>. GitHub exposes pull
+# request heads as refs/pull/<n>/head, GitLab merge requests as
+# refs/merge-requests/<n>/head. The provider comes from the remote's URL the
+# way every other verb detects it; a URL nothing recognises (a local path in
+# tests, an unmapped self-hosted domain) gets the GitHub form.
+ws_cr_ref() { # <remote> <n>
+    local url provider eco
+    # The configured URL, not `git remote get-url`: that one applies
+    # url.<base>.insteadOf rewrites, and the rewrite target says nothing about
+    # which forge the remote is.
+    url="$(git config --get "remote.$1.url" 2>/dev/null)" || url=""
+    eco="$(ws_resolve_ecosystem 2>/dev/null)" || eco=""
+    provider="$(gp_detect "$url" "$eco" 2>/dev/null)" || provider="github"
+    case "$provider" in
+        gitlab) printf 'refs/merge-requests/%s/head\n' "$2" ;;
+        *)      printf 'refs/pull/%s/head\n' "$2" ;;
+    esac
+}
+
+# Fetch a change request's head into the local branch cr/<n> and switch to it.
+#
+# The change request lives on exactly one remote, and the repo usually has two
+# (the fork and the source), so without --remote every remote is asked whether
+# it has the ref: one yes is the answer, none or several is an error. The ref
+# is fetched into FETCH_HEAD rather than straight into the branch, because git
+# refuses to fetch into a branch that is checked out — which cr/<n> is, the
+# second time. `switch -C` then moves the branch to the fetched head whether or
+# not it is current: cr/<n> mirrors the change request, and local commits on
+# it are not something this verb preserves.
+ws_checkout_cr() {
+    local cr="$1" remote="$2" r ref
+    local -a found=()
+    # shellcheck source=git-provider.sh
+    source "$SCRIPT_DIR/git-provider.sh"
+    if [[ -z "$remote" ]]; then
+        for r in $(git remote); do
+            if git ls-remote --exit-code "$r" "$(ws_cr_ref "$r" "$cr")" >/dev/null 2>&1; then
+                found+=("$r")
+            fi
+        done
+        case ${#found[@]} in
+            0)
+                echo "ERROR: No remote of this repo has change request #$cr (remotes: $(git remote | tr '\n' ' '))." >&2
+                exit 1 ;;
+            1) remote="${found[0]}" ;;
+            *)
+                echo "ERROR: Change request #$cr exists on several remotes: ${found[*]}." >&2
+                echo "  Use --remote <name> to pick one." >&2
+                exit 1 ;;
+        esac
+    fi
+    ref="$(ws_cr_ref "$remote" "$cr")"
+    if ! git fetch --quiet "$remote" "$ref"; then
+        echo "ERROR: Could not fetch $ref from remote '$remote'." >&2
+        exit 1
+    fi
+    git switch -C "cr/$cr" FETCH_HEAD >/dev/null
+    echo "cr/$cr → $(git rev-parse --short HEAD) (change request #$cr on $remote, $ref)"
 }
 
 # The trunk this branch should be measured against. Order matters: what the

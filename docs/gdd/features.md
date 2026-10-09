@@ -20,7 +20,7 @@ The discoverability layer — `ws orient` (run at session start), the per-comman
 - `ws status` — Git status across the workspace (yggdrasil + components + realms + hoards).
 - `ws clone <component>` — Clone a component declared in ecosystem config.
 - `ws commit <component> <bodyfile>` — Bodyfile-driven commit (auto-stages, adds Co-Authored-By trailer).
-- `ws checkout <component> <branch> [-b]` — Switch or create a branch. Branches only; it has no path mode, so it cannot discard working-tree changes.
+- `ws checkout <component> <branch> [-b]` / `ws checkout <component> --cr <n>` — Switch or create a branch, or check out a change request's head (a pull request on GitHub, a merge request on GitLab; `--pr` and `--mr` are aliases) as branch `cr/<n>`, refetched each time so it follows a change request that moved. Branches only; it has no path mode, so it cannot discard working-tree changes.
 - `ws push <component> [branch]` — Push to the per-developer fork remote.
 - `ws cr <component> <title> <bodyfile>` — Open a pull/merge request; `ws cr <component> edit <n> <bodyfile>` updates one. `ws issue` has the same pair.
 - `ws review <component> <pr#>` — Fetch CodeRabbit / Copilot review threads.

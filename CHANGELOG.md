@@ -19,6 +19,7 @@ This changelog begins at the 1.0.0 GA push. The pre-1.0 history below is a curat
 
 ### Added
 
+- **`ws checkout <target> --cr <n>`** — check out a change request's head as the local branch `cr/<n>`, nested targets included; `--pr` and `--mr` are the same flag under each provider's word. The ref is looked up on every remote (`refs/pull/<n>/head` on GitHub, `refs/merge-requests/<n>/head` on GitLab, by the remote's provider) so a fork-plus-source checkout needs no `--remote` unless both have it; running it again resets `cr/<n>` to the new head. The first piece of naust, the PR-bay runner, and useful on its own for reviewing a change in place.
 - `ws pull` now warns when another remote's branch of the same name is ahead of the branch it pulled, so a fork checkout does not look current while its upstream has moved.
 - `THIRD_PARTY_NOTICES.md` inventories the third-party code redistributed in the repository — today only the vendored bats-core runner — with its license, version, tag commit, source-archive checksum and an unmodified-from-upstream statement, so the license state can be certified without repeating the diff.
 - **`ws review <comp> checks <cr#>`** — CI state for a CR's head in one call, one line per check and a `Checks: N pass, M fail, K pending` summary, exit 1 on any failure; the summary also heads every `ws review`. "Is CI green" took four calls before, three of them dead ends.
