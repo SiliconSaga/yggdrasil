@@ -141,6 +141,15 @@ setup() { init_parent; }
     [ -d "$BAY" ]
 }
 
+@test "rm refuses uncommitted work in the bay's realm too" {
+    make_bay bay-1
+    printf 'local: edit\n' >> "$BAY/realms/community/ecosystem.yaml"
+    run_ws bay rm bay-1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"uncommitted work"* ]]
+    [ -d "$BAY" ]
+}
+
 @test "rm refuses uncommitted work unless forced" {
     make_bay bay-1
     printf 'wip\n' > "$BAY/components/terasology/wip.txt"

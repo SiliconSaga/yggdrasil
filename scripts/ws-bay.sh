@@ -367,10 +367,12 @@ cmd_list() {
 }
 
 cmd_rm() {
-    local name="$1" force="${2:-}" dir r dirty=0 st
+    local name="$1" force="${2:-}" dir realm r dirty=0 st
     bay_require "$name"
-    dir="$(bay_dir "$name")"
+    dir="$(bay_dir "$name")"; realm="$(bay_realm "$name")"
     [[ -z "$force" || "$force" == "--force" ]] || { echo "ERROR: Unknown option '$force'." >&2; exit 1; }
+    # The bay's root, its realm clone, every component and every nested repo:
+    # the same set a reset touches, since any of them can hold work.
     while IFS= read -r r; do
         [[ -n "$r" && -d "$r/.git" ]] || continue
         if ! st="$(git -C "$r" status --porcelain 2>&1)"; then
@@ -380,7 +382,7 @@ cmd_rm() {
             echo "bay rm $name: $r has uncommitted work" >&2
             dirty=1
         fi
-    done < <(printf '%s\n' "$dir"; bay_component_repos "$name")
+    done < <(printf '%s\n' "$dir" ${realm:+"$dir/realms/$realm"}; bay_component_repos "$name")
     if [[ "$dirty" -ne 0 && "$force" != "--force" ]]; then
         echo "ERROR: Refusing to remove a bay with uncommitted work; commit or push it first, or pass --force." >&2
         exit 1
